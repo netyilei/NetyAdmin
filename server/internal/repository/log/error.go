@@ -22,11 +22,11 @@ func (r *ErrorRepository) Create(ctx context.Context, log *logEntity.Error) erro
 	return r.db.WithContext(ctx).Create(log).Error
 }
 
-func (r *ErrorRepository) UpsertByFingerprint(ctx context.Context, logRecord *logEntity.Error) error {
+func (r *ErrorRepository) UpsertByHash(ctx context.Context, logRecord *logEntity.Error) error {
 	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "fingerprint"}},
+		Columns: []clause.Column{{Name: "hash"}},
 		DoUpdates: clause.Assignments(map[string]interface{}{
-			"occur_count":      gorm.Expr("admin_error_log.occur_count + ?", 1),
+			"occurrence_count": gorm.Expr("admin_error_log.occurrence_count + ?", 1),
 			"last_occurred_at": time.Now(),
 			"request_id":       logRecord.RequestID,
 			"ip":               logRecord.IP,

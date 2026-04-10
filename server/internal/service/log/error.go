@@ -41,7 +41,7 @@ func NewErrorService(logRepo *logRepo.ErrorRepository, configWatcher configsync.
 
 func (s *errorService) Log(ctx context.Context, logRecord *logEntity.Error) error {
 	// 1. 生成指纹
-	logRecord.Fingerprint = s.generateFingerprint(logRecord)
+	logRecord.Hash = s.generateHash(logRecord)
 	logRecord.LastOccurredAt = time.Now()
 
 	// 2. 检查是否开启了「聚合分析缓存」
@@ -49,7 +49,7 @@ func (s *errorService) Log(ctx context.Context, logRecord *logEntity.Error) erro
 
 	if useCache && s.redis != nil {
 		// Redis 策略：60秒内相同的指纹只准写入一次数据库
-		cacheKey := cache.KeyErrorLogSuppress(logRecord.Fingerprint)
+		cacheKey := cache.KeyErrorLogSuppress(logRecord.Hash)
 
 		// 尝试抢占写入权 (使用 Set + NX)
 		// 在 go-redis v9 中，推荐使用 SetNX，但如果 lint 报错说用 Set with NX option：
@@ -67,7 +67,7 @@ func (s *errorService) Log(ctx context.Context, logRecord *logEntity.Error) erro
 	}
 
 	// 3. 执行数据库 UPSERT (聚合更新)
-	return s.logRepo.UpsertByFingerprint(ctx, logRecord)
+	return s.logRepo.UpsertByHash(ctx, logRecord)
 }
 
 func (s *errorService) LogPanic(ctx context.Context, err interface{}, requestID, path, method, ip, userAgent string, userID uint) {
@@ -106,7 +106,7 @@ func (s *errorService) LogError(ctx context.Context, err error, requestID, path,
 	_ = s.Log(ctx, logRecord)
 }
 
-func (s *errorService) generateFingerprint(l *logEntity.Error) string {
+func (s *errorService) generateHash(l *logEntity.Error) string {
 	// 提取核心堆栈（前 3 行），避免因为行号偏移导致的指纹失效（如果代码变动剧烈）
 	// 但通常直接取全部 Stack 也是可以的，这里为了严谨做下简单切分
 	stackKey := l.Stack
