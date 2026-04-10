@@ -2,7 +2,7 @@ package system
 
 import (
 	"context"
-	systemEntity "silentorder/internal/domain/entity/system"
+	systemEntity "netyadmin/internal/domain/entity/system"
 	"time"
 
 	"gorm.io/gorm"

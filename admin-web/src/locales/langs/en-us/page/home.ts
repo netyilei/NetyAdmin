@@ -19,11 +19,11 @@ const home = {
   projectNews: {
     title: 'Project News',
     moreNews: 'More News',
-    desc1: 'Soybean created the open source project soybean-admin on May 28, 2021!',
-    desc2: 'Yanbowe submitted a bug to soybean-admin, the multi-tab bar will not adapt.',
-    desc3: 'Soybean is ready to do sufficient preparation for the release of soybean-admin!',
-    desc4: 'Soybean is busy writing project documentation for soybean-admin!',
-    desc5: 'Soybean just wrote some of the workbench pages casually, and it was enough to see!'
+    desc1: 'NetyAdmin created the open source project netyadmin-web on May 28, 2021!',
+    desc2: 'Yanbowe submitted a bug to netyadmin-web, the multi-tab bar will not adapt.',
+    desc3: 'NetyAdmin is ready to do sufficient preparation for the release of netyadmin-web!',
+    desc4: 'NetyAdmin is busy writing project documentation for netyadmin-web!',
+    desc5: 'NetyAdmin just wrote some of the workbench pages casually, and it was enough to see!'
   },
   creativity: 'Creativity'
 };

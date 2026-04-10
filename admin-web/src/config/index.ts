@@ -3,5 +3,5 @@
  */
 export const APP_CONFIG = {
   /** Project name */
-  name: 'SilentOrder'
+  name: 'NetyAdmin'
 };

@@ -5,7 +5,7 @@ import (
 
 	"gorm.io/gorm"
 
-	systemEntity "silentorder/internal/domain/entity/system"
+	systemEntity "netyadmin/internal/domain/entity/system"
 )
 
 type APIRepository interface {

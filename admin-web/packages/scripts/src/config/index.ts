@@ -28,7 +28,7 @@ const defaultOptions: CliOption = {
 
 export async function loadCliOptions(overrides?: Partial<CliOption>, cwd = process.cwd()) {
   const { config } = await loadConfig<Partial<CliOption>>({
-    name: 'soybean',
+    name: 'netyadmin',
     defaults: defaultOptions,
     overrides,
     cwd,

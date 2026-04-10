@@ -1,6 +1,6 @@
 package log
 
-import "silentorder/internal/domain/entity"
+import "netyadmin/internal/domain/entity"
 
 type Operation struct {
 	entity.Model

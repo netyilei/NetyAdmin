@@ -7,9 +7,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"silentorder/internal/pkg/errorx"
-	"silentorder/internal/pkg/response"
-	logService "silentorder/internal/service/log"
+	"netyadmin/internal/pkg/errorx"
+	"netyadmin/internal/pkg/response"
+	logService "netyadmin/internal/service/log"
 )
 
 func Recovery(errorLogSvc logService.ErrorService) gin.HandlerFunc {

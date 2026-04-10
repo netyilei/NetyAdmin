@@ -1,6 +1,6 @@
 package system
 
-import "silentorder/internal/domain/entity"
+import "netyadmin/internal/domain/entity"
 
 type Menu struct {
 	entity.Model

@@ -3,11 +3,11 @@ package content
 import (
 	"context"
 
-	contentEntity "silentorder/internal/domain/entity/content"
-	contentDto "silentorder/internal/interface/admin/dto/content"
-	"silentorder/internal/pkg/errorx"
-	contentRepo "silentorder/internal/repository/content"
-	storageService "silentorder/internal/service/storage"
+	contentEntity "netyadmin/internal/domain/entity/content"
+	contentDto "netyadmin/internal/interface/admin/dto/content"
+	"netyadmin/internal/pkg/errorx"
+	contentRepo "netyadmin/internal/repository/content"
+	storageService "netyadmin/internal/service/storage"
 )
 
 type BannerGroupService interface {

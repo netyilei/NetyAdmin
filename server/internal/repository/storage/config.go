@@ -5,7 +5,7 @@ import (
 
 	"gorm.io/gorm"
 
-	storageEntity "silentorder/internal/domain/entity/storage"
+	storageEntity "netyadmin/internal/domain/entity/storage"
 )
 
 type ConfigRepository interface {

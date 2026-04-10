@@ -19,8 +19,8 @@
 
 实现见：
 
-- [task.go](file:///d:/SilentOrder/server/internal/pkg/task/task.go)
-- [manager.go](file:///d:/SilentOrder/server/internal/pkg/task/manager.go)
+- [task.go]../../server/internal/pkg/task/task.go)
+- [manager.go](../../server/internal/pkg/task/manager.go)
 
 ## 2) 配置来源与覆盖规则（两层覆盖）
 
@@ -28,7 +28,7 @@
 
 系统任务（例如 DB migration）通过实现 `DefaultMetadata()` 给出默认值，并按 weight 决定启动期的执行顺序。
 
-示例见：[db_migration.go](file:///d:/SilentOrder/server/internal/job/db_migration.go)
+示例见：[db_migration.go](../../server/internal/job/db_migration.go)
 
 ### 2.2 第二层：config.toml 覆盖（task.jobs）
 
@@ -37,9 +37,9 @@
 - `task.enabled`：任务系统总开关
 - `task.jobs.{taskName}.enabled/type/spec/weight`：单任务覆盖项
 
-配置结构见：[config.go](file:///d:/SilentOrder/server/internal/config/config.go#L10-L33)
+配置结构见：[config.go](../../server/internal/config/config.go#L10-L33)
 
-合并规则见：[manager.go](file:///d:/SilentOrder/server/internal/pkg/task/manager.go#L338-L374)
+合并规则见：[manager.go](../../server/internal/pkg/task/manager.go#L338-L374)
 
 ### 2.3 运行态覆盖：sys_configs（task_config 分组）
 
@@ -52,7 +52,7 @@
 
 这些覆盖值会在任务列表接口中生效，并在更新后触发 `ForceReload()` + 重启任务。
 
-实现见：[task service](file:///d:/SilentOrder/server/internal/service/system/task.go#L186-L217)
+实现见：[task service](../../server/internal/service/system/task.go#L186-L217)
 
 ## 3) 启动执行链路
 
@@ -61,7 +61,7 @@
 - `taskManager.Register(...)` 注册所有任务（包含系统级与业务级）
 - `taskManager.Start(...)` 在启动期执行 `once` 任务，并启动 cron/interval 的调度循环
 
-注册点见：[wire.go](file:///d:/SilentOrder/server/internal/app/wire.go#L120-L170)
+注册点见：[wire.go](../../server/internal/app/wire.go#L120-L170)
 
 ## 4) 内置任务（当前已落地）
 
@@ -71,7 +71,7 @@
 - `article_publish`：文章定时发布（interval/cron，业务级）
 - `system_log_cleanup`：日志清理任务（interval/cron，运维级）
 
-聚合入口见：[job/init.go](file:///d:/SilentOrder/server/internal/job/init.go)
+聚合入口见：[job/init.go](../../server/internal/job/init.go)
 
 ## 5) 管理后台 API（RBAC）
 
@@ -85,7 +85,7 @@
 - `PUT /admin/v1/system/tasks/:name`：更新任务（写入 sys_configs(task_config) 并立即生效）
 - `GET /admin/v1/system/tasks/logs`：查询任务执行日志
 
-实现见：[task_handler.go](file:///d:/SilentOrder/server/internal/handler/v1/system/task_handler.go)
+实现见：[task_handler.go](../../server/internal/handler/v1/system/task_handler.go)
 
 ## 6) 任务日志（sys_task_logs）
 
@@ -98,7 +98,7 @@
   - key=`log_enabled`
   - value=`false/0`：不落库
 
-实现见：[task service](file:///d:/SilentOrder/server/internal/service/system/task.go#L29-L60)
+实现见：[task service](../../server/internal/service/system/task.go#L29-L60)
 
 ### 6.2 清理策略
 
@@ -108,5 +108,5 @@
 - `ops_config.retention_days`：操作日志保留天数
 - `error_config.retention_days`：错误日志保留天数
 
-实现见：[system_log_cleanup.go](file:///d:/SilentOrder/server/internal/job/system_log_cleanup.go)
+实现见：[system_log_cleanup.go](../../server/internal/job/system_log_cleanup.go)
 

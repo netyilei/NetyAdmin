@@ -5,11 +5,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	storageDto "silentorder/internal/interface/admin/dto/storage"
-	storageEntity "silentorder/internal/domain/entity/storage"
-	"silentorder/internal/pkg/errorx"
-	"silentorder/internal/pkg/response"
-	storageService "silentorder/internal/service/storage"
+	storageDto "netyadmin/internal/interface/admin/dto/storage"
+	storageEntity "netyadmin/internal/domain/entity/storage"
+	"netyadmin/internal/pkg/errorx"
+	"netyadmin/internal/pkg/response"
+	storageService "netyadmin/internal/service/storage"
 )
 
 type StorageHandler struct {

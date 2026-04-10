@@ -5,10 +5,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	contentDto "silentorder/internal/interface/admin/dto/content"
-	"silentorder/internal/pkg/errorx"
-	"silentorder/internal/pkg/response"
-	contentService "silentorder/internal/service/content"
+	contentDto "netyadmin/internal/interface/admin/dto/content"
+	"netyadmin/internal/pkg/errorx"
+	"netyadmin/internal/pkg/response"
+	contentService "netyadmin/internal/service/content"
 )
 
 type ContentBannerItemHandler struct {

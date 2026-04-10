@@ -3,9 +3,9 @@ package main
 import (
 	"log"
 
-	"silentorder/internal/app"
-	"silentorder/internal/config"
-	"silentorder/internal/pkg/recovery"
+	"netyadmin/internal/app"
+	"netyadmin/internal/config"
+	"netyadmin/internal/pkg/recovery"
 )
 
 func main() {

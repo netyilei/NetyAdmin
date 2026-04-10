@@ -6,9 +6,9 @@ import (
 	"strings"
 	"sync"
 
-	"silentorder/internal/config"
-	"silentorder/internal/pkg/redis"
-	systemRepo "silentorder/internal/repository/system"
+	"netyadmin/internal/config"
+	"netyadmin/internal/pkg/redis"
+	systemRepo "netyadmin/internal/repository/system"
 
 	goRedis "github.com/redis/go-redis/v9"
 )
@@ -119,7 +119,7 @@ func (w *configWatcher) WatchBlocking(ctx context.Context) {
 	}
 
 	// 使用统一的 Redis Channel 定义
-	// 这里的 redis 指的是 "silentorder/internal/pkg/redis"
+	// 这里的 redis 指的是 "netyadmin/internal/pkg/redis"
 	channel := redis.ChannelConfigSync(w.redisCfg.Prefix)
 	sub := w.redisClient.Subscribe(ctx, channel)
 	defer sub.Close()

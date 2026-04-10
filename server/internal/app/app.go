@@ -13,9 +13,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"silentorder/internal/config"
-	"silentorder/internal/pkg/database"
-	"silentorder/internal/pkg/task"
+	"netyadmin/internal/config"
+	"netyadmin/internal/pkg/database"
+	"netyadmin/internal/pkg/task"
 )
 
 type App struct {

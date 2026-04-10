@@ -1,7 +1,7 @@
 package system
 
 import (
-	systemService "silentorder/internal/service/system"
+	systemService "netyadmin/internal/service/system"
 )
 
 type SystemHandler struct {

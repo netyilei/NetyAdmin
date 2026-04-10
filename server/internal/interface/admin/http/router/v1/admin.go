@@ -3,7 +3,7 @@ package v1
 import (
 	"github.com/gin-gonic/gin"
 
-	"silentorder/internal/interface/admin/http/handler/v1/admin"
+	"netyadmin/internal/interface/admin/http/handler/v1/admin"
 )
 
 type AdminRouter struct {

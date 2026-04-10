@@ -3,9 +3,9 @@ package error_log
 import (
 	"github.com/gin-gonic/gin"
 
-	"silentorder/internal/pkg/errorx"
-	"silentorder/internal/pkg/response"
-	logService "silentorder/internal/service/log"
+	"netyadmin/internal/pkg/errorx"
+	"netyadmin/internal/pkg/response"
+	logService "netyadmin/internal/service/log"
 )
 
 type ErrorLogHandler struct {

@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 
-	systemEntity "silentorder/internal/domain/entity/system"
-	systemVO "silentorder/internal/domain/vo/system"
-	systemDto "silentorder/internal/interface/admin/dto/system"
-	"silentorder/internal/pkg/cache"
-	"silentorder/internal/pkg/errorx"
-	"silentorder/internal/pkg/utils"
-	systemRepo "silentorder/internal/repository/system"
+	systemEntity "netyadmin/internal/domain/entity/system"
+	systemVO "netyadmin/internal/domain/vo/system"
+	systemDto "netyadmin/internal/interface/admin/dto/system"
+	"netyadmin/internal/pkg/cache"
+	"netyadmin/internal/pkg/errorx"
+	"netyadmin/internal/pkg/utils"
+	systemRepo "netyadmin/internal/repository/system"
 )
 
 type MenuService interface {

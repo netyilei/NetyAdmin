@@ -1,6 +1,6 @@
 package system
 
-import "silentorder/internal/domain/entity"
+import "netyadmin/internal/domain/entity"
 
 // API 表 admin_api 无 created_by/updated_by 列，不嵌入 entity.Operator
 type API struct {

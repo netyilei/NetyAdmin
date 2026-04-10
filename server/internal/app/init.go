@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"silentorder/internal/config"
+	"netyadmin/internal/config"
 )
 
 func InitDB(cfg *config.Config) (*gorm.DB, error) {

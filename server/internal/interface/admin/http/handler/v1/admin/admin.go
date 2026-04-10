@@ -5,10 +5,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	systemDto "silentorder/internal/interface/admin/dto/system"
-	"silentorder/internal/pkg/errorx"
-	"silentorder/internal/pkg/response"
-	systemService "silentorder/internal/service/system"
+	systemDto "netyadmin/internal/interface/admin/dto/system"
+	"netyadmin/internal/pkg/errorx"
+	"netyadmin/internal/pkg/response"
+	systemService "netyadmin/internal/service/system"
 )
 
 type AdminHandler struct {

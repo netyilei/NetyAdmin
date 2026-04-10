@@ -3,13 +3,13 @@ package system
 import (
 	"context"
 
-	"silentorder/internal/config"
-	systemDto "silentorder/internal/interface/admin/dto/system"
-	systemEntity "silentorder/internal/domain/entity/system"
-	systemVO "silentorder/internal/domain/vo/system"
-	"silentorder/internal/pkg/configsync"
-	"silentorder/internal/pkg/redis"
-	systemRepo "silentorder/internal/repository/system"
+	"netyadmin/internal/config"
+	systemDto "netyadmin/internal/interface/admin/dto/system"
+	systemEntity "netyadmin/internal/domain/entity/system"
+	systemVO "netyadmin/internal/domain/vo/system"
+	"netyadmin/internal/pkg/configsync"
+	"netyadmin/internal/pkg/redis"
+	systemRepo "netyadmin/internal/repository/system"
 
 	goRedis "github.com/redis/go-redis/v9"
 )

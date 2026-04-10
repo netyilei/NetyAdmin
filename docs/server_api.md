@@ -161,6 +161,7 @@ Dict
 |---|---|
 | GET | `/admin/v1/storage-configs` |
 | GET | `/admin/v1/storage-configs/:id` |
+| GET | `/admin/v1/storage-configs/all-enabled` |
 | POST | `/admin/v1/storage-configs` |
 | PUT | `/admin/v1/storage-configs` |
 | DELETE | `/admin/v1/storage-configs/:id` |

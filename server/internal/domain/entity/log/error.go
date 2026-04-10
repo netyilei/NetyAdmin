@@ -3,7 +3,7 @@ package log
 import (
 	"time"
 
-	"silentorder/internal/domain/entity"
+	"netyadmin/internal/domain/entity"
 )
 
 type Error struct {

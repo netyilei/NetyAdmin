@@ -29,7 +29,7 @@ const newses = computed<NewsItem[]>(() => [
     <NList>
       <NListItem v-for="item in newses" :key="item.id">
         <template #prefix>
-          <SoybeanAvatar class="size-48px!" />
+          <NetyAdminAvatar class="size-48px!" />
         </template>
         <NThing :title="item.content" :description="item.time" />
       </NListItem>

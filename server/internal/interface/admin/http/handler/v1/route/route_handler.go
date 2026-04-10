@@ -3,10 +3,10 @@ package route
 import (
 	"github.com/gin-gonic/gin"
 
-	systemVO "silentorder/internal/domain/vo/system"
-	"silentorder/internal/pkg/errorx"
-	"silentorder/internal/pkg/response"
-	systemService "silentorder/internal/service/system"
+	systemVO "netyadmin/internal/domain/vo/system"
+	"netyadmin/internal/pkg/errorx"
+	"netyadmin/internal/pkg/response"
+	systemService "netyadmin/internal/service/system"
 )
 
 type RouteHandler struct {

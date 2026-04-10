@@ -3,9 +3,9 @@ package middleware
 import (
 	"strings"
 
-	"silentorder/internal/pkg/errorx"
-	"silentorder/internal/pkg/jwt"
-	"silentorder/internal/pkg/response"
+	"netyadmin/internal/pkg/errorx"
+	"netyadmin/internal/pkg/jwt"
+	"netyadmin/internal/pkg/response"
 
 	"github.com/gin-gonic/gin"
 )

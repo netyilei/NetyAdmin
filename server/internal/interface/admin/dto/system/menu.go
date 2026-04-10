@@ -1,6 +1,6 @@
 package system
 
-import systemVO "silentorder/internal/domain/vo/system"
+import systemVO "netyadmin/internal/domain/vo/system"
 
 type CreateMenuReq struct {
 	ParentID        uint                  `json:"parentId"`

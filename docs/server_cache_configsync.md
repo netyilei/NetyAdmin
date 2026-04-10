@@ -25,7 +25,7 @@
 
 实现见：
 
-- [watcher.go](file:///d:/SilentOrder/server/internal/pkg/configsync/watcher.go)
+- [watcher.go](../../server/internal/pkg/configsync/watcher.go)
 - [config service](../../server/internal/service/system/config.go)
 
 ## 2) 透明缓存（LazyCacheManager）
@@ -52,7 +52,7 @@
 
 缓存写入时支持 tags（标签），用于业务数据更新后一键失效相关缓存。
 
-当前已定义的 tags / ttl 口径见：[registry.go](file:///d:/SilentOrder/server/internal/pkg/cache/registry.go)
+当前已定义的 tags / ttl 口径见：[registry.go](../../server/internal/pkg/cache/registry.go)
 
 常见标签：
 

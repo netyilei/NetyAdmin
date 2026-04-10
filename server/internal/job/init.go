@@ -1,12 +1,12 @@
 package job
 
 import (
-	"silentorder/internal/pkg/configsync"
-	"silentorder/internal/pkg/migration"
-	"silentorder/internal/pkg/task"
-	contentRepo "silentorder/internal/repository/content"
-	logRepo "silentorder/internal/repository/log"
-	systemRepo "silentorder/internal/repository/system"
+	"netyadmin/internal/pkg/configsync"
+	"netyadmin/internal/pkg/migration"
+	"netyadmin/internal/pkg/task"
+	contentRepo "netyadmin/internal/repository/content"
+	logRepo "netyadmin/internal/repository/log"
+	systemRepo "netyadmin/internal/repository/system"
 )
 
 // AllJobs 任务初始化中心：在这里聚合所有任务，实现“一站式”加载。

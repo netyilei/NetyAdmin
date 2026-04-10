@@ -1,21 +1,21 @@
 {
-  "name": "soybean-admin",
+  "name": "netyadmin-web",
   "type": "module",
   "version": "1.3.15",
   "packageManager": "pnpm@10.9.0+sha512.0486e394640d3c1fb3c9d43d49cf92879ff74f8516959c235308f5a8f62e2e19528a65cdc2a3058f587cde71eba3d5b56327c8c33a97e4c4051ca48a10ca2d5f",
   "description": "A fresh and elegant admin template, based on Vue3、Vite7、TypeScript、NaiveUI and UnoCSS. 一个基于Vue3、Vite7、TypeScript、NaiveUI and UnoCSS的清新优雅的中后台模版。",
   "author": {
-    "name": "Soybean",
-    "email": "soybeanjs@outlook.com",
-    "url": "https://github.com/soybeanjs"
+    "name": "NetyAdmin",
+    "email": "netyadminjs@outlook.com",
+    "url": "https://github.com/netyadminjs"
   },
   "license": "MIT",
-  "homepage": "https://github.com/soybeanjs/soybean-admin",
+  "homepage": "https://github.com/netyadminjs/netyadmin-web",
   "repository": {
-    "url": "https://github.com/soybeanjs/soybean-admin.git"
+    "url": "https://github.com/netyadminjs/netyadmin-web.git"
   },
   "bugs": {
-    "url": "https://github.com/soybeanjs/soybean-admin/issues"
+    "url": "https://github.com/netyadminjs/netyadmin-web/issues"
   },
   "keywords": [
     "Vue3 admin ",
@@ -96,7 +96,7 @@
     "@iconify/json": "2.2.357",
     "@sa/scripts": "workspace:*",
     "@sa/uno-preset": "workspace:*",
-    "@soybeanjs/eslint-config": "1.7.1",
+    "@netyadminjs/eslint-config": "1.7.1",
     "@types/bmapgl": "0.0.7",
     "@types/node": "24.0.13",
     "@types/nprogress": "0.2.3",
@@ -133,5 +133,5 @@
   "lint-staged": {
     "*": "eslint --fix"
   },
-  "website": "https://admin.soybeanjs.cn"
+  "website": "https://admin.netyadminjs.cn"
 }

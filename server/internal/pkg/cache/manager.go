@@ -14,7 +14,7 @@ import (
 	redisStore "github.com/eko/gocache/store/redis/v4"
 	"github.com/redis/go-redis/v9"
 
-	"silentorder/internal/config"
+	"netyadmin/internal/config"
 )
 
 var (

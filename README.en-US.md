@@ -65,4 +65,4 @@ NetyAdmin, as a comprehensive and architecturally advanced admin system base, is
 
 ---
 
-**Note**: `soybean-admin` is the original project for `admin-web`, which we have refactored and streamlined. We thank the `soybeanjs/soybean-admin` team for their contributions.
+**Note**: `netyadmin-web` is the original project for `admin-web`, which we have refactored and streamlined. We thank the `netyadminjs/netyadmin-web` team for their contributions.

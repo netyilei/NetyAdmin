@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"time"
 
-	"silentorder/internal/pkg/configsync"
-	"silentorder/internal/pkg/task"
-	logRepo "silentorder/internal/repository/log"
-	systemRepo "silentorder/internal/repository/system"
+	"netyadmin/internal/pkg/configsync"
+	"netyadmin/internal/pkg/task"
+	logRepo "netyadmin/internal/repository/log"
+	systemRepo "netyadmin/internal/repository/system"
 )
 
 // SystemLogCleanupJob 统一日志清理任务

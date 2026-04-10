@@ -11,8 +11,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	logEntity "silentorder/internal/domain/entity/log"
-	logService "silentorder/internal/service/log"
+	logEntity "netyadmin/internal/domain/entity/log"
+	logService "netyadmin/internal/service/log"
 )
 
 type responseWriter struct {

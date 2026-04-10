@@ -1,6 +1,6 @@
 package system
 
-import "silentorder/internal/interface/admin/dto"
+import "netyadmin/internal/interface/admin/dto"
 
 type LoginReq struct {
 	Username string `json:"username" binding:"required"`

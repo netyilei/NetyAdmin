@@ -3,8 +3,8 @@ package v1
 import (
 	"github.com/gin-gonic/gin"
 
-	"silentorder/internal/interface/admin/http/handler/v1/error_log"
-	"silentorder/internal/interface/admin/http/handler/v1/operation_log"
+	"netyadmin/internal/interface/admin/http/handler/v1/error_log"
+	"netyadmin/internal/interface/admin/http/handler/v1/operation_log"
 )
 
 type LogRouter struct {

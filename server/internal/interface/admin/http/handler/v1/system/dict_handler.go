@@ -4,10 +4,10 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"silentorder/internal/domain/entity/system"
-	"silentorder/internal/pkg/errorx"
-	"silentorder/internal/pkg/response"
-	systemService "silentorder/internal/service/system"
+	"netyadmin/internal/domain/entity/system"
+	"netyadmin/internal/pkg/errorx"
+	"netyadmin/internal/pkg/response"
+	systemService "netyadmin/internal/service/system"
 )
 
 type DictHandler struct {

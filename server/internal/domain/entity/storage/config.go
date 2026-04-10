@@ -1,6 +1,6 @@
 package storage
 
-import "silentorder/internal/domain/entity"
+import "netyadmin/internal/domain/entity"
 
 type StorageProvider string
 

@@ -1,6 +1,6 @@
 package content
 
-import "silentorder/internal/domain/entity"
+import "netyadmin/internal/domain/entity"
 
 type ContentBannerGroup struct {
 	entity.Model

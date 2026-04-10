@@ -4,13 +4,13 @@ import (
 	"context"
 	"strings"
 
-	"silentorder/internal/domain/entity"
-	storageEntity "silentorder/internal/domain/entity/storage"
-	storageDto "silentorder/internal/interface/admin/dto/storage"
-	"silentorder/internal/pkg/cache"
-	"silentorder/internal/pkg/errorx"
-	"silentorder/internal/pkg/storage"
-	storageRepo "silentorder/internal/repository/storage"
+	"netyadmin/internal/domain/entity"
+	storageEntity "netyadmin/internal/domain/entity/storage"
+	storageDto "netyadmin/internal/interface/admin/dto/storage"
+	"netyadmin/internal/pkg/cache"
+	"netyadmin/internal/pkg/errorx"
+	"netyadmin/internal/pkg/storage"
+	storageRepo "netyadmin/internal/repository/storage"
 )
 
 type ConfigService interface {

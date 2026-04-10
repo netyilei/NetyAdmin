@@ -3,7 +3,7 @@ package storage
 import (
 	"time"
 
-	"silentorder/internal/domain/entity"
+	"netyadmin/internal/domain/entity"
 )
 
 type UploadSource string

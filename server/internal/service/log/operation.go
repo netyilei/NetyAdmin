@@ -3,10 +3,10 @@ package log
 import (
 	"context"
 
-	logDto "silentorder/internal/interface/admin/dto/log"
-	logEntity "silentorder/internal/domain/entity/log"
-	logVO "silentorder/internal/domain/vo/log"
-	logRepo "silentorder/internal/repository/log"
+	logDto "netyadmin/internal/interface/admin/dto/log"
+	logEntity "netyadmin/internal/domain/entity/log"
+	logVO "netyadmin/internal/domain/vo/log"
+	logRepo "netyadmin/internal/repository/log"
 )
 
 type OperationService interface {

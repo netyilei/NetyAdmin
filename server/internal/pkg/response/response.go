@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"silentorder/internal/pkg/errorx"
+	"netyadmin/internal/pkg/errorx"
 
 	"github.com/gin-gonic/gin"
 )

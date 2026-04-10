@@ -1,4 +1,4 @@
-module silentorder
+module netyadmin
 
 go 1.25.0
 

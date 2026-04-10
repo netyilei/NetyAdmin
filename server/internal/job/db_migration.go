@@ -2,8 +2,8 @@ package job
 
 import (
 	"context"
-	"silentorder/internal/pkg/migration"
-	"silentorder/internal/pkg/task"
+	"netyadmin/internal/pkg/migration"
+	"netyadmin/internal/pkg/task"
 )
 
 // DBMigrationJob 数据库迁移任务

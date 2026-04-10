@@ -3,7 +3,7 @@ package system
 import (
 	"context"
 	"gorm.io/gorm"
-	"silentorder/internal/domain/entity/system"
+	"netyadmin/internal/domain/entity/system"
 )
 
 type DictRepository interface {

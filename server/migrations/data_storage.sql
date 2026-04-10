@@ -40,13 +40,15 @@ BEGIN
         INSERT INTO admin_api (menu_id, name, method, path, description, auth, created_at, updated_at)
         VALUES 
         (config_menu_id, '获取存储配置列表', 'GET', '/admin/v1/storage-configs', '获取存储配置列表', '1', NOW(), NOW()),
+        (config_menu_id, '获取所有启用配置', 'GET', '/admin/v1/storage-configs/all-enabled', '获取所有启用配置', '1', NOW(), NOW()),
         (config_menu_id, '获取存储配置详情', 'GET', '/admin/v1/storage-configs/:id', '获取存储配置详情', '1', NOW(), NOW()),
         (config_menu_id, '创建存储配置', 'POST', '/admin/v1/storage-configs', '创建存储配置', '1', NOW(), NOW()),
         (config_menu_id, '更新存储配置', 'PUT', '/admin/v1/storage-configs', '更新存储配置', '1', NOW(), NOW()),
         (config_menu_id, '删除存储配置', 'DELETE', '/admin/v1/storage-configs/:id', '删除存储配置', '1', NOW(), NOW()),
         (config_menu_id, '设置默认存储', 'PUT', '/admin/v1/storage-configs/:id/default', '设置默认存储', '1', NOW(), NOW()),
         (config_menu_id, '测试存储上传', 'POST', '/admin/v1/storage-configs/test-upload', '测试存储上传', '1', NOW(), NOW()),
-        (config_menu_id, '获取上传凭证', 'POST', '/admin/v1/storage/upload-credentials', '获取上传凭证', '1', NOW(), NOW())
+        (config_menu_id, '获取上传凭证', 'POST', '/admin/v1/storage/upload-credentials', '获取上传凭证', '1', NOW(), NOW()),
+        (config_menu_id, '创建上传记录', 'POST', '/admin/v1/storage/upload-record', '创建上传记录', '1', NOW(), NOW())
         ON CONFLICT (method, path) DO NOTHING;
     END IF;
 

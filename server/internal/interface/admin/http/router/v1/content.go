@@ -3,7 +3,7 @@ package v1
 import (
 	"github.com/gin-gonic/gin"
 
-	"silentorder/internal/interface/admin/http/handler/v1/content"
+	"netyadmin/internal/interface/admin/http/handler/v1/content"
 )
 
 type ContentRouter struct {

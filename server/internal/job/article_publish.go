@@ -5,8 +5,8 @@ import (
 	"log"
 	"time"
 
-	"silentorder/internal/pkg/task"
-	contentRepo "silentorder/internal/repository/content"
+	"netyadmin/internal/pkg/task"
+	contentRepo "netyadmin/internal/repository/content"
 )
 
 // ArticlePublishJob 文章定时发布任务

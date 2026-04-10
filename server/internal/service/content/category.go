@@ -5,14 +5,14 @@ import (
 	"errors"
 	"time"
 
-	contentEntity "silentorder/internal/domain/entity/content"
-	contentDto "silentorder/internal/interface/admin/dto/content"
-	"silentorder/internal/pkg/cache"
-	"silentorder/internal/pkg/configsync"
-	"silentorder/internal/pkg/errorx"
-	"silentorder/internal/pkg/utils"
-	contentRepo "silentorder/internal/repository/content"
-	storageService "silentorder/internal/service/storage"
+	contentEntity "netyadmin/internal/domain/entity/content"
+	contentDto "netyadmin/internal/interface/admin/dto/content"
+	"netyadmin/internal/pkg/cache"
+	"netyadmin/internal/pkg/configsync"
+	"netyadmin/internal/pkg/errorx"
+	"netyadmin/internal/pkg/utils"
+	contentRepo "netyadmin/internal/repository/content"
+	storageService "netyadmin/internal/service/storage"
 )
 
 type CategoryService interface {

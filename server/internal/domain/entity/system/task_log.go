@@ -1,7 +1,7 @@
 package system
 
 import (
-	"silentorder/internal/domain/entity"
+	"netyadmin/internal/domain/entity"
 	"time"
 )
 

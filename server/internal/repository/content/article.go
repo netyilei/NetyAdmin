@@ -6,7 +6,7 @@ import (
 
 	"gorm.io/gorm"
 
-	content "silentorder/internal/domain/entity/content"
+	content "netyadmin/internal/domain/entity/content"
 )
 
 type ContentArticleRepository interface {

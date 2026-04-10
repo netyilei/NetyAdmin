@@ -3,9 +3,9 @@ package system
 import (
 	"context"
 
-	"silentorder/internal/domain/entity/system"
-	"silentorder/internal/pkg/cache"
-	sysRepo "silentorder/internal/repository/system"
+	"netyadmin/internal/domain/entity/system"
+	"netyadmin/internal/pkg/cache"
+	sysRepo "netyadmin/internal/repository/system"
 )
 
 type DictService interface {

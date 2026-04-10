@@ -7,14 +7,14 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	systemEntity "silentorder/internal/domain/entity/system"
-	systemDto "silentorder/internal/interface/admin/dto/system"
+	systemEntity "netyadmin/internal/domain/entity/system"
+	systemDto "netyadmin/internal/interface/admin/dto/system"
 
-	systemVO "silentorder/internal/domain/vo/system"
-	"silentorder/internal/pkg/cache"
-	"silentorder/internal/pkg/errorx"
-	"silentorder/internal/pkg/jwt"
-	systemRepo "silentorder/internal/repository/system"
+	systemVO "netyadmin/internal/domain/vo/system"
+	"netyadmin/internal/pkg/cache"
+	"netyadmin/internal/pkg/errorx"
+	"netyadmin/internal/pkg/jwt"
+	systemRepo "netyadmin/internal/repository/system"
 )
 
 type AdminService interface {

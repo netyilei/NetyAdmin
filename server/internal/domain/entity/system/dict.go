@@ -1,6 +1,6 @@
 package system
 
-import "silentorder/internal/domain/entity"
+import "netyadmin/internal/domain/entity"
 
 // DictType 字典类型实体
 type DictType struct {

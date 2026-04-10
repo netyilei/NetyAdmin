@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
-	logEntity "silentorder/internal/domain/entity/log"
+	logEntity "netyadmin/internal/domain/entity/log"
 )
 
 type ErrorRepository struct {
