@@ -5,10 +5,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	logDto "netyadmin/internal/interface/admin/dto/log"
-	"netyadmin/internal/pkg/errorx"
-	"netyadmin/internal/pkg/response"
-	logService "netyadmin/internal/service/log"
+	logDto "NetyAdmin/internal/interface/admin/dto/log"
+	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/response"
+	logService "NetyAdmin/internal/service/log"
 )
 
 type OperationLogHandler struct {

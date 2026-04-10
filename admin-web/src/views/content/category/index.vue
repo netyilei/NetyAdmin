@@ -14,7 +14,7 @@ import CategorySearch from './components/category-search.vue';
 
 const appStore = useAppStore();
 const { loadDicts, renderDictTag } = useDict();
-loadDicts(['sys_status']);
+loadDicts(['sys_status', 'menu_icon_type']);
 
 const contentTypeRecord: Record<Content.ContentType, string> = {
   plaintext: $t('page.content.category.contentTypePlain'),

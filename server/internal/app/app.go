@@ -13,9 +13,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"netyadmin/internal/config"
-	"netyadmin/internal/pkg/database"
-	"netyadmin/internal/pkg/task"
+	"NetyAdmin/internal/config"
+	"NetyAdmin/internal/pkg/database"
+	"NetyAdmin/internal/pkg/task"
 )
 
 type App struct {

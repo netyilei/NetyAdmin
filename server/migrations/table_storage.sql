@@ -2,6 +2,8 @@
 -- Storage Module - Tables
 -- =============================================
 
+BEGIN;
+
 -- 对象存储配置表
 CREATE TABLE IF NOT EXISTS storage_config (
     id BIGSERIAL PRIMARY KEY,
@@ -76,3 +78,5 @@ BEGIN
         FOREIGN KEY (storage_config_id) REFERENCES storage_config(id);
     END IF;
 END $$;
+
+COMMIT;

@@ -1,6 +1,6 @@
 package storage
 
-import "netyadmin/internal/domain/entity"
+import "NetyAdmin/internal/domain/entity"
 
 type StorageProvider string
 

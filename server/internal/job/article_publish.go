@@ -5,8 +5,8 @@ import (
 	"log"
 	"time"
 
-	"netyadmin/internal/pkg/task"
-	contentRepo "netyadmin/internal/repository/content"
+	"NetyAdmin/internal/pkg/task"
+	contentRepo "NetyAdmin/internal/repository/content"
 )
 
 // ArticlePublishJob 文章定时发布任务

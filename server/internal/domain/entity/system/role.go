@@ -1,13 +1,13 @@
 package system
 
-import "netyadmin/internal/domain/entity"
+import "NetyAdmin/internal/domain/entity"
 
 type Role struct {
 	entity.Model
 	entity.Operator
 	Name          string    `gorm:"column:name;size:50;not null" json:"name"`
 	Code          string    `gorm:"column:code;size:50;not null;uniqueIndex" json:"code"`
-	Description   string    `gorm:"column:description;size:200" json:"description"`
+	Description   string    `gorm:"column:description;size:200" json:"desc"`
 	Status        string    `gorm:"column:status;size:1;default:1" json:"status"`
 	HomeMenuID    uint      `gorm:"column:home_menu_id" json:"homeMenuId"`
 	HomeMenu      *Menu     `gorm:"foreignKey:HomeMenuID" json:"homeMenu"`

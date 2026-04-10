@@ -1,7 +1,7 @@
 import { effectScope, nextTick, onScopeDispose, ref, watch } from 'vue';
 import { breakpointsTailwind, useBreakpoints, useEventListener, useTitle } from '@vueuse/core';
 import { defineStore } from 'pinia';
-import { useBoolean } from '@sa/hooks';
+import { useBoolean } from '@na/hooks';
 import { router } from '@/router';
 import { localStg } from '@/utils/storage';
 import { SetupStoreId } from '@/enum';

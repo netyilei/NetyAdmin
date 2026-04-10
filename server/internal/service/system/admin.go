@@ -7,14 +7,14 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	systemEntity "netyadmin/internal/domain/entity/system"
-	systemDto "netyadmin/internal/interface/admin/dto/system"
+	systemEntity "NetyAdmin/internal/domain/entity/system"
+	systemDto "NetyAdmin/internal/interface/admin/dto/system"
 
-	systemVO "netyadmin/internal/domain/vo/system"
-	"netyadmin/internal/pkg/cache"
-	"netyadmin/internal/pkg/errorx"
-	"netyadmin/internal/pkg/jwt"
-	systemRepo "netyadmin/internal/repository/system"
+	systemVO "NetyAdmin/internal/domain/vo/system"
+	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/jwt"
+	systemRepo "NetyAdmin/internal/repository/system"
 )
 
 type AdminService interface {

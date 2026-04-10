@@ -3,10 +3,10 @@ package content
 import (
 	"strconv"
 
-	contentDto "netyadmin/internal/interface/admin/dto/content"
-	"netyadmin/internal/pkg/errorx"
-	"netyadmin/internal/pkg/response"
-	contentService "netyadmin/internal/service/content"
+	contentDto "NetyAdmin/internal/interface/admin/dto/content"
+	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/response"
+	contentService "NetyAdmin/internal/service/content"
 
 	"github.com/gin-gonic/gin"
 )

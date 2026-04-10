@@ -34,12 +34,12 @@ END $$;
 -- 核心菜单初始化
 INSERT INTO admin_menu (parent_id, name, route_name, route_path, component, icon, order_by, hide_in_menu, status, type, i18_n_key, created_at, updated_at)
 VALUES 
-(0, '首页', 'home', '/home', 'view.home', 'mdi:monitor-dashboard', 0, false, '1', '2', 'route.home', NOW(), NOW()), 
+(0, '首页', 'home', '/home', 'layout.base$view.home', 'mdi:monitor-dashboard', 0, false, '1', '2', 'route.home', NOW(), NOW()), 
 (0, '管理员', 'manage', '/manage', 'layout', 'ic:outline-settings', 1, false, '1', '1', 'route.manage', NOW(), NOW()), 
 (0, '运维', 'ops', '/ops', 'layout', 'ic:outline-build', 2, false, '1', '1', 'route.ops', NOW(), NOW()), 
 (0, '基础设置', 'settings', '/settings', 'layout', 'ic:outline-settings', 3, false, '1', '1', 'route.settings', NOW(), NOW()), 
 (0, '内容管理', 'content', '/content', 'layout', 'ic:outline-article', 4, false, '1', '1', 'route.content', NOW(), NOW()) 
-ON CONFLICT (route_name) DO UPDATE SET i18_n_key = EXCLUDED.i18_n_key; 
+ON CONFLICT (route_name) WHERE deleted_at = 0 DO UPDATE SET i18_n_key = EXCLUDED.i18_n_key, component = EXCLUDED.component; 
 
 -- 模块子菜单初始化 
 DO $$ 
@@ -48,9 +48,9 @@ DECLARE
     ops_menu_id BIGINT; 
     settings_menu_id BIGINT; 
 BEGIN 
-    SELECT id INTO manage_menu_id FROM admin_menu WHERE route_name = 'manage'; 
-    SELECT id INTO ops_menu_id FROM admin_menu WHERE route_name = 'ops'; 
-    SELECT id INTO settings_menu_id FROM admin_menu WHERE route_name = 'settings'; 
+    SELECT id INTO manage_menu_id FROM admin_menu WHERE route_name = 'manage' AND deleted_at = 0; 
+    SELECT id INTO ops_menu_id FROM admin_menu WHERE route_name = 'ops' AND deleted_at = 0; 
+    SELECT id INTO settings_menu_id FROM admin_menu WHERE route_name = 'settings' AND deleted_at = 0; 
  
     -- 管理员管理子菜单 
     IF manage_menu_id IS NOT NULL THEN 
@@ -58,10 +58,8 @@ BEGIN
         VALUES 
         (manage_menu_id, '管理员管理', 'manage_admin', '/manage/admin', 'view.manage_admin', 'ic:round-manage-accounts', 1, false, '1', '2', 'route.manage_admin', NOW(), NOW()), 
         (manage_menu_id, '角色管理', 'manage_role', '/manage/role', 'view.manage_role', 'carbon:user-role', 2, false, '1', '2', 'route.manage_role', NOW(), NOW()), 
-        (manage_menu_id, '菜单管理', 'manage_menu', '/manage/menu', 'view.manage_menu', 'material-symbols:route', 3, false, '1', '2', 'route.manage_menu', NOW(), NOW()), 
-        (manage_menu_id, '按钮管理', 'manage_button', '/manage/button', 'view.manage_button', 'ic:outline-smart-button', 4, false, '1', '2', 'route.manage_button', NOW(), NOW()), 
-        (manage_menu_id, 'API管理', 'manage_api', '/manage/api', 'view.manage_api', 'ic:outline-api', 5, false, '1', '2', 'route.manage_api', NOW(), NOW()) 
-        ON CONFLICT (route_name) DO UPDATE SET i18_n_key = EXCLUDED.i18_n_key; 
+        (manage_menu_id, '菜单管理', 'manage_menu', '/manage/menu', 'view.manage_menu', 'material-symbols:route', 3, false, '1', '2', 'route.manage_menu', NOW(), NOW())
+        ON CONFLICT (route_name) WHERE deleted_at = 0 DO UPDATE SET i18_n_key = EXCLUDED.i18_n_key; 
     END IF; 
  
     -- 运维管理子菜单 
@@ -71,7 +69,7 @@ BEGIN
         (ops_menu_id, '操作日志', 'ops_operation-log', '/ops/operation-log', 'view.ops_operation-log', 'ic:outline-history', 1, false, '1', '2', 'route.ops_operation-log', NOW(), NOW()), 
         (ops_menu_id, '错误日志', 'ops_error-log', '/ops/error-log', 'view.ops_error-log', 'ic:outline-error-outline', 2, false, '1', '2', 'route.ops_error-log', NOW(), NOW()), 
         (ops_menu_id, '任务调度', 'ops_task', '/ops/task', 'view.ops_task', 'ic:outline-schedule', 3, false, '1', '2', 'route.ops_task', NOW(), NOW()) 
-        ON CONFLICT (route_name) DO UPDATE SET i18_n_key = EXCLUDED.i18_n_key; 
+        ON CONFLICT (route_name) WHERE deleted_at = 0 DO UPDATE SET i18_n_key = EXCLUDED.i18_n_key; 
     END IF; 
  
     -- 基础设置子菜单 
@@ -80,7 +78,7 @@ BEGIN
         VALUES 
         (settings_menu_id, '系统设置', 'manage_system_setting', '/manage/system/setting', 'view.manage_system_setting', 'carbon:settings-adjust', 1, false, '1', '2', 'route.manage_system_setting', NOW(), NOW()), 
         (settings_menu_id, '字典管理', 'manage_dict', '/manage/dict', 'view.manage_dict', 'mdi:book-open-variant', 2, false, '1', '2', 'route.manage_dict', NOW(), NOW()) 
-        ON CONFLICT (route_name) DO UPDATE SET i18_n_key = EXCLUDED.i18_n_key; 
+        ON CONFLICT (route_name) WHERE deleted_at = 0 DO UPDATE SET i18_n_key = EXCLUDED.i18_n_key; 
     END IF; 
  END $$;
 
@@ -97,15 +95,15 @@ DECLARE
         task_menu_id BIGINT;
         config_menu_id BIGINT;
     BEGIN
-        SELECT id INTO admin_menu_id FROM admin_menu WHERE route_name = 'manage_admin';
-        SELECT id INTO role_menu_id FROM admin_menu WHERE route_name = 'manage_role';
-        SELECT id INTO menu_menu_id FROM admin_menu WHERE route_name = 'manage_menu';
-        SELECT id INTO button_menu_id FROM admin_menu WHERE route_name = 'manage_button';
-        SELECT id INTO api_menu_id FROM admin_menu WHERE route_name = 'manage_api';
-        SELECT id INTO op_log_menu_id FROM admin_menu WHERE route_name = 'ops_operation-log';
-        SELECT id INTO err_log_menu_id FROM admin_menu WHERE route_name = 'ops_error-log';
-        SELECT id INTO task_menu_id FROM admin_menu WHERE route_name = 'ops_task';
-        SELECT id INTO config_menu_id FROM admin_menu WHERE route_name = 'manage_system_setting';
+        SELECT id INTO admin_menu_id FROM admin_menu WHERE route_name = 'manage_admin' AND deleted_at = 0;
+        SELECT id INTO role_menu_id FROM admin_menu WHERE route_name = 'manage_role' AND deleted_at = 0;
+        SELECT id INTO menu_menu_id FROM admin_menu WHERE route_name = 'manage_menu' AND deleted_at = 0;
+        SELECT id INTO button_menu_id FROM admin_menu WHERE route_name = 'manage_button' AND deleted_at = 0;
+        SELECT id INTO api_menu_id FROM admin_menu WHERE route_name = 'manage_api' AND deleted_at = 0;
+        SELECT id INTO op_log_menu_id FROM admin_menu WHERE route_name = 'ops_operation-log' AND deleted_at = 0;
+        SELECT id INTO err_log_menu_id FROM admin_menu WHERE route_name = 'ops_error-log' AND deleted_at = 0;
+        SELECT id INTO task_menu_id FROM admin_menu WHERE route_name = 'ops_task' AND deleted_at = 0;
+        SELECT id INTO config_menu_id FROM admin_menu WHERE route_name = 'manage_system_setting' AND deleted_at = 0;
 
         -- 用户管理API
         IF admin_menu_id IS NOT NULL THEN
@@ -116,7 +114,7 @@ DECLARE
             (admin_menu_id, '创建管理员', 'POST', '/admin/v1/admins', '创建管理员', '1', NOW(), NOW()),
             (admin_menu_id, '更新管理员', 'PUT', '/admin/v1/admins/:id', '更新管理员', '1', NOW(), NOW()),
             (admin_menu_id, '删除管理员', 'DELETE', '/admin/v1/admins/:id', '删除管理员', '1', NOW(), NOW())
-            ON CONFLICT (method, path) DO NOTHING;
+            ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
         END IF;
 
         -- 角色管理API
@@ -135,7 +133,7 @@ DECLARE
             (role_menu_id, '更新角色按钮', 'PUT', '/admin/v1/systemManage/role/:id/buttons', '更新角色按钮', '1', NOW(), NOW()),
             (role_menu_id, '获取角色菜单', 'GET', '/admin/v1/systemManage/role/:id/menus', '获取角色菜单', '1', NOW(), NOW()),
             (role_menu_id, '更新角色菜单', 'PUT', '/admin/v1/systemManage/role/:id/menus', '更新角色菜单', '1', NOW(), NOW())
-            ON CONFLICT (method, path) DO NOTHING;
+            ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
         END IF;
 
         -- 菜单管理API
@@ -148,7 +146,7 @@ DECLARE
             (menu_menu_id, '添加菜单', 'POST', '/admin/v1/systemManage/addMenu', '添加菜单', '1', NOW(), NOW()),
             (menu_menu_id, '更新菜单', 'PUT', '/admin/v1/systemManage/updateMenu', '更新菜单', '1', NOW(), NOW()),
             (menu_menu_id, '删除菜单', 'DELETE', '/admin/v1/systemManage/deleteMenu', '删除菜单', '1', NOW(), NOW())
-            ON CONFLICT (method, path) DO NOTHING;
+            ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
         END IF;
 
         -- 按钮管理API
@@ -159,7 +157,7 @@ DECLARE
             (button_menu_id, '添加按钮', 'POST', '/admin/v1/systemManage/addButton', '添加按钮', '1', NOW(), NOW()),
             (button_menu_id, '更新按钮', 'PUT', '/admin/v1/systemManage/updateButton', '更新按钮', '1', NOW(), NOW()),
             (button_menu_id, '删除按钮', 'DELETE', '/admin/v1/systemManage/deleteButton', '删除按钮', '1', NOW(), NOW())
-            ON CONFLICT (method, path) DO NOTHING;
+            ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
         END IF;
 
         -- API管理API
@@ -170,7 +168,7 @@ DECLARE
             (api_menu_id, '添加API', 'POST', '/admin/v1/systemManage/addApi', '添加API', '1', NOW(), NOW()),
             (api_menu_id, '更新API', 'PUT', '/admin/v1/systemManage/updateApi', '更新API', '1', NOW(), NOW()),
             (api_menu_id, '删除API', 'DELETE', '/admin/v1/systemManage/deleteApi', '删除API', '1', NOW(), NOW())
-            ON CONFLICT (method, path) DO NOTHING;
+            ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
         END IF;
 
     -- 运维日志API
@@ -180,7 +178,7 @@ DECLARE
         (op_log_menu_id, '获取操作日志列表', 'GET', '/admin/v1/operation-logs', '获取操作日志列表', '1', NOW(), NOW()),
         (op_log_menu_id, '删除操作日志', 'DELETE', '/admin/v1/operation-logs/:id', '删除操作日志', '1', NOW(), NOW()),
         (op_log_menu_id, '批量删除操作日志', 'POST', '/admin/v1/operation-logs/batch-delete', '批量删除操作日志', '1', NOW(), NOW())
-        ON CONFLICT (method, path) DO NOTHING;
+        ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- 任务调度API
@@ -194,7 +192,7 @@ DECLARE
         (task_menu_id, '重启后台任务', 'POST', '/admin/v1/system/tasks/:name/reload', '重新加载并启动任务', '1', NOW(), NOW()),
         (task_menu_id, '修改任务配置', 'PUT', '/admin/v1/system/tasks/:name', '修改任务执行周期或启用状态', '1', NOW(), NOW()),
         (task_menu_id, '查询任务日志', 'GET', '/admin/v1/system/tasks/logs', '查询后台任务执行历史', '1', NOW(), NOW())
-        ON CONFLICT (method, path) DO NOTHING;
+        ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     IF err_log_menu_id IS NOT NULL THEN
@@ -204,7 +202,7 @@ DECLARE
         (err_log_menu_id, '解决错误日志', 'PUT', '/admin/v1/error-logs/:id/resolve', '解决错误日志', '1', NOW(), NOW()),
         (err_log_menu_id, '删除错误日志', 'DELETE', '/admin/v1/error-logs/:id', '删除错误日志', '1', NOW(), NOW()),
         (err_log_menu_id, '批量删除错误日志', 'POST', '/admin/v1/error-logs/batch-delete', '批量删除错误日志', '1', NOW(), NOW())
-        ON CONFLICT (method, path) DO NOTHING;
+        ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- 系统配置API
@@ -213,14 +211,14 @@ DECLARE
         VALUES 
         (config_menu_id, '查询系统配置列表', 'GET', '/admin/v1/system/configs', '查询系统配置列表', '1', NOW(), NOW()),
         (config_menu_id, '修改系统配置及热更新', 'PUT', '/admin/v1/system/configs', '修改系统配置及热更新', '1', NOW(), NOW())
-        ON CONFLICT (method, path) DO NOTHING;
+        ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- 字典管理API
     DECLARE
         dict_menu_id BIGINT;
     BEGIN
-        SELECT id INTO dict_menu_id FROM admin_menu WHERE route_name = 'manage_dict';
+        SELECT id INTO dict_menu_id FROM admin_menu WHERE route_name = 'manage_dict' AND deleted_at = 0;
         IF dict_menu_id IS NOT NULL THEN
             INSERT INTO admin_api (menu_id, name, method, path, description, auth, created_at, updated_at)
             VALUES 
@@ -233,7 +231,7 @@ DECLARE
             (dict_menu_id, '创建字典数据', 'POST', '/admin/v1/system/dict/data', '创建新的字典数据项', '1', NOW(), NOW()),
             (dict_menu_id, '更新字典数据', 'PUT', '/admin/v1/system/dict/data', '更新字典数据项', '1', NOW(), NOW()),
             (dict_menu_id, '删除字典数据', 'DELETE', '/admin/v1/system/dict/data/:id', '删除字典数据项', '1', NOW(), NOW())
-            ON CONFLICT (method, path) DO NOTHING;
+            ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
         END IF;
     END;
 END $$;
@@ -247,11 +245,11 @@ DECLARE
     button_menu_id BIGINT;
     api_menu_id BIGINT;
 BEGIN
-    SELECT id INTO admin_menu_id FROM admin_menu WHERE route_name = 'manage_admin';
-    SELECT id INTO role_menu_id FROM admin_menu WHERE route_name = 'manage_role';
-    SELECT id INTO menu_menu_id FROM admin_menu WHERE route_name = 'manage_menu';
-    SELECT id INTO button_menu_id FROM admin_menu WHERE route_name = 'manage_button';
-    SELECT id INTO api_menu_id FROM admin_menu WHERE route_name = 'manage_api';
+    SELECT id INTO admin_menu_id FROM admin_menu WHERE route_name = 'manage_admin' AND deleted_at = 0;
+    SELECT id INTO role_menu_id FROM admin_menu WHERE route_name = 'manage_role' AND deleted_at = 0;
+    SELECT id INTO menu_menu_id FROM admin_menu WHERE route_name = 'manage_menu' AND deleted_at = 0;
+    SELECT id INTO button_menu_id FROM admin_menu WHERE route_name = 'manage_button' AND deleted_at = 0;
+    SELECT id INTO api_menu_id FROM admin_menu WHERE route_name = 'manage_api' AND deleted_at = 0;
 
     -- 管理员管理按钮
     IF admin_menu_id IS NOT NULL THEN
@@ -260,7 +258,7 @@ BEGIN
         (admin_menu_id, 'user:add', '新增', NOW(), NOW()),
         (admin_menu_id, 'user:edit', '编辑', NOW(), NOW()),
         (admin_menu_id, 'user:delete', '删除', NOW(), NOW())
-        ON CONFLICT (code) DO NOTHING;
+        ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- 角色管理按钮
@@ -271,7 +269,7 @@ BEGIN
         (role_menu_id, 'role:edit', '编辑', NOW(), NOW()),
         (role_menu_id, 'role:delete', '删除', NOW(), NOW()),
         (role_menu_id, 'role:auth', '菜单权限', NOW(), NOW())
-        ON CONFLICT (code) DO NOTHING;
+        ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- 菜单管理按钮
@@ -281,7 +279,7 @@ BEGIN
         (menu_menu_id, 'menu:add', '新增', NOW(), NOW()),
         (menu_menu_id, 'menu:edit', '编辑', NOW(), NOW()),
         (menu_menu_id, 'menu:delete', '删除', NOW(), NOW())
-        ON CONFLICT (code) DO NOTHING;
+        ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- 按钮管理按钮
@@ -291,7 +289,7 @@ BEGIN
         (button_menu_id, 'button:add', '新增', NOW(), NOW()),
         (button_menu_id, 'button:edit', '编辑', NOW(), NOW()),
         (button_menu_id, 'button:delete', '删除', NOW(), NOW())
-        ON CONFLICT (code) DO NOTHING;
+        ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- API管理按钮
@@ -301,21 +299,21 @@ BEGIN
         (api_menu_id, 'api:add', '新增', NOW(), NOW()),
         (api_menu_id, 'api:edit', '编辑', NOW(), NOW()),
         (api_menu_id, 'api:delete', '删除', NOW(), NOW())
-        ON CONFLICT (code) DO NOTHING;
+        ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- 字典管理按钮
     DECLARE
         dict_menu_id BIGINT;
     BEGIN
-        SELECT id INTO dict_menu_id FROM admin_menu WHERE route_name = 'manage_dict';
+        SELECT id INTO dict_menu_id FROM admin_menu WHERE route_name = 'manage_dict' AND deleted_at = 0;
         IF dict_menu_id IS NOT NULL THEN
             INSERT INTO admin_button (menu_id, code, label, created_at, updated_at)
             VALUES 
             (dict_menu_id, 'dict:add', '新增', NOW(), NOW()),
             (dict_menu_id, 'dict:edit', '编辑', NOW(), NOW()),
             (dict_menu_id, 'dict:delete', '删除', NOW(), NOW())
-            ON CONFLICT (code) DO NOTHING;
+            ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
         END IF;
     END;
 END $$;
@@ -323,20 +321,20 @@ END $$;
 -- 默认超级管理员及权限分配
 INSERT INTO admin_role (name, code, description, status)
 SELECT '超级管理员', 'R_SUPER', '系统顶级角色', '1'
-WHERE NOT EXISTS (SELECT 1 FROM admin_role WHERE code = 'R_SUPER');
+WHERE NOT EXISTS (SELECT 1 FROM admin_role WHERE code = 'R_SUPER' AND deleted_at = 0);
 
 INSERT INTO admin_role (name, code, description, status)
 SELECT '管理员', 'R_ADMIN', '普通管理员，拥有部分权限', '1'
-WHERE NOT EXISTS (SELECT 1 FROM admin_role WHERE code = 'R_ADMIN');
+WHERE NOT EXISTS (SELECT 1 FROM admin_role WHERE code = 'R_ADMIN' AND deleted_at = 0);
 
 INSERT INTO admin_user (username, password, nickname, status, created_at, updated_at)
 SELECT 'admin', '$2a$10$QJgEZIAq8nlUi8jRftfKtu.RQ0Z8CV/YNBRIpOBA9YPJ7HaB5uj8C', '超级管理员', '1', NOW(), NOW()
-WHERE NOT EXISTS (SELECT 1 FROM admin_user WHERE username = 'admin');
+WHERE NOT EXISTS (SELECT 1 FROM admin_user WHERE username = 'admin' AND deleted_at = 0);
 
 -- 关联用户与角色
 INSERT INTO admin_user_roles (admin_user_id, admin_role_id)
 SELECT u.id, r.id FROM admin_user u, admin_role r 
-WHERE u.username = 'admin' AND r.code = 'R_SUPER'
+WHERE u.username = 'admin' AND r.code = 'R_SUPER' AND u.deleted_at = 0 AND r.deleted_at = 0
 ON CONFLICT (admin_user_id, admin_role_id) DO NOTHING;
 
     -- 自动授权逻辑：为超级管理员分配所有现有权限
@@ -344,22 +342,22 @@ DO $$
 DECLARE
     super_role_id BIGINT;
 BEGIN
-    SELECT id INTO super_role_id FROM admin_role WHERE code = 'R_SUPER';
+    SELECT id INTO super_role_id FROM admin_role WHERE code = 'R_SUPER' AND deleted_at = 0;
 
     IF super_role_id IS NOT NULL THEN
         -- 分配所有菜单
         INSERT INTO admin_role_menus (admin_role_id, admin_menu_id)
-        SELECT super_role_id, id FROM admin_menu
+        SELECT super_role_id, id FROM admin_menu WHERE deleted_at = 0
         ON CONFLICT (admin_role_id, admin_menu_id) DO NOTHING;
 
         -- 分配所有API
         INSERT INTO admin_role_apis (admin_role_id, admin_api_id)
-        SELECT super_role_id, id FROM admin_api
+        SELECT super_role_id, id FROM admin_api WHERE deleted_at = 0
         ON CONFLICT (admin_role_id, admin_api_id) DO NOTHING;
 
         -- 分配所有按钮
         INSERT INTO admin_role_buttons (admin_role_id, admin_button_id)
-        SELECT super_role_id, id FROM admin_button
+        SELECT super_role_id, id FROM admin_button WHERE deleted_at = 0
         ON CONFLICT (admin_role_id, admin_button_id) DO NOTHING;
     END IF;
 END $$;

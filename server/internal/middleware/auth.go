@@ -3,9 +3,9 @@ package middleware
 import (
 	"strings"
 
-	"netyadmin/internal/pkg/errorx"
-	"netyadmin/internal/pkg/jwt"
-	"netyadmin/internal/pkg/response"
+	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/jwt"
+	"NetyAdmin/internal/pkg/response"
 
 	"github.com/gin-gonic/gin"
 )

@@ -4,10 +4,14 @@ import { fetchBatchDeleteOperationLog, fetchDeleteOperationLog, fetchGetOperatio
 import { useAppStore } from '@/store/modules/app';
 import { useTable, useTableOperate } from '@/hooks/common/table';
 import { useAuth } from '@/hooks/business/auth';
+import { useDict } from '@/hooks/common/dict';
 import { $t } from '@/locales';
 
 const appStore = useAppStore();
 const { hasAuth } = useAuth();
+const { loadDicts, renderDictTag } = useDict();
+
+loadDicts(['sys_operation_action']);
 
 const {
   columns,
@@ -53,15 +57,7 @@ const {
       title: $t('page.ops.operationLog.type'),
       align: 'center',
       width: 100,
-      render: row => {
-        const actionMap: Record<string, NaiveUI.ThemeColor> = {
-          [$t('page.ops.operationLog.actionCreate')]: 'success',
-          [$t('page.ops.operationLog.actionUpdate')]: 'warning',
-          [$t('page.ops.operationLog.actionDelete')]: 'error'
-        };
-        const type = actionMap[row.action] || 'default';
-        return <NTag type={type}>{row.action}</NTag>;
-      }
+      render: row => renderDictTag('sys_operation_action', row.action)
     },
     {
       key: 'resource',

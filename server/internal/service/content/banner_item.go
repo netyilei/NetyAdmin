@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	contentEntity "netyadmin/internal/domain/entity/content"
-	contentDto "netyadmin/internal/interface/admin/dto/content"
-	"netyadmin/internal/pkg/errorx"
-	contentRepo "netyadmin/internal/repository/content"
+	contentEntity "NetyAdmin/internal/domain/entity/content"
+	contentDto "NetyAdmin/internal/interface/admin/dto/content"
+	"NetyAdmin/internal/pkg/errorx"
+	contentRepo "NetyAdmin/internal/repository/content"
 )
 
 type BannerItemService interface {

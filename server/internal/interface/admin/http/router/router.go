@@ -3,16 +3,16 @@ package router
 import (
 	"github.com/gin-gonic/gin"
 
-	"netyadmin/internal/interface/admin/http/handler/v1/admin"
-	"netyadmin/internal/interface/admin/http/handler/v1/auth"
-	"netyadmin/internal/interface/admin/http/handler/v1/content"
-	"netyadmin/internal/interface/admin/http/handler/v1/error_log"
-	"netyadmin/internal/interface/admin/http/handler/v1/operation_log"
-	"netyadmin/internal/interface/admin/http/handler/v1/route"
-	storageHandler "netyadmin/internal/interface/admin/http/handler/v1/storage"
-	"netyadmin/internal/interface/admin/http/handler/v1/system"
-	"netyadmin/internal/middleware"
-	v1 "netyadmin/internal/interface/admin/http/router/v1"
+	"NetyAdmin/internal/interface/admin/http/handler/v1/admin"
+	"NetyAdmin/internal/interface/admin/http/handler/v1/auth"
+	"NetyAdmin/internal/interface/admin/http/handler/v1/content"
+	"NetyAdmin/internal/interface/admin/http/handler/v1/error_log"
+	"NetyAdmin/internal/interface/admin/http/handler/v1/operation_log"
+	"NetyAdmin/internal/interface/admin/http/handler/v1/route"
+	storageHandler "NetyAdmin/internal/interface/admin/http/handler/v1/storage"
+	"NetyAdmin/internal/interface/admin/http/handler/v1/system"
+	"NetyAdmin/internal/middleware"
+	v1 "NetyAdmin/internal/interface/admin/http/router/v1"
 )
 
 type Router struct {

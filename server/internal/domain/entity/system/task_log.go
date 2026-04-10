@@ -1,7 +1,7 @@
 package system
 
 import (
-	"netyadmin/internal/domain/entity"
+	"NetyAdmin/internal/domain/entity"
 	"time"
 )
 

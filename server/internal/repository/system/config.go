@@ -7,8 +7,8 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
-	systemEntity "netyadmin/internal/domain/entity/system"
-	"netyadmin/internal/pkg/errorx"
+	systemEntity "NetyAdmin/internal/domain/entity/system"
+	"NetyAdmin/internal/pkg/errorx"
 )
 
 type ConfigRepository interface {

@@ -4,13 +4,13 @@ import (
 	"context"
 	"strings"
 
-	"netyadmin/internal/domain/entity"
-	storageEntity "netyadmin/internal/domain/entity/storage"
-	storageDto "netyadmin/internal/interface/admin/dto/storage"
-	"netyadmin/internal/pkg/cache"
-	"netyadmin/internal/pkg/errorx"
-	"netyadmin/internal/pkg/storage"
-	storageRepo "netyadmin/internal/repository/storage"
+	"NetyAdmin/internal/domain/entity"
+	storageEntity "NetyAdmin/internal/domain/entity/storage"
+	storageDto "NetyAdmin/internal/interface/admin/dto/storage"
+	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/storage"
+	storageRepo "NetyAdmin/internal/repository/storage"
 )
 
 type ConfigService interface {

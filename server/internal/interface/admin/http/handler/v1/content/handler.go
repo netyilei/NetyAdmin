@@ -1,7 +1,7 @@
 package content
 
 import (
-	contentService "netyadmin/internal/service/content"
+	contentService "NetyAdmin/internal/service/content"
 )
 
 type ContentHandler struct {

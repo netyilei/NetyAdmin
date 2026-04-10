@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { useBoolean } from '@sa/hooks';
+import { useBoolean } from '@na/hooks';
 import { $t } from '@/locales';
 import SearchModal from './components/search-modal.vue';
 

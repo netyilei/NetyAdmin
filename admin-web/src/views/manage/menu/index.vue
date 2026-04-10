@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import type { Ref } from 'vue';
 import { NButton, NDataTable, NPopconfirm, NTag } from 'naive-ui';
-import { useBoolean } from '@sa/hooks';
+import { useBoolean } from '@na/hooks';
 import TableHeaderOperation from '@/components/advanced/table-header-operation.vue';
 import {
   fetchBatchDeleteMenu,
@@ -75,7 +75,7 @@ const { columns, columnChecks, data, loading, pagination, getData, updateSearchP
       key: 'type',
       title: $t('page.manage.menu.menuType'),
       align: 'center',
-      width: 80,
+      width: 100,
       render: row => renderDictTag('menu_type', row.type ?? '')
     },
     {
@@ -137,13 +137,13 @@ const { columns, columnChecks, data, loading, pagination, getData, updateSearchP
       key: 'order',
       title: $t('page.manage.menu.order'),
       align: 'center',
-      width: 60
+      width: 80
     },
     {
       key: 'operate',
       title: $t('common.operate'),
       align: 'center',
-      width: 230,
+      width: 250,
       render: row => (
         <div class="flex-center justify-end gap-8px">
           {row.type === '1' && (

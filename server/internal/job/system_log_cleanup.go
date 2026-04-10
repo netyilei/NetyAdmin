@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"time"
 
-	"netyadmin/internal/pkg/configsync"
-	"netyadmin/internal/pkg/task"
-	logRepo "netyadmin/internal/repository/log"
-	systemRepo "netyadmin/internal/repository/system"
+	"NetyAdmin/internal/pkg/configsync"
+	"NetyAdmin/internal/pkg/task"
+	logRepo "NetyAdmin/internal/repository/log"
+	systemRepo "NetyAdmin/internal/repository/system"
 )
 
 // SystemLogCleanupJob 统一日志清理任务

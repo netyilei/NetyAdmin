@@ -10,7 +10,7 @@ import type { InjectionKey } from 'vue';
  *
  *   // context.ts
  *   import { ref } from 'vue';
- *   import { useContext } from '@sa/hooks';
+ *   import { useContext } from '@na/hooks';
  *
  *   export const { setupStore, useStore } = useContext('demo', () => {
  *     const count = ref(0);

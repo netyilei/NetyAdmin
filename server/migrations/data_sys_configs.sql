@@ -35,7 +35,7 @@ VALUES
 ('task_config', 'log_enabled', 'true', 'boolean', '日志记录开关', TRUE, 1, 1),
 ('task_config', 'retention_days', '30', 'number', '日志保留天数', TRUE, 1, 1),
 ('task_config', 'task:article_publish:enabled', 'true', 'boolean', '文章自动发布任务开关', TRUE, 1, 1)
-ON CONFLICT (group_name, config_key) DO UPDATE SET 
+ON CONFLICT (group_name, config_key) WHERE deleted_at = 0 DO UPDATE SET 
     description = EXCLUDED.description,
     is_system = EXCLUDED.is_system;
 

@@ -3,13 +3,13 @@ package system
 import (
 	"context"
 
-	"netyadmin/internal/config"
-	systemDto "netyadmin/internal/interface/admin/dto/system"
-	systemEntity "netyadmin/internal/domain/entity/system"
-	systemVO "netyadmin/internal/domain/vo/system"
-	"netyadmin/internal/pkg/configsync"
-	"netyadmin/internal/pkg/redis"
-	systemRepo "netyadmin/internal/repository/system"
+	"NetyAdmin/internal/config"
+	systemDto "NetyAdmin/internal/interface/admin/dto/system"
+	systemEntity "NetyAdmin/internal/domain/entity/system"
+	systemVO "NetyAdmin/internal/domain/vo/system"
+	"NetyAdmin/internal/pkg/configsync"
+	"NetyAdmin/internal/pkg/redis"
+	systemRepo "NetyAdmin/internal/repository/system"
 
 	goRedis "github.com/redis/go-redis/v9"
 )

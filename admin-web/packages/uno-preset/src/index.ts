@@ -3,9 +3,9 @@
 import type { Preset } from '@unocss/core';
 import type { Theme } from '@unocss/preset-uno';
 
-export function presetNetyAdmin(): Preset<Theme> {
+export function presetNetyAdminAdmin(): Preset<Theme> {
   const preset: Preset<Theme> = {
-    name: 'preset-netyadmin-web',
+    name: 'preset-NetyAdmin-admin',
     shortcuts: [
       {
         'flex-center': 'flex justify-center items-center',
@@ -52,4 +52,4 @@ export function presetNetyAdmin(): Preset<Theme> {
   return preset;
 }
 
-export default presetNetyAdmin;
+export default presetNetyAdminAdmin;

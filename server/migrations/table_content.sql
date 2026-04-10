@@ -2,6 +2,8 @@
 -- Content Module - Tables
 -- =============================================
 
+BEGIN;
+
 -- 内容分类表
 CREATE TABLE IF NOT EXISTS content_category (
     id BIGSERIAL PRIMARY KEY,
@@ -49,6 +51,9 @@ CREATE TABLE IF NOT EXISTS content_article (
     publish_status VARCHAR(20) DEFAULT 'draft',
     published_at TIMESTAMP,
     scheduled_at TIMESTAMP,
+    sort INT DEFAULT 0,
+    status CHAR(1) DEFAULT '1',
+    remark TEXT,
     created_by BIGINT,
     updated_by BIGINT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -116,3 +121,5 @@ CREATE TABLE IF NOT EXISTS content_banner_item (
 CREATE INDEX IF NOT EXISTS idx_content_banner_item_group ON content_banner_item(group_id);
 CREATE INDEX IF NOT EXISTS idx_content_banner_item_status ON content_banner_item(status);
 CREATE INDEX IF NOT EXISTS idx_content_banner_item_time ON content_banner_item(start_time, end_time);
+
+COMMIT;

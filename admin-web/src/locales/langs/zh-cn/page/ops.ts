@@ -30,7 +30,8 @@ const ops = {
     time: '操作时间',
     actionCreate: '创建',
     actionUpdate: '更新',
-    actionDelete: '删除'
+    actionDelete: '删除',
+    actionBatchDelete: '批量删除'
   },
   task: {
     title: '后台任务看板',

@@ -16,8 +16,6 @@ const { loadDicts, renderDictTag } = useDict();
 
 loadDicts(['sys_status']);
 
-loadDicts(['sys_status']);
-
 const {
   columns,
   columnChecks,

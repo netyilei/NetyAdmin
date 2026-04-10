@@ -6,12 +6,12 @@ import (
 	"strings"
 	"time"
 
-	storageDto "netyadmin/internal/interface/admin/dto/storage"
-	storageEntity "netyadmin/internal/domain/entity/storage"
-	storageVO "netyadmin/internal/domain/vo/storage"
-	"netyadmin/internal/pkg/errorx"
-	"netyadmin/internal/pkg/storage"
-	storageRepo "netyadmin/internal/repository/storage"
+	storageDto "NetyAdmin/internal/interface/admin/dto/storage"
+	storageEntity "NetyAdmin/internal/domain/entity/storage"
+	storageVO "NetyAdmin/internal/domain/vo/storage"
+	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/storage"
+	storageRepo "NetyAdmin/internal/repository/storage"
 )
 
 type RecordService interface {

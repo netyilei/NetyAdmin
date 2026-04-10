@@ -1,6 +1,6 @@
 package log
 
-import "netyadmin/internal/domain/entity"
+import "NetyAdmin/internal/domain/entity"
 
 type Operation struct {
 	entity.Model

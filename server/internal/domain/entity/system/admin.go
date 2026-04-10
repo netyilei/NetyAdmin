@@ -1,16 +1,16 @@
 package system
 
-import "netyadmin/internal/domain/entity"
+import "NetyAdmin/internal/domain/entity"
 
 type Admin struct {
 	entity.Model
 	entity.Operator
-	Username      string  `gorm:"column:username;size:50;not null;uniqueIndex" json:"username"`
+	Username      string  `gorm:"column:username;size:50;not null;uniqueIndex" json:"userName"`
 	Password      string  `gorm:"column:password;size:100;not null" json:"-"`
-	Nickname      string  `gorm:"column:nickname;size:50" json:"nickname"`
-	Phone         string  `gorm:"column:phone;size:20" json:"phone"`
-	Email         string  `gorm:"column:email;size:100" json:"email"`
-	Gender        string  `gorm:"column:gender;size:1;default:1" json:"gender"`
+	Nickname      string  `gorm:"column:nickname;size:50" json:"nickName"`
+	Phone         string  `gorm:"column:phone;size:20" json:"userPhone"`
+	Email         string  `gorm:"column:email;size:100" json:"userEmail"`
+	Gender        string  `gorm:"column:gender;size:1;default:1" json:"userGender"`
 	Status        string  `gorm:"column:status;size:1;default:1" json:"status"`
 	LastLoginAt   *string `gorm:"column:last_login_at;size:30" json:"lastLoginAt"`
 	Roles         []*Role `gorm:"many2many:admin_user_roles;joinForeignKey:admin_user_id;joinReferences:admin_role_id" json:"roles"`

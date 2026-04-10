@@ -1,7 +1,7 @@
 import { computed, nextTick, ref, shallowRef } from 'vue';
 import type { RouteRecordRaw } from 'vue-router';
 import { defineStore } from 'pinia';
-import { useBoolean } from '@sa/hooks';
+import { useBoolean } from '@na/hooks';
 import { router } from '@/router';
 import { fetchGetUserRoutes, fetchIsRouteExist } from '@/service/api/v1/route';
 import { SetupStoreId } from '@/enum';
@@ -169,6 +169,9 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
         if (!dynamicRoute.meta) dynamicRoute.meta = {};
         dynamicRoute.meta.hideChildrenInMenu = true;
 
+        // Ensure navigation to the parent redirects to the child
+        dynamicRoute.redirect = { name: `${item.name}_index` };
+
         // 4. Create child route for the actual view
         dynamicRoute.children = [
           {
@@ -193,12 +196,15 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
         // Simple View Mode
         const mappedView = mapComponent(componentStr);
 
-        // If it's a root view (e.g. Home), it needs a layout wrapper in SoyBean
+        // If it's a root view (e.g. Home), it needs a layout wrapper in NetyAdmin
         if (isRoot) {
           dynamicRoute.component = mapComponent('layout.base');
 
           if (!dynamicRoute.meta) dynamicRoute.meta = {};
           dynamicRoute.meta.hideChildrenInMenu = true;
+
+          // Ensure navigation to the parent redirects to the child
+          dynamicRoute.redirect = { name: `${item.name}_index` };
 
           dynamicRoute.children = [
             {

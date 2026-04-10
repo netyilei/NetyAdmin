@@ -179,7 +179,7 @@ export interface AdminLayoutProps
    * @example
    *   use the default id by import
    *   ```ts
-   *   import { adminLayoutScrollElId } from '@sa/vue-materials';
+   *   import { adminLayoutScrollElId } from '@na/vue-materials';
    *   ```
    *
    * @default

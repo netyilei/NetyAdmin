@@ -29,15 +29,15 @@ DECLARE
     settings_menu_id BIGINT;
     ops_menu_id BIGINT;
 BEGIN
-    SELECT id INTO settings_menu_id FROM admin_menu WHERE route_name = 'settings';
-    SELECT id INTO ops_menu_id FROM admin_menu WHERE route_name = 'ops';
+    SELECT id INTO settings_menu_id FROM admin_menu WHERE route_name = 'settings' AND deleted_at = 0;
+    SELECT id INTO ops_menu_id FROM admin_menu WHERE route_name = 'ops' AND deleted_at = 0;
 
     -- 存储配置菜单 (基础设置下)
     IF settings_menu_id IS NOT NULL THEN
         INSERT INTO admin_menu (parent_id, name, route_name, route_path, component, icon, order_by, hide_in_menu, status, type, i18_n_key, created_at, updated_at)
         VALUES 
         (settings_menu_id, '存储配置', 'settings_storage-config', '/settings/storage-config', 'view.settings_storage-config', 'ic:outline-cloud-queue', 1, false, '1', '2', 'route.settings_storage-config', NOW(), NOW())
-        ON CONFLICT (route_name) DO UPDATE SET i18_n_key = EXCLUDED.i18_n_key;
+        ON CONFLICT (route_name) WHERE deleted_at = 0 DO UPDATE SET i18_n_key = EXCLUDED.i18_n_key;
     END IF;
 
     -- 上传记录菜单 (运维管理下)
@@ -45,7 +45,7 @@ BEGIN
         INSERT INTO admin_menu (parent_id, name, route_name, route_path, component, icon, order_by, hide_in_menu, status, type, i18_n_key, created_at, updated_at)
         VALUES 
         (ops_menu_id, '上传记录', 'ops_upload-record', '/ops/upload-record', 'view.ops_upload-record', 'ic:outline-cloud-upload', 4, false, '1', '2', 'route.ops_upload-record', NOW(), NOW())
-        ON CONFLICT (route_name) DO UPDATE SET i18_n_key = EXCLUDED.i18_n_key;
+        ON CONFLICT (route_name) WHERE deleted_at = 0 DO UPDATE SET i18_n_key = EXCLUDED.i18_n_key;
     END IF;
 END $$;
 
@@ -55,8 +55,8 @@ DECLARE
     config_menu_id BIGINT;
     record_menu_id BIGINT;
 BEGIN
-    SELECT id INTO config_menu_id FROM admin_menu WHERE route_name = 'settings_storage-config';
-    SELECT id INTO record_menu_id FROM admin_menu WHERE route_name = 'ops_upload-record';
+    SELECT id INTO config_menu_id FROM admin_menu WHERE route_name = 'settings_storage-config' AND deleted_at = 0;
+    SELECT id INTO record_menu_id FROM admin_menu WHERE route_name = 'ops_upload-record' AND deleted_at = 0;
 
     -- 存储配置API
     IF config_menu_id IS NOT NULL THEN
@@ -87,33 +87,24 @@ BEGIN
     END IF;
 END $$;
 
--- 清理：移除旧版残留的“批量删除存储配置”API
-DELETE FROM admin_role_apis
-WHERE admin_api_id IN (
-    SELECT id FROM admin_api WHERE method = 'POST' AND path = '/admin/v1/storage-configs/batch-delete'
-);
-
-DELETE FROM admin_api
-WHERE method = 'POST' AND path = '/admin/v1/storage-configs/batch-delete';
-
 -- 权限数据初始化：按钮
 DO $$
 DECLARE
     config_menu_id BIGINT;
     record_menu_id BIGINT;
 BEGIN
-    SELECT id INTO config_menu_id FROM admin_menu WHERE route_name = 'settings_storage-config';
-    SELECT id INTO record_menu_id FROM admin_menu WHERE route_name = 'ops_upload-record';
+    SELECT id INTO config_menu_id FROM admin_menu WHERE route_name = 'settings_storage-config' AND deleted_at = 0;
+    SELECT id INTO record_menu_id FROM admin_menu WHERE route_name = 'ops_upload-record' AND deleted_at = 0;
 
     -- 存储配置按钮
     IF config_menu_id IS NOT NULL THEN
         INSERT INTO admin_button (menu_id, code, label, created_at, updated_at)
         VALUES 
-        (config_menu_id, 'storage:add', '新增', NOW(), NOW()),
-        (config_menu_id, 'storage:edit', '编辑', NOW(), NOW()),
-        (config_menu_id, 'storage:delete', '删除', NOW(), NOW()),
-        (config_menu_id, 'storage:test', '测试上传', NOW(), NOW()),
-        (config_menu_id, 'storage:default', '确定', NOW(), NOW())
+        (config_menu_id, 'storage:add', 'common.add', NOW(), NOW()),
+        (config_menu_id, 'storage:edit', 'common.edit', NOW(), NOW()),
+        (config_menu_id, 'storage:delete', 'common.delete', NOW(), NOW()),
+        (config_menu_id, 'storage:test', 'page.settings.storageConfig.testUpload', NOW(), NOW()),
+        (config_menu_id, 'storage:default', 'common.confirm', NOW(), NOW())
         ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
@@ -121,8 +112,8 @@ BEGIN
     IF record_menu_id IS NOT NULL THEN
         INSERT INTO admin_button (menu_id, code, label, created_at, updated_at)
         VALUES 
-        (record_menu_id, 'ops:upload-record:delete', '删除', NOW(), NOW()),
-        (record_menu_id, 'ops:upload-record:batch-delete', '批量删除', NOW(), NOW())
+        (record_menu_id, 'ops:upload-record:delete', 'common.delete', NOW(), NOW()),
+        (record_menu_id, 'ops:upload-record:batch-delete', 'common.batchDelete', NOW(), NOW())
         ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 END $$;
@@ -132,26 +123,26 @@ DO $$
 DECLARE
     super_role_id BIGINT;
 BEGIN
-    SELECT id INTO super_role_id FROM admin_role WHERE code = 'R_SUPER';
+    SELECT id INTO super_role_id FROM admin_role WHERE code = 'R_SUPER' AND deleted_at = 0;
 
     IF super_role_id IS NOT NULL THEN
         -- 分配菜单 (通过 route_name 匹配)
         INSERT INTO admin_role_menus (admin_role_id, admin_menu_id)
         SELECT super_role_id, id FROM admin_menu 
-        WHERE route_name IN ('settings_storage-config', 'ops_upload-record')
-        ON CONFLICT DO NOTHING;
+        WHERE route_name IN ('settings_storage-config', 'ops_upload-record') AND deleted_at = 0
+        ON CONFLICT (admin_role_id, admin_menu_id) DO NOTHING;
 
         -- 分配API (通过路径匹配)
         INSERT INTO admin_role_apis (admin_role_id, admin_api_id)
         SELECT super_role_id, id FROM admin_api 
-        WHERE path LIKE '/admin/v1/storage%' OR path LIKE '/admin/v1/upload-records%'
-        ON CONFLICT DO NOTHING;
+        WHERE (path LIKE '/admin/v1/storage%' OR path LIKE '/admin/v1/upload-records%') AND deleted_at = 0
+        ON CONFLICT (admin_role_id, admin_api_id) DO NOTHING;
 
         -- 分配按钮 (通过前缀匹配)
         INSERT INTO admin_role_buttons (admin_role_id, admin_button_id)
         SELECT super_role_id, id FROM admin_button 
-        WHERE code LIKE 'storage:%' OR code LIKE 'ops:upload-record:%'
-        ON CONFLICT DO NOTHING;
+        WHERE (code LIKE 'storage:%' OR code LIKE 'ops:upload-record:%') AND deleted_at = 0
+        ON CONFLICT (admin_role_id, admin_button_id) DO NOTHING;
     END IF;
 END $$;
 

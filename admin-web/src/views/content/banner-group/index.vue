@@ -93,13 +93,7 @@ const {
       title: $t('page.content.bannerGroup.autoPlay'),
       align: 'center',
       width: 80,
-      render: row => {
-        return row.autoPlay ? (
-          <NTag type="success">{$t('common.yes')}</NTag>
-        ) : (
-          <NTag type="default">{$t('common.no')}</NTag>
-        );
-      }
+      render: row => renderDictTag('sys_yes_no', row.autoPlay ? '1' : '0')
     },
     {
       key: 'interval',
@@ -109,7 +103,7 @@ const {
     },
     {
       key: 'status',
-      title: $t('common.status'),
+      title: $t('page.content.bannerGroup.status'),
       align: 'center',
       width: 80,
       render: row => renderDictTag('sys_status', row.status ?? '')

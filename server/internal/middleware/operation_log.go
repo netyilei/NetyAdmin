@@ -11,8 +11,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	logEntity "netyadmin/internal/domain/entity/log"
-	logService "netyadmin/internal/service/log"
+	logEntity "NetyAdmin/internal/domain/entity/log"
+	logService "NetyAdmin/internal/service/log"
 )
 
 type responseWriter struct {
@@ -71,7 +71,7 @@ func OperationLogger(opLogSvc logService.OperationService) gin.HandlerFunc {
 		action := getActionFromMethod(method)
 		// 2. 准确识别批量删除操作
 		if method == "POST" && path == "/admin/v1/operation-logs/batch-delete" {
-			action = "批量删除"
+			action = "batch_delete"
 		}
 
 		resource := getResourceFromPath(path)
@@ -125,11 +125,11 @@ func OperationLogger(opLogSvc logService.OperationService) gin.HandlerFunc {
 func getActionFromMethod(method string) string {
 	switch method {
 	case "POST":
-		return "创建"
+		return "create"
 	case "PUT", "PATCH":
-		return "更新"
+		return "update"
 	case "DELETE":
-		return "删除"
+		return "delete"
 	default:
 		return method
 	}

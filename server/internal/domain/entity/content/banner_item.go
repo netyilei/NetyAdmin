@@ -1,7 +1,7 @@
 package content
 
 import (
-	"netyadmin/internal/domain/entity"
+	"NetyAdmin/internal/domain/entity"
 	"time"
 )
 
@@ -24,6 +24,7 @@ type ContentBannerItem struct {
 	ViewCount     int        `gorm:"column:view_count;default:0;comment:浏览次数" json:"viewCount"`
 	ClickCount    int        `gorm:"column:click_count;default:0;comment:点击次数" json:"clickCount"`
 	Status        string     `gorm:"column:status;type:char(1);default:'1';comment:状态 1启用 0禁用" json:"status"`
+	Remark        string     `gorm:"column:remark;type:text;comment:备注" json:"remark"`
 
 	Group   *ContentBannerGroup `gorm:"foreignKey:GroupID;references:ID" json:"group,omitempty"`
 	Article *ContentArticle     `gorm:"foreignKey:LinkArticleID;references:ID" json:"article,omitempty"`

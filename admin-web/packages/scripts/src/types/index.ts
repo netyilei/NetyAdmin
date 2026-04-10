@@ -1,4 +1,4 @@
-import type { ChangelogOption } from '@netyadminjs/changelog';
+import type { ChangelogOption } from '@soybeanjs/changelog';
 
 export interface CliOption {
   /** The project root directory */
@@ -23,7 +23,7 @@ export interface CliOption {
   /**
    * Options of generate changelog
    *
-   * @link https://github.com/netyadminjs/changelog
+   * @link https://github.com/NetyAdminjs/changelog
    */
   changelogOptions: Partial<ChangelogOption>;
   /** The ignore pattern list of git commit verify */

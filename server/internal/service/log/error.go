@@ -7,10 +7,10 @@ import (
 	"runtime"
 	"time"
 
-	logEntity "netyadmin/internal/domain/entity/log"
-	"netyadmin/internal/pkg/cache"
-	"netyadmin/internal/pkg/configsync"
-	logRepo "netyadmin/internal/repository/log"
+	logEntity "NetyAdmin/internal/domain/entity/log"
+	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/configsync"
+	logRepo "NetyAdmin/internal/repository/log"
 
 	"github.com/redis/go-redis/v9"
 )

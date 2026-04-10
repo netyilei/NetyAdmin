@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	systemDto "netyadmin/internal/interface/admin/dto/system"
-	systemEntity "netyadmin/internal/domain/entity/system"
-	"netyadmin/internal/pkg/cache"
-	"netyadmin/internal/pkg/errorx"
-	systemRepo "netyadmin/internal/repository/system"
+	systemDto "NetyAdmin/internal/interface/admin/dto/system"
+	systemEntity "NetyAdmin/internal/domain/entity/system"
+	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/errorx"
+	systemRepo "NetyAdmin/internal/repository/system"
 )
 
 type ButtonService interface {

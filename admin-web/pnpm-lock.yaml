@@ -26,22 +26,22 @@ importers:
       '@iconify/vue':
         specifier: 5.0.0
         version: 5.0.0(vue@3.5.17(typescript@5.8.3))
-      '@sa/alova':
+      '@na/alova':
         specifier: workspace:*
         version: link:packages/alova
-      '@sa/axios':
+      '@na/axios':
         specifier: workspace:*
         version: link:packages/axios
-      '@sa/color':
+      '@na/color':
         specifier: workspace:*
         version: link:packages/color
-      '@sa/hooks':
+      '@na/hooks':
         specifier: workspace:*
         version: link:packages/hooks
-      '@sa/materials':
+      '@na/materials':
         specifier: workspace:*
         version: link:packages/materials
-      '@sa/utils':
+      '@na/utils':
         specifier: workspace:*
         version: link:packages/utils
       '@toast-ui/editor':
@@ -144,10 +144,10 @@ importers:
       '@iconify/json':
         specifier: 2.2.357
         version: 2.2.357
-      '@sa/scripts':
+      '@na/scripts':
         specifier: workspace:*
         version: link:packages/scripts
-      '@sa/uno-preset':
+      '@na/uno-preset':
         specifier: workspace:*
         version: link:packages/uno-preset
       '@soybeanjs/eslint-config':
@@ -243,7 +243,7 @@ importers:
       '@alova/mock':
         specifier: 2.0.17
         version: 2.0.17(alova@3.3.4)
-      '@sa/utils':
+      '@na/utils':
         specifier: workspace:*
         version: link:../utils
       alova:
@@ -252,7 +252,7 @@ importers:
 
   packages/axios:
     dependencies:
-      '@sa/utils':
+      '@na/utils':
         specifier: workspace:*
         version: link:../utils
       axios:
@@ -271,7 +271,7 @@ importers:
 
   packages/color:
     dependencies:
-      '@sa/utils':
+      '@na/utils':
         specifier: workspace:*
         version: link:../utils
       colord:
@@ -280,16 +280,16 @@ importers:
 
   packages/hooks:
     dependencies:
-      '@sa/axios':
+      '@na/axios':
         specifier: workspace:*
         version: link:../axios
-      '@sa/utils':
+      '@na/utils':
         specifier: workspace:*
         version: link:../utils
 
   packages/materials:
     dependencies:
-      '@sa/utils':
+      '@na/utils':
         specifier: workspace:*
         version: link:../utils
       simplebar-vue:

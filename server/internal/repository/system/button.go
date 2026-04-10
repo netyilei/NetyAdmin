@@ -5,7 +5,7 @@ import (
 
 	"gorm.io/gorm"
 
-	systemEntity "netyadmin/internal/domain/entity/system"
+	systemEntity "NetyAdmin/internal/domain/entity/system"
 )
 
 type ButtonRepository interface {

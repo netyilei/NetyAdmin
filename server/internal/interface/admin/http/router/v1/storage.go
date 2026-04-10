@@ -3,7 +3,7 @@ package v1
 import (
 	"github.com/gin-gonic/gin"
 
-	storageHandler "netyadmin/internal/interface/admin/http/handler/v1/storage"
+	storageHandler "NetyAdmin/internal/interface/admin/http/handler/v1/storage"
 )
 
 type StorageRouter struct {

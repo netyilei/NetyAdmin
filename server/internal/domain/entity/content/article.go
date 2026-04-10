@@ -1,7 +1,7 @@
 package content
 
 import (
-	"netyadmin/internal/domain/entity"
+	"NetyAdmin/internal/domain/entity"
 	"time"
 )
 
@@ -47,12 +47,19 @@ type ContentArticle struct {
 	PublishStatus PublishStatus `gorm:"column:publish_status;type:varchar(20);default:'draft';comment:发布状态" json:"publishStatus"`
 	PublishedAt   *time.Time    `gorm:"column:published_at;comment:发布时间" json:"publishedAt"`
 	ScheduledAt   *time.Time    `gorm:"column:scheduled_at;comment:定时发布时间" json:"scheduledAt"`
+	Sort          int           `gorm:"column:sort;default:0;comment:排序" json:"sort"`
+	Status        string        `gorm:"column:status;type:char(1);default:'1';comment:状态 1启用 0禁用" json:"status"`
+	Remark        string        `gorm:"column:remark;type:text;comment:备注" json:"remark"`
 
 	Category *ContentCategory `gorm:"foreignKey:CategoryID;references:ID" json:"category,omitempty"`
 }
 
 func (ContentArticle) TableName() string {
 	return "content_article"
+}
+
+func (a *ContentArticle) IsEnabled() bool {
+	return a.Status == "1"
 }
 
 func (a *ContentArticle) IsPublished() bool {

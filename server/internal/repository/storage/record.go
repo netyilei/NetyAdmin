@@ -6,7 +6,7 @@ import (
 
 	"gorm.io/gorm"
 
-	storageEntity "netyadmin/internal/domain/entity/storage"
+	storageEntity "NetyAdmin/internal/domain/entity/storage"
 )
 
 type RecordRepository interface {

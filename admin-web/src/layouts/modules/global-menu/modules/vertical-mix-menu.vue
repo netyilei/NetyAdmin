@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { SimpleScrollbar } from '@sa/materials';
-import { useBoolean } from '@sa/hooks';
+import { SimpleScrollbar } from '@na/materials';
+import { useBoolean } from '@na/hooks';
 import { GLOBAL_SIDER_MENU_ID } from '@/constants/app';
 import { useAppStore } from '@/store/modules/app';
 import { useThemeStore } from '@/store/modules/theme';

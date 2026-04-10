@@ -1,6 +1,6 @@
 package content
 
-import "netyadmin/internal/domain/entity"
+import "NetyAdmin/internal/domain/entity"
 
 type ContentBannerGroup struct {
 	entity.Model

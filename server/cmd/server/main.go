@@ -3,9 +3,9 @@ package main
 import (
 	"log"
 
-	"netyadmin/internal/app"
-	"netyadmin/internal/config"
-	"netyadmin/internal/pkg/recovery"
+	"NetyAdmin/internal/app"
+	"NetyAdmin/internal/config"
+	"NetyAdmin/internal/pkg/recovery"
 )
 
 func main() {

@@ -11,39 +11,47 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"netyadmin/internal/config"
-	"netyadmin/internal/interface/admin/http/handler/v1/admin"
-	"netyadmin/internal/interface/admin/http/handler/v1/auth"
-	"netyadmin/internal/interface/admin/http/handler/v1/content"
-	"netyadmin/internal/interface/admin/http/handler/v1/error_log"
-	"netyadmin/internal/interface/admin/http/handler/v1/operation_log"
-	"netyadmin/internal/interface/admin/http/handler/v1/route"
-	storageHandler "netyadmin/internal/interface/admin/http/handler/v1/storage"
-	"netyadmin/internal/interface/admin/http/handler/v1/system"
-	"netyadmin/internal/middleware"
-	"netyadmin/internal/pkg/cache"
-	"netyadmin/internal/pkg/configsync"
-	"netyadmin/internal/pkg/database"
-	"netyadmin/internal/pkg/jwt"
-	pkgredis "netyadmin/internal/pkg/redis"
-	storagePkg "netyadmin/internal/pkg/storage"
-	"netyadmin/internal/pkg/task"
+	"NetyAdmin/internal/config"
+	"NetyAdmin/internal/interface/admin/http/handler/v1/admin"
+	"NetyAdmin/internal/interface/admin/http/handler/v1/auth"
+	"NetyAdmin/internal/interface/admin/http/handler/v1/content"
+	"NetyAdmin/internal/interface/admin/http/handler/v1/error_log"
+	"NetyAdmin/internal/interface/admin/http/handler/v1/operation_log"
+	"NetyAdmin/internal/interface/admin/http/handler/v1/route"
+	storageHandler "NetyAdmin/internal/interface/admin/http/handler/v1/storage"
+	"NetyAdmin/internal/interface/admin/http/handler/v1/system"
+	"NetyAdmin/internal/middleware"
+	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/configsync"
+	"NetyAdmin/internal/pkg/database"
+	"NetyAdmin/internal/pkg/jwt"
+	pkgredis "NetyAdmin/internal/pkg/redis"
+	storagePkg "NetyAdmin/internal/pkg/storage"
+	"NetyAdmin/internal/pkg/task"
 
-	"netyadmin/internal/interface/admin/http/router"
-	"netyadmin/internal/job"
-	"netyadmin/internal/pkg/migration"
-	contentRepo "netyadmin/internal/repository/content"
-	logRepo "netyadmin/internal/repository/log"
-	storageRepo "netyadmin/internal/repository/storage"
-	sysRepo "netyadmin/internal/repository/system"
-	contentService "netyadmin/internal/service/content"
-	logService "netyadmin/internal/service/log"
-	storageService "netyadmin/internal/service/storage"
-	systemService "netyadmin/internal/service/system"
+	"NetyAdmin/internal/interface/admin/http/router"
+	"NetyAdmin/internal/job"
+	"NetyAdmin/internal/pkg/migration"
+	contentRepo "NetyAdmin/internal/repository/content"
+	logRepo "NetyAdmin/internal/repository/log"
+	storageRepo "NetyAdmin/internal/repository/storage"
+	sysRepo "NetyAdmin/internal/repository/system"
+	contentService "NetyAdmin/internal/service/content"
+	logService "NetyAdmin/internal/service/log"
+	storageService "NetyAdmin/internal/service/storage"
+	systemService "NetyAdmin/internal/service/system"
 )
 
 func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
-	// 0. DB Health Checker
+	// 0. DB Migration (Separate startup step, independent of Task Manager)
+	if cfg.Migration.Enabled {
+		migrator := migration.NewMigrator(db, cfg.Migration.Dir)
+		if err := migrator.Run(); err != nil {
+			return nil, fmt.Errorf("数据库同步迁移失败: %w", err)
+		}
+	}
+
+	// 1. DB Health Checker
 	dbHealthChecker := database.NewHealthChecker(db,
 		database.WithCheckInterval(30*time.Second),
 		database.WithRetryInterval(5*time.Second),
@@ -55,14 +63,6 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 			log.Printf("[数据库] 连接断开: %v", err)
 		}),
 	)
-
-	// 0.1 DB Migration (Run once before services initialization if enabled)
-	migrator := migration.NewMigrator(db, cfg.Migration.Dir)
-	if cfg.Migration.Enabled {
-		if err := migrator.Run(); err != nil {
-			return nil, fmt.Errorf("数据库迁移失败: %w", err)
-		}
-	}
 
 	// 1. Redis & Cache
 	redisClient, err := pkgredis.NewClient(&cfg.Redis)
@@ -159,7 +159,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		roleService, // Inject as AuthVerifier
 	)
 
-	// 9. Migrator & Task Registration
+	// 9. Task Registration
 	taskManager.Register(job.AllJobs(
 		contentArticleRepo,
 		taskLogRepo,

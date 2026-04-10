@@ -32,6 +32,13 @@ function closeModal() {
 
 const title = computed(() => $t('common.edit') + $t('page.manage.role.menuAuth'));
 
+/**
+ * 首页路由名称
+ *
+ * NOTE: UI 上的首页下拉选择已移除，这里保留从 API 获取的值以防保存时丢失该配置
+ */
+const home = shallowRef('');
+
 const tree = shallowRef<SystemManage.MenuTree[]>([]);
 
 async function getTree() {
@@ -43,17 +50,16 @@ async function getTree() {
 }
 
 const checks = shallowRef<number[]>([]);
-const homeRouteName = shallowRef('');
 
 async function getChecks() {
   loading.value = true;
   const { error, data } = await fetchGetMenuIdsByRole(props.roleId);
   if (!error) {
     checks.value = data.menuIds;
-    homeRouteName.value = data.homeRouteName;
+    home.value = data.homeRouteName;
   } else {
     checks.value = [];
-    homeRouteName.value = '';
+    home.value = '';
   }
   loading.value = false;
 }
@@ -61,13 +67,9 @@ async function getChecks() {
 async function handleSubmit() {
   consola.log(checks.value, props.roleId);
   loading.value = true;
-  /**
-   * Note: The UI selection for home page was removed to simplify the process.
-   * However, we preserve the existing homeRouteName from the backend to avoid losing role configuration.
-   */
   const { error } = await fetchUpdateMenuIdsByRole(props.roleId, {
     menuIds: checks.value,
-    homeRouteName: homeRouteName.value
+    homeRouteName: home.value
   });
   loading.value = false;
   if (!error) {

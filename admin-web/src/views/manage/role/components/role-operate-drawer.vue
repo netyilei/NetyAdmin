@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { useBoolean } from '@sa/hooks';
+import { useBoolean } from '@na/hooks';
 import { fetchAddRole, fetchUpdateRole } from '@/service/api/v1/system-manage';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { useOperation } from '@/hooks/common/operation';

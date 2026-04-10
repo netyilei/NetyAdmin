@@ -3,7 +3,7 @@ package log
 import (
 	"time"
 
-	"netyadmin/internal/domain/entity"
+	"NetyAdmin/internal/domain/entity"
 )
 
 type Error struct {

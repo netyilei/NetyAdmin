@@ -1,4 +1,4 @@
-module netyadmin
+module NetyAdmin
 
 go 1.25.0
 

@@ -1,4 +1,4 @@
-[中文](README.md)
+﻿[中文](README.md)
 
 # NetyAdmin - General Purpose Admin System Base
 
@@ -70,4 +70,5 @@ NetyAdmin, as a comprehensive and architecturally advanced admin system base, is
 
 ---
 
-**Note**: `NetyAdmin` is refactored and streamlined based on `SoybeanAdmin`. We thank the `SoybeanAdmin` team for their contributions.
+**Note**: `NetyAdmin` is refactored and streamlined based on `NetyAdminAdmin`. We thank the `NetyAdminAdmin` team for their contributions.
+

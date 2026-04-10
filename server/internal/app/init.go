@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"netyadmin/internal/config"
+	"NetyAdmin/internal/config"
 )
 
 func InitDB(cfg *config.Config) (*gorm.DB, error) {

@@ -2,6 +2,8 @@
 -- System Dictionary Module - Tables
 -- =============================================
 
+BEGIN;
+
 -- 字典类型表
 CREATE TABLE IF NOT EXISTS sys_dict_type (
     id BIGSERIAL PRIMARY KEY,
@@ -17,10 +19,6 @@ CREATE TABLE IF NOT EXISTS sys_dict_type (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS sys_dict_type_code_key ON sys_dict_type(code) WHERE deleted_at = 0;
--- 为 ON CONFLICT 增加唯一约束
-ALTER TABLE sys_dict_type DROP CONSTRAINT IF EXISTS sys_dict_type_code_unique;
-ALTER TABLE sys_dict_type ADD CONSTRAINT sys_dict_type_code_unique UNIQUE (code);
-
 CREATE INDEX IF NOT EXISTS idx_sys_dict_type_deleted ON sys_dict_type(deleted_at);
 
 -- 字典数据表
@@ -42,7 +40,8 @@ CREATE TABLE IF NOT EXISTS sys_dict_data (
 
 CREATE INDEX IF NOT EXISTS idx_sys_dict_data_code ON sys_dict_data(dict_code);
 -- 为 ON CONFLICT 增加唯一约束 (同一字典类型下 value 唯一)
-ALTER TABLE sys_dict_data DROP CONSTRAINT IF EXISTS sys_dict_data_code_value_unique;
-ALTER TABLE sys_dict_data ADD CONSTRAINT sys_dict_data_code_value_unique UNIQUE (dict_code, value);
+CREATE UNIQUE INDEX IF NOT EXISTS sys_dict_data_code_value_key ON sys_dict_data(dict_code, value) WHERE deleted_at = 0;
 
 CREATE INDEX IF NOT EXISTS idx_sys_dict_data_deleted ON sys_dict_data(deleted_at);
+
+COMMIT;

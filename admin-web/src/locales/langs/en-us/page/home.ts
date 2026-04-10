@@ -19,10 +19,10 @@ const home = {
   projectNews: {
     title: 'Project News',
     moreNews: 'More News',
-    desc1: 'NetyAdmin created the open source project netyadmin-web on May 28, 2021!',
-    desc2: 'Yanbowe submitted a bug to netyadmin-web, the multi-tab bar will not adapt.',
-    desc3: 'NetyAdmin is ready to do sufficient preparation for the release of netyadmin-web!',
-    desc4: 'NetyAdmin is busy writing project documentation for netyadmin-web!',
+    desc1: 'NetyAdmin created the open source project NetyAdmin-admin on May 28, 2021!',
+    desc2: 'Yanbowe submitted a bug to NetyAdmin-admin, the multi-tab bar will not adapt.',
+    desc3: 'NetyAdmin is ready to do sufficient preparation for the release of NetyAdmin-admin!',
+    desc4: 'NetyAdmin is busy writing project documentation for NetyAdmin-admin!',
     desc5: 'NetyAdmin just wrote some of the workbench pages casually, and it was enough to see!'
   },
   creativity: 'Creativity'

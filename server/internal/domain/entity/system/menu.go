@@ -1,6 +1,6 @@
 package system
 
-import "netyadmin/internal/domain/entity"
+import "NetyAdmin/internal/domain/entity"
 
 type Menu struct {
 	entity.Model

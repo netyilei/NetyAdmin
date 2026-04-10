@@ -1,4 +1,4 @@
-# Admin-Web 目录结构与架构规范
+﻿# Admin-Web 目录结构与架构规范
 
 本文档定义 `admin-web` 的标准目录结构与分层架构核心规范，作为未来二次开发的准则。
 
@@ -28,7 +28,7 @@
 ```text
 admin-web/
 ├── build/                         # 构建相关：vite 插件、proxy、时间戳等
-├── packages/                      # pnpm workspace 内部包（@sa/*）
+├── packages/                      # pnpm workspace 内部包（@na/*）
 ├── public/                        # 静态资源
 ├── src/                           # 业务源码
 │   ├── assets/                    # 图片与 svg icon
@@ -73,3 +73,4 @@ admin-web/
 2. **API 职责单一与显式版本**：`.vue` 文件中严禁硬编码 URL 或直接调用 `axios`。必须从 `src/service/api/v1/${module}.ts` 显式引入。
 3. **状态码统一收口**：业务代码中严禁写死数字状态码。新增后端错误码时，必须在 `src/service/request/backend-error.ts` 的字典和对应语言包中同步增加。
 4. **命名规范兜底**：所有 Vue 文件、普通 TS 文件使用 `kebab-case`（如 `user-detail.vue`）。导出的 TS 类/接口使用 `PascalCase`，导出的函数/变量使用 `camelCase`。
+

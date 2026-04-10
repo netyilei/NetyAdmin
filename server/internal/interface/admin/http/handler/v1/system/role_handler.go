@@ -5,9 +5,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	systemDto "netyadmin/internal/interface/admin/dto/system"
-	"netyadmin/internal/pkg/errorx"
-	"netyadmin/internal/pkg/response"
+	systemDto "NetyAdmin/internal/interface/admin/dto/system"
+	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/response"
 )
 
 func (h *SystemHandler) GetAdminRoleList(c *gin.Context) {

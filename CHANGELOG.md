@@ -1,4 +1,4 @@
-# 项目变更与修复记录 (CHANGELOG)
+﻿# 项目变更与修复记录 (CHANGELOG)
 
 本文档用于统一记录 NetyAdmin 项目的功能变更、架构重构以及 Bug 修复内容。
 
@@ -8,9 +8,9 @@
 
 - **角色管理优化**：移除了编辑角色菜单权限弹窗中的“首页”下拉选择框，简化了权限分配流程。
 - **项目彻底更名**：
-  - 全量替换项目标识：`SilentOrder` -> `NetyAdmin`。
-  - 前端包名变更：`soybean-admin` -> `netyadmin-web`。
-  - 后端模块名变更：`silentorder` -> `netyadmin`。
+  - 全量替换项目标识：`NetyAdmin` -> `NetyAdmin`。
+  - 前端包名变更：`NetyAdmin-admin` -> `netyadmin-web`。
+  - 后端模块名变更：`NetyAdmin` -> `netyadmin`。
   - 清理了所有文档、配置、代码注释中的旧项目名称。
 - **数据库迁移机制重构**：
   - **解耦任务模块**：将 `db_migration` 从异步任务模块中移除，不再作为后台 Job 运行。
@@ -18,14 +18,14 @@
   - **独立开关控制**：在 `config.toml` 中新增 `[migration].enabled` 配置项。
 - **文档规范化**：
   - 更新了 `README.md` 中的核心特性描述。
-  - 修正了项目归属说明，明确基于 `SoybeanAdmin` 进行重构。
+  - 修正了项目归属说明，明确基于 `NetyAdminAdmin` 进行重构。
 
 ### 🐞 Bug 修复
 
 - **数据库约束匹配修复**：
   - 修复了 `admin_api` 和 `admin_button` 在执行 `INSERT ... ON CONFLICT` 时因缺少 `WHERE deleted_at = 0` 导致无法匹配部分唯一索引的错误。
 - **前端环境损坏修复**：
-  - 修正了误替换 `package.json` 中外部依赖组织名（`@soybeanjs/`）导致 `pnpm install` 失败的问题。
+  - 修正了误替换 `package.json` 中外部依赖组织名（`@NetyAdminjs/`）导致 `pnpm install` 失败的问题。
   - 修复了因 `node_modules` 损坏导致的 `vite` 命令找不到（`MODULE_NOT_FOUND`）的报错。
 - **国际化映射修复**：
   - 修正了菜单管理中“目录”类型翻译 Key 不一致的问题（`directory` -> `dir`），使其与后端字典定义匹配。
@@ -39,8 +39,9 @@
 
 - **日志输出优化**：在服务启动阶段禁用了 Gin 框架默认打印的路由映射调试日志（`[GIN-debug] GET ...`），使启动控制台更加清爽。
 - **文件重命名**：
-  - 前端组件：`soybean-avatar.vue` -> `netyadmin-avatar.vue`。
-  - 静态资源：`soybean.jpg` -> `netyadmin.jpg`。
+  - 前端组件：`NetyAdmin-avatar.vue` -> `netyadmin-avatar.vue`。
+  - 静态资源：`NetyAdmin.jpg` -> `netyadmin.jpg`。
 - **清理残留**：
   - 物理删除了 `internal/job/db_migration.go`。
   - 清理了 `data_storage.sql` 中旧版残留的无效 API 定义。
+

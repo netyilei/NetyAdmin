@@ -1,7 +1,7 @@
 import { computed, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { defineStore } from 'pinia';
-import { useLoading } from '@sa/hooks';
+import { useLoading } from '@na/hooks';
 import { fetchGetUserInfo, fetchLogin } from '@/service/api/v1/auth';
 import { useRouterPush } from '@/hooks/common/router';
 import { localStg } from '@/utils/storage';

@@ -1,4 +1,4 @@
-import { defineConfig } from '@netyadminjs/eslint-config';
+import { defineConfig } from '@soybeanjs/eslint-config';
 import unusedImports from 'eslint-plugin-unused-imports';
 
 export default defineConfig(

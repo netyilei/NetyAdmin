@@ -19,10 +19,10 @@ const home = {
   projectNews: {
     title: '项目动态',
     moreNews: '更多动态',
-    desc1: 'NetyAdmin 在2021年5月28日创建了开源项目 netyadmin-web!',
-    desc2: 'Yanbowe 向 netyadmin-web 提交了一个bug，多标签栏不会自适应。',
-    desc3: 'NetyAdmin 准备为 netyadmin-web 的发布做充分的准备工作!',
-    desc4: 'NetyAdmin 正在忙于为netyadmin-web写项目说明文档！',
+    desc1: 'NetyAdmin 在2021年5月28日创建了开源项目 NetyAdmin-admin!',
+    desc2: 'Yanbowe 向 NetyAdmin-admin 提交了一个bug，多标签栏不会自适应。',
+    desc3: 'NetyAdmin 准备为 NetyAdmin-admin 的发布做充分的准备工作!',
+    desc4: 'NetyAdmin 正在忙于为NetyAdmin-admin写项目说明文档！',
     desc5: 'NetyAdmin 刚才把工作台页面随便写了一些，凑合能看了！'
   },
   creativity: '创意'

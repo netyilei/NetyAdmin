@@ -1,6 +1,6 @@
 package system
 
-import "netyadmin/internal/domain/entity"
+import "NetyAdmin/internal/domain/entity"
 
 // API 表 admin_api 无 created_by/updated_by 列，不嵌入 entity.Operator
 type API struct {

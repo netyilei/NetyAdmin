@@ -37,7 +37,7 @@ interface CommandArg {
 export async function setupCli() {
   const cliOptions = await loadCliOptions();
 
-  const cli = cac(blue('netyadmin-web'));
+  const cli = cac(blue('NetyAdmin-admin'));
 
   cli
     .version(lightGreen(version))

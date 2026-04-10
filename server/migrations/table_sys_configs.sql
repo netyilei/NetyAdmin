@@ -1,3 +1,5 @@
+BEGIN;
+
 CREATE TABLE IF NOT EXISTS sys_configs (
     id SERIAL PRIMARY KEY,
     group_name VARCHAR(100) NOT NULL,
@@ -16,5 +18,7 @@ CREATE TABLE IF NOT EXISTS sys_configs (
 CREATE INDEX IF NOT EXISTS idx_sys_configs_deleted ON sys_configs(deleted_at);
 
 -- 每个分组下的Key必须唯一
-CREATE UNIQUE INDEX IF NOT EXISTS idx_sys_configs_group_key ON sys_configs(group_name, config_key);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sys_configs_group_key ON sys_configs(group_name, config_key) WHERE deleted_at = 0;
 CREATE INDEX IF NOT EXISTS idx_sys_configs_group ON sys_configs(group_name);
+
+COMMIT;

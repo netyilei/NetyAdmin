@@ -1,6 +1,6 @@
 import type { GlobalThemeOverrides } from 'naive-ui';
 import { defu } from 'defu';
-import { addColorAlpha, getColorPalette, getPaletteColorByNumber, getRgb } from '@sa/color';
+import { addColorAlpha, getColorPalette, getPaletteColorByNumber, getRgb } from '@na/color';
 import { DARK_CLASS } from '@/constants/app';
 import { toggleHtmlClass } from '@/utils/common';
 import { localStg } from '@/utils/storage';

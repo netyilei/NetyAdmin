@@ -11,8 +11,8 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/robfig/cron/v3"
 
-	"netyadmin/internal/config"
-	"netyadmin/internal/pkg/cache"
+	"NetyAdmin/internal/config"
+	"NetyAdmin/internal/pkg/cache"
 )
 
 // Manager 任务调度引擎

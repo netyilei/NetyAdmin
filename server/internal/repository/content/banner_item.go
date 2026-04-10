@@ -6,7 +6,7 @@ import (
 
 	"gorm.io/gorm"
 
-	content "netyadmin/internal/domain/entity/content"
+	content "NetyAdmin/internal/domain/entity/content"
 )
 
 type ContentBannerItemRepository interface {

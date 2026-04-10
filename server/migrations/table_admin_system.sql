@@ -2,6 +2,8 @@
 -- Admin System Module - Tables
 -- =============================================
 
+BEGIN;
+
 -- 管理员用户表
 CREATE TABLE IF NOT EXISTS admin_user (
     id BIGSERIAL PRIMARY KEY,
@@ -305,3 +307,5 @@ CREATE TABLE IF NOT EXISTS sys_task_logs (
 CREATE INDEX IF NOT EXISTS idx_sys_task_logs_name ON sys_task_logs(name);
 CREATE INDEX IF NOT EXISTS idx_sys_task_logs_status ON sys_task_logs(status);
 CREATE INDEX IF NOT EXISTS idx_sys_task_logs_deleted ON sys_task_logs(deleted_at);
+
+COMMIT;

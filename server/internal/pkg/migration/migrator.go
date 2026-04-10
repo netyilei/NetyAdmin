@@ -59,22 +59,24 @@ func (m *Migrator) Run() error {
 	files = append(files, dataFiles...)
 	files = append(files, otherFiles...)
 
-	for _, file := range files {
-		name := strings.TrimSuffix(filepath.Base(file), ".sql")
+	// 使用事务包裹所有迁移操作
+	return m.db.Transaction(func(tx *gorm.DB) error {
+		for _, file := range files {
+			name := strings.TrimSuffix(filepath.Base(file), ".sql")
 
-		content, err := os.ReadFile(file)
-		if err != nil {
-			return fmt.Errorf("读取迁移文件 %s 失败: %w", file, err)
+			content, err := os.ReadFile(file)
+			if err != nil {
+				return fmt.Errorf("读取迁移文件 %s 失败: %w", file, err)
+			}
+
+			if err := tx.Exec(string(content)).Error; err != nil {
+				return fmt.Errorf("执行迁移 %s 失败: %w", name, err)
+			}
+
+			log.Printf("[迁移] %-30s | 完成 √", name)
 		}
-
-		if err := m.db.Exec(string(content)).Error; err != nil {
-			return fmt.Errorf("执行迁移 %s 失败: %w", name, err)
-		}
-
-		log.Printf("[迁移] %-30s | 完成 √", name)
-	}
-
-	return nil
+		return nil
+	})
 }
 
 func (m *Migrator) getMigrationFiles() ([]string, error) {

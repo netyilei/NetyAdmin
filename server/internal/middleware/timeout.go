@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"netyadmin/internal/pkg/errorx"
-	"netyadmin/internal/pkg/response"
+	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/response"
 )
 
 func Timeout(timeout time.Duration) gin.HandlerFunc {

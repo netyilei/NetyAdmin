@@ -48,7 +48,8 @@ const manage = {
     editAdmin: '编辑管理员',
     gender: {
       male: '男',
-      female: '女'
+      female: '女',
+      unknown: '未知'
     }
   },
   menu: {
@@ -190,6 +191,12 @@ const manage = {
       enabled: '记录开关',
       retentionDays: '保留天数(0为永久)',
       daysUnit: '天'
+    },
+    system: {
+      admin_max_login_fails: '管理员最多连续登录失败次数'
+    },
+    task: {
+      article_publish_enabled: '文章自动发布任务开关'
     }
   },
   dict: {

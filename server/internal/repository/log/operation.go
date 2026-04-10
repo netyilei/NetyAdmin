@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	logDto "netyadmin/internal/interface/admin/dto/log"
-	logEntity "netyadmin/internal/domain/entity/log"
+	logDto "NetyAdmin/internal/interface/admin/dto/log"
+	logEntity "NetyAdmin/internal/domain/entity/log"
 
 	"gorm.io/gorm"
 )

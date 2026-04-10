@@ -4,14 +4,14 @@ import (
 	"context"
 	"time"
 
-	"netyadmin/internal/domain/entity"
-	systemEntity "netyadmin/internal/domain/entity/system"
-	systemVO "netyadmin/internal/domain/vo/system"
-	systemDto "netyadmin/internal/interface/admin/dto/system"
-	"netyadmin/internal/pkg/cache"
-	"netyadmin/internal/pkg/errorx"
-	"netyadmin/internal/pkg/utils"
-	systemRepo "netyadmin/internal/repository/system"
+	"NetyAdmin/internal/domain/entity"
+	systemEntity "NetyAdmin/internal/domain/entity/system"
+	systemVO "NetyAdmin/internal/domain/vo/system"
+	systemDto "NetyAdmin/internal/interface/admin/dto/system"
+	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/utils"
+	systemRepo "NetyAdmin/internal/repository/system"
 	"strings"
 )
 

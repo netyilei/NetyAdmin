@@ -4,12 +4,12 @@ import (
 	"context"
 	"strconv"
 
-	"netyadmin/internal/domain/entity"
-	"netyadmin/internal/domain/entity/system"
-	"netyadmin/internal/pkg/cache"
-	"netyadmin/internal/pkg/configsync"
-	"netyadmin/internal/pkg/task"
-	systemRepo "netyadmin/internal/repository/system"
+	"NetyAdmin/internal/domain/entity"
+	"NetyAdmin/internal/domain/entity/system"
+	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/configsync"
+	"NetyAdmin/internal/pkg/task"
+	systemRepo "NetyAdmin/internal/repository/system"
 )
 
 type TaskService interface {

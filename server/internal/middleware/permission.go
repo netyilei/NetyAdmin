@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	systemEntity "netyadmin/internal/domain/entity/system"
-	"netyadmin/internal/pkg/errorx"
-	"netyadmin/internal/pkg/response"
+	systemEntity "NetyAdmin/internal/domain/entity/system"
+	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/response"
 
 	"github.com/gin-gonic/gin"
 )

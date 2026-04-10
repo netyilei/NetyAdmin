@@ -191,6 +191,12 @@ const manage = {
       enabled: 'Logging Enabled',
       retentionDays: 'Retention Days (0 for Permanent)',
       daysUnit: 'Days'
+    },
+    system: {
+      admin_max_login_fails: 'Max consecutive login failures for admin'
+    },
+    task: {
+      article_publish_enabled: 'Article Auto-Publish Task'
     }
   },
   dict: {

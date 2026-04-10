@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { getPaletteColorByNumber, mixColor } from '@sa/color';
+import { getPaletteColorByNumber, mixColor } from '@na/color';
 import { useAppStore } from '@/store/modules/app';
 import { useThemeStore } from '@/store/modules/theme';
 import { $t } from '@/locales';

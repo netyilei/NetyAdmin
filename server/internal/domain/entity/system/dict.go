@@ -1,6 +1,6 @@
 package system
 
-import "netyadmin/internal/domain/entity"
+import "NetyAdmin/internal/domain/entity"
 
 // DictType 字典类型实体
 type DictType struct {

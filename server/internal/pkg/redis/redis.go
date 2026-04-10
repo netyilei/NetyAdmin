@@ -7,7 +7,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"netyadmin/internal/config"
+	"NetyAdmin/internal/config"
 )
 
 func NewClient(cfg *config.RedisConfig) (*redis.Client, error) {

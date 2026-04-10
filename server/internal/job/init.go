@@ -1,11 +1,11 @@
 package job
 
 import (
-	"netyadmin/internal/pkg/configsync"
-	"netyadmin/internal/pkg/task"
-	contentRepo "netyadmin/internal/repository/content"
-	logRepo "netyadmin/internal/repository/log"
-	systemRepo "netyadmin/internal/repository/system"
+	"NetyAdmin/internal/pkg/configsync"
+	"NetyAdmin/internal/pkg/task"
+	contentRepo "NetyAdmin/internal/repository/content"
+	logRepo "NetyAdmin/internal/repository/log"
+	systemRepo "NetyAdmin/internal/repository/system"
 )
 
 // AllJobs 任务初始化中心：在这里聚合所有任务，实现“一站式”加载。
