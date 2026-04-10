@@ -96,7 +96,7 @@
     "@iconify/json": "2.2.357",
     "@sa/scripts": "workspace:*",
     "@sa/uno-preset": "workspace:*",
-    "@netyadminjs/eslint-config": "1.7.1",
+    "@soybeanjs/eslint-config": "1.7.1",
     "@types/bmapgl": "0.0.7",
     "@types/node": "24.0.13",
     "@types/nprogress": "0.2.3",

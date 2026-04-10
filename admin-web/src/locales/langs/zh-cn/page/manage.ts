@@ -111,7 +111,7 @@ const manage = {
     editMenu: '编辑菜单',
     addChildMenu: '新增子菜单',
     type: {
-      directory: '目录',
+      dir: '目录',
       menu: '菜单',
       button: '按钮'
     },

@@ -52,7 +52,7 @@ BEGIN
         (category_menu_id, '创建分类', 'POST', '/admin/v1/content/categories', '创建分类', '1', NOW(), NOW()),
         (category_menu_id, '更新分类', 'PUT', '/admin/v1/content/categories', '更新分类', '1', NOW(), NOW()),
         (category_menu_id, '删除分类', 'DELETE', '/admin/v1/content/categories/:id', '删除分类', '1', NOW(), NOW())
-        ON CONFLICT (method, path) DO NOTHING;
+        ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- 内容文章API
@@ -67,7 +67,7 @@ BEGIN
         (article_menu_id, '发布文章', 'PUT', '/admin/v1/content/articles/:id/publish', '发布文章', '1', NOW(), NOW()),
         (article_menu_id, '下架文章', 'PUT', '/admin/v1/content/articles/:id/unpublish', '下架文章', '1', NOW(), NOW()),
         (article_menu_id, '文章置顶', 'PUT', '/admin/v1/content/articles/:id/top', '文章置顶', '1', NOW(), NOW())
-        ON CONFLICT (method, path) DO NOTHING;
+        ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- 横幅管理API
@@ -79,7 +79,7 @@ BEGIN
         (banner_group_menu_id, '创建Banner组', 'POST', '/admin/v1/content/banner-groups', '创建Banner组', '1', NOW(), NOW()),
         (banner_group_menu_id, '更新Banner组', 'PUT', '/admin/v1/content/banner-groups', '更新Banner组', '1', NOW(), NOW()),
         (banner_group_menu_id, '删除Banner组', 'DELETE', '/admin/v1/content/banner-groups/:id', '删除Banner组', '1', NOW(), NOW())
-        ON CONFLICT (method, path) DO NOTHING;
+        ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     IF banner_item_menu_id IS NOT NULL THEN
@@ -90,7 +90,7 @@ BEGIN
         (banner_item_menu_id, '创建Banner项', 'POST', '/admin/v1/content/banner-items', '创建Banner项', '1', NOW(), NOW()),
         (banner_item_menu_id, '更新Banner项', 'PUT', '/admin/v1/content/banner-items', '更新Banner项', '1', NOW(), NOW()),
         (banner_item_menu_id, '删除Banner项', 'DELETE', '/admin/v1/content/banner-items/:id', '删除Banner项', '1', NOW(), NOW())
-        ON CONFLICT (method, path) DO NOTHING;
+        ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 END $$;
 
@@ -114,7 +114,7 @@ BEGIN
         (category_menu_id, 'content:category:add', '添加分类', NOW(), NOW()),
         (category_menu_id, 'content:category:edit', '编辑分类', NOW(), NOW()),
         (category_menu_id, 'content:category:delete', '删除分类', NOW(), NOW())
-        ON CONFLICT (code) DO NOTHING;
+        ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- 文章管理按钮
@@ -126,7 +126,7 @@ BEGIN
         (article_menu_id, 'content:article:delete', '删除文章', NOW(), NOW()),
         (article_menu_id, 'content:article:publish', '上架/下架', NOW(), NOW()),
         (article_menu_id, 'content:article:top', '内置置顶', NOW(), NOW())
-        ON CONFLICT (code) DO NOTHING;
+        ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- Banner管理按钮
@@ -136,7 +136,7 @@ BEGIN
         (banner_group_menu_id, 'content:banner-group:add', '新增分组', NOW(), NOW()),
         (banner_group_menu_id, 'content:banner-group:edit', '编辑分组', NOW(), NOW()),
         (banner_group_menu_id, 'content:banner-group:delete', '删除分组', NOW(), NOW())
-        ON CONFLICT (code) DO NOTHING;
+        ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     IF banner_item_menu_id IS NOT NULL THEN
@@ -145,7 +145,7 @@ BEGIN
         (banner_item_menu_id, 'content:banner:add', '添加项', NOW(), NOW()),
         (banner_item_menu_id, 'content:banner:edit', '编辑项', NOW(), NOW()),
         (banner_item_menu_id, 'content:banner:delete', '删除项', NOW(), NOW())
-        ON CONFLICT (code) DO NOTHING;
+        ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 END $$;
 

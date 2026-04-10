@@ -111,7 +111,7 @@ const manage = {
     editMenu: 'Edit Menu',
     addChildMenu: 'Add Child Menu',
     type: {
-      directory: 'Directory',
+      dir: 'Directory',
       menu: 'Menu',
       button: 'Button'
     },

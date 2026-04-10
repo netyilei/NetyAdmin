@@ -49,7 +49,7 @@ BEGIN
         (config_menu_id, '测试存储上传', 'POST', '/admin/v1/storage-configs/test-upload', '测试存储上传', '1', NOW(), NOW()),
         (config_menu_id, '获取上传凭证', 'POST', '/admin/v1/storage/upload-credentials', '获取上传凭证', '1', NOW(), NOW()),
         (config_menu_id, '创建上传记录', 'POST', '/admin/v1/storage/upload-record', '创建上传记录', '1', NOW(), NOW())
-        ON CONFLICT (method, path) DO NOTHING;
+        ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- 上传记录API
@@ -60,7 +60,7 @@ BEGIN
         (record_menu_id, '获取上传记录详情', 'GET', '/admin/v1/upload-records/:id', '获取上传记录详情', '1', NOW(), NOW()),
         (record_menu_id, '删除上传记录', 'DELETE', '/admin/v1/upload-records/:id', '删除上传记录', '1', NOW(), NOW()),
         (record_menu_id, '批量删除上传记录', 'POST', '/admin/v1/upload-records/batch-delete', '批量删除上传记录', '1', NOW(), NOW())
-        ON CONFLICT (method, path) DO NOTHING;
+        ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 END $$;
 
@@ -91,7 +91,7 @@ BEGIN
         (config_menu_id, 'storage:delete', '删除配置', NOW(), NOW()),
         (config_menu_id, 'storage:test', '测试配置', NOW(), NOW()),
         (config_menu_id, 'storage:default', '设为默认', NOW(), NOW())
-        ON CONFLICT (code) DO NOTHING;
+        ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- 上传记录按钮
@@ -100,7 +100,7 @@ BEGIN
         VALUES 
         (record_menu_id, 'ops:upload-record:delete', '删除', NOW(), NOW()),
         (record_menu_id, 'ops:upload-record:batch-delete', '批量删除', NOW(), NOW())
-        ON CONFLICT (code) DO NOTHING;
+        ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 END $$;
 

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -26,13 +27,13 @@ import (
 	storagePkg "netyadmin/internal/pkg/storage"
 	"netyadmin/internal/pkg/task"
 
+	"netyadmin/internal/interface/admin/http/router"
 	"netyadmin/internal/job"
 	"netyadmin/internal/pkg/migration"
 	contentRepo "netyadmin/internal/repository/content"
 	logRepo "netyadmin/internal/repository/log"
 	storageRepo "netyadmin/internal/repository/storage"
 	sysRepo "netyadmin/internal/repository/system"
-	"netyadmin/internal/interface/admin/http/router"
 	contentService "netyadmin/internal/service/content"
 	logService "netyadmin/internal/service/log"
 	storageService "netyadmin/internal/service/storage"
@@ -52,6 +53,12 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 			log.Printf("[数据库] 连接断开: %v", err)
 		}),
 	)
+
+	// 0.1 DB Migration (Run once before services initialization)
+	migrator := migration.NewMigrator(db, cfg.Migration.Dir)
+	if err := migrator.Run(); err != nil {
+		return nil, fmt.Errorf("数据库迁移失败: %w", err)
+	}
 
 	// 1. Redis & Cache
 	redisClient, err := pkgredis.NewClient(&cfg.Redis)
@@ -149,7 +156,6 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	)
 
 	// 9. Migrator & Task Registration
-	migrator := migration.NewMigrator(db, cfg.Migration.Dir)
 	taskManager.Register(job.AllJobs(
 		migrator,
 		contentArticleRepo,

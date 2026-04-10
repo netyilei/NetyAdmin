@@ -49,6 +49,9 @@ NetyAdmin, as a comprehensive and architecturally advanced admin system base, is
 
 ## Quick Start
 
+- **Default Account**: `admin`
+- **Default Password**: `admin123`
+
 (Brief instructions for deployment and development environment setup will be placed here; detailed content will be in the deployment documentation)
 
 ## Documentation
@@ -65,4 +68,4 @@ NetyAdmin, as a comprehensive and architecturally advanced admin system base, is
 
 ---
 
-**Note**: `netyadmin-web` is the original project for `admin-web`, which we have refactored and streamlined. We thank the `netyadminjs/netyadmin-web` team for their contributions.
+**Note**: `NetyAdmin` is refactored and streamlined based on `SoybeanAdmin`. We thank the `SoybeanAdmin` team for their contributions.

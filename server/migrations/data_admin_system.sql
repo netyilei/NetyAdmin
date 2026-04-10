@@ -104,7 +104,7 @@ BEGIN
         (admin_menu_id, '创建管理员', 'POST', '/admin/v1/admins', '创建管理员', '1', NOW(), NOW()),
         (admin_menu_id, '更新管理员', 'PUT', '/admin/v1/admins/:id', '更新管理员', '1', NOW(), NOW()),
         (admin_menu_id, '删除管理员', 'DELETE', '/admin/v1/admins/:id', '删除管理员', '1', NOW(), NOW())
-        ON CONFLICT (method, path) DO NOTHING;
+        ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- 角色管理API
@@ -123,7 +123,7 @@ BEGIN
         (role_menu_id, '更新角色按钮', 'PUT', '/admin/v1/systemManage/role/:id/buttons', '更新角色按钮', '1', NOW(), NOW()),
         (role_menu_id, '获取角色菜单', 'GET', '/admin/v1/systemManage/role/:id/menus', '获取角色菜单', '1', NOW(), NOW()),
         (role_menu_id, '更新角色菜单', 'PUT', '/admin/v1/systemManage/role/:id/menus', '更新角色菜单', '1', NOW(), NOW())
-        ON CONFLICT (method, path) DO NOTHING;
+        ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- 菜单管理API
@@ -136,7 +136,7 @@ BEGIN
         (menu_menu_id, '添加菜单', 'POST', '/admin/v1/systemManage/addMenu', '添加菜单', '1', NOW(), NOW()),
         (menu_menu_id, '更新菜单', 'PUT', '/admin/v1/systemManage/updateMenu', '更新菜单', '1', NOW(), NOW()),
         (menu_menu_id, '删除菜单', 'DELETE', '/admin/v1/systemManage/deleteMenu', '删除菜单', '1', NOW(), NOW())
-        ON CONFLICT (method, path) DO NOTHING;
+        ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- 运维日志API
@@ -146,7 +146,7 @@ BEGIN
         (op_log_menu_id, '获取操作日志列表', 'GET', '/admin/v1/operation-logs', '获取操作日志列表', '1', NOW(), NOW()),
         (op_log_menu_id, '删除操作日志', 'DELETE', '/admin/v1/operation-logs/:id', '删除操作日志', '1', NOW(), NOW()),
         (op_log_menu_id, '批量删除操作日志', 'POST', '/admin/v1/operation-logs/batch-delete', '批量删除操作日志', '1', NOW(), NOW())
-        ON CONFLICT (method, path) DO NOTHING;
+        ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- 任务调度API
@@ -160,7 +160,7 @@ BEGIN
         (task_menu_id, '重启后台任务', 'POST', '/admin/v1/system/tasks/:name/reload', '重新加载并启动任务', '1', NOW(), NOW()),
         (task_menu_id, '修改任务配置', 'PUT', '/admin/v1/system/tasks/:name', '修改任务执行周期或启用状态', '1', NOW(), NOW()),
         (task_menu_id, '查询任务日志', 'GET', '/admin/v1/system/tasks/logs', '查询后台任务执行历史', '1', NOW(), NOW())
-        ON CONFLICT (method, path) DO NOTHING;
+        ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     IF err_log_menu_id IS NOT NULL THEN
@@ -170,7 +170,7 @@ BEGIN
         (err_log_menu_id, '解决错误日志', 'PUT', '/admin/v1/error-logs/:id/resolve', '解决错误日志', '1', NOW(), NOW()),
         (err_log_menu_id, '删除错误日志', 'DELETE', '/admin/v1/error-logs/:id', '删除错误日志', '1', NOW(), NOW()),
         (err_log_menu_id, '批量删除错误日志', 'POST', '/admin/v1/error-logs/batch-delete', '批量删除错误日志', '1', NOW(), NOW())
-        ON CONFLICT (method, path) DO NOTHING;
+        ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- 系统配置API
@@ -179,7 +179,7 @@ BEGIN
         VALUES 
         (config_menu_id, '查询系统配置列表', 'GET', '/admin/v1/system/configs', '查询系统配置列表', '1', NOW(), NOW()),
         (config_menu_id, '修改系统配置及热更新', 'PUT', '/admin/v1/system/configs', '修改系统配置及热更新', '1', NOW(), NOW())
-        ON CONFLICT (method, path) DO NOTHING;
+        ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- 字典管理API
@@ -199,7 +199,7 @@ BEGIN
             (dict_menu_id, '创建字典数据', 'POST', '/admin/v1/system/dict/data', '创建新的字典数据项', '1', NOW(), NOW()),
             (dict_menu_id, '更新字典数据', 'PUT', '/admin/v1/system/dict/data', '更新字典数据项', '1', NOW(), NOW()),
             (dict_menu_id, '删除字典数据', 'DELETE', '/admin/v1/system/dict/data/:id', '删除字典数据项', '1', NOW(), NOW())
-            ON CONFLICT (method, path) DO NOTHING;
+            ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
         END IF;
     END;
 END $$;
@@ -222,7 +222,7 @@ BEGIN
         (admin_menu_id, 'user:add', '新增', NOW(), NOW()),
         (admin_menu_id, 'user:edit', '编辑', NOW(), NOW()),
         (admin_menu_id, 'user:delete', '删除', NOW(), NOW())
-        ON CONFLICT (code) DO NOTHING;
+        ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- 角色管理按钮
@@ -233,7 +233,7 @@ BEGIN
         (role_menu_id, 'role:edit', '编辑', NOW(), NOW()),
         (role_menu_id, 'role:delete', '删除', NOW(), NOW()),
         (role_menu_id, 'role:auth', '授权', NOW(), NOW())
-        ON CONFLICT (code) DO NOTHING;
+        ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- 菜单管理按钮
@@ -243,7 +243,7 @@ BEGIN
         (menu_menu_id, 'menu:add', '新增', NOW(), NOW()),
         (menu_menu_id, 'menu:edit', '编辑', NOW(), NOW()),
         (menu_menu_id, 'menu:delete', '删除', NOW(), NOW())
-        ON CONFLICT (code) DO NOTHING;
+        ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     -- 字典管理按钮
@@ -257,7 +257,7 @@ BEGIN
             (dict_menu_id, 'dict:add', '新增', NOW(), NOW()),
             (dict_menu_id, 'dict:edit', '编辑', NOW(), NOW()),
             (dict_menu_id, 'dict:delete', '删除', NOW(), NOW())
-            ON CONFLICT (code) DO NOTHING;
+            ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
         END IF;
     END;
 END $$;
