@@ -6,6 +6,7 @@
 
 ### 🔄 功能变更与重构
 
+- **角色管理优化**：移除了编辑角色菜单权限弹窗中的“首页”下拉选择框，简化了权限分配流程。
 - **项目彻底更名**：
   - 全量替换项目标识：`SilentOrder` -> `NetyAdmin`。
   - 前端包名变更：`soybean-admin` -> `netyadmin-web`。
@@ -28,6 +29,7 @@
   - 修复了因 `node_modules` 损坏导致的 `vite` 命令找不到（`MODULE_NOT_FOUND`）的报错。
 - **国际化映射修复**：
   - 修正了菜单管理中“目录”类型翻译 Key 不一致的问题（`directory` -> `dir`），使其与后端字典定义匹配。
+  - 修复了内容管理模块（内容分类、文章管理、Banner组）菜单缺失 `i18nKey` 导致标签页标题显示不正确的问题。
 - **初始化顺序修复**：
   - 解决了 `ConfigWatcher` 和 `StorageService` 在表结构创建前尝试查询数据库导致的 `relation "xxx" does not exist` 崩溃问题。
 

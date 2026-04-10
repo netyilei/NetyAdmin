@@ -11,21 +11,27 @@ BEGIN
 
     -- 内容管理子菜单
     IF content_root_id IS NOT NULL THEN
-        INSERT INTO admin_menu (parent_id, name, route_name, route_path, component, icon, order_by, hide_in_menu, status, type, created_at, updated_at)
-        SELECT content_root_id, '内容分类', 'content_category', '/content/category', 'view.content_category', 'ic:outline-category', 1, false, '1', '2', NOW(), NOW()
+        INSERT INTO admin_menu (parent_id, name, route_name, route_path, component, icon, order_by, hide_in_menu, status, type, i18_n_key, created_at, updated_at)
+        SELECT content_root_id, '内容分类', 'content_category', '/content/category', 'view.content_category', 'ic:outline-category', 1, false, '1', '2', 'route.content_category', NOW(), NOW()
         WHERE NOT EXISTS (SELECT 1 FROM admin_menu WHERE route_name = 'content_category');
 
-        INSERT INTO admin_menu (parent_id, name, route_name, route_path, component, icon, order_by, hide_in_menu, status, type, created_at, updated_at)
-        SELECT content_root_id, '文章管理', 'content_article', '/content/article', 'view.content_article', 'ic:outline-article', 2, false, '1', '2', NOW(), NOW()
+        INSERT INTO admin_menu (parent_id, name, route_name, route_path, component, icon, order_by, hide_in_menu, status, type, i18_n_key, created_at, updated_at)
+        SELECT content_root_id, '文章管理', 'content_article', '/content/article', 'view.content_article', 'ic:outline-article', 2, false, '1', '2', 'route.content_article', NOW(), NOW()
         WHERE NOT EXISTS (SELECT 1 FROM admin_menu WHERE route_name = 'content_article');
 
-        INSERT INTO admin_menu (parent_id, name, route_name, route_path, component, icon, order_by, hide_in_menu, status, type, created_at, updated_at)
-        SELECT content_root_id, 'Banner组', 'content_banner-group', '/content/banner-group', 'view.content_banner-group', 'ic:outline-collections', 3, false, '1', '2', NOW(), NOW()
+        INSERT INTO admin_menu (parent_id, name, route_name, route_path, component, icon, order_by, hide_in_menu, status, type, i18_n_key, created_at, updated_at)
+        SELECT content_root_id, 'Banner组', 'content_banner-group', '/content/banner-group', 'view.content_banner-group', 'ic:outline-collections', 3, false, '1', '2', 'route.content_banner-group', NOW(), NOW()
         WHERE NOT EXISTS (SELECT 1 FROM admin_menu WHERE route_name = 'content_banner-group');
 
-        INSERT INTO admin_menu (parent_id, name, route_name, route_path, component, icon, order_by, hide_in_menu, status, type, created_at, updated_at)
-        SELECT content_root_id, 'Banner管理', 'content_banner', '/content/banner', 'view.content_banner', 'ic:outline-image', 4, true, '1', '2', NOW(), NOW()
+        INSERT INTO admin_menu (parent_id, name, route_name, route_path, component, icon, order_by, hide_in_menu, status, type, i18_n_key, created_at, updated_at)
+        SELECT content_root_id, 'Banner管理', 'content_banner', '/content/banner', 'view.content_banner', 'ic:outline-image', 4, true, '1', '2', 'route.content_banner', NOW(), NOW()
         WHERE NOT EXISTS (SELECT 1 FROM admin_menu WHERE route_name = 'content_banner');
+
+        -- 修正已存在的菜单 i18_n_key
+        UPDATE admin_menu SET i18_n_key = 'route.content_category' WHERE route_name = 'content_category' AND (i18_n_key IS NULL OR i18_n_key = '');
+        UPDATE admin_menu SET i18_n_key = 'route.content_article' WHERE route_name = 'content_article' AND (i18_n_key IS NULL OR i18_n_key = '');
+        UPDATE admin_menu SET i18_n_key = 'route.content_banner-group' WHERE route_name = 'content_banner-group' AND (i18_n_key IS NULL OR i18_n_key = '');
+        UPDATE admin_menu SET i18_n_key = 'route.content_banner' WHERE route_name = 'content_banner' AND (i18_n_key IS NULL OR i18_n_key = '');
     END IF;
 END $$;
 
@@ -111,9 +117,9 @@ BEGIN
     IF category_menu_id IS NOT NULL THEN
         INSERT INTO admin_button (menu_id, code, label, created_at, updated_at)
         VALUES 
-        (category_menu_id, 'content:category:add', '添加分类', NOW(), NOW()),
-        (category_menu_id, 'content:category:edit', '编辑分类', NOW(), NOW()),
-        (category_menu_id, 'content:category:delete', '删除分类', NOW(), NOW())
+        (category_menu_id, 'content:category:add', 'common.add', NOW(), NOW()),
+        (category_menu_id, 'content:category:edit', 'common.edit', NOW(), NOW()),
+        (category_menu_id, 'content:category:delete', 'common.delete', NOW(), NOW())
         ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
@@ -121,11 +127,11 @@ BEGIN
     IF article_menu_id IS NOT NULL THEN
         INSERT INTO admin_button (menu_id, code, label, created_at, updated_at)
         VALUES 
-        (article_menu_id, 'content:article:add', '发布文章', NOW(), NOW()),
-        (article_menu_id, 'content:article:edit', '编辑文章', NOW(), NOW()),
-        (article_menu_id, 'content:article:delete', '删除文章', NOW(), NOW()),
-        (article_menu_id, 'content:article:publish', '上架/下架', NOW(), NOW()),
-        (article_menu_id, 'content:article:top', '内置置顶', NOW(), NOW())
+        (article_menu_id, 'content:article:add', 'common.add', NOW(), NOW()),
+        (article_menu_id, 'content:article:edit', 'common.edit', NOW(), NOW()),
+        (article_menu_id, 'content:article:delete', 'common.delete', NOW(), NOW()),
+        (article_menu_id, 'content:article:publish', 'page.content.article.publish', NOW(), NOW()),
+        (article_menu_id, 'content:article:top', 'page.content.article.top', NOW(), NOW())
         ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
@@ -133,18 +139,18 @@ BEGIN
     IF banner_group_menu_id IS NOT NULL THEN
         INSERT INTO admin_button (menu_id, code, label, created_at, updated_at)
         VALUES 
-        (banner_group_menu_id, 'content:banner-group:add', '新增分组', NOW(), NOW()),
-        (banner_group_menu_id, 'content:banner-group:edit', '编辑分组', NOW(), NOW()),
-        (banner_group_menu_id, 'content:banner-group:delete', '删除分组', NOW(), NOW())
+        (banner_group_menu_id, 'content:banner-group:add', 'common.add', NOW(), NOW()),
+        (banner_group_menu_id, 'content:banner-group:edit', 'common.edit', NOW(), NOW()),
+        (banner_group_menu_id, 'content:banner-group:delete', 'common.delete', NOW(), NOW())
         ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     IF banner_item_menu_id IS NOT NULL THEN
         INSERT INTO admin_button (menu_id, code, label, created_at, updated_at)
         VALUES 
-        (banner_item_menu_id, 'content:banner:add', '添加项', NOW(), NOW()),
-        (banner_item_menu_id, 'content:banner:edit', '编辑项', NOW(), NOW()),
-        (banner_item_menu_id, 'content:banner:delete', '删除项', NOW(), NOW())
+        (banner_item_menu_id, 'content:banner:add', 'common.add', NOW(), NOW()),
+        (banner_item_menu_id, 'content:banner:edit', 'common.edit', NOW(), NOW()),
+        (banner_item_menu_id, 'content:banner:delete', 'common.delete', NOW(), NOW())
         ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 END $$;

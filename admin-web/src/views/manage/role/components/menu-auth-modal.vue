@@ -2,7 +2,6 @@
 import { computed, ref, shallowRef, watch } from 'vue';
 import { consola } from 'consola';
 import {
-  fetchGetAllPages,
   fetchGetMenuIdsByRole,
   fetchGetMenuTree,
   fetchUpdateMenuIdsByRole
@@ -33,33 +32,6 @@ function closeModal() {
 
 const title = computed(() => $t('common.edit') + $t('page.manage.role.menuAuth'));
 
-const home = shallowRef('');
-
-async function updateHome(val: string) {
-  // 这里不发起网络请求,在点击确认的时候一起处理了
-
-  home.value = val;
-}
-
-const pages = shallowRef<string[]>([]);
-
-async function getPages() {
-  const { error, data } = await fetchGetAllPages();
-
-  if (!error) {
-    pages.value = data;
-  }
-}
-
-const pageSelectOptions = computed(() => {
-  const opts: CommonType.Option[] = pages.value.map(page => ({
-    label: page,
-    value: page
-  }));
-
-  return opts;
-});
-
 const tree = shallowRef<SystemManage.MenuTree[]>([]);
 
 async function getTree() {
@@ -77,7 +49,6 @@ async function getChecks() {
   const { error, data } = await fetchGetMenuIdsByRole(props.roleId);
   if (!error) {
     checks.value = data.menuIds;
-    home.value = data.homeRouteName;
   } else {
     checks.value = [];
   }
@@ -89,7 +60,7 @@ async function handleSubmit() {
   loading.value = true;
   const { error } = await fetchUpdateMenuIdsByRole(props.roleId, {
     menuIds: checks.value,
-    homeRouteName: home.value
+    homeRouteName: ''
   });
   loading.value = false;
   if (!error) {
@@ -100,7 +71,6 @@ async function handleSubmit() {
 
 watch(visible, val => {
   if (val) {
-    getPages();
     getTree();
     getChecks();
   }
@@ -109,10 +79,6 @@ watch(visible, val => {
 
 <template>
   <NModal v-model:show="visible" :title="title" :loading preset="card" class="w-480px">
-    <div class="flex-y-center gap-16px pb-12px">
-      <div>{{ $t('page.manage.menu.home') }}</div>
-      <NSelect :value="home" :options="pageSelectOptions" size="small" class="w-160px" @update:value="updateHome" />
-    </div>
     <NTree
       v-model:checked-keys="checks"
       :data="tree"

@@ -219,9 +219,9 @@ BEGIN
     IF admin_menu_id IS NOT NULL THEN
         INSERT INTO admin_button (menu_id, code, label, created_at, updated_at)
         VALUES 
-        (admin_menu_id, 'user:add', '新增', NOW(), NOW()),
-        (admin_menu_id, 'user:edit', '编辑', NOW(), NOW()),
-        (admin_menu_id, 'user:delete', '删除', NOW(), NOW())
+        (admin_menu_id, 'user:add', 'common.add', NOW(), NOW()),
+        (admin_menu_id, 'user:edit', 'common.edit', NOW(), NOW()),
+        (admin_menu_id, 'user:delete', 'common.delete', NOW(), NOW())
         ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
@@ -229,10 +229,10 @@ BEGIN
     IF role_menu_id IS NOT NULL THEN
         INSERT INTO admin_button (menu_id, code, label, created_at, updated_at)
         VALUES 
-        (role_menu_id, 'role:add', '新增', NOW(), NOW()),
-        (role_menu_id, 'role:edit', '编辑', NOW(), NOW()),
-        (role_menu_id, 'role:delete', '删除', NOW(), NOW()),
-        (role_menu_id, 'role:auth', '授权', NOW(), NOW())
+        (role_menu_id, 'role:add', 'common.add', NOW(), NOW()),
+        (role_menu_id, 'role:edit', 'common.edit', NOW(), NOW()),
+        (role_menu_id, 'role:delete', 'common.delete', NOW(), NOW()),
+        (role_menu_id, 'role:auth', 'page.manage.role.menuAuth', NOW(), NOW())
         ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
@@ -240,9 +240,9 @@ BEGIN
     IF menu_menu_id IS NOT NULL THEN
         INSERT INTO admin_button (menu_id, code, label, created_at, updated_at)
         VALUES 
-        (menu_menu_id, 'menu:add', '新增', NOW(), NOW()),
-        (menu_menu_id, 'menu:edit', '编辑', NOW(), NOW()),
-        (menu_menu_id, 'menu:delete', '删除', NOW(), NOW())
+        (menu_menu_id, 'menu:add', 'common.add', NOW(), NOW()),
+        (menu_menu_id, 'menu:edit', 'common.edit', NOW(), NOW()),
+        (menu_menu_id, 'menu:delete', 'common.delete', NOW(), NOW())
         ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
@@ -254,9 +254,9 @@ BEGIN
         IF dict_menu_id IS NOT NULL THEN
             INSERT INTO admin_button (menu_id, code, label, created_at, updated_at)
             VALUES 
-            (dict_menu_id, 'dict:add', '新增', NOW(), NOW()),
-            (dict_menu_id, 'dict:edit', '编辑', NOW(), NOW()),
-            (dict_menu_id, 'dict:delete', '删除', NOW(), NOW())
+            (dict_menu_id, 'dict:add', 'common.add', NOW(), NOW()),
+            (dict_menu_id, 'dict:edit', 'common.edit', NOW(), NOW()),
+            (dict_menu_id, 'dict:delete', 'common.delete', NOW(), NOW())
             ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
         END IF;
     END;

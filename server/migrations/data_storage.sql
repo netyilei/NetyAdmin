@@ -13,16 +13,20 @@ BEGIN
 
     -- 存储配置菜单 (基础设置下)
     IF settings_menu_id IS NOT NULL THEN
-        INSERT INTO admin_menu (parent_id, name, route_name, route_path, component, icon, order_by, hide_in_menu, status, type, created_at, updated_at)
-        SELECT settings_menu_id, '存储配置', 'settings_storage-config', '/settings/storage-config', 'view.settings_storage-config', 'ic:outline-cloud-queue', 1, false, '1', '2', NOW(), NOW()
+        INSERT INTO admin_menu (parent_id, name, route_name, route_path, component, icon, order_by, hide_in_menu, status, type, i18_n_key, created_at, updated_at)
+        SELECT settings_menu_id, '存储配置', 'settings_storage-config', '/settings/storage-config', 'view.settings_storage-config', 'ic:outline-cloud-queue', 1, false, '1', '2', 'route.settings_storage-config', NOW(), NOW()
         WHERE NOT EXISTS (SELECT 1 FROM admin_menu WHERE route_name = 'settings_storage-config');
+
+        UPDATE admin_menu SET i18_n_key = 'route.settings_storage-config' WHERE route_name = 'settings_storage-config' AND (i18_n_key IS NULL OR i18_n_key = '');
     END IF;
 
     -- 上传记录菜单 (运维管理下)
     IF ops_menu_id IS NOT NULL THEN
-        INSERT INTO admin_menu (parent_id, name, route_name, route_path, component, icon, order_by, hide_in_menu, status, type, created_at, updated_at)
-        SELECT ops_menu_id, '上传记录', 'ops_upload-record', '/ops/upload-record', 'view.ops_upload-record', 'ic:outline-upload-file', 3, false, '1', '2', NOW(), NOW()
+        INSERT INTO admin_menu (parent_id, name, route_name, route_path, component, icon, order_by, hide_in_menu, status, type, i18_n_key, created_at, updated_at)
+        SELECT ops_menu_id, '上传记录', 'ops_upload-record', '/ops/upload-record', 'view.ops_upload-record', 'ic:outline-upload-file', 3, false, '1', '2', 'route.ops_upload-record', NOW(), NOW()
         WHERE NOT EXISTS (SELECT 1 FROM admin_menu WHERE route_name = 'ops_upload-record');
+
+        UPDATE admin_menu SET i18_n_key = 'route.ops_upload-record' WHERE route_name = 'ops_upload-record' AND (i18_n_key IS NULL OR i18_n_key = '');
     END IF;
 END $$;
 
@@ -86,11 +90,11 @@ BEGIN
     IF config_menu_id IS NOT NULL THEN
         INSERT INTO admin_button (menu_id, code, label, created_at, updated_at)
         VALUES 
-        (config_menu_id, 'storage:add', '新增配置', NOW(), NOW()),
-        (config_menu_id, 'storage:edit', '编辑配置', NOW(), NOW()),
-        (config_menu_id, 'storage:delete', '删除配置', NOW(), NOW()),
-        (config_menu_id, 'storage:test', '测试配置', NOW(), NOW()),
-        (config_menu_id, 'storage:default', '设为默认', NOW(), NOW())
+        (config_menu_id, 'storage:add', 'common.add', NOW(), NOW()),
+        (config_menu_id, 'storage:edit', 'common.edit', NOW(), NOW()),
+        (config_menu_id, 'storage:delete', 'common.delete', NOW(), NOW()),
+        (config_menu_id, 'storage:test', 'page.settings.storageConfig.testUpload', NOW(), NOW()),
+        (config_menu_id, 'storage:default', 'common.confirm', NOW(), NOW())
         ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
@@ -98,8 +102,8 @@ BEGIN
     IF record_menu_id IS NOT NULL THEN
         INSERT INTO admin_button (menu_id, code, label, created_at, updated_at)
         VALUES 
-        (record_menu_id, 'ops:upload-record:delete', '删除', NOW(), NOW()),
-        (record_menu_id, 'ops:upload-record:batch-delete', '批量删除', NOW(), NOW())
+        (record_menu_id, 'ops:upload-record:delete', 'common.delete', NOW(), NOW()),
+        (record_menu_id, 'ops:upload-record:batch-delete', 'common.batchDelete', NOW(), NOW())
         ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 END $$;

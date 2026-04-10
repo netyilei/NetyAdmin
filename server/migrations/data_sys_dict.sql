@@ -38,6 +38,6 @@ ON CONFLICT (code) DO NOTHING;
 INSERT INTO sys_dict_data (dict_code, label, value, tag_type, order_by) VALUES 
 ('menu_icon_type', 'page.manage.menu.iconType.iconify', '1', 'primary', 1),
 ('menu_icon_type', 'page.manage.menu.iconType.local', '2', 'info', 2),
-('sys_yes_no', 'common.yes', '1', 'success', 1),
-('sys_yes_no', 'common.no', '0', 'error', 2)
+('sys_yes_no', 'common.yesOrNo.yes', '1', 'success', 1),
+('sys_yes_no', 'common.yesOrNo.no', '0', 'error', 2)
 ON CONFLICT (dict_code, value) DO NOTHING;
