@@ -2,6 +2,27 @@
 -- Storage Module - Data
 -- =============================================
 
+BEGIN;
+
+-- 同步序列：防止导入 dump 数据后主键序列落后导致的冲突
+DO $$
+DECLARE
+    seq_name TEXT;
+    table_names TEXT[] := ARRAY['storage_config', 'upload_record'];
+    t_name TEXT;
+BEGIN
+    FOREACH t_name IN ARRAY table_names LOOP
+        SELECT pg_get_serial_sequence(t_name, 'id') INTO seq_name;
+        IF seq_name IS NULL THEN
+            SELECT quote_ident(relname) INTO seq_name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE relkind = 'S' AND n.nspname = 'public' AND relname = t_name || '_id_seq';
+        END IF;
+        IF seq_name IS NOT NULL THEN
+            EXECUTE format('SELECT setval(%L, COALESCE((SELECT MAX(id) FROM %I), 1))', seq_name, t_name);
+        END IF;
+    END LOOP;
+END $$;
+
 -- 权限数据初始化：菜单
 DO $$
 DECLARE
@@ -14,19 +35,17 @@ BEGIN
     -- 存储配置菜单 (基础设置下)
     IF settings_menu_id IS NOT NULL THEN
         INSERT INTO admin_menu (parent_id, name, route_name, route_path, component, icon, order_by, hide_in_menu, status, type, i18_n_key, created_at, updated_at)
-        SELECT settings_menu_id, '存储配置', 'settings_storage-config', '/settings/storage-config', 'view.settings_storage-config', 'ic:outline-cloud-queue', 1, false, '1', '2', 'route.settings_storage-config', NOW(), NOW()
-        WHERE NOT EXISTS (SELECT 1 FROM admin_menu WHERE route_name = 'settings_storage-config');
-
-        UPDATE admin_menu SET i18_n_key = 'route.settings_storage-config' WHERE route_name = 'settings_storage-config' AND (i18_n_key IS NULL OR i18_n_key = '');
+        VALUES 
+        (settings_menu_id, '存储配置', 'settings_storage-config', '/settings/storage-config', 'view.settings_storage-config', 'ic:outline-cloud-queue', 1, false, '1', '2', 'route.settings_storage-config', NOW(), NOW())
+        ON CONFLICT (route_name) DO UPDATE SET i18_n_key = EXCLUDED.i18_n_key;
     END IF;
 
     -- 上传记录菜单 (运维管理下)
     IF ops_menu_id IS NOT NULL THEN
         INSERT INTO admin_menu (parent_id, name, route_name, route_path, component, icon, order_by, hide_in_menu, status, type, i18_n_key, created_at, updated_at)
-        SELECT ops_menu_id, '上传记录', 'ops_upload-record', '/ops/upload-record', 'view.ops_upload-record', 'ic:outline-upload-file', 3, false, '1', '2', 'route.ops_upload-record', NOW(), NOW()
-        WHERE NOT EXISTS (SELECT 1 FROM admin_menu WHERE route_name = 'ops_upload-record');
-
-        UPDATE admin_menu SET i18_n_key = 'route.ops_upload-record' WHERE route_name = 'ops_upload-record' AND (i18_n_key IS NULL OR i18_n_key = '');
+        VALUES 
+        (ops_menu_id, '上传记录', 'ops_upload-record', '/ops/upload-record', 'view.ops_upload-record', 'ic:outline-cloud-upload', 4, false, '1', '2', 'route.ops_upload-record', NOW(), NOW())
+        ON CONFLICT (route_name) DO UPDATE SET i18_n_key = EXCLUDED.i18_n_key;
     END IF;
 END $$;
 
@@ -90,11 +109,11 @@ BEGIN
     IF config_menu_id IS NOT NULL THEN
         INSERT INTO admin_button (menu_id, code, label, created_at, updated_at)
         VALUES 
-        (config_menu_id, 'storage:add', 'common.add', NOW(), NOW()),
-        (config_menu_id, 'storage:edit', 'common.edit', NOW(), NOW()),
-        (config_menu_id, 'storage:delete', 'common.delete', NOW(), NOW()),
-        (config_menu_id, 'storage:test', 'page.settings.storageConfig.testUpload', NOW(), NOW()),
-        (config_menu_id, 'storage:default', 'common.confirm', NOW(), NOW())
+        (config_menu_id, 'storage:add', '新增', NOW(), NOW()),
+        (config_menu_id, 'storage:edit', '编辑', NOW(), NOW()),
+        (config_menu_id, 'storage:delete', '删除', NOW(), NOW()),
+        (config_menu_id, 'storage:test', '测试上传', NOW(), NOW()),
+        (config_menu_id, 'storage:default', '确定', NOW(), NOW())
         ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
@@ -102,8 +121,8 @@ BEGIN
     IF record_menu_id IS NOT NULL THEN
         INSERT INTO admin_button (menu_id, code, label, created_at, updated_at)
         VALUES 
-        (record_menu_id, 'ops:upload-record:delete', 'common.delete', NOW(), NOW()),
-        (record_menu_id, 'ops:upload-record:batch-delete', 'common.batchDelete', NOW(), NOW())
+        (record_menu_id, 'ops:upload-record:delete', '删除', NOW(), NOW()),
+        (record_menu_id, 'ops:upload-record:batch-delete', '批量删除', NOW(), NOW())
         ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 END $$;
@@ -136,6 +155,4 @@ BEGIN
     END IF;
 END $$;
 
--- 重置主键序列
-SELECT setval(pg_get_serial_sequence('storage_config', 'id'), (SELECT COALESCE(MAX(id), 1) FROM storage_config));
-SELECT setval(pg_get_serial_sequence('upload_record', 'id'), (SELECT COALESCE(MAX(id), 1) FROM upload_record));
+COMMIT;
