@@ -27,6 +27,7 @@ NetyAdmin is a general-purpose admin system base built with a Go backend and a V
 *   **Go Language Backend**: Delivers high-performance web service capabilities.
 *   **Transparent Caching**: Supports Redis and local memory (BigCache) dual-layer caching, unified management via `LazyCacheManager`, supporting Key standardization, Prefix, and Tags for batch invalidation, effectively improving data access performance.
 *   **Hot Configuration Sync**: System configurations support Upsert updates and achieve real-time synchronization across the network via Redis Pub/Sub, supporting dynamic toggles for caching and task systems.
+*   **Auto Database Migration**: Automatically executes SQL scripts in `migrations/` during startup, controllable via `config.toml`.
 
 ### ✨ Rich Functional Modules
 
@@ -59,9 +60,10 @@ NetyAdmin, as a comprehensive and architecturally advanced admin system base, is
 *   [Admin Base: Status Codes and Frontend i18n Mapping](docs/admin_base_status_codes.md)
 *   [Admin-Web Directory Structure and Architecture Specification](docs/admin_web_directory.md)
 *   [Admin-Web Page Modules and Routing Behavior](docs/admin_web_modules.md)
-*   [Admin-Web (Vue) Current Status Summary](docs/admin_web_summary.md)
+*   [Admin-Web (Vue) Summary](docs/admin_web_summary.md)
 *   [Server (Go) HTTP Route List](docs/server_api.md)
-*   [Server Multi-client Access Architecture (BFF Pattern) Specification](docs/server_arch_bff.md)
+*   [Project Changelog & Bug Fixes](CHANGELOG.md)
+*   [Server Multi-Client Access Architecture (BFF Pattern) Specification](docs/server_arch_bff.md)
 *   [Server Base: Caching and Hot Configuration Sync](docs/server_cache_configsync.md)
 *   [Server (Go) Directory Structure and Layering](docs/server_directory.md)
 *   [Server (Go) Current Status Summary](docs/server_summary.md)

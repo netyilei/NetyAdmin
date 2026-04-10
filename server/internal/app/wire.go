@@ -3,7 +3,9 @@ package app
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -54,10 +56,12 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		}),
 	)
 
-	// 0.1 DB Migration (Run once before services initialization)
+	// 0.1 DB Migration (Run once before services initialization if enabled)
 	migrator := migration.NewMigrator(db, cfg.Migration.Dir)
-	if err := migrator.Run(); err != nil {
-		return nil, fmt.Errorf("数据库迁移失败: %w", err)
+	if cfg.Migration.Enabled {
+		if err := migrator.Run(); err != nil {
+			return nil, fmt.Errorf("数据库迁移失败: %w", err)
+		}
 	}
 
 	// 1. Redis & Cache
@@ -157,7 +161,6 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 
 	// 9. Migrator & Task Registration
 	taskManager.Register(job.AllJobs(
-		migrator,
 		contentArticleRepo,
 		taskLogRepo,
 		operationLogRepo,
@@ -167,6 +170,8 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 
 	// 9. Engine Setup
 	gin.SetMode(cfg.Server.Mode)
+	// 如果是 debug 模式，默认会打印路由注册信息。通过指定新的 engine 而不使用 gin.Default()，
+	// 并配合自定义的 Logger 中件间，可以在保持调试能力的同时，让启动输出更清爽。
 	engine := gin.New()
 
 	engine.Use(middleware.RequestID())
@@ -176,7 +181,11 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	engine.Use(middleware.Logger())
 	engine.Use(middleware.OperationLogger(operationLogService))
 
+	// 临时关闭标准输出以屏蔽路由注册时的 [GIN-debug] 日志
+	gin.DefaultWriter = io.Discard
 	r.Register(engine)
+	// 注册完成后恢复标准输出，确保后续请求日志正常打印
+	gin.DefaultWriter = os.Stdout
 
 	return NewApp(cfg, db, engine, dbHealthChecker, taskManager), nil
 }

@@ -30,7 +30,8 @@ type JobConfig struct {
 }
 
 type MigrationConfig struct {
-	Dir string `toml:"dir"`
+	Enabled bool   `toml:"enabled"`
+	Dir     string `toml:"dir"`
 }
 
 type ServerConfig struct {

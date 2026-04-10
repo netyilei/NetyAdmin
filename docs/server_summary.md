@@ -84,7 +84,9 @@
 
 ### 10) 迁移体系（migrations）
 
-- 启动期会注册 DB Migration 任务，扫描 `server/migrations/` 的 SQL 文件执行
+- 自动执行：启动期（Bootstrap 阶段）自动扫描 `server/migrations/` 的 SQL 文件并同步执行。
+- 可控性：迁移功能受 `config.toml` 中的 `[migration].enabled` 开关控制。
+- 引导依赖：作为服务启动的硬性前置条件，确保数据库表结构和基础数据在业务逻辑运行前就绪。
 
 
 ## 当前 HTTP 路由前缀与命名空间

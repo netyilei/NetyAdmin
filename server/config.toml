@@ -27,16 +27,11 @@ secret = "your-secret-key-change-in-production"
 expiration = 168
 
 [migration]
+enabled = true # 是否开启启动时的数据库自动迁移
 dir = "migrations"
 
 [task]
 enabled = true # 是否开启任务管理器
-
-# 数据库迁移任务 (系统级)
-# 代码中已定义默认：启动执行(once), 权重 100, 默认开启。
-# 如果需要关闭迁移，请取消下方注释并设为 false
-# [task.jobs.db_migration]
-# enabled = true
 
 # 文章定时发布任务
 # 代码中已定义默认：间隔执行(interval), 周期 1m, 权重 80, 默认开启。

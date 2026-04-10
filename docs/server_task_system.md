@@ -26,9 +26,9 @@
 
 ### 2.1 第一层：代码默认值（任务自带 DefaultMetadata）
 
-系统任务（例如 DB migration）通过实现 `DefaultMetadata()` 给出默认值，并按 weight 决定启动期的执行顺序。
+系统任务通过实现 `DefaultMetadata()` 给出默认值，并按 weight 决定启动期的执行顺序。
 
-示例见：[db_migration.go](../../server/internal/job/db_migration.go)
+示例见：[article_publish.go](../../server/internal/job/article_publish.go)
 
 ### 2.2 第二层：config.toml 覆盖（task.jobs）
 
@@ -67,7 +67,6 @@
 
 当前注册的任务集合在 `internal/job` 聚合：
 
-- `db_migration`：数据库 SQL 迁移任务（once，系统级）
 - `article_publish`：文章定时发布（interval/cron，业务级）
 - `system_log_cleanup`：日志清理任务（interval/cron，运维级）
 
