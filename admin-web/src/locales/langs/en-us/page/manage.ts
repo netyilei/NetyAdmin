@@ -172,9 +172,12 @@ const manage = {
         'Switches used to dynamically degrade system capabilities. Enabling cache improves performance; disabling it forces database queries. Changes trigger hot reload across Redis cluster.',
       systemGroup: 'System Core Cache',
       moduleGroup: 'Business Module Cache',
-      rbac_auth: 'RBAC Auth/API Permission',
       sys_config: 'System Config/Hot reload',
+      rbac_auth: 'RBAC Auth/API Permission',
       rbac_menu: 'Menu Tree/Recursive Cache',
+      admin: 'Admin Profile Cache',
+      dict: 'Dictionary Data Cache',
+      storage: 'Object Storage Config/Hot Reload',
       err_log_cache: 'Error Log Analysis Cache',
       content_category_cache: 'Content Category Tree Cache'
     },

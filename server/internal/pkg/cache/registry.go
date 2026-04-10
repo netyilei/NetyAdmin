@@ -21,6 +21,10 @@ const (
 	TagAdminInfo    = "admin:info"
 	// TagDict 字典缓存标签前缀
 	TagDictPrefix = "dict:"
+	// TagStorageConfig 存储配置缓存标签
+	TagStorageConfig = "storage:config"
+	// TagContentCategoryTree 内容分类树缓存标签
+	TagContentCategoryTree = "content:category:tree"
 )
 
 // 定义系统统一的缓存 Key 生成函数
@@ -117,6 +121,21 @@ func KeyRoleApiIDs(roleID uint) string {
 // KeyErrorLogSuppress 错误日志防抖静默 Key
 func KeyErrorLogSuppress(fingerprint string) string {
 	return fmt.Sprintf("err_log:suppress:%s", fingerprint)
+}
+
+// KeyStorageConfigByID 存储配置单条缓存 Key
+func KeyStorageConfigByID(id uint) string {
+	return fmt.Sprintf("storage:config:id:%d", id)
+}
+
+// KeyStorageConfigDefault 默认存储配置缓存 Key
+func KeyStorageConfigDefault() string {
+	return "storage:config:default"
+}
+
+// KeyStorageConfigAllEnabled 所有启用的存储配置缓存 Key
+func KeyStorageConfigAllEnabled() string {
+	return "storage:config:all_enabled"
 }
 
 // KeyContentCategoryTree 内容分类全量树

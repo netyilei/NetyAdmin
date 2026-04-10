@@ -43,6 +43,16 @@ func (h *StorageHandler) GetStorageConfigList(c *gin.Context) {
 	response.SuccessWithPage(c, req.Current, req.Size, total, configs)
 }
 
+func (h *StorageHandler) GetAllEnabledStorageConfigs(c *gin.Context) {
+	configs, err := h.configService.GetAllEnabled(c.Request.Context())
+	if err != nil {
+		response.Fail(c, err)
+		return
+	}
+
+	response.Success(c, configs)
+}
+
 func (h *StorageHandler) GetStorageConfig(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -234,7 +244,11 @@ func (h *StorageHandler) CreateUploadRecord(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("userID")
+	userID, exists := c.Get("userID")
+	if !exists {
+		response.FailWithCode(c, errorx.CodeUnauthorized)
+		return
+	}
 	source := storageEntity.UploadSourceAdmin
 
 	result, err := h.recordService.CreateUploadRecord(

@@ -13,6 +13,7 @@ interface Props {
   placeholder?: string;
   disabled?: boolean;
   initialEditType?: 'markdown' | 'wysiwyg';
+  storageConfigId?: number;
 }
 
 interface Emits {
@@ -43,6 +44,7 @@ async function handleImageUpload(blob: Blob | File, callback: (url: string, text
       blob instanceof File ? blob : new File([blob], `image-${Date.now()}.png`, { type: blob.type || 'image/png' });
 
     const { data: credentials, error } = await fetchGetUploadCredentials({
+      configId: props.storageConfigId,
       fileName: file.name,
       fileSize: file.size,
       contentType: file.type,

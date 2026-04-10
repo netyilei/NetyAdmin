@@ -18,6 +18,7 @@ import { getAllIconifyIcons } from '@/utils/iconify-icons';
 import type { Content } from '@/typings/api/v1/content';
 import { $t } from '@/locales';
 import IconifyIconSelect from '@/components/custom/iconify-icon-select.vue';
+import StorageConfigSelect from '@/components/custom/storage-config-select.vue';
 
 defineOptions({
   name: 'CategoryOperateModal'
@@ -88,7 +89,7 @@ const title = computed(() => {
 
 type Model = Pick<
   Content.CreateCategoryParams,
-  'parentId' | 'name' | 'code' | 'icon' | 'sort' | 'contentType' | 'status' | 'remark'
+  'parentId' | 'name' | 'code' | 'icon' | 'sort' | 'storageConfigId' | 'contentType' | 'status' | 'remark'
 >;
 
 function createDefaultModel(): Model {
@@ -98,6 +99,7 @@ function createDefaultModel(): Model {
     code: '',
     icon: '',
     sort: 0,
+    storageConfigId: null,
     contentType: 'richtext',
     status: '1',
     remark: ''
@@ -126,6 +128,7 @@ async function handleInitModel() {
       code: props.rowData.code,
       icon: props.rowData.icon,
       sort: props.rowData.sort,
+      storageConfigId: props.rowData.storageConfigId,
       contentType: props.rowData.contentType,
       status: props.rowData.status,
       remark: props.rowData.remark
@@ -195,6 +198,12 @@ watch(
         </NFormItem>
         <NFormItem :label="$t('page.content.category.icon')" path="icon">
           <IconifyIconSelect v-model:value="model.icon as string" :icons="allIconifyIcons" />
+        </NFormItem>
+        <NFormItem :label="$t('page.content.category.storageConfigId')" path="storageConfigId">
+          <StorageConfigSelect
+            v-model:value="model.storageConfigId"
+            :placeholder="$t('page.content.category.form.storageConfigId')"
+          />
         </NFormItem>
         <NFormItem :label="$t('page.content.category.sort')" path="sort">
           <NInputNumber

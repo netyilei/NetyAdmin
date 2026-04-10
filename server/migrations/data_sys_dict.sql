@@ -31,10 +31,13 @@ ON CONFLICT (dict_code, value) DO NOTHING;
 
 -- Insert menu icon type data (with i18n keys)
 INSERT INTO sys_dict_type (name, code, description) VALUES 
-('菜单图标类型', 'menu_icon_type', '侧边栏图标渲染方式')
+('菜单图标类型', 'menu_icon_type', '侧边栏图标渲染方式'),
+('是否', 'sys_yes_no', '通用布尔状态字典')
 ON CONFLICT (code) DO NOTHING;
 
 INSERT INTO sys_dict_data (dict_code, label, value, tag_type, order_by) VALUES 
 ('menu_icon_type', 'page.manage.menu.iconType.iconify', '1', 'primary', 1),
-('menu_icon_type', 'page.manage.menu.iconType.local', '2', 'info', 2)
+('menu_icon_type', 'page.manage.menu.iconType.local', '2', 'info', 2),
+('sys_yes_no', 'common.yes', '1', 'success', 1),
+('sys_yes_no', 'common.no', '0', 'error', 2)
 ON CONFLICT (dict_code, value) DO NOTHING;

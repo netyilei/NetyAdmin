@@ -45,6 +45,7 @@ const common = {
   updateSuccess: '更新成功',
   updateFailed: '更新失败',
   upload: '上传',
+  default: '默认',
   adminProfile: '管理员资料',
   save: '保存',
   createdAt: '创建时间',

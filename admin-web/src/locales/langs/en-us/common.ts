@@ -45,6 +45,7 @@ const common = {
   updateSuccess: 'Update Success',
   updateFailed: 'Update Failed',
   upload: 'Upload',
+  default: 'Default',
   adminProfile: 'Admin Profile',
   save: 'Save',
   createdAt: 'Created At',

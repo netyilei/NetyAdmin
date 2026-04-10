@@ -99,7 +99,9 @@ const rules: Record<RuleKey, App.Global.FormRule> = {
 };
 
 const loading = ref(false);
-const categoryOptions = ref<{ label: string; value: number; contentType: Content.ContentType }[]>([]);
+const categoryOptions = ref<
+  { label: string; value: number; contentType: Content.ContentType; storageConfigId: number | null }[]
+>([]);
 const coverUploading = ref(false);
 
 async function loadCategories() {
@@ -108,11 +110,21 @@ async function loadCategories() {
     const flattenCategories = (
       categories: Content.CategoryTree[],
       level = 0
-    ): { label: string; value: number; contentType: Content.ContentType }[] => {
-      const result: { label: string; value: number; contentType: Content.ContentType }[] = [];
+    ): { label: string; value: number; contentType: Content.ContentType; storageConfigId: number | null }[] => {
+      const result: {
+        label: string;
+        value: number;
+        contentType: Content.ContentType;
+        storageConfigId: number | null;
+      }[] = [];
       for (const cat of categories) {
         const prefix = '　'.repeat(level);
-        result.push({ label: prefix + cat.name, value: cat.id, contentType: cat.contentType });
+        result.push({
+          label: prefix + cat.name,
+          value: cat.id,
+          contentType: cat.contentType,
+          storageConfigId: cat.storageConfigId
+        });
         if (cat.children && cat.children.length > 0) {
           result.push(...flattenCategories(cat.children, level + 1));
         }
@@ -122,6 +134,11 @@ async function loadCategories() {
     categoryOptions.value = flattenCategories(data);
   }
 }
+
+const currentStorageConfigId = computed(() => {
+  const selectedCategory = categoryOptions.value.find(opt => opt.value === model.value.categoryId);
+  return selectedCategory?.storageConfigId || undefined;
+});
 
 function handleCategoryChange(categoryId: number) {
   const selectedCategory = categoryOptions.value.find(opt => opt.value === categoryId);
@@ -198,6 +215,7 @@ async function handleCoverUpload(options: { file: UploadFileInfo }) {
   coverUploading.value = true;
   try {
     const { data, error } = await fetchGetUploadCredentials({
+      configId: currentStorageConfigId.value,
       fileName: options.file.name,
       fileSize: options.file.file.size,
       contentType: options.file.file.type || 'image/jpeg',
@@ -380,6 +398,7 @@ watch(
                 v-model="model.content"
                 height="600px"
                 :placeholder="$t('page.content.article.form.content')"
+                :storage-config-id="currentStorageConfigId"
               />
             </div>
           </NFormItem>

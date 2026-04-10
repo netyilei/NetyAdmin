@@ -4,9 +4,10 @@ import (
 	"context"
 	"strings"
 
-	storageDto "silentorder/internal/interface/admin/dto/storage"
 	"silentorder/internal/domain/entity"
 	storageEntity "silentorder/internal/domain/entity/storage"
+	storageDto "silentorder/internal/interface/admin/dto/storage"
+	"silentorder/internal/pkg/cache"
 	"silentorder/internal/pkg/errorx"
 	"silentorder/internal/pkg/storage"
 	storageRepo "silentorder/internal/repository/storage"
@@ -15,6 +16,8 @@ import (
 type ConfigService interface {
 	List(ctx context.Context, req *storageDto.ConfigQuery) ([]*storageEntity.Config, int64, error)
 	GetByID(ctx context.Context, id uint) (*storageEntity.Config, error)
+	GetDefault(ctx context.Context) (*storageEntity.Config, error)
+	GetAllEnabled(ctx context.Context) ([]*storageEntity.Config, error)
 	Create(ctx context.Context, req *storageDto.CreateConfigReq, operatorID uint) (uint, error)
 	Update(ctx context.Context, req *storageDto.UpdateConfigReq, operatorID uint) error
 	Delete(ctx context.Context, id uint) error
@@ -28,17 +31,20 @@ type configService struct {
 	configRepo storageRepo.ConfigRepository
 	recordRepo storageRepo.RecordRepository
 	storageMgr *storage.Manager
+	cache      cache.LazyCacheManager
 }
 
 func NewConfigService(
 	configRepo storageRepo.ConfigRepository,
 	recordRepo storageRepo.RecordRepository,
 	storageMgr *storage.Manager,
+	cache cache.LazyCacheManager,
 ) ConfigService {
 	return &configService{
 		configRepo: configRepo,
 		recordRepo: recordRepo,
 		storageMgr: storageMgr,
+		cache:      cache,
 	}
 }
 
@@ -59,7 +65,37 @@ func (s *configService) List(ctx context.Context, req *storageDto.ConfigQuery) (
 }
 
 func (s *configService) GetByID(ctx context.Context, id uint) (*storageEntity.Config, error) {
-	return s.configRepo.GetByID(ctx, id)
+	key := cache.KeyStorageConfigByID(id)
+	var config storageEntity.Config
+	err := s.cache.Fetch(ctx, key, "storage", []string{cache.TagStorageConfig}, cache.TTL_Default, &config, func() (interface{}, error) {
+		return s.configRepo.GetByID(ctx, id)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &config, nil
+}
+
+func (s *configService) GetDefault(ctx context.Context) (*storageEntity.Config, error) {
+	var config storageEntity.Config
+	err := s.cache.Fetch(ctx, cache.KeyStorageConfigDefault(), "storage", []string{cache.TagStorageConfig}, cache.TTL_Default, &config, func() (interface{}, error) {
+		return s.configRepo.GetDefault(ctx)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &config, nil
+}
+
+func (s *configService) GetAllEnabled(ctx context.Context) ([]*storageEntity.Config, error) {
+	var configs []*storageEntity.Config
+	err := s.cache.Fetch(ctx, cache.KeyStorageConfigAllEnabled(), "storage", []string{cache.TagStorageConfig}, cache.TTL_Default, &configs, func() (interface{}, error) {
+		return s.configRepo.GetAllEnabled(ctx)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return configs, nil
 }
 
 func (s *configService) Create(ctx context.Context, req *storageDto.CreateConfigReq, operatorID uint) (uint, error) {
@@ -129,6 +165,9 @@ func (s *configService) Create(ctx context.Context, req *storageDto.CreateConfig
 		return 0, errorx.New(errorx.CodeInternalError, "存储配置验证失败: "+err.Error())
 	}
 
+	// 清理缓存
+	_ = s.cache.InvalidateByTags(ctx, cache.TagStorageConfig)
+
 	return config.ID, nil
 }
 
@@ -148,11 +187,6 @@ func (s *configService) Update(ctx context.Context, req *storageDto.UpdateConfig
 	provider := storageEntity.StorageProvider(req.Provider)
 	if !s.isValidProvider(provider) {
 		return errorx.New(errorx.CodeInvalidParams, "不支持的存储提供商")
-	}
-
-	oldSecretKey := config.SecretKey
-	if req.SecretKey != "" {
-		oldSecretKey = req.SecretKey
 	}
 
 	config.Name = req.Name
@@ -182,13 +216,15 @@ func (s *configService) Update(ctx context.Context, req *storageDto.UpdateConfig
 		_ = s.configRepo.SetDefault(ctx, config.ID)
 	}
 
-	s.storageMgr.Unregister(config.ID)
-	testConfig := *config
-	testConfig.SecretKey = oldSecretKey
-
-	if err := s.storageMgr.Register(s.toPkgConfig(&testConfig)); err != nil {
-		return errorx.New(errorx.CodeInternalError, "存储配置验证失败: "+err.Error())
+	// 热更新 storage.Manager
+	if config.IsEnabled() {
+		_ = s.storageMgr.Register(s.toPkgConfig(config))
+	} else {
+		s.storageMgr.Unregister(config.ID)
 	}
+
+	// 清理缓存
+	_ = s.cache.InvalidateByTags(ctx, cache.TagStorageConfig)
 
 	return nil
 }
@@ -204,6 +240,10 @@ func (s *configService) Delete(ctx context.Context, id uint) error {
 	}
 
 	s.storageMgr.Unregister(id)
+
+	// 清理缓存
+	_ = s.cache.InvalidateByTags(ctx, cache.TagStorageConfig)
+
 	return nil
 }
 
@@ -217,7 +257,22 @@ func (s *configService) SetDefault(ctx context.Context, id uint) error {
 		return errorx.New(errorx.CodeBadRequest, "只有启用的配置才能设为默认")
 	}
 
-	return s.configRepo.SetDefault(ctx, id)
+	if err := s.configRepo.SetDefault(ctx, id); err != nil {
+		return err
+	}
+
+	// 重新同步 Manager 状态
+	configs, _ := s.configRepo.GetAllEnabled(ctx)
+	for _, config := range configs {
+		if config.IsEnabled() {
+			_ = s.storageMgr.Register(s.toPkgConfig(config))
+		}
+	}
+
+	// 清理缓存
+	_ = s.cache.InvalidateByTags(ctx, cache.TagStorageConfig)
+
+	return nil
 }
 
 func (s *configService) TestUpload(ctx context.Context, req *storageDto.TestUploadReq) (string, error) {
@@ -246,7 +301,7 @@ func (s *configService) TestUpload(ctx context.Context, req *storageDto.TestUplo
 }
 
 func (s *configService) LoadAllConfigs(ctx context.Context) error {
-	configs, err := s.configRepo.GetAll(ctx)
+	configs, err := s.configRepo.GetAllEnabled(ctx)
 	if err != nil {
 		return err
 	}

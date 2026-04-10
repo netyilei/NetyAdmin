@@ -7,6 +7,7 @@ import { localStg } from '@/utils/storage';
 import { SetupStoreId } from '@/enum';
 import { $t, setLocale } from '@/locales';
 import { setDayjsLocale } from '@/locales/dayjs';
+import { APP_CONFIG } from '@/config';
 import { useRouteStore } from '../route';
 import { useTabStore } from '../tab';
 import { useThemeStore } from '../theme';
@@ -77,7 +78,7 @@ export const useAppStore = defineStore(SetupStoreId.App, () => {
 
     const documentTitle = i18nKey ? $t(i18nKey) : title;
 
-    useTitle(documentTitle);
+    useTitle(`${documentTitle} - ${APP_CONFIG.name}`);
   }
 
   function init() {

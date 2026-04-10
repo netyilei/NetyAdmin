@@ -106,11 +106,11 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	dictService := systemService.NewDictService(dictRepo, lazyCacheMgr)
 	operationLogService := logService.NewOperationService(operationLogRepo)
 	errorLogService := logService.NewErrorService(errorLogRepo, configWatcher, redisClient)
-	storageConfigService := storageService.NewConfigService(storageConfigRepo, uploadRecordRepo, storageMgr)
+	storageConfigService := storageService.NewConfigService(storageConfigRepo, uploadRecordRepo, storageMgr, lazyCacheMgr)
 	uploadRecordService := storageService.NewRecordService(uploadRecordRepo, storageConfigRepo, storageMgr)
-	contentCategoryService := contentService.NewCategoryService(contentCategoryRepo, lazyCacheMgr, configWatcher)
+	contentCategoryService := contentService.NewCategoryService(contentCategoryRepo, storageConfigService, lazyCacheMgr, configWatcher)
 	contentArticleService := contentService.NewArticleService(contentArticleRepo, contentCategoryRepo)
-	contentBannerGroupService := contentService.NewBannerGroupService(contentBannerGroupRepo)
+	contentBannerGroupService := contentService.NewBannerGroupService(contentBannerGroupRepo, storageConfigService)
 	contentBannerItemService := contentService.NewBannerItemService(contentBannerItemRepo, contentBannerGroupRepo, contentArticleRepo)
 
 	if err := storageConfigService.LoadAllConfigs(context.Background()); err != nil {

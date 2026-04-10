@@ -189,7 +189,7 @@ ON CONFLICT (id) DO NOTHING;
 -- 文章测试数据
 INSERT INTO content_article (id, category_id, title, title_color, cover_image, summary, content, content_type, author, source, keywords, tags, is_top, top_sort, is_hot, is_recommend, allow_comment, view_count, like_count, comment_count, publish_status, published_at, scheduled_at, created_at, updated_at, deleted_at)
 VALUES
-    (1, 1, 'NetyAdmin 正式发布 V1.0 版本', '#333333', '', '我们很高兴地宣布，NetyAdmin 通用型多平台交易策略执行管理系统 V1.0 版本正式发布。', '正文内容...', 'richtext', '技术团队', 'NetyAdmin', 'NetyAdmin,交易系统', '发布,交易', true, 1, true, true, true, 128, 32, 5, 'published', NOW(), NULL, NOW(), 0)
+    (1, 1, 'SilentOrder 正式发布 V1.0 版本', '#333333', '', '我们很高兴地宣布，SilentOrder 通用型多平台交易策略执行管理系统 V1.0 版本正式发布。', '正文内容...', 'richtext', '技术团队', 'SilentOrder', 'SilentOrder,交易系统', '发布,交易', true, 1, true, true, true, 128, 32, 5, 'published', NOW(), NULL, NOW(), NOW(), 0)
 ON CONFLICT (id) DO NOTHING;
 
 -- 重置主键序列

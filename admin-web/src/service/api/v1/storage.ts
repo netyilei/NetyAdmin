@@ -9,6 +9,13 @@ export function fetchGetStorageConfigList(params?: Storage.StorageConfigSearchPa
   });
 }
 
+export function fetchGetAllEnabledStorageConfigs() {
+  return request<Storage.StorageConfig[]>({
+    url: '/admin/v1/storage-configs/all-enabled',
+    method: 'get'
+  });
+}
+
 export function fetchGetStorageConfig(id: number) {
   return request<Storage.StorageConfig>({
     url: `/admin/v1/storage-configs/${id}`,

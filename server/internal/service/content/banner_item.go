@@ -2,11 +2,11 @@ package content
 
 import (
 	"context"
-	"errors"
 	"time"
 
-	contentDto "silentorder/internal/interface/admin/dto/content"
 	contentEntity "silentorder/internal/domain/entity/content"
+	contentDto "silentorder/internal/interface/admin/dto/content"
+	"silentorder/internal/pkg/errorx"
 	contentRepo "silentorder/internal/repository/content"
 )
 
@@ -40,15 +40,15 @@ func NewBannerItemService(
 func (s *bannerItemService) Create(ctx context.Context, adminID uint, req *contentDto.CreateContentBannerItemDTO) (*contentEntity.ContentBannerItem, error) {
 	group, err := s.groupRepo.GetByID(ctx, req.GroupID)
 	if err != nil {
-		return nil, errors.New("Banner组不存在")
+		return nil, errorx.New(errorx.CodeNotFound, "Banner组不存在")
 	}
 
-	banners, err := s.repo.GetByGroupID(ctx, req.GroupID)
+	count, err := s.repo.CountByGroupID(ctx, req.GroupID)
 	if err != nil {
 		return nil, err
 	}
-	if len(banners) >= group.MaxItems {
-		return nil, errors.New("已达到Banner组最大数量限制")
+	if int(count) >= group.MaxItems {
+		return nil, errorx.New(errorx.CodeBadRequest, "已达到Banner组最大数量限制")
 	}
 
 	linkType := contentEntity.LinkTypeNone
@@ -61,7 +61,7 @@ func (s *bannerItemService) Create(ctx context.Context, adminID uint, req *conte
 		if req.LinkArticleID != nil {
 			_, err := s.articleRepo.GetByID(ctx, *req.LinkArticleID)
 			if err != nil {
-				return nil, errors.New("关联文章不存在")
+				return nil, errorx.New(errorx.CodeNotFound, "关联文章不存在")
 			}
 		}
 	}
@@ -133,7 +133,7 @@ func (s *bannerItemService) Update(ctx context.Context, adminID uint, id uint, r
 		if *req.LinkArticleID > 0 {
 			_, err := s.articleRepo.GetByID(ctx, *req.LinkArticleID)
 			if err != nil {
-				return nil, errors.New("关联文章不存在")
+				return nil, errorx.New(errorx.CodeNotFound, "关联文章不存在")
 			}
 		}
 		item.LinkArticleID = req.LinkArticleID

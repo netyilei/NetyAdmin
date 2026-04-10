@@ -1,6 +1,7 @@
 import type { Router } from 'vue-router';
 import { useTitle } from '@vueuse/core';
 import { $t } from '@/locales';
+import { APP_CONFIG } from '@/config';
 
 export function createDocumentTitleGuard(router: Router) {
   router.afterEach(to => {
@@ -8,6 +9,6 @@ export function createDocumentTitleGuard(router: Router) {
 
     const documentTitle = i18nKey ? $t(i18nKey) : title;
 
-    useTitle(documentTitle);
+    useTitle(`${documentTitle} - ${APP_CONFIG.name}`);
   });
 }

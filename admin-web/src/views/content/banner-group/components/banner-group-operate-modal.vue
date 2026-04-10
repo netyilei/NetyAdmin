@@ -4,6 +4,7 @@ import { fetchCreateBannerGroup, fetchUpdateBannerGroup } from '@/service/api/v1
 import { useFormRules } from '@/hooks/common/form';
 import type { Content } from '@/typings/api/v1/content';
 import { $t } from '@/locales';
+import StorageConfigSelect from '@/components/custom/storage-config-select.vue';
 
 defineOptions({
   name: 'BannerGroupOperateModal'
@@ -35,7 +36,9 @@ const drawerVisible = computed({
 });
 
 const title = computed(() => {
-  return props.operateType === 'add' ? '新增Banner组' : '编辑Banner组';
+  return props.operateType === 'add'
+    ? $t('page.content.bannerGroup.addGroup')
+    : $t('page.content.bannerGroup.editGroup');
 });
 
 type Model = Pick<
@@ -50,6 +53,7 @@ type Model = Pick<
   | 'autoPlay'
   | 'interval'
   | 'sort'
+  | 'storageConfigId'
   | 'status'
   | 'remark'
 >;
@@ -65,6 +69,7 @@ const model: Model = reactive({
   autoPlay: true,
   interval: 5000,
   sort: 0,
+  storageConfigId: null,
   status: '1',
   remark: ''
 });
@@ -89,6 +94,7 @@ function initModel() {
   model.autoPlay = true;
   model.interval = 5000;
   model.sort = 0;
+  model.storageConfigId = null;
   model.status = '1';
   model.remark = '';
 }
@@ -112,6 +118,7 @@ async function handleInitModel() {
       autoPlay: props.rowData.autoPlay,
       interval: props.rowData.interval,
       sort: props.rowData.sort,
+      storageConfigId: props.rowData.storageConfigId,
       status: props.rowData.status,
       remark: props.rowData.remark
     });
@@ -130,10 +137,10 @@ async function handleSubmit() {
   try {
     if (props.operateType === 'add') {
       await fetchCreateBannerGroup(params);
-      window.$message?.success('新增成功');
+      window.$message?.success($t('common.addSuccess'));
     } else {
       await fetchUpdateBannerGroup(props.rowData!.id, params);
-      window.$message?.success('更新成功');
+      window.$message?.success($t('common.updateSuccess'));
     }
 
     closeModal();
@@ -163,54 +170,60 @@ watch(
     class="overflow-y-auto"
   >
     <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="100">
-      <NFormItem label="组名称" path="name">
-        <NInput v-model:value="model.name" placeholder="请输入Banner组名称" maxlength="100" />
+      <NFormItem :label="$t('page.content.bannerGroup.groupName')" path="name">
+        <NInput v-model:value="model.name" :placeholder="$t('page.content.bannerGroup.form.groupName')" maxlength="100" />
       </NFormItem>
-      <NFormItem label="编码" path="code">
-        <NInput v-model:value="model.code" placeholder="请输入唯一编码" maxlength="50" />
+      <NFormItem :label="$t('page.content.bannerGroup.groupCode')" path="code">
+        <NInput v-model:value="model.code" :placeholder="$t('page.content.bannerGroup.form.groupCode')" maxlength="50" />
       </NFormItem>
-      <NFormItem label="描述" path="description">
-        <NInput v-model:value="model.description" placeholder="请输入描述" maxlength="255" />
+      <NFormItem :label="$t('page.content.bannerGroup.description')" path="description">
+        <NInput v-model:value="model.description" :placeholder="$t('page.content.bannerGroup.form.description')" maxlength="255" />
       </NFormItem>
-      <NFormItem label="位置标识" path="position">
-        <NInput v-model:value="model.position" placeholder="如: home_top, sidebar" maxlength="50" />
+      <NFormItem :label="$t('page.content.bannerGroup.position')" path="position">
+        <NInput v-model:value="model.position" :placeholder="$t('page.content.bannerGroup.form.position')" maxlength="50" />
+      </NFormItem>
+      <NFormItem :label="$t('page.content.bannerGroup.storageConfigId')" path="storageConfigId">
+        <StorageConfigSelect
+          v-model:value="model.storageConfigId"
+          :placeholder="$t('page.content.bannerGroup.form.storageConfigId')"
+        />
       </NFormItem>
       <NGrid :cols="2" :x-gap="16">
         <NGridItem>
-          <NFormItem label="宽度" path="width">
-            <NInputNumber v-model:value="model.width" placeholder="建议宽度" :min="0" class="w-full" />
+          <NFormItem :label="$t('page.content.bannerGroup.size')" path="width">
+            <NInputNumber v-model:value="model.width" placeholder="W" :min="0" class="w-full" />
           </NFormItem>
         </NGridItem>
         <NGridItem>
-          <NFormItem label="高度" path="height">
-            <NInputNumber v-model:value="model.height" placeholder="建议高度" :min="0" class="w-full" />
+          <NFormItem label=" " :show-label="true" path="height">
+            <NInputNumber v-model:value="model.height" placeholder="H" :min="0" class="w-full" />
           </NFormItem>
         </NGridItem>
       </NGrid>
-      <NFormItem label="最大数量" path="maxItems">
-        <NInputNumber v-model:value="model.maxItems" placeholder="最大Banner数量" :min="1" :max="50" class="w-full" />
+      <NFormItem :label="$t('page.content.bannerGroup.maxItems')" path="maxItems">
+        <NInputNumber v-model:value="model.maxItems" :placeholder="$t('page.content.bannerGroup.maxItems')" :min="1" :max="50" class="w-full" />
       </NFormItem>
-      <NFormItem label="自动播放" path="autoPlay">
+      <NFormItem :label="$t('page.content.bannerGroup.autoPlay')" path="autoPlay">
         <NSwitch v-model:value="model.autoPlay" />
       </NFormItem>
-      <NFormItem v-if="model.autoPlay" label="轮播间隔" path="interval">
-        <NInputNumber v-model:value="model.interval" placeholder="毫秒" :min="1000" :step="1000" class="w-full">
+      <NFormItem v-if="model.autoPlay" :label="$t('page.content.bannerGroup.interval')" path="interval">
+        <NInputNumber v-model:value="model.interval" :placeholder="$t('page.content.bannerGroup.interval')" :min="1000" :step="1000" class="w-full">
           <template #suffix>ms</template>
         </NInputNumber>
       </NFormItem>
-      <NFormItem label="排序" path="sort">
-        <NInputNumber v-model:value="model.sort" placeholder="排序" :min="0" class="w-full" />
+      <NFormItem :label="$t('page.content.bannerGroup.sort')" path="sort">
+        <NInputNumber v-model:value="model.sort" :placeholder="$t('page.content.bannerGroup.form.sort')" :min="0" class="w-full" />
       </NFormItem>
-      <NFormItem label="状态" path="status">
+      <NFormItem :label="$t('common.status')" path="status">
         <NRadioGroup v-model:value="model.status">
-          <NRadio value="1">启用</NRadio>
-          <NRadio value="0">禁用</NRadio>
+          <NRadio value="1">{{ $t('common.enable') }}</NRadio>
+          <NRadio value="0">{{ $t('common.disable') }}</NRadio>
         </NRadioGroup>
       </NFormItem>
-      <NFormItem label="备注" path="remark">
+      <NFormItem :label="$t('page.content.category.remark')" path="remark">
         <NInput
           v-model:value="model.remark"
-          placeholder="请输入备注"
+          :placeholder="$t('page.content.category.form.remark')"
           type="textarea"
           :autosize="{ minRows: 3, maxRows: 5 }"
         />

@@ -9,8 +9,10 @@ import (
 	contentDto "silentorder/internal/interface/admin/dto/content"
 	"silentorder/internal/pkg/cache"
 	"silentorder/internal/pkg/configsync"
+	"silentorder/internal/pkg/errorx"
 	"silentorder/internal/pkg/utils"
 	contentRepo "silentorder/internal/repository/content"
+	storageService "silentorder/internal/service/storage"
 )
 
 type CategoryService interface {
@@ -23,18 +25,18 @@ type CategoryService interface {
 }
 
 type categoryService struct {
-	repo    contentRepo.ContentCategoryRepository
-	cache   cache.LazyCacheManager
-	watcher configsync.ConfigWatcher
+	repo           contentRepo.ContentCategoryRepository
+	storageService storageService.ConfigService
+	cache          cache.LazyCacheManager
+	watcher        configsync.ConfigWatcher
 }
 
-const CategoryTreeCacheTag = "content_category_tree"
-
-func NewCategoryService(repo contentRepo.ContentCategoryRepository, cache cache.LazyCacheManager, watcher configsync.ConfigWatcher) CategoryService {
+func NewCategoryService(repo contentRepo.ContentCategoryRepository, storageService storageService.ConfigService, cache cache.LazyCacheManager, watcher configsync.ConfigWatcher) CategoryService {
 	return &categoryService{
-		repo:    repo,
-		cache:   cache,
-		watcher: watcher,
+		repo:           repo,
+		storageService: storageService,
+		cache:          cache,
+		watcher:        watcher,
 	}
 }
 
@@ -59,15 +61,23 @@ func (s *categoryService) Create(ctx context.Context, adminID uint, req *content
 		status = "0"
 	}
 
+	if req.StorageConfigID != nil && *req.StorageConfigID > 0 {
+		_, err := s.storageService.GetByID(ctx, *req.StorageConfigID)
+		if err != nil {
+			return nil, errorx.New(errorx.CodeNotFound, "存储配置不存在")
+		}
+	}
+
 	category := &contentEntity.ContentCategory{
-		ParentID:    req.ParentID,
-		Name:        req.Name,
-		Code:        req.Code,
-		Icon:        req.Icon,
-		Sort:        req.Sort,
-		ContentType: contentType,
-		Status:      status,
-		Remark:      req.Remark,
+		ParentID:        req.ParentID,
+		Name:            req.Name,
+		Code:            req.Code,
+		Icon:            req.Icon,
+		Sort:            req.Sort,
+		StorageConfigID: req.StorageConfigID,
+		ContentType:     contentType,
+		Status:          status,
+		Remark:          req.Remark,
 	}
 	category.CreatedBy = adminID
 	category.UpdatedBy = adminID
@@ -77,7 +87,7 @@ func (s *categoryService) Create(ctx context.Context, adminID uint, req *content
 	}
 
 	// 失效树缓存
-	_ = s.cache.InvalidateByTags(ctx, CategoryTreeCacheTag)
+	_ = s.cache.InvalidateByTags(ctx, cache.TagContentCategoryTree)
 
 	return category, nil
 }
@@ -113,12 +123,22 @@ func (s *categoryService) Update(ctx context.Context, adminID uint, id uint, req
 		category.ParentID = req.ParentID
 	}
 	if req.ContentType != "" {
+		category.ContentType = contentEntity.ContentTypeRichText
 		if req.ContentType == "plaintext" {
 			category.ContentType = contentEntity.ContentTypePlainText
-		} else {
-			category.ContentType = contentEntity.ContentTypeRichText
 		}
 	}
+
+	if req.StorageConfigID != nil {
+		if *req.StorageConfigID > 0 {
+			_, err := s.storageService.GetByID(ctx, *req.StorageConfigID)
+			if err != nil {
+				return nil, errorx.New(errorx.CodeNotFound, "存储配置不存在")
+			}
+		}
+		category.StorageConfigID = req.StorageConfigID
+	}
+
 	if req.Status != "" {
 		category.Status = req.Status
 	}
@@ -131,7 +151,7 @@ func (s *categoryService) Update(ctx context.Context, adminID uint, id uint, req
 	}
 
 	// 失效树缓存
-	_ = s.cache.InvalidateByTags(ctx, CategoryTreeCacheTag)
+	_ = s.cache.InvalidateByTags(ctx, cache.TagContentCategoryTree)
 
 	return category, nil
 }
@@ -158,7 +178,7 @@ func (s *categoryService) Delete(ctx context.Context, id uint) error {
 	}
 
 	// 失效树缓存
-	_ = s.cache.InvalidateByTags(ctx, CategoryTreeCacheTag)
+	_ = s.cache.InvalidateByTags(ctx, cache.TagContentCategoryTree)
 
 	return nil
 }
@@ -191,10 +211,10 @@ func (s *categoryService) GetTree(ctx context.Context, forceRefresh bool) ([]con
 
 	// 如果强制刷新，先失效标签
 	if forceRefresh {
-		_ = s.cache.InvalidateByTags(ctx, CategoryTreeCacheTag)
+		_ = s.cache.InvalidateByTags(ctx, cache.TagContentCategoryTree)
 	}
 
-	err := s.cache.Fetch(ctx, cacheKey, "content_category_cache", []string{CategoryTreeCacheTag}, 1*time.Hour, &tree, loader)
+	err := s.cache.Fetch(ctx, cacheKey, "content_category_cache", []string{cache.TagContentCategoryTree}, 1*time.Hour, &tree, loader)
 	return tree, err
 }
 

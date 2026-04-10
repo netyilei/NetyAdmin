@@ -2,6 +2,7 @@ package content
 
 import (
 	"context"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -16,6 +17,7 @@ type ContentBannerItemRepository interface {
 	GetByIDWithGroup(ctx context.Context, id uint) (*content.ContentBannerItem, error)
 	List(ctx context.Context, query *ContentBannerItemQuery) ([]*content.ContentBannerItem, int64, error)
 	GetByGroupID(ctx context.Context, groupID uint) ([]*content.ContentBannerItem, error)
+	CountByGroupID(ctx context.Context, groupID uint) (int64, error)
 	IncrementViewCount(ctx context.Context, id uint) error
 	IncrementClickCount(ctx context.Context, id uint) error
 }
@@ -83,6 +85,12 @@ func (r *contentBannerItemRepository) List(ctx context.Context, query *ContentBa
 	if query.Status != "" {
 		db = db.Where("status = ?", query.Status)
 	}
+	if query.StartTime != "" {
+		db = db.Where("start_time >= ?", query.StartTime)
+	}
+	if query.EndTime != "" {
+		db = db.Where("end_time <= ?", query.EndTime)
+	}
 
 	var total int64
 	if err := db.Count(&total).Error; err != nil {
@@ -113,14 +121,24 @@ func (r *contentBannerItemRepository) List(ctx context.Context, query *ContentBa
 
 func (r *contentBannerItemRepository) GetByGroupID(ctx context.Context, groupID uint) ([]*content.ContentBannerItem, error) {
 	var items []*content.ContentBannerItem
+	now := time.Now()
 	err := r.db.WithContext(ctx).
 		Where("group_id = ? AND status = ?", groupID, "1").
+		Where("(start_time IS NULL OR start_time <= ?) AND (end_time IS NULL OR end_time >= ?)", now, now).
 		Order("sort ASC, created_at DESC").
 		Find(&items).Error
 	if err != nil {
 		return nil, err
 	}
 	return items, nil
+}
+
+func (r *contentBannerItemRepository) CountByGroupID(ctx context.Context, groupID uint) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&content.ContentBannerItem{}).
+		Where("group_id = ? AND status = ?", groupID, "1").
+		Count(&count).Error
+	return count, err
 }
 
 func (r *contentBannerItemRepository) IncrementViewCount(ctx context.Context, id uint) error {

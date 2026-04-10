@@ -1,3 +1,5 @@
+import { APP_CONFIG } from '@/config';
+
 /** Default theme settings */
 export const themeSettings: App.Theme.ThemeSetting = {
   themeScheme: 'light',
@@ -58,7 +60,7 @@ export const themeSettings: App.Theme.ThemeSetting = {
   },
   watermark: {
     visible: false,
-    text: 'SoybeanAdmin',
+    text: APP_CONFIG.name,
     enableUserName: false
   },
   tokens: {

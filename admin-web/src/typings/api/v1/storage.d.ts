@@ -118,9 +118,6 @@ export namespace Storage {
     domain: string;
     finalUrl: string;
     configId: number;
-    accessKeyId: string;
-    accessKeySecret: string;
-    securityToken: string;
     region: string;
     bucket: string;
     endpoint: string;

@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import type { Ref } from 'vue';
 import { NButton, NDataTable, NPopconfirm, NTag } from 'naive-ui';
 import { useBoolean } from '@sa/hooks';
-import { yesOrNoRecord } from '@/constants/common';
+import TableHeaderOperation from '@/components/advanced/table-header-operation.vue';
 import {
   fetchBatchDeleteMenu,
   fetchDeleteMenu,
@@ -22,7 +22,7 @@ import MenuOperateModal, { type OperateType } from './components/menu-operate-mo
 const appStore = useAppStore();
 const { loadDicts, renderDictTag } = useDict();
 
-loadDicts(['sys_status', 'menu_type']);
+loadDicts(['sys_status', 'menu_type', 'sys_yes_no']);
 
 const { bool: visible, setTrue: openModal } = useBoolean();
 
@@ -131,18 +131,7 @@ const { columns, columnChecks, data, loading, pagination, getData, updateSearchP
       title: $t('page.manage.menu.hideInMenu'),
       align: 'center',
       width: 80,
-      render: row => {
-        const hide: CommonType.YesOrNo = row.hideInMenu ? 'Y' : 'N';
-
-        const tagMap: Record<CommonType.YesOrNo, NaiveUI.ThemeColor> = {
-          Y: 'error',
-          N: 'default'
-        };
-
-        const label = $t(yesOrNoRecord[hide]);
-
-        return <NTag type={tagMap[hide]}>{label}</NTag>;
-      }
+      render: row => renderDictTag('sys_yes_no', row.hideInMenu ? '1' : '0')
     },
     {
       key: 'order',
@@ -289,6 +278,7 @@ onMounted(() => {
         :loading="loading"
         :row-key="row => row.id"
         :indent="24"
+        :pagination="pagination"
         class="sm:h-full"
       />
       <MenuOperateModal

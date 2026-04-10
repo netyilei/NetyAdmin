@@ -2,11 +2,11 @@ package content
 
 import (
 	"context"
-	"errors"
 	"time"
 
-	contentDto "silentorder/internal/interface/admin/dto/content"
 	contentEntity "silentorder/internal/domain/entity/content"
+	contentDto "silentorder/internal/interface/admin/dto/content"
+	"silentorder/internal/pkg/errorx"
 	contentRepo "silentorder/internal/repository/content"
 )
 
@@ -33,7 +33,7 @@ func NewArticleService(repo contentRepo.ContentArticleRepository, categoryRepo c
 func (s *articleService) Create(ctx context.Context, adminID uint, req *contentDto.CreateContentArticleDTO) (*contentEntity.ContentArticle, error) {
 	_, err := s.categoryRepo.GetByID(ctx, req.CategoryID)
 	if err != nil {
-		return nil, errors.New("分类不存在")
+		return nil, errorx.New(errorx.CodeNotFound, "分类不存在")
 	}
 
 	contentType := contentEntity.ContentTypeRichText
@@ -100,7 +100,7 @@ func (s *articleService) Update(ctx context.Context, adminID uint, id uint, req 
 	if req.CategoryID != nil {
 		_, err := s.categoryRepo.GetByID(ctx, *req.CategoryID)
 		if err != nil {
-			return nil, errors.New("分类不存在")
+			return nil, errorx.New(errorx.CodeNotFound, "分类不存在")
 		}
 		article.CategoryID = *req.CategoryID
 	}

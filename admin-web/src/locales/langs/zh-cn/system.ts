@@ -1,5 +1,7 @@
+import { APP_CONFIG } from '@/config';
+
 const system = {
-  title: 'Soybean 管理系统',
+  title: APP_CONFIG.name,
   updateTitle: '系统版本更新通知',
   updateContent: '检测到系统有新版本发布，是否立即刷新页面？',
   updateConfirm: '立即刷新',

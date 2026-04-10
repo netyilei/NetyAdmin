@@ -6,6 +6,7 @@ VALUES
 ('cache_switches', 'rbac_menu', 'true', 'boolean', '菜单树格式化缓存开关', TRUE, 1, 1),
 ('cache_switches', 'admin', 'true', 'boolean', '管理员个人资料缓存开关', TRUE, 1, 1),
 ('cache_switches', 'dict', 'true', 'boolean', '字典数据缓存开关', TRUE, 1, 1),
+('cache_switches', 'storage', 'true', 'boolean', '对象存储配置缓存开关', TRUE, 1, 1),
 ('system_params', 'admin_max_login_fails', '5', 'number', '管理员最多连续登录失败次数', TRUE, 1, 1),
 -- 任务配置
 ('task_config', 'log_enabled', 'true', 'boolean', '是否开启任务日志记录', TRUE, 1, 1),

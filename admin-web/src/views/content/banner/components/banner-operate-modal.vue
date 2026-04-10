@@ -45,7 +45,7 @@ const drawerVisible = computed({
 });
 
 const title = computed(() => {
-  return props.operateType === 'add' ? '新增Banner' : '编辑Banner';
+  return props.operateType === 'add' ? $t('page.content.bannerItem.addItem') : $t('page.content.bannerItem.editItem');
 });
 
 type Model = Pick<
@@ -67,7 +67,7 @@ type Model = Pick<
 >;
 
 const model: Model = reactive({
-  groupId: 0,
+  groupId: props.groupId || 0,
   title: '',
   subtitle: '',
   imageUrl: '',
@@ -92,13 +92,17 @@ const rules: Record<RuleKey, App.Global.FormRule> = {
 };
 
 const loading = ref(false);
-const groupOptions = ref<{ label: string; value: number }[]>([]);
+const groupOptions = ref<{ label: string; value: number; storageConfigId: number | null }[]>([]);
 const imageUploading = ref(false);
 
 async function loadGroups() {
   const { data, error } = await fetchGetAllBannerGroups();
   if (!error && data) {
-    groupOptions.value = data.map(g => ({ label: g.name, value: g.id }));
+    groupOptions.value = data.map(g => ({
+      label: g.name,
+      value: g.id,
+      storageConfigId: g.storageConfigId
+    }));
   }
 }
 
@@ -114,8 +118,8 @@ function initModel() {
   model.content = '';
   model.customParams = '';
   model.sort = 0;
-  model.startTime = undefined;
-  model.endTime = undefined;
+  model.startTime = null;
+  model.endTime = null;
   model.status = '1';
 }
 
@@ -141,8 +145,8 @@ async function handleInitModel() {
         content: data.content,
         customParams: data.customParams,
         sort: data.sort,
-        startTime: data.startTime ? dayjs(data.startTime).format('YYYY-MM-DD HH:mm:ss') : undefined,
-        endTime: data.endTime ? dayjs(data.endTime).format('YYYY-MM-DD HH:mm:ss') : undefined,
+        startTime: data.startTime ? dayjs(data.startTime).format('YYYY-MM-DD HH:mm:ss') : null,
+        endTime: data.endTime ? dayjs(data.endTime).format('YYYY-MM-DD HH:mm:ss') : null,
         status: data.status
       });
     }
@@ -152,9 +156,13 @@ async function handleInitModel() {
 async function handleImageUpload(options: { file: UploadFileInfo }) {
   if (!options.file.file) return;
 
+  const currentGroup = groupOptions.value.find(g => g.value === model.groupId);
+  const storageConfigId = currentGroup?.storageConfigId || undefined;
+
   imageUploading.value = true;
   try {
     const { data, error } = await fetchGetUploadCredentials({
+      configId: storageConfigId,
       fileName: options.file.name,
       fileSize: options.file.file.size,
       contentType: options.file.file.type || 'image/jpeg',
@@ -174,10 +182,10 @@ async function handleImageUpload(options: { file: UploadFileInfo }) {
         businessType: 'banner_image'
       });
 
-      window.$message?.success('图片上传成功');
+      window.$message?.success($t('common.addSuccess'));
     }
   } catch {
-    window.$message?.error('图片上传失败');
+    window.$message?.error($t('common.uploadFailed'));
   } finally {
     imageUploading.value = false;
   }
@@ -199,10 +207,10 @@ async function handleSubmit() {
   try {
     if (props.operateType === 'add') {
       await fetchCreateBannerItem(params);
-      window.$message?.success('新增成功');
+      window.$message?.success($t('common.addSuccess'));
     } else {
       await fetchUpdateBannerItem(props.rowData!.id, params);
-      window.$message?.success('更新成功');
+      window.$message?.success($t('common.updateSuccess'));
     }
 
     closeModal();
@@ -227,75 +235,75 @@ watch(
 <template>
   <NModal v-model:show="drawerVisible" preset="card" :title="title" :style="{ width: '600px' }" class="overflow-y-auto">
     <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="100">
-      <NFormItem label="Banner组" path="groupId">
+      <NFormItem :label="$t('page.content.bannerItem.groupId')" path="groupId">
         <NSelect
           v-model:value="model.groupId"
-          placeholder="请选择Banner组"
+          :placeholder="$t('page.content.bannerItem.form.groupId')"
           :options="groupOptions"
           :disabled="!!groupId"
         />
       </NFormItem>
-      <NFormItem label="标题" path="title">
-        <NInput v-model:value="model.title" placeholder="请输入标题" maxlength="200" />
+      <NFormItem :label="$t('page.content.bannerItem.titleField')" path="title">
+        <NInput v-model:value="model.title" :placeholder="$t('page.content.bannerItem.form.title')" maxlength="200" />
       </NFormItem>
-      <NFormItem label="副标题" path="subtitle">
-        <NInput v-model:value="model.subtitle" placeholder="请输入副标题" maxlength="200" />
+      <NFormItem :label="$t('page.content.bannerItem.subtitle')" path="subtitle">
+        <NInput v-model:value="model.subtitle" :placeholder="$t('page.content.bannerItem.subtitle')" maxlength="200" />
       </NFormItem>
-      <NFormItem label="图片" path="imageUrl">
+      <NFormItem :label="$t('page.content.bannerItem.image')" path="imageUrl">
         <NSpace align="center">
           <NUpload :custom-request="handleImageUpload as any" :show-file-list="false" accept="image/*">
-            <NButton :loading="imageUploading">上传图片</NButton>
+            <NButton :loading="imageUploading">{{ $t('common.upload') }}</NButton>
           </NUpload>
           <NImage v-if="model.imageUrl" :src="model.imageUrl" width="120" height="80" object-fit="cover" />
         </NSpace>
       </NFormItem>
-      <NFormItem label="图片描述" path="imageAlt">
-        <NInput v-model:value="model.imageAlt" placeholder="请输入图片描述" maxlength="200" />
+      <NFormItem :label="$t('page.content.bannerItem.imageAlt')" path="imageAlt">
+        <NInput v-model:value="model.imageAlt" :placeholder="$t('page.content.bannerItem.form.imageAlt')" maxlength="200" />
       </NFormItem>
-      <NFormItem label="链接类型" path="linkType">
+      <NFormItem :label="$t('page.content.bannerItem.linkType')" path="linkType">
         <NSelect
           v-model:value="model.linkType"
-          placeholder="请选择链接类型"
+          :placeholder="$t('page.content.bannerItem.form.linkType')"
           :options="[
-            { label: '无链接', value: 'none' },
-            { label: '内部链接', value: 'internal' },
-            { label: '外部链接', value: 'external' },
-            { label: '文章', value: 'article' }
+            { label: $t('page.content.bannerItem.linkTypeNone'), value: 'none' },
+            { label: $t('page.content.bannerItem.linkTypeInternal'), value: 'internal' },
+            { label: $t('page.content.bannerItem.linkTypeExternal'), value: 'external' },
+            { label: $t('page.content.bannerItem.linkTypeArticle'), value: 'article' }
           ]"
         />
       </NFormItem>
-      <NFormItem v-if="model.linkType === 'external'" label="外部链接" path="linkUrl">
-        <NInput v-model:value="model.linkUrl" placeholder="请输入外部链接地址" maxlength="500" />
+      <NFormItem v-if="model.linkType === 'external'" :label="$t('page.content.bannerItem.link')" path="linkUrl">
+        <NInput v-model:value="model.linkUrl" :placeholder="$t('page.content.bannerItem.form.linkUrl')" maxlength="500" />
       </NFormItem>
       <NFormItem v-if="model.linkType === 'article'" label="文章ID" path="linkArticleId">
-        <NInputNumber v-model:value="model.linkArticleId" placeholder="请输入文章ID" :min="1" class="w-full" />
+        <NInputNumber v-model:value="model.linkArticleId" :placeholder="$t('page.content.bannerItem.form.linkArticleId')" :min="1" class="w-full" />
       </NFormItem>
-      <NFormItem label="纯文本内容" path="content">
+      <NFormItem :label="$t('page.content.bannerItem.content')" path="content">
         <NInput
           v-model:value="model.content"
           type="textarea"
-          placeholder="请输入纯文本内容"
+          :placeholder="$t('page.content.bannerItem.form.content')"
           :autosize="{ minRows: 3, maxRows: 6 }"
         />
       </NFormItem>
-      <NFormItem label="自定义参数" path="customParams">
+      <NFormItem :label="$t('page.content.bannerItem.customParams')" path="customParams">
         <NInput
           v-model:value="model.customParams"
           type="textarea"
-          placeholder="JSON格式的自定义参数"
+          :placeholder="$t('page.content.bannerItem.form.customParams')"
           :autosize="{ minRows: 2, maxRows: 4 }"
         />
       </NFormItem>
-      <NFormItem label="排序" path="sort">
+      <NFormItem :label="$t('page.content.bannerItem.sort')" path="sort">
         <NInputNumber v-model:value="model.sort" :min="0" class="w-full" />
       </NFormItem>
       <NGrid :cols="2" :x-gap="16">
         <NGridItem>
-          <NFormItem label="开始时间" path="startTime">
+          <NFormItem :label="$t('page.content.bannerItem.startTime')" path="startTime">
             <NDatePicker
               v-model:value="model.startTime"
               type="datetime"
-              placeholder="开始显示时间"
+              :placeholder="$t('page.content.bannerItem.form.startTime')"
               class="w-full"
               format="yyyy-MM-dd HH:mm:ss"
               value-format="yyyy-MM-dd HH:mm:ss"
@@ -303,11 +311,11 @@ watch(
           </NFormItem>
         </NGridItem>
         <NGridItem>
-          <NFormItem label="结束时间" path="endTime">
+          <NFormItem :label="$t('page.content.bannerItem.endTime')" path="endTime">
             <NDatePicker
               v-model:value="model.endTime"
               type="datetime"
-              placeholder="结束显示时间"
+              :placeholder="$t('page.content.bannerItem.form.endTime')"
               class="w-full"
               format="yyyy-MM-dd HH:mm:ss"
               value-format="yyyy-MM-dd HH:mm:ss"
@@ -315,10 +323,10 @@ watch(
           </NFormItem>
         </NGridItem>
       </NGrid>
-      <NFormItem label="状态" path="status">
+      <NFormItem :label="$t('common.status')" path="status">
         <NRadioGroup v-model:value="model.status">
-          <NRadio value="1">启用</NRadio>
-          <NRadio value="0">禁用</NRadio>
+          <NRadio value="1">{{ $t('common.enable') }}</NRadio>
+          <NRadio value="0">{{ $t('common.disable') }}</NRadio>
         </NRadioGroup>
       </NFormItem>
     </NForm>

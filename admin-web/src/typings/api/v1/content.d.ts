@@ -14,6 +14,7 @@ export namespace Content {
     code: string;
     icon: string;
     sort: number;
+    storageConfigId: number | null;
     contentType: ContentType;
     status: import('@/typings/api/v1/common').Common.EnableStatus;
     remark: string;
@@ -45,6 +46,7 @@ export namespace Content {
     code?: string;
     icon?: string;
     sort?: number;
+    storageConfigId?: number | null;
     contentType?: ContentType;
     status?: import('@/typings/api/v1/common').Common.EnableStatus;
     remark?: string;
@@ -56,6 +58,7 @@ export namespace Content {
     code?: string;
     icon?: string;
     sort?: number;
+    storageConfigId?: number | null;
     contentType?: ContentType;
     status?: import('@/typings/api/v1/common').Common.EnableStatus;
     remark?: string;
@@ -168,6 +171,7 @@ export namespace Content {
     autoPlay: boolean;
     interval: number;
     sort: number;
+    storageConfigId: number | null;
     status: import('@/typings/api/v1/common').Common.EnableStatus;
     remark: string;
     createdBy: number;
@@ -194,6 +198,7 @@ export namespace Content {
     width?: number;
     height?: number;
     maxItems?: number;
+    storageConfigId?: number | null;
     autoPlay?: boolean;
     interval?: number;
     sort?: number;
@@ -203,11 +208,13 @@ export namespace Content {
 
   type UpdateBannerGroupParams = {
     name?: string;
+    code?: string;
     description?: string;
     position?: string;
     width?: number;
     height?: number;
     maxItems?: number;
+    storageConfigId?: number | null;
     autoPlay?: boolean;
     interval?: number;
     sort?: number;

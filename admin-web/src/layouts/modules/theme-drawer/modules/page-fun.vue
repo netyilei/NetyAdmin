@@ -9,6 +9,7 @@ import {
 import { useThemeStore } from '@/store/modules/theme';
 import { translateOptions } from '@/utils/common';
 import { $t } from '@/locales';
+import { APP_CONFIG } from '@/config';
 import SettingItem from '../components/setting-item.vue';
 
 defineOptions({
@@ -127,7 +128,7 @@ const isWrapperScrollMode = computed(() => themeStore.layout.scrollMode === 'wra
         type="text"
         size="small"
         class="w-120px"
-        placeholder="SoybeanAdmin"
+        :placeholder="APP_CONFIG.name"
       />
     </SettingItem>
     <SettingItem key="9" :label="$t('theme.header.multilingual.visible')">

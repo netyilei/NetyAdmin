@@ -14,7 +14,7 @@ type ConfigRepository interface {
 	Delete(ctx context.Context, id uint) error
 	GetByID(ctx context.Context, id uint) (*storageEntity.Config, error)
 	List(ctx context.Context, query *ConfigQuery) ([]*storageEntity.Config, int64, error)
-	GetAll(ctx context.Context) ([]*storageEntity.Config, error)
+	GetAllEnabled(ctx context.Context) ([]*storageEntity.Config, error)
 	GetDefault(ctx context.Context) (*storageEntity.Config, error)
 	SetDefault(ctx context.Context, id uint) error
 	ExistsByName(ctx context.Context, name string, excludeID ...uint) (bool, error)
@@ -82,7 +82,7 @@ func (r *configRepository) List(ctx context.Context, query *ConfigQuery) ([]*sto
 	return configs, total, nil
 }
 
-func (r *configRepository) GetAll(ctx context.Context) ([]*storageEntity.Config, error) {
+func (r *configRepository) GetAllEnabled(ctx context.Context) ([]*storageEntity.Config, error) {
 	var configs []*storageEntity.Config
 	err := r.db.WithContext(ctx).
 		Where("status = ?", "1").

@@ -172,9 +172,12 @@ const manage = {
         '这里的开关用于动态降级系统能力。开启缓存后将极大提升系统性能；关闭缓存则强制直接查询数据库（用于紧急排错）。修改后将自动通过 Redis 集群广播热重载。',
       systemGroup: '系统核心层缓存',
       moduleGroup: '业务模块级缓存',
-      rbac_auth: 'RBAC 权限/API 鉴权',
       sys_config: '系统基础配置/热更中心',
+      rbac_auth: 'RBAC 权限/API 鉴权',
       rbac_menu: '菜单树格式化/递归缓存',
+      admin: '管理员个人资料缓存',
+      dict: '字典数据缓存',
+      storage: '对象存储配置/驱动热更',
       err_log_cache: '错误日志聚合分析缓存',
       content_category_cache: '内容分类(无限级树)缓存'
     },

@@ -25,9 +25,6 @@ type Credentials struct {
 	Domain          string            `json:"domain"`
 	FinalURL        string            `json:"finalUrl"`
 	ConfigID        uint              `json:"configId"`
-	AccessKeyID     string            `json:"accessKeyId"`
-	AccessKeySecret string            `json:"accessKeySecret"`
-	SecurityToken   string            `json:"securityToken"`
 	Region          string            `json:"region"`
 	Bucket          string            `json:"bucket"`
 	Endpoint        string            `json:"endpoint"`
