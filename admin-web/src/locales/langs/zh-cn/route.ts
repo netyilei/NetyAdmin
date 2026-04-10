@@ -1,0 +1,33 @@
+const route = {
+  login: '登录',
+  403: '无权限',
+  404: '页面不存在',
+  500: '服务器错误',
+  home: '首页',
+  manage: '管理员',
+  manage_admin: '管理员列表',
+  'manage_admin-detail': '管理员详情',
+  manage_role: '角色管理',
+  manage_menu: '菜单管理',
+  manage_dict: '字典管理',
+  content: '内容管理',
+  content_category: '内容分类',
+  content_article: '文章管理',
+  'content_banner-group': 'Banner组',
+  content_banner: 'Banner管理',
+  settings: '系统配置',
+  manage_system_setting: '基础设置',
+  basic_setting: '基础设置',
+  'settings_storage-config': '存储配置',
+  ops: '运维',
+  'ops_operation-log': '操作日志',
+  'ops_error-log': '错误日志',
+  'ops_upload-record': '上传记录',
+  ops_task: '任务调度',
+  exception: '异常页',
+  exception_403: '403',
+  exception_404: '404',
+  exception_500: '500'
+};
+
+export default route;

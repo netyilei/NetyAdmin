@@ -1,0 +1,33 @@
+const route = {
+  login: 'Login',
+  403: 'No Permission',
+  404: 'Page Not Found',
+  500: 'Server Error',
+  home: 'Home',
+  manage: 'Admin',
+  manage_admin: 'Admin List',
+  'manage_admin-detail': 'Admin Detail',
+  manage_role: 'Role Manage',
+  manage_menu: 'Menu Manage',
+  manage_dict: 'Dict Manage',
+  content: 'Content',
+  content_category: 'Category',
+  content_article: 'Article',
+  'content_banner-group': 'Banner Group',
+  content_banner: 'Banner',
+  settings: 'System Config',
+  manage_system_setting: 'Basic Setting',
+  basic_setting: 'Basic Setting',
+  'settings_storage-config': 'Storage Config',
+  ops: 'Operations',
+  'ops_operation-log': 'Operation Log',
+  'ops_error-log': 'Error Log',
+  'ops_upload-record': 'Upload Record',
+  ops_task: 'Scheduled Tasks',
+  exception: 'Exception',
+  exception_403: '403',
+  exception_404: '404',
+  exception_500: '500'
+};
+
+export default route;
