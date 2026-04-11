@@ -30,11 +30,11 @@ interface ConfigItem extends SystemManage.SysConfig {
 const systemCaches = computed(() => cacheConfigs.value.filter(c => c.isSystem));
 const moduleCaches = computed(() => cacheConfigs.value.filter(c => !c.isSystem));
 
-const logConfigs = reactive<Record<string, ConfigItem>>({
-  task_log_enabled: {} as ConfigItem,
-  task_retention: {} as ConfigItem,
-  ops_retention: {} as ConfigItem,
-  err_retention: {} as ConfigItem
+const logConfigs = reactive<Record<string, ConfigItem | undefined>>({
+  task_log_enabled: undefined,
+  task_retention: undefined,
+  ops_retention: undefined,
+  err_retention: undefined
 });
 
 async function init() {
@@ -78,7 +78,7 @@ async function init() {
   loading.value = false;
 }
 
-async function handleUpdate(item: SystemManage.SysConfig) {
+async function handleUpdate(item?: SystemManage.SysConfig) {
   if (!item || !item.configKey) return;
   updating.value = item.configKey;
   const { error } = await fetchUpdateSysConfig(item);
@@ -88,7 +88,7 @@ async function handleUpdate(item: SystemManage.SysConfig) {
   }
 }
 
-async function handleNumberUpdate(item: ConfigItem) {
+async function handleNumberUpdate(item?: ConfigItem) {
   if (!item || item.numValue === undefined || item.numValue === Number.parseInt(item.configValue, 10)) return;
   item.configValue = item.numValue.toString();
   await handleUpdate(item);
@@ -176,7 +176,7 @@ onMounted(init);
               <NSpace vertical :size="20">
                 <NFormItem :label="$t('page.manage.setting.log.enabled')" label-placement="left">
                   <NSwitch
-                    v-if="logConfigs.task_log_enabled"
+                    v-if="logConfigs.task_log_enabled !== undefined"
                     v-model:value="logConfigs.task_log_enabled.configValue"
                     checked-value="true"
                     unchecked-value="false"
@@ -186,7 +186,7 @@ onMounted(init);
                 </NFormItem>
                 <NFormItem :label="$t('page.manage.setting.log.retentionDays')" label-placement="left">
                   <NInputNumber
-                    v-if="logConfigs.task_retention"
+                    v-if="logConfigs.task_retention !== undefined"
                     v-model:value="logConfigs.task_retention.numValue"
                     :min="0"
                     :max="3650"
@@ -213,7 +213,7 @@ onMounted(init);
                 <NCard :title="$t('page.manage.setting.log.operationLog')" size="small">
                   <NFormItem :label="$t('page.manage.setting.log.retentionDays')">
                     <NInputNumber
-                      v-if="logConfigs.ops_retention"
+                      v-if="logConfigs.ops_retention !== undefined"
                       v-model:value="logConfigs.ops_retention.numValue"
                       :min="0"
                       :max="3650"
@@ -231,7 +231,7 @@ onMounted(init);
                 <NCard :title="$t('page.manage.setting.log.errorLog')" size="small">
                   <NFormItem :label="$t('page.manage.setting.log.retentionDays')">
                     <NInputNumber
-                      v-if="logConfigs.err_retention"
+                      v-if="logConfigs.err_retention !== undefined"
                       v-model:value="logConfigs.err_retention.numValue"
                       :min="0"
                       :max="3650"

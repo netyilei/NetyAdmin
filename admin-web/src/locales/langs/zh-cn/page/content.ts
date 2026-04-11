@@ -91,6 +91,7 @@ const content = {
       groupName: '请输入组名称',
       groupCode: '请输入组编码',
       description: '请输入描述',
+      position: '请输入位置标识',
       sort: '请输入排序',
       storageConfigId: '请选择对象存储',
       status: '请选择状态'

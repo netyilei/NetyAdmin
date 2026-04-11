@@ -90,6 +90,7 @@ const content = {
       groupName: 'Please enter group name',
       groupCode: 'Please enter group code',
       description: 'Please enter description',
+      position: 'Please enter position',
       sort: 'Please enter sort',
       interval: 'Please enter interval',
       storageConfigId: 'Please select object storage',
