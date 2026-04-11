@@ -48,7 +48,8 @@ const manage = {
     editAdmin: 'Edit Admin',
     gender: {
       male: 'Male',
-      female: 'Female'
+      female: 'Female',
+      unknown: 'Unknown'
     }
   },
   menu: {

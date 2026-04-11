@@ -47,7 +47,7 @@ export namespace SystemManage {
    * - "1": "male"
    * - "2": "female"
    */
-  type AdminGender = '1' | '2';
+  type AdminGender = '1' | '2' | null;
 
   /** @deprecated Use AdminGender instead - backward compatibility */
   type UserGender = AdminGender;
