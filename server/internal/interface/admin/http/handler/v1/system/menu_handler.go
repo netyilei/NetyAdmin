@@ -94,6 +94,9 @@ func (h *SystemHandler) UpdateAdminMenu(c *gin.Context) {
 func (h *SystemHandler) DeleteAdminMenu(c *gin.Context) {
 	idStr := c.Query("id")
 	if idStr == "" {
+		idStr = c.Query("menuId")
+	}
+	if idStr == "" {
 		idStr = c.Param("id")
 	}
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -139,14 +142,16 @@ func (h *SystemHandler) GetAllPages(c *gin.Context) {
 
 func (h *SystemHandler) DeleteAdminMenus(c *gin.Context) {
 	var req struct {
-		Ids []uint `json:"ids" binding:"required"`
+		MenuIds []uint `form:"menuIds" json:"menuIds" binding:"required"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithCode(c, errorx.CodeInvalidParams, "参数错误")
-		return
+	if err := c.ShouldBindQuery(&req); err != nil {
+		if err = c.ShouldBindJSON(&req); err != nil {
+			response.FailWithCode(c, errorx.CodeInvalidParams, "参数错误")
+			return
+		}
 	}
 
-	for _, id := range req.Ids {
+	for _, id := range req.MenuIds {
 		_ = h.menuService.Delete(c.Request.Context(), id)
 	}
 

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
 	logEntity "NetyAdmin/internal/domain/entity/log"
 )
@@ -23,15 +22,24 @@ func (r *ErrorRepository) Create(ctx context.Context, log *logEntity.Error) erro
 }
 
 func (r *ErrorRepository) UpsertByHash(ctx context.Context, logRecord *logEntity.Error) error {
-	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "hash"}},
-		DoUpdates: clause.Assignments(map[string]interface{}{
-			"occurrence_count": gorm.Expr("admin_error_log.occurrence_count + ?", 1),
-			"last_occurred_at": time.Now(),
-			"request_id":       logRecord.RequestID,
-			"ip":               logRecord.IP,
-		}),
-	}).Create(logRecord).Error
+	var existing logEntity.Error
+	err := r.db.WithContext(ctx).
+		Where("hash = ?", logRecord.Hash).
+		First(&existing).Error
+
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return r.db.WithContext(ctx).Create(logRecord).Error
+		}
+		return err
+	}
+
+	return r.db.WithContext(ctx).Model(&existing).Updates(map[string]interface{}{
+		"occurrence_count": gorm.Expr("occurrence_count + ?", 1),
+		"last_occurred_at": time.Now(),
+		"request_id":       logRecord.RequestID,
+		"ip":               logRecord.IP,
+	}).Error
 }
 
 func (r *ErrorRepository) List(ctx context.Context, level string, resolved *bool, page, pageSize int) ([]logEntity.Error, int64, error) {

@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
 	systemEntity "NetyAdmin/internal/domain/entity/system"
 	"NetyAdmin/internal/pkg/errorx"
@@ -57,11 +56,25 @@ func (r *configRepository) GetAll(ctx context.Context) ([]*systemEntity.SysConfi
 }
 
 func (r *configRepository) Upsert(ctx context.Context, config *systemEntity.SysConfig) error {
-	// 冲突时更新值和说明等
-	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "group_name"}, {Name: "config_key"}},
-		DoUpdates: clause.AssignmentColumns([]string{"config_value", "value_type", "description", "updated_by", "updated_at"}),
-	}).Create(config).Error
+	var existing systemEntity.SysConfig
+	err := r.db.WithContext(ctx).
+		Where("group_name = ? AND config_key = ?", config.GroupName, config.ConfigKey).
+		First(&existing).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return r.db.WithContext(ctx).Create(config).Error
+		}
+		return err
+	}
+
+	config.ID = existing.ID
+	return r.db.WithContext(ctx).Model(&existing).Updates(map[string]interface{}{
+		"config_value": config.ConfigValue,
+		"value_type":   config.ValueType,
+		"description":  config.Description,
+		"updated_by":   config.UpdatedBy,
+	}).Error
 }
 
 func (r *configRepository) Delete(ctx context.Context, id uint) error {
