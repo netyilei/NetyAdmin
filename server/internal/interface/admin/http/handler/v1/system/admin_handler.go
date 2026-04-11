@@ -71,6 +71,9 @@ func (h *SystemHandler) UpdateAdmin(c *gin.Context) {
 func (h *SystemHandler) DeleteAdmin(c *gin.Context) {
 	idStr := c.Query("id")
 	if idStr == "" {
+		idStr = c.Query("userId")
+	}
+	if idStr == "" {
 		idStr = c.Param("id")
 	}
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -89,11 +92,13 @@ func (h *SystemHandler) DeleteAdmin(c *gin.Context) {
 
 func (h *SystemHandler) DeleteAdmins(c *gin.Context) {
 	var req struct {
-		Ids []uint `json:"ids" binding:"required"`
+		Ids []uint `form:"userIds" json:"userIds" binding:"required"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithCode(c, errorx.CodeInvalidParams, "参数错误")
-		return
+	if err := c.ShouldBindQuery(&req); err != nil {
+		if err = c.ShouldBindJSON(&req); err != nil {
+			response.FailWithCode(c, errorx.CodeInvalidParams, "参数错误")
+			return
+		}
 	}
 
 	if err := h.adminService.DeleteBatch(c.Request.Context(), req.Ids); err != nil {
