@@ -25,7 +25,7 @@ type PageData struct {
 
 func Success(c *gin.Context, data interface{}) {
 	c.JSON(http.StatusOK, Response{
-		Code:      "200",
+		Code:      "100000",
 		Message:   "",
 		Data:      data,
 		RequestID: c.GetString("requestID"),
@@ -34,7 +34,7 @@ func Success(c *gin.Context, data interface{}) {
 
 func SuccessWithMsg(c *gin.Context, message string, data interface{}) {
 	c.JSON(http.StatusOK, Response{
-		Code:      "200",
+		Code:      "100000",
 		Message:   "",
 		Data:      data,
 		RequestID: c.GetString("requestID"),
@@ -43,7 +43,7 @@ func SuccessWithMsg(c *gin.Context, message string, data interface{}) {
 
 func SuccessWithPage(c *gin.Context, current, size int, total int64, list interface{}) {
 	c.JSON(http.StatusOK, Response{
-		Code:    "200",
+		Code:    "100000",
 		Message: "",
 		Data: PageData{
 			Records: list,

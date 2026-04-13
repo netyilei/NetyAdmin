@@ -141,12 +141,12 @@ export const demoRequest = createRequest<App.Service.DemoResponse>(
       return config;
     },
     isBackendSuccess(response) {
-      // when the backend response code is "200", it means the request is success
+      // when the backend response code is "100000", it means the request is success
       // you can change this logic by yourself
-      return response.data.status === '200';
+      return response.data.status === '100000';
     },
     async onBackendFail(_response) {
-      // when the backend response code is not "200", it means the request is fail
+      // when the backend response code is not "100000", it means the request is fail
       // for example: the token is expired, refresh token and retry request
     },
     transformBackendResponse(response) {

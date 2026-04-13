@@ -5,7 +5,7 @@ import "fmt"
 type Code int
 
 const (
-	CodeSuccess Code = 0
+	CodeSuccess Code = 100000
 
 	CodeInvalidParams  Code = 100001
 	CodeUnauthorized   Code = 100002

@@ -1,4 +1,4 @@
-﻿# Admin-Web 目录结构与架构规范
+# Admin-Web 目录结构与架构规范
 
 本文档定义 `admin-web` 的标准目录结构与分层架构核心规范，作为未来二次开发的准则。
 
@@ -13,9 +13,10 @@
 - 业务层必须显式导入（如 `import { fetchGetArticle } from '@/service/api/v1/content'`）。代码意图极度清晰，彻底解决了循环依赖问题，并为未来多版本 API 的平滑演进铺平了道路。
 
 ### 1.3 状态码与多语言彻底解耦 (i18n Error Mapping)
-- 服务端统一响应结构 `{ code: "200", msg: "", data, request_id }`，其中成功码固定为 `"200"`，`msg` 永远为空。
-- 前端在 `src/service/request/backend-error.ts` 集中拦截，将 `code` 映射为当前语言的 i18n 文本。
+- 服务端统一响应结构 `{ code: "100000", msg: "", data, request_id }`，其中成功码固定为 `"100000"`，`msg` 永远为空。
+- 前端在 `src/service/request/backend-error.ts` 集中拦截，将 `code` 映射为当前语言的 i18n文本。
 - 消灭了前端所有的“魔法状态码”和硬编码文本。后端逻辑纯粹，前端业务层拿到的直接是翻译好的结构化错误，极大降低了国际化维护成本。
+- 成功码 `"100000"` 不需要 i18n 映射。
 
 ### 1.4 严格的代码防御 (Zero Dead Code)
 - 配置了严格的 `unused-imports` 和 `no-unused-vars` Lint 规则。
