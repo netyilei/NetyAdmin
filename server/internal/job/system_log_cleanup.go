@@ -2,6 +2,7 @@ package job
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"strconv"
 	"time"
@@ -75,6 +76,10 @@ func (j *SystemLogCleanupJob) Run(ctx context.Context) error {
 		}
 	}
 
+	return nil
+}
+
+func (j *SystemLogCleanupJob) Execute(ctx context.Context, payload json.RawMessage) error {
 	return nil
 }
 

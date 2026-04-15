@@ -2,8 +2,15 @@ package task
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 )
+
+// Dispatcher 任务分发器接口
+type Dispatcher interface {
+	// Dispatch 投递一个子任务到队列
+	Dispatch(ctx context.Context, taskName string, payload interface{}) error
+}
 
 // TaskType 任务执行类型
 type TaskType string
@@ -56,7 +63,10 @@ type RuntimeState struct {
 type Task interface {
 	Name() string
 	DisplayName() string
+	// Run 由调度引擎定时触发 (生产者角色)
 	Run(ctx context.Context) error
+	// Execute 处理队列中的具体任务载荷 (消费者角色)
+	Execute(ctx context.Context, payload json.RawMessage) error
 }
 
 // TaskWithMetadata 允许任务自带默认元数据

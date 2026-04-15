@@ -14,7 +14,7 @@
 
 ### 1.3 状态码与多语言彻底解耦 (i18n Error Mapping)
 - 服务端统一响应结构 `{ code: "100000", msg: "", data, request_id }`，其中成功码固定为 `"100000"`，`msg` 永远为空。
-- 前端在 `src/service/request/backend-error.ts` 集中拦截，将 `code` 映射为当前语言的 i18n文本。
+- 前端在 `src/service/request/backend-error.ts` 集中拦截，将 `code` 映射为当前语言的 i18n 文本。
 - 消灭了前端所有的“魔法状态码”和硬编码文本。后端逻辑纯粹，前端业务层拿到的直接是翻译好的结构化错误，极大降低了国际化维护成本。
 - 成功码 `"100000"` 不需要 i18n 映射。
 

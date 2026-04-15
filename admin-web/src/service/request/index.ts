@@ -146,7 +146,7 @@ export const demoRequest = createRequest<App.Service.DemoResponse>(
       return response.data.status === '100000';
     },
     async onBackendFail(_response) {
-      // when the backend response code is not "100000", it means the request is fail
+      // when the backend response code is not "200", it means the request is fail
       // for example: the token is expired, refresh token and retry request
     },
     transformBackendResponse(response) {

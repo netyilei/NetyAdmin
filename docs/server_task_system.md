@@ -6,16 +6,34 @@
 
 任务引擎位于 `internal/pkg/task`，由 `task.Manager` 统一调度。
 
-支持三种类型：
+### 1.1 任务触发类型
 
 - `once`：启动执行一次
 - `interval`：固定间隔循环
 - `cron`：Cron 表达式
 
-任务接口：
+### 1.2 生产者-消费者模型 (Producer-Consumer)
 
-- `Task`：`Name()` / `DisplayName()` / `Run(ctx)`
-- `TaskWithMetadata`：允许任务提供默认元数据（type/spec/weight/enabled）
+为了支持重型任务（如大批量发送邮件、导出文件）的异步处理与多机分发，任务引擎引入了队列机制：
+
+- **生产者 (Producer)**：任务通过 `Run(ctx)` 被定时触发，并在执行过程中调用 `Dispatcher.Dispatch()` 向队列投递子任务。
+- **消费者 (Consumer)**：`task.Manager` 启动时会自动开启一组后台 Worker，监听队列并调用任务的 `Execute(ctx, payload)` 处理具体载荷。
+
+### 1.3 弹性队列驱动 (Elastic Queue)
+
+系统会根据环境自动选择最优的队列驱动：
+
+- **单机模式 (Standalone)**：若未启用 Redis，自动降级为 **Local Queue (Go Channel)**。在当前进程内完成生产与消费，零网络开销，不影响单机性能。
+- **集群模式 (Cluster)**：启用 Redis 后，自动切换为 **Redis Queue (List LPUSH/BRPOP)**。支持多台服务器作为 Worker 节点共同分担任务压力。
+
+### 1.4 任务接口
+
+- `Task`：
+  - `Name()` / `DisplayName()`
+  - `Run(ctx)`: 定时触发入口
+  - `Execute(ctx, payload)`: 队列消息消费入口
+- `Dispatcher`: 提供 `Dispatch(ctx, taskName, payload)` 方法用于投递任务。
+- `TaskWithMetadata`：允许任务提供默认元数据。
 
 实现见：
 

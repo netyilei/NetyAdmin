@@ -2,6 +2,7 @@ package job
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"time"
 
@@ -38,6 +39,10 @@ func (j *ArticlePublishJob) Run(ctx context.Context) error {
 		log.Printf("[任务:文章发布] 成功发布 %d 篇文章", count)
 	}
 
+	return nil
+}
+
+func (j *ArticlePublishJob) Execute(ctx context.Context, payload json.RawMessage) error {
 	return nil
 }
 

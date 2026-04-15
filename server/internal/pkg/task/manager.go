@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"sort"
@@ -28,6 +29,7 @@ type Manager struct {
 	mu       sync.RWMutex
 	states   map[string]*RuntimeState
 	onFinish func(name string, info ExecutionInfo)
+	queue    Queue // 任务分发队列
 
 	// 增强部分：用于动态管理
 	cronIDs   map[string]cron.EntryID  // 记录 Cron 任务 ID
@@ -36,7 +38,7 @@ type Manager struct {
 
 // NewManager 创建调度引擎
 func NewManager(cfg *config.TaskConfig, redisCfg *config.RedisConfig, redisCli *redis.Client) *Manager {
-	return &Manager{
+	m := &Manager{
 		cfg:       cfg,
 		redisCfg:  redisCfg,
 		redis:     redisCli,
@@ -47,6 +49,17 @@ func NewManager(cfg *config.TaskConfig, redisCfg *config.RedisConfig, redisCli *
 		cron:      cron.New(cron.WithSeconds()), // 支持到秒级
 		stopChan:  make(chan struct{}),
 	}
+
+	// 初始化队列驱动
+	if redisCfg != nil && redisCfg.Enabled && redisCli != nil {
+		m.queue = NewRedisQueue(redisCli, redisCfg.Prefix)
+		log.Println("[任务引擎] 已启用 Redis 分布式队列驱动")
+	} else {
+		m.queue = NewLocalQueue(1000)
+		log.Println("[任务引擎] 已启用本地 Channel 队列驱动")
+	}
+
+	return m
 }
 
 // SetOnFinish 设置任务执行完成后的回调（可用于持久化日志）
@@ -115,6 +128,112 @@ func (m *Manager) Start(ctx context.Context) {
 	}
 
 	m.cron.Start()
+
+	// 4. 启动后台消费者 Worker
+	m.startWorkers(ctx)
+}
+
+// Dispatch 投递子任务 (实现 Dispatcher 接口)
+func (m *Manager) Dispatch(ctx context.Context, taskName string, payload interface{}) error {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal payload failed: %w", err)
+	}
+
+	msg := &Message{
+		TaskName: taskName,
+		Payload:  data,
+	}
+
+	if err := m.queue.Push(ctx, msg); err != nil {
+		return fmt.Errorf("push message to queue failed: %w", err)
+	}
+
+	return nil
+}
+
+func (m *Manager) startWorkers(ctx context.Context) {
+	// 默认启动 5 个 Worker，未来可改为配置化
+	workerCount := 5
+	log.Printf("[任务引擎] 启动 %d 个后台 Worker 处理队列任务", workerCount)
+
+	for i := 0; i < workerCount; i++ {
+		m.wg.Add(1)
+		go func(workerID int) {
+			defer m.wg.Done()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-m.stopChan:
+					return
+				default:
+					msg, err := m.queue.Pop(ctx)
+					if err != nil {
+						log.Printf("[任务引擎] Worker-%d Pop 消息失败: %v", workerID, err)
+						time.Sleep(time.Second) // 发生错误稍后重试
+						continue
+					}
+					if msg == nil {
+						continue // 超时无消息
+					}
+
+					m.executePayload(ctx, msg)
+				}
+			}
+		}(i)
+	}
+}
+
+func (m *Manager) executePayload(ctx context.Context, msg *Message) {
+	m.mu.RLock()
+	t, exists := m.tasks[msg.TaskName]
+	m.mu.RUnlock()
+
+	if !exists {
+		log.Printf("[任务引擎] 消费者执行失败: 任务 [%s] 未注册", msg.TaskName)
+		return
+	}
+
+	// 消费者执行不需要分布式锁，因为队列 Pop 已经是原子操作
+	info := ExecutionInfo{
+		StartTime: time.Now(),
+	}
+
+	// 更新状态为运行中
+	m.mu.Lock()
+	state, exists := m.states[msg.TaskName]
+	if !exists {
+		state = &RuntimeState{}
+		m.states[msg.TaskName] = state
+	}
+	state.IsRunning = true
+	m.mu.Unlock()
+
+	err := t.Execute(ctx, msg.Payload)
+
+	// 更新状态结束
+	info.EndTime = time.Now()
+	info.Duration = info.EndTime.Sub(info.StartTime)
+	info.Status = "success"
+	if err != nil {
+		info.Status = "error"
+		info.Message = err.Error()
+		log.Printf("[任务引擎] 任务 [%s] 载荷执行失败: %v", msg.TaskName, err)
+	}
+
+	m.mu.Lock()
+	state.IsRunning = false
+	state.LastRunTime = info.StartTime
+	state.LastDuration = info.Duration
+	state.LastStatus = info.Status
+	state.LastMessage = info.Message
+	state.ExecutionCount++
+	m.mu.Unlock()
+
+	if m.onFinish != nil {
+		m.onFinish(msg.TaskName, info)
+	}
 }
 
 // StartTask 启动单个任务
@@ -370,6 +489,9 @@ func (m *Manager) Stop() {
 	log.Println("[任务引擎] 正在发出停止信号...")
 	m.cron.Stop()     // 停止新的 Cron 调度
 	close(m.stopChan) // 通知 Interval 任务退出
+	if m.queue != nil {
+		_ = m.queue.Close()
+	}
 
 	// 等待所有正在执行的任务完成 (包括 Interval 和正在跑的 Cron)
 	m.wg.Wait()
