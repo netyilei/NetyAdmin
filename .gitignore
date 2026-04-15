@@ -3,10 +3,8 @@ server/*.exe
 
 # Node
 dist/
-build/
 node_modules/
 *.log
-.env
 
 # IDE
 .idea/

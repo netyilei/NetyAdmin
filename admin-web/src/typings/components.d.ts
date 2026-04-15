@@ -59,6 +59,7 @@ declare module 'vue' {
     NDropdown: typeof import('naive-ui')['NDropdown']
     NDynamicInput: typeof import('naive-ui')['NDynamicInput']
     NEmpty: typeof import('naive-ui')['NEmpty']
+    NetyadminAvatar: typeof import('./../components/custom/netyadmin-avatar.vue')['default']
     NetyAdminAvatar: typeof import('./../components/custom/NetyAdmin-avatar.vue')['default']
     NForm: typeof import('naive-ui')['NForm']
     NFormItem: typeof import('naive-ui')['NFormItem']
