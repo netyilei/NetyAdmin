@@ -7,7 +7,9 @@ import {
   NFormItem,
   NGrid,
   NGridItem,
+  NInput,
   NInputNumber,
+  NSelect,
   NSpace,
   NSpin,
   NSwitch,
@@ -37,6 +39,26 @@ const logConfigs = reactive<Record<string, ConfigItem | undefined>>({
   err_retention: undefined
 });
 
+const captchaConfigs = reactive<{
+  switches: SystemManage.SysConfig[];
+  params: Record<string, ConfigItem | undefined>;
+}>({
+  switches: [],
+  params: {
+    captcha_length: undefined,
+    captcha_width: undefined,
+    captcha_height: undefined,
+    captcha_expire: undefined,
+    captcha_type: undefined
+  }
+});
+
+const captchaTypeOptions = [
+  { label: $t('page.manage.setting.captcha.typeDigit'), value: 'digit' },
+  { label: $t('page.manage.setting.captcha.typeString'), value: 'string' },
+  { label: $t('page.manage.setting.captcha.typeMath'), value: 'math' }
+];
+
 async function init() {
   loading.value = true;
 
@@ -45,7 +67,8 @@ async function init() {
     fetchGetSysConfigs('cache_switches'),
     fetchGetSysConfigs('task_config'),
     fetchGetSysConfigs('ops_config'),
-    fetchGetSysConfigs('error_config')
+    fetchGetSysConfigs('error_config'),
+    fetchGetSysConfigs('captcha_config')
   ]);
 
   if (!results[0].error) cacheConfigs.value = results[0].data;
@@ -71,6 +94,19 @@ async function init() {
     results[3].data.forEach(item => {
       if (item.configKey === 'retention_days') {
         logConfigs.err_retention = { ...item, numValue: Number.parseInt(item.configValue, 10) || 0 };
+      }
+    });
+  }
+
+  if (!results[4].error) {
+    results[4].data.forEach(item => {
+      if (item.configKey.endsWith('_enabled') || item.configKey.startsWith('user_login_')) {
+        captchaConfigs.switches.push(item);
+      } else {
+        captchaConfigs.params[item.configKey] = {
+          ...item,
+          numValue: item.configKey !== 'captcha_type' ? Number.parseInt(item.configValue, 10) || 0 : undefined
+        };
       }
     });
   }
@@ -164,6 +200,102 @@ onMounted(init);
                     </NCard>
                   </NGridItem>
                 </NGrid>
+              </div>
+            </NSpin>
+          </div>
+        </NTabPane>
+
+        <!-- Tab 2: Captcha Configuration -->
+        <NTabPane name="captcha" :tab="$t('page.manage.setting.tabs.captcha')">
+          <div class="pt-4">
+            <NAlert type="info" class="mb-6">
+              {{ $t('page.manage.setting.captcha.description') }}
+            </NAlert>
+            <NSpin :show="loading">
+            <NDivider title-placement="left">
+                <span class="text-13px text-gray-500 font-bold tracking-wider uppercase">
+                  {{ $t('page.manage.setting.captcha.switches') }}
+                </span>
+              </NDivider>
+              <NGrid :x-gap="16" :y-gap="16" cols="1 s:2 m:3" responsive="screen">
+                <NGridItem v-for="item in captchaConfigs.switches" :key="item.configKey">
+                  <NCard size="small" class="cursor-default transition-colors hover:border-primary">
+                    <div class="flex-y-center justify-between">
+                      <div>
+                        <div class="mb-1 flex items-center text-16px font-bold">
+                          {{ $t(`page.manage.setting.captcha.${item.configKey}`) }}
+                        </div>
+                        <div class="text-12px text-gray-400">Key: {{ item.configKey }}</div>
+                      </div>
+                      <NSwitch
+                        v-model:value="item.configValue"
+                        checked-value="true"
+                        unchecked-value="false"
+                        :loading="updating === item.configKey"
+                        @update:value="handleUpdate(item)"
+                      />
+                    </div>
+                  </NCard>
+                </NGridItem>
+              </NGrid>
+
+              <NDivider title-placement="left" class="mt-8">
+                <span class="text-13px text-gray-500 font-bold tracking-wider uppercase">
+                  {{ $t('page.manage.setting.captcha.params') }}
+                </span>
+              </NDivider>
+              <div class="max-w-600px">
+                <NSpace vertical :size="20">
+                  <NFormItem :label="$t('page.manage.setting.captcha.type')" label-placement="left">
+                    <NSelect
+                      v-if="captchaConfigs.params.captcha_type"
+                      v-model:value="captchaConfigs.params.captcha_type.configValue"
+                      :options="captchaTypeOptions"
+                      class="w-240px"
+                      @update:value="handleUpdate(captchaConfigs.params.captcha_type)"
+                    />
+                  </NFormItem>
+                  <NFormItem :label="$t('page.manage.setting.captcha.length')" label-placement="left">
+                    <NInputNumber
+                      v-if="captchaConfigs.params.captcha_length"
+                      v-model:value="captchaConfigs.params.captcha_length.numValue"
+                      :min="2"
+                      :max="10"
+                      class="w-240px"
+                      @blur="handleNumberUpdate(captchaConfigs.params.captcha_length)"
+                    />
+                  </NFormItem>
+                  <NFormItem :label="$t('page.manage.setting.captcha.width')" label-placement="left">
+                    <NInputNumber
+                      v-if="captchaConfigs.params.captcha_width"
+                      v-model:value="captchaConfigs.params.captcha_width.numValue"
+                      :min="100"
+                      :max="1000"
+                      class="w-240px"
+                      @blur="handleNumberUpdate(captchaConfigs.params.captcha_width)"
+                    />
+                  </NFormItem>
+                  <NFormItem :label="$t('page.manage.setting.captcha.height')" label-placement="left">
+                    <NInputNumber
+                      v-if="captchaConfigs.params.captcha_height"
+                      v-model:value="captchaConfigs.params.captcha_height.numValue"
+                      :min="30"
+                      :max="500"
+                      class="w-240px"
+                      @blur="handleNumberUpdate(captchaConfigs.params.captcha_height)"
+                    />
+                  </NFormItem>
+                  <NFormItem :label="$t('page.manage.setting.captcha.expire')" label-placement="left">
+                    <NInputNumber
+                      v-if="captchaConfigs.params.captcha_expire"
+                      v-model:value="captchaConfigs.params.captcha_expire.numValue"
+                      :min="30"
+                      :max="3600"
+                      class="w-240px"
+                      @blur="handleNumberUpdate(captchaConfigs.params.captcha_expire)"
+                    />
+                  </NFormItem>
+                </NSpace>
               </div>
             </NSpin>
           </div>

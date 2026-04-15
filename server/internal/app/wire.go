@@ -14,6 +14,7 @@ import (
 	"NetyAdmin/internal/config"
 	"NetyAdmin/internal/interface/admin/http/handler/v1/admin"
 	"NetyAdmin/internal/interface/admin/http/handler/v1/auth"
+	"NetyAdmin/internal/interface/admin/http/handler/v1/common"
 	"NetyAdmin/internal/interface/admin/http/handler/v1/content"
 	"NetyAdmin/internal/interface/admin/http/handler/v1/error_log"
 	"NetyAdmin/internal/interface/admin/http/handler/v1/operation_log"
@@ -22,6 +23,7 @@ import (
 	"NetyAdmin/internal/interface/admin/http/handler/v1/system"
 	"NetyAdmin/internal/middleware"
 	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/captcha"
 	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/jwt"
@@ -104,6 +106,10 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	// 5. Task Manager (Moved up for TaskService dependency)
 	taskManager := task.NewManager(&cfg.Task, &cfg.Redis, redisClient)
 
+	// 5.1 Captcha Manager
+	captchaStore := captcha.NewDualStore(lazyCacheMgr, configWatcher, db)
+	captchaMgr := captcha.NewManager(captchaStore)
+
 	// 6. Services
 	storageMgr := storagePkg.NewManager(storagePkg.NewS3DriverFactory())
 
@@ -129,7 +135,8 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	}
 
 	// 6. Handlers
-	authH := auth.NewAuthHandler(adminService)
+	authH := auth.NewAuthHandler(adminService, captchaMgr, configWatcher)
+	commonH := common.NewCommonHandler(captchaMgr, configWatcher)
 	adminH := admin.NewAdminHandler(adminService)
 	operationLogH := operation_log.NewOperationLogHandler(operationLogService)
 	errorLogH := error_log.NewErrorLogHandler(errorLogService)
@@ -144,8 +151,9 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	routeH := route.NewRouteHandler(menuService)
 
 	// 7. Router
-	r := router.NewRouter(
+	router := router.NewRouter(
 		authH,
+		commonH,
 		adminH,
 		systemH,
 		storageH,
@@ -183,7 +191,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 
 	// 临时关闭标准输出以屏蔽路由注册时的 [GIN-debug] 日志
 	gin.DefaultWriter = io.Discard
-	r.Register(engine)
+	router.Register(engine)
 	// 注册完成后恢复标准输出，确保后续请求日志正常打印
 	gin.DefaultWriter = os.Stdout
 

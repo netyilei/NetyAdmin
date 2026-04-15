@@ -1,14 +1,24 @@
 import type { Auth } from '@/typings/api/v1/auth';
 import { request } from '../../request';
 
-export function fetchLogin(userName: string, password: string) {
+export function fetchLogin(userName: string, password: string, captchaId?: string, captchaValue?: string) {
   return request<Auth.LoginToken>({
     url: '/admin/v1/auth/login',
     method: 'post',
     data: {
       username: userName,
-      password
+      password,
+      captchaId,
+      captchaValue
     }
+  });
+}
+
+/** 获取验证码 */
+export function fetchGetCaptcha() {
+  return request<{ captchaId: string; captchaImg: string }>({
+    url: '/admin/v1/common/captcha',
+    method: 'get'
   });
 }
 

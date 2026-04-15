@@ -15,6 +15,8 @@ const request = {
     tooManyRequest: 'Too many requests',
     badRequest: 'Bad request',
     alreadyExists: 'Resource already exists',
+    captchaWrong: 'Captcha is incorrect',
+    captchaRequired: 'Captcha is required',
     userNotFound: 'User not found',
     userDisabled: 'User disabled',
     passwordWrong: 'Incorrect password',

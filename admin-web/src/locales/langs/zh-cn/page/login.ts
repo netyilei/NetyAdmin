@@ -5,6 +5,7 @@ const login = {
     phonePlaceholder: '请输入手机号',
     codePlaceholder: '请输入验证码',
     passwordPlaceholder: '请输入密码',
+    captchaPlaceholder: '请输入图形验证码',
     confirmPasswordPlaceholder: '请再次输入密码',
     confirm: '确定',
     back: '返回',

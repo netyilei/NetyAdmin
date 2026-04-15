@@ -34,6 +34,8 @@ type LazyCacheManager interface {
 	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
 	// Get 直接读取一个缓存项
 	Get(ctx context.Context, key string, v interface{}) error
+	// Delete 删除一个缓存项
+	Delete(ctx context.Context, key string) error
 	// Exists 判断一个缓存项是否存在
 	Exists(ctx context.Context, key string) (bool, error)
 }
@@ -43,7 +45,7 @@ type SwitchChecker interface {
 }
 
 type lazyCacheManager struct {
-	cacheManager *cache.Cache[[]byte]
+	cacheManager *cache.Cache[any]
 	switches     SwitchChecker
 	prefix       string
 	redisClient  *redis.Client
@@ -75,8 +77,8 @@ func NewLazyCacheManager(cfg *config.RedisConfig, redisClient *redis.Client, che
 		backendStore = bigcacheStore.NewBigcache(bigcacheClient)
 	}
 
-	// 初始化 gocache 引擎。我们存储 []byte 以通吃所有序列化的格式
-	cacheMgr := cache.New[[]byte](backendStore)
+	// 初始化 gocache 引擎。我们存储 any 以通吃所有序列化的格式 (Redis 读出来是 string, BigCache 是 []byte)
+	cacheMgr := cache.New[any](backendStore)
 
 	return &lazyCacheManager{
 		cacheManager: cacheMgr,
@@ -95,19 +97,44 @@ func (m *lazyCacheManager) Set(ctx context.Context, key string, value interface{
 	return m.cacheManager.Set(ctx, fullKey, data, store.WithExpiration(ttl))
 }
 
+func (m *lazyCacheManager) getRaw(ctx context.Context, key string) ([]byte, error) {
+	raw, err := m.cacheManager.Get(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+
+	switch v := raw.(type) {
+	case []byte:
+		return v, nil
+	case string:
+		return []byte(v), nil
+	default:
+		return nil, fmt.Errorf("unexpected cache data type: %T", raw)
+	}
+}
+
 func (m *lazyCacheManager) Get(ctx context.Context, key string, v interface{}) error {
 	fullKey := m.buildKey(key)
-	data, err := m.cacheManager.Get(ctx, fullKey)
+	data, err := m.getRaw(ctx, fullKey)
 	if err != nil {
 		return err
+	}
+
+	if len(data) == 0 {
+		return fmt.Errorf("cached data is empty for key: %s", fullKey)
 	}
 	return json.Unmarshal(data, v)
 }
 
-func (m *lazyCacheManager) Exists(ctx context.Context, key string) (bool, error) {
-	// gocache v4 doesn't have Exists, we can try to Get
+func (m *lazyCacheManager) Delete(ctx context.Context, key string) error {
 	fullKey := m.buildKey(key)
-	_, err := m.cacheManager.Get(ctx, fullKey)
+	return m.cacheManager.Delete(ctx, fullKey)
+}
+
+func (m *lazyCacheManager) Exists(ctx context.Context, key string) (bool, error) {
+	// gocache v4 doesn't have Exists, we can try to get raw
+	fullKey := m.buildKey(key)
+	_, err := m.getRaw(ctx, fullKey)
 	if err == nil {
 		return true, nil
 	}
@@ -141,7 +168,7 @@ func (m *lazyCacheManager) Fetch(ctx context.Context, key string, moduleName str
 	}
 
 	// 1. 尝试从缓存拿数据
-	data, err := m.cacheManager.Get(ctx, fullKey)
+	data, err := m.getRaw(ctx, fullKey)
 	if err == nil && len(data) > 0 {
 		// Cache Hit
 		if err := m.unmarshal(data, v); err == nil {

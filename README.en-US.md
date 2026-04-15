@@ -34,6 +34,7 @@ NetyAdmin is a general-purpose admin system base built with a Go backend and a V
 *   **User Management**: Administrators, roles, permissions, etc.
 *   **Content Management**: CRUD for categories, articles, banners, supporting article publishing, pinning, scheduled publishing, etc.
 *   **System Configuration**: Dynamic dictionaries, system parameter configuration, hot synchronization, and task system.
+*   **Captcha Module**: Integrated `base64Captcha`, supporting multi-terminal (Admin/Client) toggle control, custom graphical parameters, and dual-track storage (Cache/Database).
 *   **Storage Management**: Object storage configuration, upload credential issuance, and upload record management.
 *   **Log Auditing**: Recording, querying, and managing operation logs and error logs, supporting sensitive field desensitization.
 

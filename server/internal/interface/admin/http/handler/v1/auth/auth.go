@@ -4,6 +4,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	systemDto "NetyAdmin/internal/interface/admin/dto/system"
+	"NetyAdmin/internal/pkg/captcha"
+	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
 	systemService "NetyAdmin/internal/service/system"
@@ -11,21 +13,41 @@ import (
 
 type AuthHandler struct {
 	adminService systemService.AdminService
+	captchaMgr   *captcha.Manager
+	watcher      configsync.ConfigWatcher
 }
 
-func NewAuthHandler(adminService systemService.AdminService) *AuthHandler {
-	return &AuthHandler{adminService: adminService}
+func NewAuthHandler(adminService systemService.AdminService, captchaMgr *captcha.Manager, watcher configsync.ConfigWatcher) *AuthHandler {
+	return &AuthHandler{
+		adminService: adminService,
+		captchaMgr:   captchaMgr,
+		watcher:      watcher,
+	}
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
 	var body struct {
-		Username string `json:"username"`
-		UserName string `json:"userName"`
-		Password string `json:"password"`
+		Username     string `json:"username"`
+		UserName     string `json:"userName"`
+		Password     string `json:"password"`
+		CaptchaId    string `json:"captchaId"`
+		CaptchaValue string `json:"captchaValue"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.FailWithCode(c, errorx.CodeInvalidParams, "参数错误")
 		return
+	}
+
+	// 验证码校验逻辑
+	if val, exists := h.watcher.GetConfig("captcha_config", "admin_login_enabled"); exists && (val == "true" || val == "1") {
+		if body.CaptchaId == "" || body.CaptchaValue == "" {
+			response.FailWithCode(c, 100010, "验证码必填")
+			return
+		}
+		if !h.captchaMgr.Verify(body.CaptchaId, body.CaptchaValue, true) {
+			response.FailWithCode(c, 100009, "验证码错误")
+			return
+		}
 	}
 
 	username := body.Username

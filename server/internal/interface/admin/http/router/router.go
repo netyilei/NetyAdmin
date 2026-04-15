@@ -5,14 +5,15 @@ import (
 
 	"NetyAdmin/internal/interface/admin/http/handler/v1/admin"
 	"NetyAdmin/internal/interface/admin/http/handler/v1/auth"
+	"NetyAdmin/internal/interface/admin/http/handler/v1/common"
 	"NetyAdmin/internal/interface/admin/http/handler/v1/content"
 	"NetyAdmin/internal/interface/admin/http/handler/v1/error_log"
 	"NetyAdmin/internal/interface/admin/http/handler/v1/operation_log"
 	"NetyAdmin/internal/interface/admin/http/handler/v1/route"
 	storageHandler "NetyAdmin/internal/interface/admin/http/handler/v1/storage"
 	"NetyAdmin/internal/interface/admin/http/handler/v1/system"
-	"NetyAdmin/internal/middleware"
 	v1 "NetyAdmin/internal/interface/admin/http/router/v1"
+	"NetyAdmin/internal/middleware"
 )
 
 type Router struct {
@@ -22,6 +23,7 @@ type Router struct {
 
 func NewRouter(
 	authH *auth.AuthHandler,
+	commonH *common.CommonHandler,
 	adminH *admin.AdminHandler,
 	systemH *system.SystemHandler,
 	storageH *storageHandler.StorageHandler,
@@ -38,6 +40,7 @@ func NewRouter(
 		authVerifier: authVerifier,
 		routers: []v1.ModuleRouter{
 			v1.NewAuthRouter(authH),
+			v1.NewCommonRouter(commonH),
 			v1.NewAdminRouter(adminH),
 			v1.NewSystemRouter(systemH),
 			v1.NewStorageRouter(storageH),

@@ -164,6 +164,7 @@ const manage = {
     title: 'Basic Settings',
     tabs: {
       cache: 'Cache Config',
+      captcha: 'Captcha Config',
       task: 'Task Config',
       log: 'Log Maintenance'
     },
@@ -180,7 +181,23 @@ const manage = {
       dict: 'Dictionary Data Cache',
       storage: 'Object Storage Config/Hot Reload',
       err_log_cache: 'Error Log Analysis Cache',
-      content_category_cache: 'Content Category Tree Cache'
+      content_category_cache: 'Content Category Tree Cache',
+      captcha: 'Captcha Cache'
+    },
+    captcha: {
+      title: 'Captcha Global Settings',
+      description: 'Graphical captcha is used to enhance system login security.',
+      switches: 'Scene Switches',
+      params: 'Parameter Configuration',
+      admin_login_enabled: 'Admin Login',
+      length: 'Captcha Length',
+      width: 'Image Width(px)',
+      height: 'Image Height(px)',
+      expire: 'Expiration(s)',
+      type: 'Captcha Type',
+      typeDigit: 'Digits Only',
+      typeString: 'Alphanumeric',
+      typeMath: 'Arithmetic'
     },
     log: {
       title: 'Log Retention Policies',

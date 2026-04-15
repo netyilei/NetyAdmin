@@ -164,6 +164,7 @@ const manage = {
     title: '基础设置',
     tabs: {
       cache: '缓存配置',
+      captcha: '验证码配置',
       task: '任务配置',
       log: '日志管理'
     },
@@ -180,7 +181,23 @@ const manage = {
       dict: '字典数据缓存',
       storage: '对象存储配置/驱动热更',
       err_log_cache: '错误日志聚合分析缓存',
-      content_category_cache: '内容分类(无限级树)缓存'
+      content_category_cache: '内容分类(无限级树)缓存',
+      captcha: '验证码缓存'
+    },
+    captcha: {
+      title: '验证码全局设置',
+      description: '图形验证码用于增强系统登录安全性。',
+      switches: '场景开关',
+      params: '参数配置',
+      admin_login_enabled: '管理员登录',
+      length: '验证码长度',
+      width: '图片宽度(px)',
+      height: '图片高度(px)',
+      expire: '过期时间(秒)',
+      type: '验证码类型',
+      typeDigit: '纯数字',
+      typeString: '字母数字',
+      typeMath: '算术题'
     },
     log: {
       title: '日志保留策略',

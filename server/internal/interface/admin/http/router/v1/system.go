@@ -14,7 +14,16 @@ func NewSystemRouter(handler *system.SystemHandler) *SystemRouter {
 	return &SystemRouter{handler: handler}
 }
 
-func (r *SystemRouter) RegisterPublic(group *gin.RouterGroup) {}
+func (r *SystemRouter) RegisterPublic(group *gin.RouterGroup) {
+	// 基础设置组 (公开部分)
+	system := group.Group("/system")
+	{
+		// 登录页需要获取验证码配置，所以获取配置接口必须公开
+		system.GET("/configs", r.handler.Config.ListByGroup)
+		// 字典数据获取通常也是公开的 (例如前端根据 code 获取枚举显示)
+		system.GET("/dict/data/:code", r.handler.Dict.GetDictData)
+	}
+}
 
 func (r *SystemRouter) RegisterAuth(group *gin.RouterGroup) {}
 
@@ -33,16 +42,15 @@ func (r *SystemRouter) RegisterPermission(group *gin.RouterGroup) {
 	// 2. 基础设置与任务组 - 对应前端 system 路径
 	system := group.Group("/system")
 	{
-		r.registerConfigRoutes(system)
+		// 配置修改需要权限
+		system.PUT("/configs", r.handler.Config.Upsert)
+
 		r.registerTaskRoutes(system)
-		r.registerDictRoutes(system)
+		r.registerDictAdminRoutes(system)
 	}
 }
 
-func (r *SystemRouter) registerDictRoutes(group *gin.RouterGroup) {
-	// 公开获取接口
-	group.GET("/dict/data/:code", r.handler.Dict.GetDictData)
-
+func (r *SystemRouter) registerDictAdminRoutes(group *gin.RouterGroup) {
 	// 管理接口
 	group.GET("/dict/types", r.handler.Dict.ListType)
 	group.POST("/dict/types", r.handler.Dict.CreateType)
@@ -111,11 +119,6 @@ func (r *SystemRouter) registerRolePermissionRoutes(group *gin.RouterGroup) {
 	group.PUT("/role/:id/buttons", r.handler.UpdateAdminRoleButtons)
 	group.GET("/role/:id/apis", r.handler.GetAdminRoleAPIs)
 	group.PUT("/role/:id/apis", r.handler.UpdateAdminRoleAPIs)
-}
-
-func (r *SystemRouter) registerConfigRoutes(group *gin.RouterGroup) {
-	group.GET("/configs", r.handler.Config.ListByGroup)
-	group.PUT("/configs", r.handler.Config.Upsert)
 }
 
 func (r *SystemRouter) registerTaskRoutes(group *gin.RouterGroup) {
