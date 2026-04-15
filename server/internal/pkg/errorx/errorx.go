@@ -7,14 +7,16 @@ type Code int
 const (
 	CodeSuccess Code = 100000
 
-	CodeInvalidParams  Code = 100001
-	CodeUnauthorized   Code = 100002
-	CodeForbidden      Code = 100003
-	CodeNotFound       Code = 100004
-	CodeInternalError  Code = 100005
-	CodeTooManyRequest Code = 100006
-	CodeBadRequest     Code = 100007
-	CodeAlreadyExists  Code = 100008
+	CodeInvalidParams   Code = 100001
+	CodeUnauthorized    Code = 100002
+	CodeForbidden       Code = 100003
+	CodeNotFound        Code = 100004
+	CodeInternalError   Code = 100005
+	CodeTooManyRequest  Code = 100006
+	CodeBadRequest      Code = 100007
+	CodeAlreadyExists   Code = 100008
+	CodeCaptchaInvalid  Code = 100009
+	CodeCaptchaRequired Code = 100010
 
 	CodeUserNotFound      Code = 101001
 	CodeUserDisabled      Code = 101002
@@ -48,14 +50,16 @@ const (
 var codeMessages = map[Code]string{
 	CodeSuccess: "操作成功",
 
-	CodeInvalidParams:  "参数错误",
-	CodeUnauthorized:   "未授权",
-	CodeForbidden:      "无权限",
-	CodeNotFound:       "资源不存在",
-	CodeInternalError:  "服务器内部错误",
-	CodeTooManyRequest: "请求过于频繁",
-	CodeBadRequest:     "请求错误",
-	CodeAlreadyExists:  "资源已存在",
+	CodeInvalidParams:   "参数错误",
+	CodeUnauthorized:    "未授权",
+	CodeForbidden:       "无权限",
+	CodeNotFound:        "资源不存在",
+	CodeInternalError:   "服务器内部错误",
+	CodeTooManyRequest:  "请求过于频繁",
+	CodeBadRequest:      "请求错误",
+	CodeAlreadyExists:   "资源已存在",
+	CodeCaptchaInvalid:  "验证码错误",
+	CodeCaptchaRequired: "验证码必填",
 
 	CodeUserNotFound:      "用户不存在",
 	CodeUserDisabled:      "用户已禁用",

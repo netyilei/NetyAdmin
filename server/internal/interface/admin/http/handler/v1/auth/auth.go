@@ -41,11 +41,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	// 验证码校验逻辑
 	if val, exists := h.watcher.GetConfig("captcha_config", "admin_login_enabled"); exists && (val == "true" || val == "1") {
 		if body.CaptchaId == "" || body.CaptchaValue == "" {
-			response.FailWithCode(c, 100010, "验证码必填")
+			response.FailWithCode(c, errorx.CodeCaptchaRequired, "")
 			return
 		}
 		if !h.captchaMgr.Verify(body.CaptchaId, body.CaptchaValue, true) {
-			response.FailWithCode(c, 100009, "验证码错误")
+			response.FailWithCode(c, errorx.CodeCaptchaInvalid, "")
 			return
 		}
 	}
