@@ -94,6 +94,8 @@
 | `100006` | `CodeTooManyRequest` | `tooManyRequest` | 请求过于频繁 | Too many requests |
 | `100007` | `CodeBadRequest` | `badRequest` | 请求错误 | Bad request |
 | `100008` | `CodeAlreadyExists` | `alreadyExists` | 资源已存在 | Resource already exists |
+| `100009` | `CodeCaptchaWrong` | `captchaWrong` | 验证码错误 | Captcha is incorrect |
+| `100010` | `CodeCaptchaRequired` | `captchaRequired` | 验证码必填 | Captcha is required |
 
 ### 4.2 管理员 (1010xx)
 

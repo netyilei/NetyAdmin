@@ -82,6 +82,13 @@
 - 错误日志（Error Log）：列表、标记已解决、删除、批量删除
 - 中间件会对请求体中的敏感字段做脱敏（password 等）
 
+### 9) 验证码模块 (Captcha)
+
+- 核心库：`mojocn/base64Captcha`
+- 存储方案：支持 Redis/本地内存/数据库 (PostgreSQL) 三种模式
+- 灵活性：集成 `ConfigWatcher`，支持在后台动态调整验证码类型（数字/字母/算术）、长度、宽高及过期时间
+- 安全性：验证码一经校验立即失效 (One-time Use)，且支持在 Admin 登录场景中强制开启/关闭校验
+
 ### 10) 迁移体系（migrations）
 
 - 自动执行：启动期（Bootstrap 阶段）自动扫描 `server/migrations/` 的 SQL 文件并同步执行。
