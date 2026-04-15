@@ -123,6 +123,7 @@ func (m *lazyCacheManager) Get(ctx context.Context, key string, v interface{}) e
 	if len(data) == 0 {
 		return fmt.Errorf("cached data is empty for key: %s", fullKey)
 	}
+
 	return json.Unmarshal(data, v)
 }
 

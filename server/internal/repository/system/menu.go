@@ -23,6 +23,7 @@ type MenuRepository interface {
 	GetAllWithApis(ctx context.Context) ([]systemEntity.Menu, error)
 	ExistsByRouteName(ctx context.Context, routeName string, excludeID ...uint) (bool, error)
 	HasChildren(ctx context.Context, id uint) (bool, error)
+	GetByRoleCodes(ctx context.Context, roleCodes []string) ([]*systemEntity.Menu, error)
 }
 
 type MenuRepoQuery struct {
@@ -164,6 +165,24 @@ func (r *menuRepository) GetByRoleID(ctx context.Context, roleID uint) ([]*syste
 		return nil, err
 	}
 	return menus, nil
+}
+
+func (r *menuRepository) GetByRoleCodes(ctx context.Context, roleCodes []string) ([]*systemEntity.Menu, error) {
+	var menus []*systemEntity.Menu
+	if len(roleCodes) == 0 {
+		return menus, nil
+	}
+
+	err := r.db.WithContext(ctx).
+		Distinct("admin_menu.*").
+		Joins("JOIN admin_role_menus ON admin_menu.id = admin_role_menus.admin_menu_id").
+		Joins("JOIN admin_role ON admin_role_menus.admin_role_id = admin_role.id").
+		Where("admin_role.code IN ?", roleCodes).
+		Where("admin_menu.status = ?", systemEntity.MenuStatusEnabled).
+		Order("admin_menu.order_by ASC, admin_menu.id ASC").
+		Find(&menus).Error
+
+	return menus, err
 }
 
 func (r *menuRepository) GetAllPages(ctx context.Context) ([]*systemEntity.Menu, error) {

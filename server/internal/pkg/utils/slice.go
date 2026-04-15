@@ -11,3 +11,17 @@ func SliceMap[T any, R any](items []T, mapper func(T) R) []R {
 	}
 	return result
 }
+
+// SliceSort 对字符串切片进行原地排序
+func SliceSort(items []string) {
+	if len(items) <= 1 {
+		return
+	}
+	for i := 0; i < len(items)-1; i++ {
+		for j := i + 1; j < len(items); j++ {
+			if items[i] > items[j] {
+				items[i], items[j] = items[j], items[i]
+			}
+		}
+	}
+}

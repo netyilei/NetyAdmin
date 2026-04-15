@@ -148,7 +148,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		contentBannerGroupService,
 		contentBannerItemService,
 	)
-	routeH := route.NewRouteHandler(menuService)
+	routeH := route.NewRouteHandler(menuService, adminService)
 
 	// 7. Router
 	router := router.NewRouter(

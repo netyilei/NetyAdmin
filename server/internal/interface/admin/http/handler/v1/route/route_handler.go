@@ -10,11 +10,15 @@ import (
 )
 
 type RouteHandler struct {
-	menuService systemService.MenuService
+	menuService  systemService.MenuService
+	adminService systemService.AdminService
 }
 
-func NewRouteHandler(menuService systemService.MenuService) *RouteHandler {
-	return &RouteHandler{menuService: menuService}
+func NewRouteHandler(menuService systemService.MenuService, adminService systemService.AdminService) *RouteHandler {
+	return &RouteHandler{
+		menuService:  menuService,
+		adminService: adminService,
+	}
 }
 
 func traverseTree(menus []*systemVO.MenuTreeVO) []UserRouteItem {
@@ -51,9 +55,17 @@ func (h *RouteHandler) GetUserRoutes(c *gin.Context) {
 		response.FailWithCode(c, errorx.CodeUnauthorized, "未授权")
 		return
 	}
-	_ = userID
+	uid := userID.(uint)
 
-	tree, err := h.menuService.GetTree(c.Request.Context())
+	// 1. 获取管理员信息（主要是角色）
+	info, err := h.adminService.GetAdminInfo(c.Request.Context(), uid)
+	if err != nil {
+		response.Fail(c, err)
+		return
+	}
+
+	// 2. 根据角色获取菜单树
+	tree, err := h.menuService.GetTreeByRoleCodes(c.Request.Context(), info.Roles)
 	if err != nil {
 		response.Fail(c, err)
 		return

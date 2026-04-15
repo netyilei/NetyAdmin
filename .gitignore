@@ -15,3 +15,5 @@ node_modules/
 .DS_Store
 Thumbs.db
 rename.ps1
+docs/captcha_module_design.md
+docs/user_module_design.md

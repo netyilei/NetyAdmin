@@ -25,6 +25,7 @@ type MenuService interface {
 	Delete(ctx context.Context, id uint) error
 	GetAllPages(ctx context.Context) ([]*systemVO.MenuSimpleVO, error)
 	IsRouteExist(ctx context.Context, routeName string) (bool, error)
+	GetTreeByRoleCodes(ctx context.Context, roleCodes []string) ([]*systemVO.MenuTreeVO, error)
 }
 
 type menuService struct {
@@ -367,4 +368,34 @@ func (s *menuService) buildTree(menus []systemEntity.Menu) []*systemVO.MenuTreeV
 
 func (s *menuService) IsRouteExist(ctx context.Context, routeName string) (bool, error) {
 	return s.menuRepo.ExistsByRouteName(ctx, routeName)
+}
+
+func (s *menuService) GetTreeByRoleCodes(ctx context.Context, roleCodes []string) ([]*systemVO.MenuTreeVO, error) {
+	// 如果是超级管理员，直接返回全量树
+	for _, code := range roleCodes {
+		if code == systemEntity.SuperRoleCode {
+			return s.GetTree(ctx)
+		}
+	}
+
+	var tree []*systemVO.MenuTreeVO
+	// 使用角色编码生成的 key，确保不同角色的菜单缓存隔离
+	// 简单起见，这里按角色编码排序后拼接作为 key
+	utils.SliceSort(roleCodes)
+	key := fmt.Sprintf("cache:rbac:menu:roles:%v", roleCodes)
+
+	err := s.cacheMgr.Fetch(ctx, key, "rbac", []string{cache.TagRBACMenu}, cache.TTL_RBAC, &tree, func() (interface{}, error) {
+		menus, err := s.menuRepo.GetByRoleCodes(ctx, roleCodes)
+		if err != nil {
+			return nil, err
+		}
+
+		// 将 []*systemEntity.Menu 转换为 []systemEntity.Menu 以匹配 buildTree 的参数类型
+		menuEntities := make([]systemEntity.Menu, len(menus))
+		for i, m := range menus {
+			menuEntities[i] = *m
+		}
+		return s.buildTree(menuEntities), nil
+	})
+	return tree, err
 }

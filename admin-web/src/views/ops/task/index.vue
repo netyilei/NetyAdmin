@@ -1,5 +1,5 @@
 <script setup lang="tsx">
-import { onMounted, reactive, ref } from 'vue';
+import { onMounted, onUnmounted, reactive, ref } from 'vue';
 import {
   NButton,
   NCard,
@@ -283,11 +283,19 @@ async function handleViewLogs(name: string, page = 1) {
   logsLoading.value = false;
 }
 
+let timer: number | null = null;
+
 onMounted(() => {
   init();
   // 定时刷新设为 30秒
-  const timer = setInterval(init, 30000);
-  return () => clearInterval(timer);
+  timer = window.setInterval(init, 30000);
+});
+
+onUnmounted(() => {
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
 });
 </script>
 
