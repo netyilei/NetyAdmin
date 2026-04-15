@@ -1,4 +1,4 @@
-﻿[中文](README.md)
+[中文](README.md)
 
 # NetyAdmin - General Purpose Admin System Base
 
@@ -50,6 +50,8 @@ NetyAdmin, as a comprehensive and architecturally advanced admin system base, is
 
 ## Quick Start
 
+- **No User Version (Excluding user module)**:
+  - Maintained branch: <https://github.com/netyilei/NetyAdmin/tree/maint-nouser>
 - **Default Account**: `admin`
 - **Default Password**: `admin123`
 
