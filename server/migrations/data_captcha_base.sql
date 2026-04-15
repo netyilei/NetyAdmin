@@ -23,6 +23,11 @@ END $$;
 INSERT INTO "sys_configs" ("group_name", "config_key", "config_value", "description", "is_system", "value_type")
 VALUES 
 ('captcha_config', 'admin_login_enabled', 'false', '管理员登录是否开启验证码', TRUE, 'string'),
+('captcha_config', 'user_register_enabled', 'false', '用户注册是否开启验证码', TRUE, 'string'),
+('captcha_config', 'user_login_pc', 'false', 'PC端用户登录是否开启验证码', TRUE, 'string'),
+('captcha_config', 'user_login_web', 'false', 'Web端用户登录是否开启验证码', TRUE, 'string'),
+('captcha_config', 'user_login_app', 'false', 'APP端用户登录是否开启验证码', TRUE, 'string'),
+('captcha_config', 'user_login_mobile', 'false', '移动端用户登录是否开启验证码', TRUE, 'string'),
 ('captcha_config', 'captcha_length', '4', '验证码字符长度', TRUE, 'string'),
 ('captcha_config', 'captcha_width', '240', '验证码图片宽度(px)', TRUE, 'string'),
 ('captcha_config', 'captcha_height', '80', '验证码图片高度(px)', TRUE, 'string'),
