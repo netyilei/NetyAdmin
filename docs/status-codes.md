@@ -1,4 +1,4 @@
-# NetyAdmin 状态码全量文档
+# 状态码规范
 
 本文档为 NetyAdmin 系统的**状态码唯一权威来源 (Single Source of Truth)**。所有新增业务模块的状态码必须基于本文档的编码规则进行拓展，并同步更新本文档。
 
@@ -145,37 +145,48 @@
 | `105002` | `CodeApiAlreadyExists` | `apiAlreadyExists` | API已存在 | API already exists |
 | `105003` | `CodeApiPathDuplicate` | `apiPathDuplicate` | API路径重复 | Duplicate API path |
 
-### 4.7 内容 (1060xx) — 待拓展
-
-> 内容模块（分类、文章、Banner）的业务错误码预留空间为 `106001` ~ `106099`。
+### 4.7 内容 (1060xx)
 
 | code | 后端常量 | 前端 key | 中文 | English |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| `106001` | `CodeCategoryNotFound` | `categoryNotFound` | 分类不存在 | Category not found |
+| `106002` | `CodeCategoryHasChildren` | `categoryHasChildren` | 分类存在子分类 | Category has children |
+| `106003` | `CodeCategoryHasArticles` | `categoryHasArticles` | 分类下存在文章 | Category has articles |
+| `106004` | `CodeArticleNotFound` | `articleNotFound` | 文章不存在 | Article not found |
+| `106005` | `CodeArticleAlreadyPublished` | `articleAlreadyPublished` | 文章已发布 | Article already published |
+| `106006` | `CodeBannerGroupNotFound` | `bannerGroupNotFound` | Banner分组不存在 | Banner group not found |
+| `106007` | `CodeBannerItemNotFound` | `bannerItemNotFound` | Banner项不存在 | Banner item not found |
 
-### 4.8 存储 (1070xx) — 待拓展
-
-> 存储模块（对象存储配置、上传凭证、上传记录）的业务错误码预留空间为 `107001` ~ `107099`。
-
-| code | 后端常量 | 前端 key | 中文 | English |
-|---|---|---|---|---|
-| — | — | — | — | — |
-
-### 4.9 日志 (1080xx) — 待拓展
-
-> 日志模块（操作日志、错误日志）的业务错误码预留空间为 `108001` ~ `108099`。
+### 4.8 存储 (1070xx)
 
 | code | 后端常量 | 前端 key | 中文 | English |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| `107001` | `CodeStorageConfigNotFound` | `storageConfigNotFound` | 存储配置不存在 | Storage config not found |
+| `107002` | `CodeStorageConfigDisabled` | `storageConfigDisabled` | 存储配置已禁用 | Storage config disabled |
+| `107003` | `CodeUploadFailed` | `uploadFailed` | 上传失败 | Upload failed |
+| `107004` | `CodeFileTooLarge` | `fileTooLarge` | 文件过大 | File too large |
+| `107005` | `CodeInvalidFileType` | `invalidFileType` | 不支持的文件类型 | Invalid file type |
+| `107006` | `CodeUploadRecordNotFound` | `uploadRecordNotFound` | 上传记录不存在 | Upload record not found |
 
-### 4.10 系统 (1090xx) — 待拓展
-
-> 系统模块（系统配置、字典、任务）的业务错误码预留空间为 `109001` ~ `109099`。
+### 4.9 日志 (1080xx)
 
 | code | 后端常量 | 前端 key | 中文 | English |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| `108001` | `CodeOperationLogNotFound` | `operationLogNotFound` | 操作日志不存在 | Operation log not found |
+| `108002` | `CodeErrorLogNotFound` | `errorLogNotFound` | 错误日志不存在 | Error log not found |
+| `108003` | `CodeErrorLogAlreadyResolved` | `errorLogAlreadyResolved` | 错误日志已解决 | Error log already resolved |
+
+### 4.10 系统 (1090xx)
+
+| code | 后端常量 | 前端 key | 中文 | English |
+|---|---|---|---|---|
+| `109001` | `CodeDictTypeNotFound` | `dictTypeNotFound` | 字典类型不存在 | Dict type not found |
+| `109002` | `CodeDictTypeCodeExists` | `dictTypeCodeExists` | 字典类型编码已存在 | Dict type code exists |
+| `109003` | `CodeDictDataNotFound` | `dictDataNotFound` | 字典数据不存在 | Dict data not found |
+| `109004` | `CodeConfigNotFound` | `configNotFound` | 配置项不存在 | Config not found |
+| `109005` | `CodeTaskNotFound` | `taskNotFound` | 任务不存在 | Task not found |
+| `109006` | `CodeTaskAlreadyRunning` | `taskAlreadyRunning` | 任务正在运行 | Task already running |
+| `109007` | `CodeTaskNotRunning` | `taskNotRunning` | 任务未运行 | Task not running |
 
 ---
 
@@ -280,3 +291,89 @@
 | 前端错误码常量与映射 | `admin-web/src/service/request/backend-error.ts` |
 | 中文语言包 | `admin-web/src/locales/langs/zh-cn/request.ts` |
 | 英文语言包 | `admin-web/src/locales/langs/en-us/request.ts` |
+
+---
+
+## 七、新增状态码示例
+
+以新增"订单模块"状态码为例：
+
+### 7.1 后端定义
+
+```go
+// server/internal/pkg/errorx/errorx.go
+
+const (
+    // 订单模块 (1080xx)
+    CodeOrderNotFound     = 108001
+    CodeOrderAlreadyPaid  = 108002
+    CodeOrderCancelled    = 108003
+)
+
+var codeMessages = map[int]string{
+    CodeOrderNotFound:    "订单不存在",
+    CodeOrderAlreadyPaid: "订单已支付",
+    CodeOrderCancelled:   "订单已取消",
+}
+```
+
+### 7.2 前端定义
+
+```typescript
+// admin-web/src/service/request/backend-error.ts
+
+export enum BackendErrorCode {
+  // ... 现有状态码
+  
+  // 订单模块
+  ORDER_NOT_FOUND = '108001',
+  ORDER_ALREADY_PAID = '108002',
+  ORDER_CANCELLED = '108003',
+}
+
+export const backendErrorI18nKeyMap: Record<string, string> = {
+  // ... 现有映射
+  
+  // 订单模块
+  [BackendErrorCode.ORDER_NOT_FOUND]: 'orderNotFound',
+  [BackendErrorCode.ORDER_ALREADY_PAID]: 'orderAlreadyPaid',
+  [BackendErrorCode.ORDER_CANCELLED]: 'orderCancelled',
+}
+```
+
+### 7.3 语言包
+
+```typescript
+// admin-web/src/locales/langs/zh-cn/request.ts
+
+export default {
+  backend: {
+    // ... 现有翻译
+    
+    // 订单模块
+    orderNotFound: '订单不存在',
+    orderAlreadyPaid: '订单已支付',
+    orderCancelled: '订单已取消',
+  }
+}
+
+// admin-web/src/locales/langs/en-us/request.ts
+
+export default {
+  backend: {
+    // ... 现有翻译
+    
+    // 订单模块
+    orderNotFound: 'Order not found',
+    orderAlreadyPaid: 'Order already paid',
+    orderCancelled: 'Order cancelled',
+  }
+}
+```
+
+---
+
+## 八、相关文档
+
+- [Server架构设计](./server-architecture.md)
+- [Admin-Web架构设计](./admin-web-architecture.md)
