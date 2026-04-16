@@ -12,8 +12,6 @@ type SystemHandler struct {
 	adminService  systemService.AdminService
 
 	Config *ConfigHandler
-	Task   *TaskHandler
-	Dict   *DictHandler
 }
 
 func NewSystemHandler(
@@ -23,8 +21,6 @@ func NewSystemHandler(
 	buttonService systemService.ButtonService,
 	adminService systemService.AdminService,
 	configSvc systemService.ConfigService,
-	taskSvc systemService.TaskService,
-	dictSvc systemService.DictService,
 ) *SystemHandler {
 	return &SystemHandler{
 		roleService:   roleService,
@@ -33,7 +29,5 @@ func NewSystemHandler(
 		buttonService: buttonService,
 		adminService:  adminService,
 		Config:        NewConfigHandler(configSvc),
-		Task:          NewTaskHandler(taskSvc),
-		Dict:          NewDictHandler(dictSvc),
 	}
 }

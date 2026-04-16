@@ -47,7 +47,11 @@ const ops = {
     failed: 'Failed',
     duration: 'Duration',
     executionCount: 'Total Runs',
+    lastMessage: 'Last Result',
+    nextRun: 'Next Run',
     runNow: 'Run Now',
+    runOnce: 'Run Once',
+    confirmRunOnce: 'Are you sure to run this one-time task now?',
     start: 'Start',
     stop: 'Stop',
     reload: 'Reload',
@@ -60,6 +64,29 @@ const ops = {
     enabled: 'Enabled',
     disabled: 'Disabled',
     spec: 'Execution Cycle'
+  },
+  ipac: {
+    title: 'IP Access Control',
+    id: 'ID',
+    appId: 'App',
+    global: 'Global',
+    ipAddr: 'IP/CIDR',
+    type: 'Action',
+    typeAllow: 'Allow',
+    typeDeny: 'Deny',
+    reason: 'Reason',
+    expiredAt: 'Expires At',
+    status: 'Status',
+    permanent: 'Permanent',
+    time: 'Created At',
+    operator: 'Operator',
+    form: {
+      ipAddrPlaceholder: 'Enter single IP or CIDR range',
+      reasonPlaceholder: 'Enter reason',
+      expiredAtPlaceholder: 'Select expiry time (empty for permanent)',
+      typePlaceholder: 'Select action type',
+      statusPlaceholder: 'Select status'
+    }
   }
 };
 

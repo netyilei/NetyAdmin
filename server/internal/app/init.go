@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"time"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -41,7 +42,7 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 
 	sqlDB.SetMaxIdleConns(cfg.Database.MaxIdle)
 	sqlDB.SetMaxOpenConns(cfg.Database.MaxOpen)
-	// sqlDB.SetConnMaxLifetime(time.Hour) // This would require time package, keeping it simple for now or adding import
+	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	return db, nil
 }

@@ -25,6 +25,12 @@ const (
 	TagStorageConfig = "storage:config"
 	// TagContentCategoryTree 内容分类树缓存标签
 	TagContentCategoryTree = "content:category:tree"
+	// TagMsgTemplate 消息模板缓存标签
+	TagMsgTemplate = "msg:template"
+	// TagIPAC IPAC 缓存标签
+	TagIPAC = "ipac"
+	// TagApp 开放平台应用缓存标签
+	TagApp = "open:app"
 )
 
 // 定义系统统一的缓存 Key 生成函数
@@ -93,6 +99,13 @@ func KeySystemConfig() string {
 	return "cache:sys:config"
 }
 
+// KeyVerificationCode 验证码缓存 Key
+// type: register, reset_password, etc.
+// target: phone or email
+func KeyVerificationCode(scene, target string) string {
+	return fmt.Sprintf("auth:verify:%s:%s", scene, target)
+}
+
 // KeyRBACMenu 路由菜单树缓存 Key
 func KeyRBACMenu(roleID uint) string {
 	return fmt.Sprintf("cache:rbac:menu:%d", roleID)
@@ -159,4 +172,49 @@ func KeyTaskLock(prefix, taskName string) string {
 		return fmt.Sprintf("%s:task:lock:%s", prefix, taskName)
 	}
 	return fmt.Sprintf("task:lock:%s", taskName)
+}
+
+// KeyMsgTemplate 消息模板缓存 Key
+func KeyMsgTemplate(code string) string {
+	return fmt.Sprintf("msg:template:%s", code)
+}
+
+// KeyIPACReload IPAC 重载通知 Channel
+func KeyIPACReload() string {
+	return "netyadmin:ipac:reload"
+}
+
+// KeyAppRateLimit 开放平台限流 Key
+func KeyAppRateLimit(appKey string) string {
+	return fmt.Sprintf("open:ratelimit:%s", appKey)
+}
+
+// KeyAppNonce 开放平台 Nonce 防重放 Key
+func KeyAppNonce(appKey, nonce string) string {
+	return fmt.Sprintf("open:nonce:%s:%s", appKey, nonce)
+}
+
+// KeyAppInfo 应用信息缓存 Key
+func KeyAppInfo(appKey string) string {
+	return fmt.Sprintf("open:app:info:%s", appKey)
+}
+
+// KeyAppScopes 应用权限范围缓存 Key
+func KeyAppScopes(appID string) string {
+	return fmt.Sprintf("open:app:%s:scopes", appID)
+}
+
+// KeyAppAvailableScopes 可用权限列表缓存 Key
+func KeyAppAvailableScopes() string {
+	return "open:app:available_scopes"
+}
+
+// TagAppKey 应用 Key 标签
+func TagAppKey(appKey string) string {
+	return "app:" + appKey
+}
+
+// TagAppID 应用 ID 标签
+func TagAppID(appID string) string {
+	return "app:" + appID
 }

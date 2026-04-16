@@ -7,10 +7,21 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-type Claims struct {
+type Claims interface {
+	jwt.Claims
+}
+
+type AdminClaims struct {
 	UserID   uint     `json:"userId"`
 	Username string   `json:"userName"`
 	Roles    []string `json:"roles"`
+	jwt.RegisteredClaims
+}
+
+type UserClaims struct {
+	UID      string `json:"uid"`
+	Platform string `json:"platform"`
+	Type     string `json:"type"`
 	jwt.RegisteredClaims
 }
 
@@ -40,7 +51,12 @@ func New(secret string, expiration int) *JWT {
 	}
 }
 
-func (j *JWT) GenerateToken(userID uint, username string, roles []string, tokenType TokenType) (string, error) {
+func (j *JWT) GenerateToken(claims Claims) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(j.secret))
+}
+
+func (j *JWT) NewAdminClaims(userID uint, username string, roles []string, tokenType TokenType) *AdminClaims {
 	var expDuration time.Duration
 	if tokenType == AccessToken {
 		expDuration = time.Duration(j.expiration) * time.Hour
@@ -51,7 +67,7 @@ func (j *JWT) GenerateToken(userID uint, username string, roles []string, tokenT
 	jitter := time.Duration(time.Now().UnixNano()%600) * time.Second
 	expTime := time.Now().Add(expDuration).Add(jitter)
 
-	claims := Claims{
+	return &AdminClaims{
 		UserID:   userID,
 		Username: username,
 		Roles:    roles,
@@ -61,26 +77,46 @@ func (j *JWT) GenerateToken(userID uint, username string, roles []string, tokenT
 			Subject:   string(tokenType),
 		},
 	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(j.secret))
 }
 
-func (j *JWT) ParseToken(tokenString string) (*Claims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (any, error) {
+func (j *JWT) NewUserClaims(uid string, platform string, tokenType TokenType) *UserClaims {
+	var expDuration time.Duration
+	if tokenType == AccessToken {
+		expDuration = time.Duration(j.expiration) * time.Hour
+	} else {
+		expDuration = time.Duration(j.expiration*2) * time.Hour
+	}
+
+	jitter := time.Duration(time.Now().UnixNano()%600) * time.Second
+	expTime := time.Now().Add(expDuration).Add(jitter)
+
+	return &UserClaims{
+		UID:      uid,
+		Platform: platform,
+		Type:     "user",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expTime),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Subject:   string(tokenType),
+		},
+	}
+}
+
+func (j *JWT) ParseToken(tokenString string, claims Claims) error {
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (any, error) {
 		return []byte(j.secret), nil
 	})
 
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) || errors.Is(err, jwt.ErrTokenNotValidYet) {
-			return nil, ErrTokenExpired
+			return ErrTokenExpired
 		}
-		return nil, ErrTokenInvalid
+		return ErrTokenInvalid
 	}
 
-	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
-		return claims, nil
+	if !token.Valid {
+		return ErrTokenInvalid
 	}
 
-	return nil, ErrTokenInvalid
+	return nil
 }

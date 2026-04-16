@@ -7,17 +7,25 @@ import (
 	"NetyAdmin/internal/interface/admin/http/handler/v1/auth"
 	"NetyAdmin/internal/interface/admin/http/handler/v1/common"
 	"NetyAdmin/internal/interface/admin/http/handler/v1/content"
+	dictHandler "NetyAdmin/internal/interface/admin/http/handler/v1/dict"
 	"NetyAdmin/internal/interface/admin/http/handler/v1/error_log"
+	ipacHandler "NetyAdmin/internal/interface/admin/http/handler/v1/ipac"
+	msgHandler "NetyAdmin/internal/interface/admin/http/handler/v1/message"
+	openHandler "NetyAdmin/internal/interface/admin/http/handler/v1/open_platform"
 	"NetyAdmin/internal/interface/admin/http/handler/v1/operation_log"
 	"NetyAdmin/internal/interface/admin/http/handler/v1/route"
 	storageHandler "NetyAdmin/internal/interface/admin/http/handler/v1/storage"
 	"NetyAdmin/internal/interface/admin/http/handler/v1/system"
+	taskHandler "NetyAdmin/internal/interface/admin/http/handler/v1/task"
+	userAdminHandler "NetyAdmin/internal/interface/admin/http/handler/v1/user"
 	v1 "NetyAdmin/internal/interface/admin/http/router/v1"
 	"NetyAdmin/internal/middleware"
+	ipacService "NetyAdmin/internal/service/ipac"
 )
 
 type Router struct {
 	authVerifier middleware.AuthVerifier
+	ipacSvc      ipacService.IPACService
 	routers      []v1.ModuleRouter
 }
 
@@ -34,19 +42,33 @@ func NewRouter(
 	operationLogH *operation_log.OperationLogHandler,
 	errorLogH *error_log.ErrorLogHandler,
 	routeH *route.RouteHandler,
+	ipacH *ipacHandler.IPACHandler,
+	appH *openHandler.AppHandler,
+	openLogH *openHandler.OpenLogHandler,
+	msgH *msgHandler.MessageHandler,
+	dictH *dictHandler.DictHandler,
+	taskH *taskHandler.TaskHandler,
+	userAdminH *userAdminHandler.UserHandler,
+	ipacSvc ipacService.IPACService,
 	authVerifier middleware.AuthVerifier,
 ) *Router {
 	return &Router{
 		authVerifier: authVerifier,
+		ipacSvc:      ipacSvc,
 		routers: []v1.ModuleRouter{
 			v1.NewAuthRouter(authH),
 			v1.NewCommonRouter(commonH),
 			v1.NewAdminRouter(adminH),
-			v1.NewSystemRouter(systemH),
 			v1.NewStorageRouter(storageH),
 			v1.NewContentRouter(categoryH, articleH, bannerGroupH, bannerItemH),
 			v1.NewLogRouter(operationLogH, errorLogH),
 			v1.NewRouteRouter(routeH),
+			v1.NewOpsRouter(ipacH, appH, openLogH),
+			v1.NewMessageRouter(msgH),
+			v1.NewSystemRouter(systemH),
+			v1.NewDictRouter(dictH),
+			v1.NewTaskRouter(taskH),
+			v1.NewUserRouter(userAdminH),
 		},
 	}
 }
@@ -54,6 +76,7 @@ func NewRouter(
 func (r *Router) Register(engine *gin.Engine) {
 	// 注册全局中间件
 	engine.Use(middleware.TraceID())
+	engine.Use(middleware.IPACAuth(r.ipacSvc))
 
 	r.registerV1(engine)
 }

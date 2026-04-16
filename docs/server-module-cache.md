@@ -30,42 +30,52 @@ server/internal/pkg/cache/
 
 ## 三、架构设计
 
-### 3.1 缓存管理器
+### 3.1 缓存管理器接口 (LazyCacheManager)
+
+`LazyCacheManager` 是对底层存储的统一抽象，通过接口解耦业务逻辑与具体的存储实现（Redis/BigCache）。
 
 ```go
-// LazyCacheManager 统一缓存管理器
-type LazyCacheManager struct {
-    redisClient *redis.Client
-    localCache  *bigcache.BigCache
-    config      *Config
+type LazyCacheManager interface {
+    // --- 核心能力 ---
+    
+    // Fetch 具有透明缓存能力的获取方法
+    // 流程：检查开关 -> 命中缓存则返回 -> 未命中执行 loader -> 结果异步落库 -> 返回
+    Fetch(ctx context.Context, key string, module string, tags []string, ttl time.Duration, v interface{}, loader func() (interface{}, error)) error
+
+    // InvalidateByTags 根据标签批量失效所有关联 Key (支持分布式同步)
+    InvalidateByTags(ctx context.Context, tags ...string) error
+
+    // --- 基础原子操作 ---
+    
+    // Set 强制写入缓存
+    Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
+    
+    // SetNX 原子性写入 (仅当 Key 不存在时写入)
+    // 场景：分布式锁模拟、防重放 Nonce 校验
+    SetNX(ctx context.Context, key string, value interface{}, ttl time.Duration) (bool, error)
+    
+    // Get/Delete/Exists 基础操作
+    Get(ctx context.Context, key string, v interface{}) error
+    Delete(ctx context.Context, key string) error
+    Exists(ctx context.Context, key string) (bool, error)
+
+    // --- 高级治理能力 ---
+
+    // RateLimit 分布式/单机自适应限流
+    // 机制：Redis 模式下执行 Lua 滑动窗口脚本；本地模式降级为令牌桶算法
+    RateLimit(ctx context.Context, key string, rate int, capacity int) (bool, error)
+
+    // GetRedisClient 获取原生客户端（仅用于 Pub/Sub 等特殊扩展）
+    GetRedisClient() *redis.Client
 }
-
-// Fetch 通用缓存获取方法
-func (m *LazyCacheManager) Fetch(
-    ctx context.Context,
-    moduleName string,      // 模块名（用于动态开关）
-    key string,             // 缓存key
-    tags []string,          // 标签（用于批量失效）
-    ttl time.Duration,      // 过期时间
-    fetch func() (any, error), // 回源函数
-) (any, error)
 ```
 
-### 3.2 存储优先级
+### 3.2 存储优先级与降级逻辑
 
-```
-1. 检查模块缓存开关（sys_configs: cache_switches:{moduleName}）
-   ↓ 关闭则直接回源
-2. 检查Redis（如果启用）
-   ↓ 命中则返回
-3. 检查本地缓存
-   ↓ 命中则返回
-4. 执行回源函数
-   ↓
-5. 写入缓存（Redis + 本地）
-   ↓
-6. 返回数据
-```
+系统采用 **“自适应双引擎”** 架构：
+1.  **配置驱动**: 优先读取 `config.toml` 中的 `[redis].enabled`。
+2.  **写透模式**: `Fetch` 成功后，会根据配置同时写入 Redis 和本地 BigCache（L1/L2 二级缓存结构）。
+3.  **原子模拟**: 在未开启 Redis 的单机环境下，`SetNX` 通过内存锁模拟原子性，`RateLimit` 通过 `golang.org/x/time/rate` 保证单机限流准确。
 
 ---
 
@@ -99,106 +109,64 @@ local_max_entries = 10000
 
 ---
 
-## 五、Key注册表
+## 五、Key 注册表规范 (Registry)
 
-### 5.1 预定义Key工厂
+**强制规范**: 严禁在业务 Service 中硬编码任何字符串作为缓存 Key 或 Tag。必须在 `internal/pkg/cache/registry.go` 中统一定义。
 
+### 5.1 定义原则
+1.  **Key 函数化**: 接收唯一标识（如 ID, Code），返回格式化后的 Key 字符串。
+2.  **Tag 语义化**: Tag 用于关联一组 Key。如修改用户资料后，失效 `TagUser(userID)` 对应的所有列表和详情缓存。
+
+### 5.2 示例代码 (registry.go)
 ```go
-// internal/pkg/cache/registry.go
+// Key 定义
+func KeyAppInfo(appKey string) string { return fmt.Sprintf("open:app:info:%s", appKey) }
+func KeyMsgTemplate(code string) string { return fmt.Sprintf("msg:template:%s", code) }
 
-// Key工厂函数
-var (
-    // RBAC相关
-    KeyAdminInfo    = func(adminID uint) string { return fmt.Sprintf("admin:%d:info", adminID) }
-    KeyRoleInfo     = func(roleID uint) string { return fmt.Sprintf("role:%d:info", roleID) }
-    KeyMenuTree     = func() string { return "menu:tree" }
-    KeyRoleMenus    = func(roleID uint) string { return fmt.Sprintf("role:%d:menus", roleID) }
-    KeyRoleButtons  = func(roleID uint) string { return fmt.Sprintf("role:%d:buttons", roleID) }
-    KeyRoleAPIs     = func(roleID uint) string { return fmt.Sprintf("role:%d:apis", roleID) }
-    
-    // 字典相关
-    KeyDictType     = func(code string) string { return fmt.Sprintf("dict:type:%s", code) }
-    KeyDictData     = func(typeCode string) string { return fmt.Sprintf("dict:data:%s", typeCode) }
-    
-    // 配置相关
-    KeySysConfig    = func(group, key string) string { return fmt.Sprintf("config:%s:%s", group, key) }
-)
-
-// Tags定义
+// Tag 定义
 const (
-    TagRBAC     = "rbac"
-    TagDict     = "dict"
-    TagConfig   = "config"
-    TagMenu     = "menu"
-    TagRole     = "role"
+    TagApp = "open:app"
+    TagMsgTemplate = "msg:template"
 )
 ```
 
 ---
 
-## 六、使用示例
+## 六、使用示例 (重构后的标准用法)
 
-### 6.1 基础使用
+### 6.1 读多写少场景 (Fetch + Tags)
 
 ```go
-// 获取管理员信息（带缓存）
-func (s *adminService) GetAdminInfo(ctx context.Context, adminID uint) (*vo.AdminInfo, error) {
-    result, err := s.cacheManager.Fetch(
-        ctx,
-        "rbac",                                    // 模块名
-        cache.KeyAdminInfo(adminID),              // key
-        []string{cache.TagRBAC, cache.TagRole},   // tags
-        10*time.Minute,                           // ttl
-        func() (any, error) {
-            // 回源函数：从数据库查询
-            return s.repo.GetByID(ctx, adminID)
-        },
-    )
-    if err != nil {
-        return nil, err
-    }
-    return result.(*vo.AdminInfo), nil
+func (s *appService) GetAppByKey(ctx context.Context, appKey string) (*system.App, error) {
+    var app system.App
+    key := cache.KeyAppInfo(appKey)
+    // 使用 TagApp 方便管理员更新时批量失效
+    err := s.cacheMgr.Fetch(ctx, key, cache.TagApp, []string{cache.TagApp, "app:"+appKey}, 1*time.Hour, &app, func() (interface{}, error) {
+        return s.repo.GetByKey(ctx, appKey)
+    })
+    return &app, err
 }
 ```
 
-### 6.2 批量失效缓存
+### 6.2 变更失效逻辑 (Invalidate)
 
 ```go
-// 角色权限变更后，清除相关缓存
-func (s *adminService) UpdateRolePermissions(ctx context.Context, roleID uint, menuIDs []uint) error {
-    // 1. 更新数据库
-    if err := s.repo.UpdateRoleMenus(ctx, roleID, menuIDs); err != nil {
-        return err
-    }
-    
-    // 2. 清除相关缓存
-    keys := []string{
-        cache.KeyRoleMenus(roleID),
-        cache.KeyRoleInfo(roleID),
-    }
-    s.cacheManager.Delete(ctx, keys...)
-    
-    // 3. 按tag批量清除
-    s.cacheManager.DeleteByTag(ctx, cache.TagRBAC)
-    
-    return nil
+func (s *appService) UpdateApp(ctx context.Context, app *system.App) error {
+    if err := s.repo.Update(ctx, app); err != nil { return err }
+    // 精准失效该应用的缓存
+    return s.cacheMgr.InvalidateByTags(ctx, "app:"+app.AppKey)
 }
 ```
 
-### 6.3 直接操作缓存
+### 6.3 防重放校验 (SetNX)
 
 ```go
-// 设置缓存
-err := s.cacheManager.Set(ctx, "custom:key", data, 5*time.Minute)
-
-// 获取缓存
-val, err := s.cacheManager.Get(ctx, "custom:key")
-
-// 删除缓存
-err := s.cacheManager.Delete(ctx, "key1", "key2")
-
-// 检查存在
-exists := s.cacheManager.Exists(ctx, "custom:key")
+// OpenPlatform 签名校验中的 Nonce 防重放
+nonceKey := cache.KeyAppNonce(appKey, nonce)
+set, err := s.cacheMgr.SetNX(ctx, nonceKey, "1", 60*time.Second)
+if err != nil || !set {
+    return errorx.CodeSignatureFailed // 重复请求
+}
 ```
 
 ---

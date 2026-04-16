@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
+	"sync"
 	"time"
 
 	"github.com/allegro/bigcache/v3"
@@ -13,8 +15,10 @@ import (
 	bigcacheStore "github.com/eko/gocache/store/bigcache/v4"
 	redisStore "github.com/eko/gocache/store/redis/v4"
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/time/rate"
 
 	"NetyAdmin/internal/config"
+	internalRedis "NetyAdmin/internal/pkg/redis"
 )
 
 var (
@@ -23,21 +27,32 @@ var (
 
 type LazyCacheManager interface {
 	// Fetch 具有透明缓存能力的获取方法。
-	// 如果 Redis 存在对应 key，并且 moduleSwitch 开启，则返回 Redis 中数据。
-	// 否则，调用 loader() 拿到最新数据，自动写入带 tags 的 Redis，并返回。
+	// 按照 L1 (Local) -> L2 (Redis) -> Loader (DB) 的顺序获取。
+	// 如果命中 L2，会自动回填 L1。如果执行 Loader，会自动回填 L1 和 L2。
 	Fetch(ctx context.Context, key string, moduleName string, tags []string, ttl time.Duration, v interface{}, loader func() (interface{}, error)) error
 
-	// InvalidateByTags 根据标签批量失效所有关联 Key
+	// InvalidateByTags 根据标签批量失效所有关联 Key (如果是集群模式，会通过 Redis Pub/Sub 同步失效)
 	InvalidateByTags(ctx context.Context, tags ...string) error
 
 	// Set 强制写入一个缓存项，带过期时间
 	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
+	// SetNX 仅在 Key 不存在时写入 (原子操作)
+	SetNX(ctx context.Context, key string, value interface{}, ttl time.Duration) (bool, error)
 	// Get 直接读取一个缓存项
 	Get(ctx context.Context, key string, v interface{}) error
 	// Delete 删除一个缓存项
 	Delete(ctx context.Context, key string) error
 	// Exists 判断一个缓存项是否存在
 	Exists(ctx context.Context, key string) (bool, error)
+
+	// GetRedisClient 获取底层的 Redis 客户端
+	GetRedisClient() *redis.Client
+
+	// RateLimit 限流校验
+	RateLimit(ctx context.Context, key string, rate int, capacity int) (bool, error)
+
+	// ListenInvalidation 启动监听分布式失效信号 (内部使用)
+	ListenInvalidation(ctx context.Context)
 }
 
 type SwitchChecker interface {
@@ -45,10 +60,13 @@ type SwitchChecker interface {
 }
 
 type lazyCacheManager struct {
-	cacheManager *cache.Cache[any]
+	cacheManager cache.CacheInterface[any]
 	switches     SwitchChecker
 	prefix       string
 	redisClient  *redis.Client
+
+	// 本地限流器缓存
+	localLimiters sync.Map // map[string]*rate.Limiter
 }
 
 // DefaultSwitchChecker 给一个总是返回 True 的默认校验器，直到我们实现 configsync
@@ -63,29 +81,114 @@ func NewLazyCacheManager(cfg *config.RedisConfig, redisClient *redis.Client, che
 		checker = &DefaultSwitchChecker{}
 	}
 
-	var backendStore store.StoreInterface
-
-	if cfg.Enabled {
-		// Redis 模式
-		backendStore = redisStore.NewRedis(redisClient)
-	} else {
-		// BigCache 本地内存模式降级
-		bigcacheClient, err := bigcache.New(context.Background(), bigcache.DefaultConfig(10*time.Minute))
-		if err != nil {
-			return nil, fmt.Errorf("初始化 BigCache 失败: %w", err)
-		}
-		backendStore = bigcacheStore.NewBigcache(bigcacheClient)
+	// 1. 初始化 L1 (本地 BigCache) - 配置参数来自 config.toml
+	localTTL := 10 * time.Minute
+	if cfg.LocalTTLMin > 0 {
+		localTTL = time.Duration(cfg.LocalTTLMin) * time.Minute
 	}
 
-	// 初始化 gocache 引擎。我们存储 any 以通吃所有序列化的格式 (Redis 读出来是 string, BigCache 是 []byte)
-	cacheMgr := cache.New[any](backendStore)
+	bcConfig := bigcache.DefaultConfig(localTTL)
+	bcConfig.Shards = 1024
+	if cfg.LocalMaxSizeMB > 0 {
+		bcConfig.HardMaxCacheSize = cfg.LocalMaxSizeMB
+	} else {
+		bcConfig.HardMaxCacheSize = 256 // 默认 256MB
+	}
+	if cfg.LocalMaxEntryKB > 0 {
+		bcConfig.MaxEntrySize = cfg.LocalMaxEntryKB * 1024
+	} else {
+		bcConfig.MaxEntrySize = 500 * 1024 // 默认 500KB
+	}
 
-	return &lazyCacheManager{
-		cacheManager: cacheMgr,
-		switches:     checker,
-		prefix:       cfg.Prefix,
-		redisClient:  redisClient,
-	}, nil
+	bigcacheClient, err := bigcache.New(context.Background(), bcConfig)
+	if err != nil {
+		return nil, fmt.Errorf("初始化 BigCache 失败: %w", err)
+	}
+	l1Store := bigcacheStore.NewBigcache(bigcacheClient)
+
+	var cacheMgr cache.CacheInterface[any]
+
+	// 2. 根据开关组合确定引擎
+	if cfg.Enabled && redisClient != nil {
+		// 开启了 Redis (L2)
+		l2Store := redisStore.NewRedis(redisClient)
+		l2Cache := cache.New[any](l2Store)
+
+		if cfg.L1Enabled {
+			// L1 + L2 链式模式
+			l1Cache := cache.New[any](l1Store)
+			cacheMgr = cache.NewChain[any](l1Cache, l2Cache)
+		} else {
+			// 仅使用 L2 (Redis)
+			cacheMgr = l2Cache
+		}
+	} else {
+		// Redis 关闭，降级使用 L1 (BigCache)
+		// 注意：这种情况下无论 L1Enabled 是否为 true，都必须有一个存储引擎，所以强制开启 BigCache
+		cacheMgr = cache.New[any](l1Store)
+	}
+
+	mgr := &lazyCacheManager{
+		cacheManager:  cacheMgr,
+		switches:      checker,
+		prefix:        cfg.Prefix,
+		redisClient:   redisClient,
+		localLimiters: sync.Map{},
+	}
+
+	// 启动监听
+	if cfg.Enabled && redisClient != nil {
+		mgr.ListenInvalidation(context.Background())
+	}
+
+	return mgr, nil
+}
+
+func (m *lazyCacheManager) RateLimit(ctx context.Context, key string, r int, capacity int) (bool, error) {
+	// 1. 如果 Redis 开启，使用 Redis 脚本限流 (分布式准确)
+	if m.redisClient != nil {
+		// 这里借用一下我们现有的 Lua 脚本逻辑，但直接写在 manager 里以减少依赖
+		script := `
+local bucket_key = KEYS[1]
+local rate = tonumber(ARGV[1])
+local capacity = tonumber(ARGV[2])
+local now = tonumber(ARGV[3])
+local requested = tonumber(ARGV[4])
+
+local last_tokens = tonumber(redis.call("HGET", bucket_key, "tokens"))
+local last_time = tonumber(redis.call("HGET", bucket_key, "last_time"))
+
+if last_tokens == nil then
+    last_tokens = capacity
+    last_time = now
+end
+
+local delta = math.max(0, now - last_time)
+local generated = delta * rate
+local current_tokens = math.min(capacity, last_tokens + generated)
+
+local allowed = false
+if current_tokens >= requested then
+    current_tokens = current_tokens - requested
+    allowed = true
+end
+
+redis.call("HSET", bucket_key, "tokens", current_tokens, "last_time", now)
+redis.call("EXPIRE", bucket_key, 86400)
+
+return allowed and 1 or 0
+`
+		fullKey := m.buildKey("ratelimit:" + key)
+		res, err := m.redisClient.Eval(ctx, script, []string{fullKey}, r, capacity, time.Now().Unix(), 1).Result()
+		if err != nil {
+			return false, err
+		}
+		return res.(int64) == 1, nil
+	}
+
+	// 2. 如果 Redis 未开启，降级为本地令牌桶限流
+	limiter, _ := m.localLimiters.LoadOrStore(key, rate.NewLimiter(rate.Limit(r), capacity))
+	return limiter.(*rate.Limiter).Allow(), nil
 }
 
 func (m *lazyCacheManager) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
@@ -95,6 +198,37 @@ func (m *lazyCacheManager) Set(ctx context.Context, key string, value interface{
 		return err
 	}
 	return m.cacheManager.Set(ctx, fullKey, data, store.WithExpiration(ttl))
+}
+
+func (m *lazyCacheManager) SetNX(ctx context.Context, key string, value interface{}, ttl time.Duration) (bool, error) {
+	fullKey := m.buildKey(key)
+
+	// 1. Redis 模式 (原生原子支持)
+	if m.redisClient != nil {
+		data, err := m.marshal(value)
+		if err != nil {
+			return false, err
+		}
+		res, err := m.redisClient.SetArgs(ctx, fullKey, data, redis.SetArgs{
+			Mode: "NX",
+			TTL:  ttl,
+		}).Result()
+		if err != nil {
+			if errors.Is(err, redis.Nil) {
+				return false, nil
+			}
+			return false, err
+		}
+		return res == "OK", nil
+	}
+
+	// 2. 本地模式 (非绝对原子，但对单机应用足够)
+	exists, _ := m.Exists(ctx, key)
+	if exists {
+		return false, nil
+	}
+	err := m.Set(ctx, key, value, ttl)
+	return err == nil, err
 }
 
 func (m *lazyCacheManager) getRaw(ctx context.Context, key string) ([]byte, error) {
@@ -145,6 +279,10 @@ func (m *lazyCacheManager) Exists(ctx context.Context, key string) (bool, error)
 	return false, err
 }
 
+func (m *lazyCacheManager) GetRedisClient() *redis.Client {
+	return m.redisClient
+}
+
 func (m *lazyCacheManager) buildKey(key string) string {
 	if m.prefix != "" {
 		return fmt.Sprintf("%s:%s", m.prefix, key)
@@ -183,23 +321,78 @@ func (m *lazyCacheManager) Fetch(ctx context.Context, key string, moduleName str
 		return err
 	}
 
-	// 3. 回写缓存
-	dataToCache, err := m.marshal(val)
-	if err == nil {
-		// 设置 Tag 和 TTL
-		options := []store.Option{
-			store.WithExpiration(ttl),
-			store.WithTags(tags),
+	// 3. 校验数据真实性后再回写缓存 (只有非 nil 数据才进缓存)
+	if !m.isNil(val) {
+		dataToCache, err := m.marshal(val)
+		if err == nil {
+			// 设置 Tag 和 TTL
+			options := []store.Option{
+				store.WithExpiration(ttl),
+			}
+			if len(tags) > 0 {
+				options = append(options, store.WithTags(tags))
+			}
+			_ = m.cacheManager.Set(ctx, fullKey, dataToCache, options...)
 		}
-		_ = m.cacheManager.Set(ctx, fullKey, dataToCache, options...)
 	}
 
 	// 返回结果
 	return m.assign(val, v)
 }
 
+func (m *lazyCacheManager) isNil(i interface{}) bool {
+	if i == nil {
+		return true
+	}
+	vi := reflect.ValueOf(i)
+	switch vi.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Map, reflect.Ptr, reflect.UnsafePointer, reflect.Interface, reflect.Slice:
+		return vi.IsNil()
+	default:
+		return false
+	}
+}
+
 func (m *lazyCacheManager) InvalidateByTags(ctx context.Context, tags ...string) error {
-	return m.cacheManager.Invalidate(ctx, store.WithInvalidateTags(tags))
+	// 1. 失效本地和共享缓存
+	err := m.cacheManager.Invalidate(ctx, store.WithInvalidateTags(tags))
+
+	// 2. 如果开启了 Redis，广播失效信号给其他实例
+	if m.redisClient != nil && len(tags) > 0 {
+		channel := internalRedis.ChannelConfigSync(m.prefix) + ":cache_invalidation"
+		payload, _ := json.Marshal(tags)
+		_ = m.redisClient.Publish(ctx, channel, payload).Err()
+	}
+
+	return err
+}
+
+func (m *lazyCacheManager) ListenInvalidation(ctx context.Context) {
+	if m.redisClient == nil {
+		return
+	}
+
+	channel := internalRedis.ChannelConfigSync(m.prefix) + ":cache_invalidation"
+	sub := m.redisClient.Subscribe(ctx, channel)
+
+	go func() {
+		defer sub.Close()
+		ch := sub.Channel()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case msg := <-ch:
+				var tags []string
+				if err := json.Unmarshal([]byte(msg.Payload), &tags); err == nil {
+					// 仅失效本地 L1 缓存。由于 gocache 的 Chain 不支持仅对第一层失效，
+					// 但由于我们是广播失效，其他层级在 L2 已经是失效的了。
+					// 这里我们直接调用整体失效，gocache 会处理 L1 的清除。
+					_ = m.cacheManager.Invalidate(ctx, store.WithInvalidateTags(tags))
+				}
+			}
+		}
+	}()
 }
 
 func (m *lazyCacheManager) marshal(val interface{}) ([]byte, error) {

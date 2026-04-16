@@ -10,19 +10,19 @@ import (
 	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/task"
 	logRepo "NetyAdmin/internal/repository/log"
-	systemRepo "NetyAdmin/internal/repository/system"
+	taskRepoPkg "NetyAdmin/internal/repository/task"
 )
 
 // SystemLogCleanupJob 统一日志清理任务
 type SystemLogCleanupJob struct {
-	taskLogRepo systemRepo.TaskLogRepository
+	taskLogRepo taskRepoPkg.TaskLogRepository
 	opsLogRepo  *logRepo.OperationRepository
 	errLogRepo  *logRepo.ErrorRepository
 	watcher     configsync.ConfigWatcher
 }
 
 func NewSystemLogCleanupJob(
-	taskLogRepo systemRepo.TaskLogRepository,
+	taskLogRepo taskRepoPkg.TaskLogRepository,
 	opsLogRepo *logRepo.OperationRepository,
 	errLogRepo *logRepo.ErrorRepository,
 	watcher configsync.ConfigWatcher,
@@ -100,8 +100,8 @@ func (j *SystemLogCleanupJob) DefaultMetadata() task.TaskMetadata {
 		Name:        j.Name(),
 		DisplayName: j.DisplayName(),
 		Type:        task.TypeCron,
-		Spec:        "0 0 2 * * *", // 每天凌晨2点执行
-		Weight:      task.WeightNormal,
+		Spec:        "0 0 2 * * *",  // 每天凌晨2点执行
+		Weight:      task.WeightLow, // 10 (低优先级清理任务)
 		Enabled:     true,
 	}
 }

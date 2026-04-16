@@ -17,6 +17,7 @@ import {
   NTabs
 } from 'naive-ui';
 import { fetchGetSysConfigs, fetchUpdateSysConfig } from '@/service/api/v1/system-manage';
+import { fetchGetAllEnabledStorageConfigs } from '@/service/api/v1/storage';
 import type { SystemManage } from '@/typings/api/v1/system-manage';
 import { $t } from '@/locales';
 
@@ -59,6 +60,32 @@ const captchaTypeOptions = [
   { label: $t('page.manage.setting.captcha.typeMath'), value: 'math' }
 ];
 
+const userConfigs = reactive<Record<string, ConfigItem | undefined>>({
+  storage_module: undefined,
+  login_storage: undefined,
+  token_expire: undefined,
+  login_max_retry: undefined,
+  login_lock_duration: undefined,
+  password_min_length: undefined,
+  password_require_types: undefined,
+  user_register_verify: undefined,
+  user_register_verify_type: undefined,
+  user_reset_pwd_verify: undefined,
+  user_reset_pwd_verify_type: undefined
+});
+
+const storageOptions = ref<{ label: string; value: string }[]>([]);
+
+const loginStorageOptions = [
+  { label: $t('page.manage.setting.user.login_storage_memory'), value: 'memory' },
+  { label: $t('page.manage.setting.user.login_storage_db'), value: 'db' }
+];
+
+const verifyTypeOptions = [
+  { label: $t('page.manage.setting.user.verify_type_email'), value: 'email' },
+  { label: $t('page.manage.setting.user.verify_type_sms'), value: 'sms' }
+];
+
 async function init() {
   loading.value = true;
 
@@ -68,7 +95,9 @@ async function init() {
     fetchGetSysConfigs('task_config'),
     fetchGetSysConfigs('ops_config'),
     fetchGetSysConfigs('error_config'),
-    fetchGetSysConfigs('captcha_config')
+    fetchGetSysConfigs('captcha_config'),
+    fetchGetSysConfigs('user_config'),
+    fetchGetAllEnabledStorageConfigs()
   ]);
 
   if (!results[0].error) cacheConfigs.value = results[0].data;
@@ -109,6 +138,26 @@ async function init() {
         };
       }
     });
+  }
+
+  if (!results[5].error) {
+    results[5].data.forEach(item => {
+      if (Object.keys(userConfigs).includes(item.configKey)) {
+        userConfigs[item.configKey] = {
+          ...item,
+          numValue: !['_verify_type', 'storage_module', 'login_storage'].some(k => item.configKey.endsWith(k))
+            ? Number.parseInt(item.configValue, 10) || 0
+            : undefined
+        };
+      }
+    });
+  }
+
+  if (!results[6].error) {
+    storageOptions.value = results[6].data.map(item => ({
+      label: item.name,
+      value: item.id.toString()
+    }));
   }
 
   loading.value = false;
@@ -212,7 +261,7 @@ onMounted(init);
               {{ $t('page.manage.setting.captcha.description') }}
             </NAlert>
             <NSpin :show="loading">
-            <NDivider title-placement="left">
+              <NDivider title-placement="left">
                 <span class="text-13px text-gray-500 font-bold tracking-wider uppercase">
                   {{ $t('page.manage.setting.captcha.switches') }}
                 </span>
@@ -296,6 +345,157 @@ onMounted(init);
                     />
                   </NFormItem>
                 </NSpace>
+              </div>
+            </NSpin>
+          </div>
+        </NTabPane>
+
+        <!-- Tab 3: User Configuration -->
+        <NTabPane name="user" :tab="$t('page.manage.setting.tabs.user')">
+          <div class="pt-4">
+            <NAlert type="info" class="mb-6">
+              {{ $t('page.manage.setting.user.description') }}
+            </NAlert>
+            <NSpin :show="loading">
+              <div class="max-w-1000px">
+                <NGrid :x-gap="24" :y-gap="24" cols="1 s:1 m:2" responsive="screen">
+                  <NGridItem>
+                    <!-- Basic & Storage -->
+                    <NCard :title="$t('page.manage.setting.user.basic')" size="small" class="h-full">
+                      <NSpace vertical :size="16">
+                        <NFormItem :label="$t('page.manage.setting.user.storage_module')" label-placement="left">
+                          <NSelect
+                            v-if="userConfigs.storage_module"
+                            v-model:value="userConfigs.storage_module.configValue"
+                            :options="storageOptions"
+                            clearable
+                            :placeholder="$t('page.manage.setting.user.storage_module_placeholder')"
+                            class="w-240px"
+                            @update:value="handleUpdate(userConfigs.storage_module)"
+                          />
+                        </NFormItem>
+                        <NFormItem :label="$t('page.manage.setting.user.login_storage')" label-placement="left">
+                          <NSelect
+                            v-if="userConfigs.login_storage"
+                            v-model:value="userConfigs.login_storage.configValue"
+                            :options="loginStorageOptions"
+                            class="w-240px"
+                            @update:value="handleUpdate(userConfigs.login_storage)"
+                          />
+                        </NFormItem>
+                        <NFormItem :label="$t('page.manage.setting.user.token_expire')" label-placement="left">
+                          <NInputNumber
+                            v-if="userConfigs.token_expire"
+                            v-model:value="userConfigs.token_expire.numValue"
+                            :min="60"
+                            class="w-240px"
+                            @blur="handleNumberUpdate(userConfigs.token_expire)"
+                          />
+                        </NFormItem>
+                        <NFormItem :label="$t('page.manage.setting.user.login_max_retry')" label-placement="left">
+                          <NInputNumber
+                            v-if="userConfigs.login_max_retry"
+                            v-model:value="userConfigs.login_max_retry.numValue"
+                            :min="1"
+                            class="w-240px"
+                            @blur="handleNumberUpdate(userConfigs.login_max_retry)"
+                          />
+                        </NFormItem>
+                        <NFormItem :label="$t('page.manage.setting.user.login_lock_duration')" label-placement="left">
+                          <NInputNumber
+                            v-if="userConfigs.login_lock_duration"
+                            v-model:value="userConfigs.login_lock_duration.numValue"
+                            :min="1"
+                            class="w-240px"
+                            @blur="handleNumberUpdate(userConfigs.login_lock_duration)"
+                          />
+                        </NFormItem>
+                        <NFormItem :label="$t('page.manage.setting.user.password_min_length')" label-placement="left">
+                          <NInputNumber
+                            v-if="userConfigs.password_min_length"
+                            v-model:value="userConfigs.password_min_length.numValue"
+                            :min="4"
+                            class="w-240px"
+                            @blur="handleNumberUpdate(userConfigs.password_min_length)"
+                          />
+                        </NFormItem>
+                        <NFormItem :label="$t('page.manage.setting.user.password_require_types')" label-placement="left">
+                          <NInputNumber
+                            v-if="userConfigs.password_require_types"
+                            v-model:value="userConfigs.password_require_types.numValue"
+                            :min="1"
+                            :max="4"
+                            class="w-240px"
+                            @blur="handleNumberUpdate(userConfigs.password_require_types)"
+                          />
+                        </NFormItem>
+                      </NSpace>
+                    </NCard>
+                  </NGridItem>
+
+                  <NGridItem>
+                    <!-- Verify Settings -->
+                    <NCard :title="$t('page.manage.setting.user.verify')" size="small" class="h-full">
+                      <NSpace vertical :size="16">
+                        <!-- Register Verify -->
+                        <div class="p-4 rounded-8px border border-gray-100 bg-gray-50/30">
+                          <NFormItem :label="$t('page.manage.setting.user.user_register_verify')" label-placement="left">
+                            <NSwitch
+                              v-if="userConfigs.user_register_verify"
+                              v-model:value="userConfigs.user_register_verify.configValue"
+                              checked-value="true"
+                              unchecked-value="false"
+                              :loading="updating === userConfigs.user_register_verify.configKey"
+                              @update:value="handleUpdate(userConfigs.user_register_verify)"
+                            />
+                          </NFormItem>
+                          <NFormItem
+                            v-if="userConfigs.user_register_verify?.configValue === 'true'"
+                            :label="$t('page.manage.setting.user.user_register_verify_type')"
+                            label-placement="left"
+                            class="mt-2"
+                          >
+                            <NSelect
+                              v-if="userConfigs.user_register_verify_type"
+                              v-model:value="userConfigs.user_register_verify_type.configValue"
+                              :options="verifyTypeOptions"
+                              class="w-240px"
+                              @update:value="handleUpdate(userConfigs.user_register_verify_type)"
+                            />
+                          </NFormItem>
+                        </div>
+
+                        <!-- Reset Pwd Verify -->
+                        <div class="mt-4 p-4 rounded-8px border border-gray-100 bg-gray-50/30">
+                          <NFormItem :label="$t('page.manage.setting.user.user_reset_pwd_verify')" label-placement="left">
+                            <NSwitch
+                              v-if="userConfigs.user_reset_pwd_verify"
+                              v-model:value="userConfigs.user_reset_pwd_verify.configValue"
+                              checked-value="true"
+                              unchecked-value="false"
+                              :loading="updating === userConfigs.user_reset_pwd_verify.configKey"
+                              @update:value="handleUpdate(userConfigs.user_reset_pwd_verify)"
+                            />
+                          </NFormItem>
+                          <NFormItem
+                            v-if="userConfigs.user_reset_pwd_verify?.configValue === 'true'"
+                            :label="$t('page.manage.setting.user.user_reset_pwd_verify_type')"
+                            label-placement="left"
+                            class="mt-2"
+                          >
+                            <NSelect
+                              v-if="userConfigs.user_reset_pwd_verify_type"
+                              v-model:value="userConfigs.user_reset_pwd_verify_type.configValue"
+                              :options="verifyTypeOptions"
+                              class="w-240px"
+                              @update:value="handleUpdate(userConfigs.user_reset_pwd_verify_type)"
+                            />
+                          </NFormItem>
+                        </div>
+                      </NSpace>
+                    </NCard>
+                  </NGridItem>
+                </NGrid>
               </div>
             </NSpin>
           </div>

@@ -261,6 +261,32 @@ export function fetchBatchDeleteMenu(ids: number[]) {
   });
 }
 
+/** get user list (terminal users) */
+export function fetchGetUserList(params?: any) {
+  return request<any>({
+    url: '/admin/v1/systemManage/users',
+    method: 'get',
+    params
+  });
+}
+
+/** update user status */
+export function fetchUpdateUserStatus(id: string, status: string) {
+  return request({
+    url: `/admin/v1/systemManage/users/${id}/status`,
+    method: 'patch',
+    data: { status }
+  });
+}
+
+/** delete user */
+export function fetchDeleteUser(id: string) {
+  return request({
+    url: `/admin/v1/systemManage/users/${id}`,
+    method: 'delete'
+  });
+}
+
 /** 获取系统配置（缓存开关等） */
 export function fetchGetSysConfigs(groupName?: string) {
   return request<SystemManage.SysConfig[]>({

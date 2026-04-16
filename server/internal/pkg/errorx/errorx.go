@@ -45,6 +45,36 @@ const (
 	CodeApiNotFound      Code = 105001
 	CodeApiAlreadyExists Code = 105002
 	CodeApiPathDuplicate Code = 105003
+
+	// 用户模块 (1011xx)
+	CodeClientUserNotFound      Code = 101101
+	CodeClientUserAlreadyExists Code = 101102
+	CodeEmailAlreadyExists      Code = 101103
+	CodePhoneAlreadyExists      Code = 101104
+
+	// 消息模块 (1012xx)
+	CodeMsgTemplateNotFound   Code = 101201
+	CodeMsgTemplateCodeExists Code = 101202
+	CodeMsgSendFailed         Code = 101203
+	CodeMsgRecordNotFound     Code = 101204
+	CodeMsgDriverNotFound     Code = 101205
+
+	// 开放平台 (1013xx)
+	CodeAppKeyInvalid   Code = 101301
+	CodeSignatureFailed Code = 101302
+	CodeRequestExpired  Code = 101303
+	CodeScopeMismatch   Code = 101304
+	CodeRateLimited     Code = 101305
+
+	// IP 访问控制 (1014xx)
+	CodeIPBlocked     Code = 101401
+	CodeIPInvalid     Code = 101402
+	CodeWhitelistMode Code = 101403
+
+	// 用户模块集成 (2006xx)
+	CodeCaptchaExpired          Code = 200601
+	CodeCaptchaSendTooFrequent  Code = 200604
+	CodeVerifyTypeNotConfigured Code = 200605
 )
 
 var codeMessages = map[Code]string{
@@ -88,6 +118,36 @@ var codeMessages = map[Code]string{
 	CodeApiNotFound:      "API不存在",
 	CodeApiAlreadyExists: "API已存在",
 	CodeApiPathDuplicate: "API路径重复",
+
+	// 用户模块 (1011xx)
+	CodeClientUserNotFound:      "用户不存在",
+	CodeClientUserAlreadyExists: "用户名已存在",
+	CodeEmailAlreadyExists:      "邮箱已存在",
+	CodePhoneAlreadyExists:      "手机号已存在",
+
+	// 消息模块 (1012xx)
+	CodeMsgTemplateNotFound:   "消息模板不存在",
+	CodeMsgTemplateCodeExists: "模板编码已存在",
+	CodeMsgSendFailed:         "消息发送失败",
+	CodeMsgRecordNotFound:     "消息记录不存在",
+	CodeMsgDriverNotFound:     "消息驱动未配置或不存在",
+
+	// 开放平台 (1013xx)
+	CodeAppKeyInvalid:   "AppKey无效",
+	CodeSignatureFailed: "签名验证失败",
+	CodeRequestExpired:  "请求已过期",
+	CodeScopeMismatch:   "权限不足 (Scope 不匹配)",
+	CodeRateLimited:     "已触发流量限制",
+
+	// IP 访问控制 (1014xx)
+	CodeIPBlocked:     "访问受限 (您的 IP 已被封禁)",
+	CodeIPInvalid:     "非法 IP/CIDR 格式",
+	CodeWhitelistMode: "系统处于白名单模式，您的 IP 未被授权",
+
+	// 用户模块集成 (2006xx)
+	CodeCaptchaExpired:          "验证码已过期",
+	CodeCaptchaSendTooFrequent:  "发送过于频繁，请稍后再试",
+	CodeVerifyTypeNotConfigured: "未配置验证方式，请联系管理员",
 }
 
 func (c Code) Message() string {

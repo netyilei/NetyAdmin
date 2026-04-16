@@ -34,6 +34,7 @@ type Manager struct {
 	// 增强部分：用于动态管理
 	cronIDs   map[string]cron.EntryID  // 记录 Cron 任务 ID
 	intervals map[string]chan struct{} // 记录 Interval 任务停止通道 (按任务名隔离)
+	cancel    context.CancelFunc       // 用于停止所有 Worker
 }
 
 // NewManager 创建调度引擎
@@ -85,6 +86,10 @@ func (m *Manager) Start(ctx context.Context) {
 		return
 	}
 
+	// 初始化 Worker 控制上下文
+	workerCtx, cancel := context.WithCancel(ctx)
+	m.cancel = cancel
+
 	// 1. 获取所有已启用的任务并进行配置合并
 	type taskWithConfig struct {
 		task     Task
@@ -130,11 +135,11 @@ func (m *Manager) Start(ctx context.Context) {
 	m.cron.Start()
 
 	// 4. 启动后台消费者 Worker
-	m.startWorkers(ctx)
+	m.startWorkers(workerCtx)
 }
 
 // Dispatch 投递子任务 (实现 Dispatcher 接口)
-func (m *Manager) Dispatch(ctx context.Context, taskName string, payload interface{}) error {
+func (m *Manager) Dispatch(ctx context.Context, taskName string, payload interface{}, weight int) error {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal payload failed: %w", err)
@@ -145,7 +150,7 @@ func (m *Manager) Dispatch(ctx context.Context, taskName string, payload interfa
 		Payload:  data,
 	}
 
-	if err := m.queue.Push(ctx, msg); err != nil {
+	if err := m.queue.Push(ctx, msg, weight); err != nil {
 		return fmt.Errorf("push message to queue failed: %w", err)
 	}
 
@@ -424,12 +429,11 @@ func (m *Manager) execute(ctx context.Context, t Task) {
 	// 2. 尝试抢占分布式锁 (仅在 Redis 启用时)
 	if m.redisCfg != nil && m.redisCfg.Enabled && m.redis != nil {
 		lockKey := cache.KeyTaskLock(m.redisCfg.Prefix, name)
-		// 设置锁的 TTL 为 1 分钟（或者根据你的任务预期时长配置）
-		// 如果你的任务可能跑很久，这里需要实现锁的续期，或者给个比较大的兜底时间
-		// SetArgs() 在找不到 Key 或者 NX 未满足时返回的不是 boolean，而是 err == redis.Nil
+		// 设置锁的 TTL 为 1 小时 (兜底时间)
+		// 避免任务执行时间超过 60s 导致锁失效
 		err := m.redis.SetArgs(ctx, lockKey, "locked", redis.SetArgs{
 			Mode: "NX",
-			TTL:  60 * time.Second,
+			TTL:  1 * time.Hour,
 		}).Err()
 		if err == redis.Nil {
 			// 未抢到锁，说明其他实例正在执行
@@ -487,7 +491,10 @@ func (m *Manager) Stop() {
 		return
 	}
 	log.Println("[任务引擎] 正在发出停止信号...")
-	m.cron.Stop()     // 停止新的 Cron 调度
+	m.cron.Stop() // 停止新的 Cron 调度
+	if m.cancel != nil {
+		m.cancel() // 取消 Worker 上下文，Worker 的 Pop 阻塞会立刻退出
+	}
 	close(m.stopChan) // 通知 Interval 任务退出
 	if m.queue != nil {
 		_ = m.queue.Close()

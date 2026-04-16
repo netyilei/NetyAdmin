@@ -38,6 +38,10 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 | Module | Features |
 |--------|----------|
 | **RBAC** | Admin, Role, Menu, Button, API management |
+| **User Module** | Client-side user system, multi-terminal login, Token hashing, secure encryption |
+| **Message Hub** | Unified sending entry (SMS/Email/Internal), template rendering, async retry |
+| **Open Platform** | AppKey authentication, secure signature, distributed rate limiting, Scope permissions |
+| **IP Access Control** | Global/App-level IP governance, CIDR matching, high-performance memory filtering |
 | **Content Management** | Categories, Articles, Banner, supporting rich text and scheduled publishing |
 | **Storage Management** | Multi-storage source configuration, upload credentials, upload records |
 | **Log Audit** | Operation logs, error logs, supporting sensitive field desensitization |
@@ -63,6 +67,10 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 
 | Document | Description |
 |----------|-------------|
+| [User Module Details](docs/server-module-user.md) | Client user system, multi-terminal login, Token hashing, soft deletion |
+| [Message Hub Details](docs/server-module-message.md) | Unified sending entry (SMS/Email/Internal), driver extension, async tasks |
+| [Open Platform Details](docs/server-module-open-platform.md) | AppKey authentication, signature verification, distributed rate limiting, Scope permissions |
+| [IP Access Control Details](docs/server-module-ipac.md) | High-performance memory matching, CIDR network, hierarchical governance |
 | [Captcha Module Details](docs/server-module-captcha.md) | Captcha types, storage schemes, dynamic configuration |
 | [Cache Module Details](docs/server-module-cache.md) | Dual-engine caching, Tags batch invalidation, dynamic switches |
 | [Task System Details](docs/server-module-task.md) | Task scheduling, queue mechanism, backend management |

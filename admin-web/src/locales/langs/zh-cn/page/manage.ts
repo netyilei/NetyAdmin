@@ -165,6 +165,7 @@ const manage = {
     tabs: {
       cache: '缓存配置',
       captcha: '验证码配置',
+      user: '用户配置',
       task: '任务配置',
       log: '日志管理'
     },
@@ -182,7 +183,8 @@ const manage = {
       storage: '对象存储配置/驱动热更',
       err_log_cache: '错误日志聚合分析缓存',
       content_category_cache: '内容分类(无限级树)缓存',
-      captcha: '验证码缓存'
+      captcha: '验证码缓存',
+      user_profile: '用户个人资料缓存'
     },
     captcha: {
       title: '验证码全局设置',
@@ -195,14 +197,37 @@ const manage = {
       user_login_web: 'Web端登录',
       user_login_app: 'APP登录',
       user_login_mobile: '移动端登录',
+      user_reset_password_enabled: '用户找回密码',
       length: '验证码长度',
       width: '图片宽度(px)',
       height: '图片高度(px)',
-      expire: '过期时间(秒)',
+      expire: '有效期(秒)',
       type: '验证码类型',
       typeDigit: '纯数字',
-      typeString: '字母数字',
-      typeMath: '算术题'
+      typeString: '数字字母',
+      typeMath: '算术运算'
+    },
+    user: {
+      title: '用户模块配置',
+      description: '配置面向 C 端用户的独立体系，支持多端登录、存储隔离及安全校验。',
+      basic: '基础安全设置',
+      verify: '消息验证设置',
+      storage_module: '专属存储源',
+      storage_module_placeholder: '请选择存储源 (留空则使用系统默认)',
+      login_storage: '登录存储介质',
+      login_storage_memory: '本地内存 (推荐)',
+      login_storage_db: '数据库',
+      token_expire: 'Token 有效期 (秒)',
+      login_max_retry: '登录最大失败次数',
+      login_lock_duration: '登录锁定时间 (分钟)',
+      password_min_length: '密码最小长度',
+      password_require_types: '密码字符类型数',
+      user_register_verify: '用户注册消息验证',
+      user_register_verify_type: '注册验证方式',
+      user_reset_pwd_verify: '找回密码消息验证',
+      user_reset_pwd_verify_type: '找回密码验证方式',
+      verify_type_email: '电子邮件',
+      verify_type_sms: '手机短信'
     },
     log: {
       title: '日志保留策略',

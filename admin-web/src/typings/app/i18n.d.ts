@@ -388,7 +388,7 @@ declare namespace App {
             editMenu: string;
             addChildMenu: string;
             type: {
-              directory: string;
+              dir: string;
               menu: string;
               button: string;
             };

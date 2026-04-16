@@ -1,0 +1,29 @@
+package v1
+
+import (
+	"github.com/gin-gonic/gin"
+
+	userHandler "NetyAdmin/internal/interface/admin/http/handler/v1/user"
+)
+
+type UserRouter struct {
+	user *userHandler.UserHandler
+}
+
+func NewUserRouter(user *userHandler.UserHandler) *UserRouter {
+	return &UserRouter{user: user}
+}
+
+func (r *UserRouter) RegisterPublic(group *gin.RouterGroup) {}
+
+func (r *UserRouter) RegisterAuth(group *gin.RouterGroup) {}
+
+func (r *UserRouter) RegisterPermission(group *gin.RouterGroup) {
+	// 用户管理归属系统管理组
+	userGroup := group.Group("/systemManage/users")
+	{
+		userGroup.GET("", r.user.List)
+		userGroup.PATCH("/:id/status", r.user.UpdateStatus)
+		userGroup.DELETE("/:id", r.user.Delete)
+	}
+}

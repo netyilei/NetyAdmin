@@ -48,7 +48,11 @@ const ops = {
     failed: '失败',
     duration: '耗时',
     executionCount: '累计执行',
+    lastMessage: '最近执行结果',
+    nextRun: '下次执行',
     runNow: '立即执行',
+    runOnce: '执行单次任务',
+    confirmRunOnce: '确定立即执行该单次任务吗？',
     start: '启动',
     stop: '停止',
     reload: '重启',
@@ -61,6 +65,29 @@ const ops = {
     enabled: '已启用',
     disabled: '已禁用',
     spec: '执行周期'
+  },
+  ipac: {
+    title: 'IP 访问控制',
+    id: 'ID',
+    appId: '所属应用',
+    global: '全局规则',
+    ipAddr: 'IP 地址/网段',
+    type: '动作类型',
+    typeAllow: '放行',
+    typeDeny: '封禁',
+    reason: '原因',
+    expiredAt: '过期时间',
+    status: '状态',
+    permanent: '永久有效',
+    time: '创建时间',
+    operator: '操作人',
+    form: {
+      ipAddrPlaceholder: '请输入单个 IP 或 CIDR 网段',
+      reasonPlaceholder: '请输入操作原因',
+      expiredAtPlaceholder: '请选择过期时间（留空为永久）',
+      typePlaceholder: '请选择动作类型',
+      statusPlaceholder: '请选择状态'
+    }
   }
 };
 

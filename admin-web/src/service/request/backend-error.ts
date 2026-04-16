@@ -33,7 +33,28 @@ export const BackendErrorCode = {
   buttonCodeDuplicate: '104003',
   apiNotFound: '105001',
   apiAlreadyExists: '105002',
-  apiPathDuplicate: '105003'
+  apiPathDuplicate: '105003',
+  // 用户模块 (1011xx)
+  clientUserNotFound: '101101',
+  clientUserAlreadyExists: '101102',
+  emailAlreadyExists: '101103',
+  phoneAlreadyExists: '101104',
+  // 消息模块 (1012xx)
+  msgTemplateNotFound: '101201',
+  msgTemplateCodeExists: '101202',
+  msgSendFailed: '101203',
+  msgRecordNotFound: '101204',
+  msgDriverNotFound: '101205',
+  // 开放平台 (1013xx)
+  appKeyInvalid: '101301',
+  signatureFailed: '101302',
+  requestExpired: '101303',
+  scopeMismatch: '101304',
+  rateLimited: '101305',
+  // IP 访问控制 (1014xx)
+  ipBlocked: '101401',
+  ipInvalid: '101402',
+  whitelistMode: '101403'
 } as const;
 
 const backendErrorI18nKeyMap: Record<string, string> = {
@@ -69,7 +90,28 @@ const backendErrorI18nKeyMap: Record<string, string> = {
   [BackendErrorCode.buttonCodeDuplicate]: 'request.backend.buttonCodeDuplicate',
   [BackendErrorCode.apiNotFound]: 'request.backend.apiNotFound',
   [BackendErrorCode.apiAlreadyExists]: 'request.backend.apiAlreadyExists',
-  [BackendErrorCode.apiPathDuplicate]: 'request.backend.apiPathDuplicate'
+  [BackendErrorCode.apiPathDuplicate]: 'request.backend.apiPathDuplicate',
+  // 用户模块 (1011xx)
+  [BackendErrorCode.clientUserNotFound]: 'request.backend.clientUserNotFound',
+  [BackendErrorCode.clientUserAlreadyExists]: 'request.backend.clientUserAlreadyExists',
+  [BackendErrorCode.emailAlreadyExists]: 'request.backend.emailAlreadyExists',
+  [BackendErrorCode.phoneAlreadyExists]: 'request.backend.phoneAlreadyExists',
+  // 消息模块 (1012xx)
+  [BackendErrorCode.msgTemplateNotFound]: 'request.backend.msgTemplateNotFound',
+  [BackendErrorCode.msgTemplateCodeExists]: 'request.backend.msgTemplateCodeExists',
+  [BackendErrorCode.msgSendFailed]: 'request.backend.msgSendFailed',
+  [BackendErrorCode.msgRecordNotFound]: 'request.backend.msgRecordNotFound',
+  [BackendErrorCode.msgDriverNotFound]: 'request.backend.msgDriverNotFound',
+  // 开放平台 (1013xx)
+  [BackendErrorCode.appKeyInvalid]: 'request.backend.appKeyInvalid',
+  [BackendErrorCode.signatureFailed]: 'request.backend.signatureFailed',
+  [BackendErrorCode.requestExpired]: 'request.backend.requestExpired',
+  [BackendErrorCode.scopeMismatch]: 'request.backend.scopeMismatch',
+  [BackendErrorCode.rateLimited]: 'request.backend.rateLimited',
+  // IP 访问控制 (1014xx)
+  [BackendErrorCode.ipBlocked]: 'request.backend.ipBlocked',
+  [BackendErrorCode.ipInvalid]: 'request.backend.ipInvalid',
+  [BackendErrorCode.whitelistMode]: 'request.backend.whitelistMode'
 };
 
 export function getBackendErrorMessage(code: string) {

@@ -69,12 +69,14 @@ func (s *adminService) Login(ctx context.Context, req *systemDto.LoginReq) (*sys
 	_ = s.adminRepo.Update(ctx, admin)
 
 	roles := admin.RoleCodes()
-	token, err := s.jwt.GenerateToken(admin.ID, admin.Username, roles, jwt.AccessToken)
+	claims := s.jwt.NewAdminClaims(admin.ID, admin.Username, roles, jwt.AccessToken)
+	token, err := s.jwt.GenerateToken(claims)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "生成令牌失败")
 	}
 
-	refreshToken, err := s.jwt.GenerateToken(admin.ID, admin.Username, roles, jwt.RefreshToken)
+	refreshClaims := s.jwt.NewAdminClaims(admin.ID, admin.Username, roles, jwt.RefreshToken)
+	refreshToken, err := s.jwt.GenerateToken(refreshClaims)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "生成刷新令牌失败")
 	}
@@ -89,8 +91,8 @@ func (s *adminService) Login(ctx context.Context, req *systemDto.LoginReq) (*sys
 }
 
 func (s *adminService) RefreshToken(ctx context.Context, refreshToken string) (*systemVO.LoginVO, error) {
-	claims, err := s.jwt.ParseToken(refreshToken)
-	if err != nil {
+	claims := &jwt.AdminClaims{}
+	if err := s.jwt.ParseToken(refreshToken, claims); err != nil {
 		return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌无效")
 	}
 	if claims.Subject != string(jwt.RefreshToken) {
@@ -113,12 +115,14 @@ func (s *adminService) RefreshToken(ctx context.Context, refreshToken string) (*
 	}
 
 	roles := admin.RoleCodes()
-	token, err := s.jwt.GenerateToken(admin.ID, admin.Username, roles, jwt.AccessToken)
+	newClaims := s.jwt.NewAdminClaims(admin.ID, admin.Username, roles, jwt.AccessToken)
+	token, err := s.jwt.GenerateToken(newClaims)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "生成令牌失败")
 	}
 
-	newRefreshToken, err := s.jwt.GenerateToken(admin.ID, admin.Username, roles, jwt.RefreshToken)
+	refreshClaims := s.jwt.NewAdminClaims(admin.ID, admin.Username, roles, jwt.RefreshToken)
+	newRefreshToken, err := s.jwt.GenerateToken(refreshClaims)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "生成刷新令牌失败")
 	}

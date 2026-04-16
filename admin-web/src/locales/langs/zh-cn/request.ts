@@ -39,7 +39,28 @@ const request = {
     buttonCodeDuplicate: '按钮编码重复',
     apiNotFound: 'API不存在',
     apiAlreadyExists: 'API已存在',
-    apiPathDuplicate: 'API路径重复'
+    apiPathDuplicate: 'API路径重复',
+    // 用户模块 (1011xx)
+    clientUserNotFound: '用户不存在',
+    clientUserAlreadyExists: '用户名已存在',
+    emailAlreadyExists: '邮箱已存在',
+    phoneAlreadyExists: '手机号已存在',
+    // 消息模块 (1012xx)
+    msgTemplateNotFound: '消息模板不存在',
+    msgTemplateCodeExists: '模板编码已存在',
+    msgSendFailed: '消息发送失败',
+    msgRecordNotFound: '消息记录不存在',
+    msgDriverNotFound: '消息驱动未配置或不存在',
+    // 开放平台 (1013xx)
+    appKeyInvalid: 'AppKey无效',
+    signatureFailed: '签名验证失败',
+    requestExpired: '请求已过期',
+    scopeMismatch: '权限不足 (Scope 不匹配)',
+    rateLimited: '已触发流量限制',
+    // IP 访问控制 (1014xx)
+    ipBlocked: '访问受限 (您的 IP 已被封禁)',
+    ipInvalid: '非法 IP/CIDR 格式',
+    whitelistMode: '系统处于白名单模式，您的 IP 未被授权'
   }
 };
 

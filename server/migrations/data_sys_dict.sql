@@ -62,14 +62,33 @@ ON CONFLICT (dict_code, value) WHERE deleted_at = 0 DO UPDATE SET label = EXCLUD
 -- Insert menu icon type data
 INSERT INTO sys_dict_type (name, code, description) VALUES 
 ('图标类型', 'menu_icon_type', '侧边栏图标渲染方式'),
-('是否', 'sys_yes_no', '通用布尔状态字典')
+('是否', 'sys_yes_no', '通用布尔状态字典'),
+('应用类型', 'sys_app_type', '开放平台应用类型'),
+('IP策略', 'sys_app_ip_strategy', '应用IP访问控制策略'),
+('消息通道', 'sys_msg_channel', '消息发送通道 (sms, email, internal, push)'),
+('消息状态', 'sys_msg_status', '消息发送状态 (0:等待, 1:成功, 2:失败)'),
+('消息优先级', 'sys_msg_priority', '消息队列优先级 (1:高, 2:中, 3:低)')
 ON CONFLICT (code) WHERE deleted_at = 0 DO UPDATE SET name = EXCLUDED.name;
 
 INSERT INTO sys_dict_data (dict_code, label, value, tag_type, order_by) VALUES 
 ('menu_icon_type', 'page.manage.menu.iconType.iconify', '1', 'primary', 1),
 ('menu_icon_type', 'page.manage.menu.iconType.local', '2', 'info', 2),
 ('sys_yes_no', 'common.yes', '1', 'success', 1),
-('sys_yes_no', 'common.no', '0', 'error', 2)
+('sys_yes_no', 'common.no', '0', 'error', 2),
+('sys_app_type', 'page.openPlatform.app.typeInternal', '1', 'success', 1),
+('sys_app_type', 'page.openPlatform.app.typeExternal', '2', 'info', 2),
+('sys_app_ip_strategy', 'page.openPlatform.app.ipStrategyBlacklist', '1', 'error', 1),
+('sys_app_ip_strategy', 'page.openPlatform.app.ipStrategyWhitelist', '2', 'success', 2),
+('sys_msg_channel', 'page.messageHub.channel.sms', 'sms', 'info', 1),
+('sys_msg_channel', 'page.messageHub.channel.email', 'email', 'warning', 2),
+('sys_msg_channel', 'page.messageHub.channel.internal', 'internal', 'success', 3),
+('sys_msg_channel', 'page.messageHub.channel.push', 'push', 'primary', 4),
+('sys_msg_status', 'page.messageHub.record.pending', '0', 'default', 1),
+('sys_msg_status', 'page.messageHub.record.sendSuccess', '1', 'success', 2),
+('sys_msg_status', 'page.messageHub.record.sendFailed', '2', 'error', 3),
+('sys_msg_priority', 'page.messageHub.priority.high', '1', 'error', 1),
+('sys_msg_priority', 'page.messageHub.priority.medium', '2', 'warning', 2),
+('sys_msg_priority', 'page.messageHub.priority.low', '3', 'info', 3)
 ON CONFLICT (dict_code, value) WHERE deleted_at = 0 DO UPDATE SET label = EXCLUDED.label;
 
 COMMIT;

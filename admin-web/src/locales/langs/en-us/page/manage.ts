@@ -165,6 +165,7 @@ const manage = {
     tabs: {
       cache: 'Cache Config',
       captcha: 'Captcha Config',
+      user: 'User Config',
       task: 'Task Config',
       log: 'Log Maintenance'
     },
@@ -182,7 +183,8 @@ const manage = {
       storage: 'Object Storage Config/Hot Reload',
       err_log_cache: 'Error Log Analysis Cache',
       content_category_cache: 'Content Category Tree Cache',
-      captcha: 'Captcha Cache'
+      captcha: 'Captcha Cache',
+      user_profile: 'User Profile Cache'
     },
     captcha: {
       title: 'Captcha Global Settings',
@@ -195,6 +197,7 @@ const manage = {
       user_login_web: 'Web Client Login',
       user_login_app: 'APP Login',
       user_login_mobile: 'Mobile Login',
+      user_reset_password_enabled: 'User Reset Password',
       length: 'Captcha Length',
       width: 'Image Width(px)',
       height: 'Image Height(px)',
@@ -203,6 +206,28 @@ const manage = {
       typeDigit: 'Digits Only',
       typeString: 'Alphanumeric',
       typeMath: 'Arithmetic'
+    },
+    user: {
+      title: 'User Module Settings',
+      description: 'Configure independent system for client users, supporting multi-terminal login, storage isolation and security verification.',
+      basic: 'Basic Security',
+      verify: 'Message Verification',
+      storage_module: 'Dedicated Storage',
+      storage_module_placeholder: 'Select storage source (Leave empty for default)',
+      login_storage: 'Login Storage',
+      login_storage_memory: 'Local Memory (Recommended)',
+      login_storage_db: 'Database',
+      token_expire: 'Token Expiration (s)',
+      login_max_retry: 'Max Login Retries',
+      login_lock_duration: 'Login Lock Duration (min)',
+      password_min_length: 'Min Password Length',
+      password_require_types: 'Password Char Types',
+      user_register_verify: 'Register Message Verification',
+      user_register_verify_type: 'Register Verify Type',
+      user_reset_pwd_verify: 'Reset Pwd Message Verification',
+      user_reset_pwd_verify_type: 'Reset Pwd Verify Type',
+      verify_type_email: 'Email',
+      verify_type_sms: 'SMS'
     },
     log: {
       title: 'Log Retention Policies',

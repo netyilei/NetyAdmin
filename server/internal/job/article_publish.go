@@ -53,7 +53,7 @@ func (j *ArticlePublishJob) DefaultMetadata() task.TaskMetadata {
 		DisplayName: j.DisplayName(),
 		Type:        task.TypeInterval,
 		Spec:        "1m",
-		Weight:      task.WeightEssential, // 80
+		Weight:      task.WeightNormal, // 50 (业务级任务)
 		Enabled:     true,
 	}
 }

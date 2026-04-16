@@ -22,6 +22,12 @@ port = 6379
 password = ""
 db = 0
 
+# L1 缓存 (BigCache) 配置
+l1_enabled = true       # 当 Redis 开启时，是否开启本地一级缓存 (开启可大幅提升读性能)
+local_max_size_mb = 256 # 本地缓存最大内存占用 (MB)
+local_max_entry_kb = 500 # 单条缓存记录最大大小 (KB)
+local_ttl_min = 10      # 本地缓存默认过期时间 (分钟)
+
 [jwt]
 secret = "your-secret-key-change-in-production"
 expiration = 168
@@ -37,3 +43,27 @@ enabled = true # 是否开启任务管理器
 # 代码中已定义默认：间隔执行(interval), 周期 1m, 权重 80, 默认开启。
 [task.jobs.article_publish]
 spec = "1m" # 您可以随时在这里修改执行频率，不写则按 1m 执行
+
+[task.jobs.log_cleanup]
+enabled = true
+spec = "0 0 2 * * *" # 每天凌晨2点
+
+[security]
+aes_key = "netyadmin-aes-key-32-chars-long!" # 32字节对应 AES-256
+
+[email]
+enabled = false
+host = "smtp.example.com"
+port = 465
+user = "your-email@example.com"
+password = "your-password"
+from = "your-email@example.com"
+
+[sms]
+enabled = false
+driver = "tencent"
+secret_id = ""
+secret_key = ""
+app_id = ""
+sign_name = ""
+

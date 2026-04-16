@@ -17,3 +17,7 @@ Thumbs.db
 rename.ps1
 docs/captcha_module_design.md
 docs/user_module_design.md
+docs/message_module_design.md
+docs/user_message_integration.md
+docs/open_platform_design.md
+docs/ip_access_control_design.md

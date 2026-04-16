@@ -9,7 +9,7 @@ import (
 // Dispatcher 任务分发器接口
 type Dispatcher interface {
 	// Dispatch 投递一个子任务到队列
-	Dispatch(ctx context.Context, taskName string, payload interface{}) error
+	Dispatch(ctx context.Context, taskName string, payload interface{}, weight int) error
 }
 
 // TaskType 任务执行类型

@@ -11,8 +11,8 @@
 ### 1.1 核心特性
 
 - **多触发类型**：once（启动执行）、interval（固定间隔）、cron（Cron表达式）
-- **队列支持**：生产者-消费者模型，支持异步处理
-- **弹性队列**：单机使用Channel，集群使用Redis
+- **优先级队列**：支持多级优先级（System/Essential/Normal/Low），确保核心任务优先处理
+- **弹性队列**：单机使用多级 Channel，集群使用 Redis 多级 List (BRPop 实现)
 - **后台管理**：支持启停、重载、立即执行
 - **日志持久化**：任务执行记录自动落库
 
@@ -22,67 +22,63 @@
 
 ```
 server/internal/pkg/task/
-├── task.go             # 任务接口定义
-├── manager.go          # 任务管理器
-└── queue.go            # 队列实现
-
-server/internal/job/
-├── init.go             # 任务注册入口
-├── article_publish.go  # 文章定时发布任务
-└── system_log_cleanup.go # 日志清理任务
+├── task.go             # 任务接口与优先级常量定义
+├── manager.go          # 任务调度管理器
+├── queue.go            # 多级优先级队列驱动实现
+└── worker.go           # 消费者工作协程
 ```
 
 ---
 
 ## 三、架构设计
 
-### 3.1 任务接口
+### 3.1 任务接口与分发体系
+
+任务系统采用“生产者-消费者”模型。生产者负责按计划投递任务到队列，消费者（Worker）负责从队列中取出并执行。
+
+#### 3.1.1 Dispatcher 接口 (生产者)
+支持指定任务的优先级权重，权重越高，在队列中越早被消费。
 
 ```go
-// Task 任务接口
+type Dispatcher interface {
+    // Dispatch 投递一个子任务到队列
+    // payload: 任务参数（自动序列化为 JSON）
+    // weight: 优先级权重 (10-100)
+    Dispatch(ctx context.Context, taskName string, payload interface{}, weight int) error
+}
+
+// 预定义优先级常量 (registry)
+const (
+    WeightSystem    = 100 // 最高优先级 (系统环境、配置重载)
+    WeightEssential = 80  // 核心业务 (验证码发送、即时通知)
+    WeightNormal    = 50  // 普通业务 (文章发布、缓存同步)
+    WeightLow       = 10  // 低优先级 (日志清理、统计报表)
+)
+```
+
+#### 3.1.2 Task 接口 (消费者)
+```go
 type Task interface {
-    Name() string                    // 任务标识（英文）
-    DisplayName() string             // 显示名称（中文）
-    Run(ctx context.Context) error   // 定时触发入口
-    Execute(ctx context.Context, payload []byte) error // 队列消费入口
-}
-
-// TaskWithMetadata 带元数据的任务
-type TaskWithMetadata interface {
-    Task
-    DefaultMetadata() TaskMetadata   // 默认配置
-}
-
-// TaskMetadata 任务元数据
-type TaskMetadata struct {
-    Type   string // once/interval/cron
-    Spec   string // 定时规则（interval: 30s, cron: 0 0 * * *）
-    Weight int    // 启动执行顺序（越小越先）
+    Name() string                    // 任务标识
+    DisplayName() string             // 显示名称
+    Run(ctx context.Context) error   // 生产者逻辑 (可选，用于定时自触发)
+    Execute(ctx context.Context, payload json.RawMessage) error // 消费者逻辑 (核心)
 }
 ```
 
-### 3.2 队列驱动
+### 3.2 优先级队列驱动实现
 
-```
-单机模式（Redis未启用）:
-    Local Queue (Go Channel)
-    └── 当前进程内完成生产消费
+为了实现核心任务“插队”处理，系统通过 **“物理隔离”** 方案实现了优先级队列：
 
-集群模式（Redis已启用）:
-    Redis Queue (List LPUSH/BRPOP)
-    └── 支持多机Worker共同分担
-```
+#### 3.2.1 单机模式 (Local Queue)
+- **结构**: 内部维护 `high` (Weight>=80), `normal` (Weight>=50), `low` 三个 Go Channel。
+- **算法**: `Pop` 操作采用嵌套 `select` 轮询。优先检查 `high`，若为空则检查 `normal`，以此类推。
+- **优点**: 纯内存操作，极低延迟。
 
-### 3.3 配置覆盖层级
-
-```
-第一层：代码默认值（DefaultMetadata）
-    ↓ 被覆盖
-第二层：config.toml（task.jobs.{name}）
-    ↓ 被覆盖
-第三层：sys_configs（task_config分组）
-    ↓ 运行时生效
-```
+#### 3.2.2 集群模式 (Redis Queue)
+- **结构**: 对应三个 Redis List Key: `task:queue:high`, `normal`, `low`。
+- **算法**: 调用 Redis 原生的 `BRPOP` 指令，参数顺序为 `[high, normal, low]`。Redis 保证按参数顺序检查 List，弹出第一个非空列表的元素。
+- **优点**: 分布式环境下完美支持优先级抢占，零额外开销。
 
 ---
 
@@ -98,14 +94,14 @@ enabled = true
 [task.jobs.article_publish]
 enabled = true
 type = "interval"
-spec = "1m"          # 每分钟检查一次
-weight = 10
+spec = "1m"
+weight = 50 # 优先级权重
 
 [task.jobs.system_log_cleanup]
 enabled = true
 type = "cron"
-spec = "0 0 3 * * *" # 每天凌晨3点执行
-weight = 20
+spec = "0 0 3 * * *"
+weight = 10 # 低优先级
 ```
 
 ### 4.2 动态配置（sys_configs）
@@ -136,81 +132,23 @@ weight = 20
 
 ---
 
-## 六、内置任务
+## 六、开发示例 (优先级任务)
 
-### 6.1 文章定时发布
+### 6.1 异步发送短信 (核心任务)
 
 ```go
-// internal/job/article_publish.go
-
-type ArticlePublishTask struct {
-    articleRepo content.ArticleRepository
-}
-
-func (t *ArticlePublishTask) Name() string {
-    return "article_publish"
-}
-
-func (t *ArticlePublishTask) DisplayName() string {
-    return "文章定时发布"
-}
-
-func (t *ArticlePublishTask) DefaultMetadata() task.TaskMetadata {
-    return task.TaskMetadata{
-        Type:   "interval",
-        Spec:   "1m",
-        Weight: 10,
-    }
-}
-
-func (t *ArticlePublishTask) Run(ctx context.Context) error {
-    // 查询待发布的文章
-    articles, err := t.articleRepo.GetPendingPublish(ctx)
-    if err != nil {
-        return err
-    }
-    
-    // 发布到期的文章
-    now := time.Now()
-    for _, article := range articles {
-        if article.PublishTime <= now.Unix() {
-            if err := t.articleRepo.Publish(ctx, article.ID); err != nil {
-                log.Printf("发布文章 %d 失败: %v", article.ID, err)
-            }
-        }
-    }
-    
-    return nil
-}
+// 业务代码中投递
+// 指定 WeightEssential (80)，即使此时有海量日志清理任务在排队，短信也会被优先发送
+err := s.dispatcher.Dispatch(ctx, "msg_send_job", smsPayload, task.WeightEssential)
 ```
 
-### 6.2 日志清理
+### 6.2 任务定义
 
 ```go
-// internal/job/system_log_cleanup.go
-
-type SystemLogCleanupTask struct {
-    operationLogRepo log.OperationLogRepository
-    errorLogRepo     log.ErrorLogRepository
-    taskLogRepo      system.TaskLogRepository
-    configWatcher    *configsync.Watcher
-}
-
-func (t *SystemLogCleanupTask) Run(ctx context.Context) error {
-    // 读取保留天数配置
-    retentionDays := t.configWatcher.GetConfig("task_config", "retention_days")
-    days, _ := strconv.Atoi(retentionDays)
-    if days <= 0 {
-        days = 30 // 默认30天
-    }
-    
-    cutoffTime := time.Now().AddDate(0, 0, -days)
-    
-    // 清理各类日志
-    t.operationLogRepo.DeleteBefore(ctx, cutoffTime)
-    t.errorLogRepo.DeleteBefore(ctx, cutoffTime)
-    t.taskLogRepo.DeleteBefore(ctx, cutoffTime)
-    
+func (t *MsgSendJob) Execute(ctx context.Context, payload json.RawMessage) error {
+    var req SmsRequest
+    json.Unmarshal(payload, &req)
+    // 调用物理驱动执行发送...
     return nil
 }
 ```

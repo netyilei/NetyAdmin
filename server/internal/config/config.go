@@ -15,7 +15,33 @@ type Config struct {
 	Log       LogConfig       `toml:"log"`
 	Migration MigrationConfig `toml:"migration"`
 	Task      TaskConfig      `toml:"task"`
+	Security  SecurityConfig  `toml:"security"`
+	Email     EmailConfig     `toml:"email"`
+	Sms       SmsConfig       `toml:"sms"`
 }
+
+type EmailConfig struct {
+	Enabled  bool   `toml:"enabled"`
+	Host     string `toml:"host"`
+	Port     int    `toml:"port"`
+	User     string `toml:"user"`
+	Password string `toml:"password"`
+	From     string `toml:"from"`
+}
+
+type SmsConfig struct {
+	Enabled   bool   `toml:"enabled"`
+	Driver    string `toml:"driver"`
+	SecretID  string `toml:"secret_id"`
+	SecretKey string `toml:"secret_key"`
+	AppID     string `toml:"app_id"`
+	SignName  string `toml:"sign_name"`
+}
+
+type SecurityConfig struct {
+	AESKey string `toml:"aes_key"` // 系统加解密 Key (16, 24 或 32 字节)
+}
+
 
 type TaskConfig struct {
 	Enabled bool                 `toml:"enabled"`
@@ -59,6 +85,12 @@ type RedisConfig struct {
 	Port     int    `toml:"port"`
 	Password string `toml:"password"`
 	DB       int    `toml:"db"`
+
+	// L1 缓存配置
+	L1Enabled       bool `toml:"l1_enabled"`
+	LocalMaxSizeMB  int  `toml:"local_max_size_mb"`  // 最大本地缓存大小 (MB)
+	LocalMaxEntryKB int  `toml:"local_max_entry_kb"` // 单条记录最大大小 (KB)
+	LocalTTLMin     int  `toml:"local_ttl_min"`      // 本地缓存过期时间 (分钟)
 }
 
 type JWTConfig struct {
