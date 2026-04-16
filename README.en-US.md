@@ -46,6 +46,8 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 
 ---
 
+## **Maintenance Branch (No User):** <https://github.com/netyilei/NetyAdmin/tree/maint-nouser>
+
 ## 📚 Documentation Index
 
 ### Architecture Design Documents
@@ -106,8 +108,6 @@ cd ../admin-web
 pnpm install
 pnpm dev
 ```
-
-- **Maintenance Branch**: <https://github.com/netyilei/NetyAdmin/tree/maint-nouser>
 
 ### Default Account
 

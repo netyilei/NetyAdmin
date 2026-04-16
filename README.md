@@ -46,6 +46,8 @@ NetyAdmin 是一个基于 **Go + Gin** 后端和 **Vue 3 + TypeScript** 前端�
 
 ---
 
+## **Maintenance Branch (No User):** <https://github.com/netyilei/NetyAdmin/tree/maint-nouser>
+
 ## 📚 文档索引
 
 ### 架构设计文档
@@ -106,8 +108,6 @@ cd ../admin-web
 pnpm install
 pnpm dev
 ```
-
-- 维护分支: <https://github.com/netyilei/NetyAdmin/tree/maint-nouser>
 
 ### 默认账号
 
