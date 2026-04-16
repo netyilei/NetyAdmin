@@ -46,7 +46,9 @@ NetyAdmin 是一个基于 **Go + Gin** 后端和 **Vue 3 + TypeScript** 前端�
 
 ---
 
-## 维护分支(No User):** <https://github.com/netyilei/NetyAdmin/tree/maint-nouser>
+## 🛠️ 项目维护
+
+### 维护分支(No User):** <https://github.com/netyilei/NetyAdmin/tree/maint-nouser>
 
 ## 📚 文档索引
 
