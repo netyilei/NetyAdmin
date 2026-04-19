@@ -23,6 +23,7 @@ func NewClientRouter(
 	userH *handler.UserHandler,
 	authH *handler.AuthHandler,
 	messageH *handler.MessageHandler,
+	contentH *handler.ContentHandler,
 	appSvc openSvcPkg.AppService,
 	apiSvc openSvcPkg.OpenApiService,
 	logSvc openSvcPkg.OpenLogService,
@@ -38,6 +39,7 @@ func NewClientRouter(
 			v1.NewUserRouter(userH),
 			v1.NewAuthRouter(authH),
 			v1.NewMessageRouter(messageH),
+			v1.NewContentRouter(contentH),
 		},
 	}
 }

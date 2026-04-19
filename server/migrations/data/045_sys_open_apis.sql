@@ -23,7 +23,15 @@ INSERT INTO sys_open_apis (method, path, name, group_name, description, status, 
 ('GET', '/client/v1/message/internal/:id', '站内信详情', '站内信', '获取单条站内信内容', 1, NOW(), NOW()),
 ('PUT', '/client/v1/message/internal/read', '标记已读', '站内信', '标记指定站内信为已读', 1, NOW(), NOW()),
 ('PUT', '/client/v1/message/internal/read-all', '全部标记已读', '站内信', '标记所有站内信为已读', 1, NOW(), NOW()),
-('GET', '/client/v1/message/internal/unread-count', '未读数量', '站内信', '获取未读站内信数量', 1, NOW(), NOW())
+('GET', '/client/v1/message/internal/unread-count', '未读数量', '站内信', '获取未读站内信数量', 1, NOW(), NOW()),
+-- 内容管理（公开）
+('GET', '/client/v1/content/categories/tree', '分类树', '内容管理', '获取启用的内容分类树', 1, NOW(), NOW()),
+('GET', '/client/v1/content/articles', '文章列表', '内容管理', '根据分类ID获取已发布文章列表（含子分类）', 1, NOW(), NOW()),
+('GET', '/client/v1/content/article/:id', '文章详情', '内容管理', '获取已发布文章详情', 1, NOW(), NOW()),
+('GET', '/client/v1/content/banners/:code', 'Banner组', '内容管理', '通过编码获取Banner组及有效项', 1, NOW(), NOW()),
+-- 内容管理（需签名）
+('POST', '/client/v1/content/article/:id/like', '文章点赞', '内容管理', '点赞指定文章', 1, NOW(), NOW()),
+('POST', '/client/v1/content/banners/:id/click', 'Banner点击', '内容管理', '记录Banner点击', 1, NOW(), NOW())
 ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
 
 COMMIT;

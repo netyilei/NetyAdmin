@@ -18,6 +18,7 @@ type BannerGroupService interface {
 	GetByIDWithBanners(ctx context.Context, id uint) (*contentEntity.ContentBannerGroup, error)
 	List(ctx context.Context, query *contentDto.ContentBannerGroupListQueryDTO) ([]*contentEntity.ContentBannerGroup, int64, error)
 	GetAll(ctx context.Context) ([]*contentEntity.ContentBannerGroup, error)
+	GetByCode(ctx context.Context, code string) (*contentEntity.ContentBannerGroup, error)
 }
 
 type bannerGroupService struct {
@@ -196,4 +197,8 @@ func (s *bannerGroupService) List(ctx context.Context, query *contentDto.Content
 
 func (s *bannerGroupService) GetAll(ctx context.Context) ([]*contentEntity.ContentBannerGroup, error) {
 	return s.repo.GetAll(ctx)
+}
+
+func (s *bannerGroupService) GetByCode(ctx context.Context, code string) (*contentEntity.ContentBannerGroup, error) {
+	return s.repo.GetByCode(ctx, code)
 }

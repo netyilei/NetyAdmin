@@ -159,6 +159,32 @@ type BannerItem struct {
 | PUT | /admin/v1/content/banner-items/:id | 更新Banner项 |
 | DELETE | /admin/v1/content/banner-items/:id | 删除Banner项 |
 
+### 4.4 C端公开API（开放平台）
+
+详情参考 [开放平台模块详解](./server-module-open-platform.md)，内容管理已注册至以下 Scope：
+
+| Scope | 说明 |
+|-------|------|
+| `content_view` | 内容查看（分类树、文章列表/详情、Banner组） |
+
+**公开接口（无需签名）**
+
+| Method | Path | 说明 |
+|--------|------|------|
+| GET | /client/v1/content/categories/tree | 获取启用的分类树 |
+| GET | /client/v1/content/articles?categoryId=1 | 获取指定分类及子分类下的已发布文章列表 |
+| GET | /client/v1/content/article/:id | 获取已发布文章详情 |
+| GET | /client/v1/content/banners/:code | 通过编码获取Banner组及有效项 |
+
+**需签名接口（需在 Header 中携带签名）**
+
+| Method | Path | 说明 |
+|--------|------|------|
+| POST | /client/v1/content/article/:id/like | 点赞指定文章 |
+| POST | /client/v1/content/banners/:id/click | 记录Banner点击 |
+
+> **说明**：`/client/v1/content/articles` 的 `categoryId` 为必填参数，接口会自动包含该分类下所有子分类的文章。 |
+
 ---
 
 ## 五、定时发布实现

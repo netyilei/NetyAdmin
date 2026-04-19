@@ -17,7 +17,7 @@ const { columns, data, getDataByPage, loading, mobilePagination } = useTable({
   showTotal: true,
   apiParams: {
     current: 1,
-    size: 10,
+    size: 20,
     appId: '',
     appKey: '',
     apiPath: '',

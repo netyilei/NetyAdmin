@@ -19,6 +19,10 @@ type ArticleService interface {
 	Publish(ctx context.Context, id uint) error
 	Unpublish(ctx context.Context, id uint) error
 	SetTop(ctx context.Context, id uint, req *contentDto.SetArticleTopDTO) error
+	ListPublishedByCategoryIDs(ctx context.Context, page, pageSize int, categoryIDs []uint, keyword string) ([]*contentEntity.ContentArticle, int64, error)
+	GetPublishedByID(ctx context.Context, id uint) (*contentEntity.ContentArticle, error)
+	IncrementViewCount(ctx context.Context, id uint) error
+	IncrementLikeCount(ctx context.Context, id uint) error
 }
 
 type articleService struct {
@@ -221,4 +225,38 @@ func (s *articleService) SetTop(ctx context.Context, id uint, req *contentDto.Se
 		return err
 	}
 	return s.repo.SetTop(ctx, id, req.IsTop, req.TopSort)
+}
+
+func (s *articleService) ListPublishedByCategoryIDs(ctx context.Context, page, pageSize int, categoryIDs []uint, keyword string) ([]*contentEntity.ContentArticle, int64, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+	return s.repo.ListPublished(ctx, &contentRepo.ContentArticlePublishedQuery{
+		CategoryIDs: categoryIDs,
+		Keyword:     keyword,
+		Current:     page,
+		Size:        pageSize,
+	})
+}
+
+func (s *articleService) GetPublishedByID(ctx context.Context, id uint) (*contentEntity.ContentArticle, error) {
+	article, err := s.repo.GetByIDWithCategory(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !article.IsPublished() || !article.IsEnabled() {
+		return nil, errorx.New(errorx.CodeNotFound, "文章不存在")
+	}
+	return article, nil
+}
+
+func (s *articleService) IncrementViewCount(ctx context.Context, id uint) error {
+	return s.repo.IncrementViewCount(ctx, id)
+}
+
+func (s *articleService) IncrementLikeCount(ctx context.Context, id uint) error {
+	return s.repo.IncrementLikeCount(ctx, id)
 }

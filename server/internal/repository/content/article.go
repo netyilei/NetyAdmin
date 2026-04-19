@@ -23,6 +23,7 @@ type ContentArticleRepository interface {
 	PublishScheduled(ctx context.Context, now time.Time) (int64, error)
 	IncrementViewCount(ctx context.Context, id uint) error
 	IncrementLikeCount(ctx context.Context, id uint) error
+	ListPublished(ctx context.Context, query *ContentArticlePublishedQuery) ([]*content.ContentArticle, int64, error)
 }
 
 type ContentArticleQuery struct {
@@ -37,6 +38,13 @@ type ContentArticleQuery struct {
 	EndTime       *time.Time
 	Current       int
 	Size          int
+}
+
+type ContentArticlePublishedQuery struct {
+	CategoryIDs []uint
+	Keyword     string
+	Current     int
+	Size        int
 }
 
 type contentArticleRepository struct {
@@ -194,4 +202,42 @@ func (r *contentArticleRepository) IncrementLikeCount(ctx context.Context, id ui
 	return r.db.WithContext(ctx).Model(&content.ContentArticle{}).
 		Where("id = ?", id).
 		UpdateColumn("like_count", gorm.Expr("like_count + 1")).Error
+}
+
+func (r *contentArticleRepository) ListPublished(ctx context.Context, query *ContentArticlePublishedQuery) ([]*content.ContentArticle, int64, error) {
+	db := r.db.WithContext(ctx).Model(&content.ContentArticle{}).
+		Where("publish_status = ? AND status = ?", content.PublishStatusPublished, "1")
+
+	if len(query.CategoryIDs) > 0 {
+		db = db.Where("category_id IN ?", query.CategoryIDs)
+	}
+	if query.Keyword != "" {
+		like := "%" + query.Keyword + "%"
+		db = db.Where("title LIKE ? OR summary LIKE ? OR keywords LIKE ?", like, like, like)
+	}
+
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (query.Current - 1) * query.Size
+	if offset < 0 {
+		offset = 0
+	}
+	if query.Size <= 0 {
+		query.Size = 10
+	}
+
+	var articles []*content.ContentArticle
+	err := db.Preload("Category").
+		Order("is_top DESC, top_sort ASC, published_at DESC").
+		Offset(offset).
+		Limit(query.Size).
+		Find(&articles).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return articles, total, nil
 }

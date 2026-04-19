@@ -152,6 +152,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		handlers.client.user,
 		handlers.client.auth,
 		handlers.client.message,
+		handlers.client.content,
 		services.app,
 		services.openApi,
 		services.openLog,
@@ -350,6 +351,7 @@ type handlerSet struct {
 		user    *clientHandler.UserHandler
 		auth    *clientHandler.AuthHandler
 		message *clientHandler.MessageHandler
+		content *clientHandler.ContentHandler
 	}
 }
 
@@ -380,6 +382,7 @@ func initHandlers(services *serviceSet, captchaMgr *captcha.Manager, configWatch
 	h.client.user = clientHandler.NewUserHandler(services.user)
 	h.client.auth = clientHandler.NewAuthHandler(services.verification, captchaMgr)
 	h.client.message = clientHandler.NewMessageHandler(services.message)
+	h.client.content = clientHandler.NewContentHandler(services.contentArticle, services.contentCategory, services.contentBannerGroup, services.contentBannerItem)
 
 	return h
 }

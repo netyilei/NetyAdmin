@@ -22,6 +22,7 @@ type CategoryService interface {
 	GetByID(ctx context.Context, id uint) (*contentEntity.ContentCategory, error)
 	List(ctx context.Context, query *contentDto.ContentCategoryListQueryDTO) ([]*contentEntity.ContentCategory, int64, error)
 	GetTree(ctx context.Context, forceRefresh bool) ([]contentDto.ContentCategoryTreeDTO, error)
+	GetDescendantIDs(ctx context.Context, categoryID uint) ([]uint, error)
 }
 
 type categoryService struct {
@@ -240,4 +241,36 @@ func (s *categoryService) buildTree(categories []*contentEntity.ContentCategory)
 			}, true
 		},
 	)
+}
+
+func (s *categoryService) GetDescendantIDs(ctx context.Context, categoryID uint) ([]uint, error) {
+	tree, err := s.GetTree(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+
+	ids := []uint{categoryID}
+	findAndCollect(tree, categoryID, &ids)
+	return ids, nil
+}
+
+func findAndCollect(tree []contentDto.ContentCategoryTreeDTO, targetID uint, ids *[]uint) {
+	for i := range tree {
+		if tree[i].ID == targetID {
+			collectChildIDs(tree[i].Children, ids)
+			return
+		}
+		if len(tree[i].Children) > 0 {
+			findAndCollect(tree[i].Children, targetID, ids)
+		}
+	}
+}
+
+func collectChildIDs(children []contentDto.ContentCategoryTreeDTO, ids *[]uint) {
+	for i := range children {
+		*ids = append(*ids, children[i].ID)
+		if len(children[i].Children) > 0 {
+			collectChildIDs(children[i].Children, ids)
+		}
+	}
 }

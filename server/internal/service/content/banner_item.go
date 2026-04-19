@@ -17,6 +17,7 @@ type BannerItemService interface {
 	GetByID(ctx context.Context, id uint) (*contentEntity.ContentBannerItem, error)
 	List(ctx context.Context, query *contentDto.ContentBannerItemListQueryDTO) ([]*contentEntity.ContentBannerItem, int64, error)
 	GetByGroupID(ctx context.Context, groupID uint) ([]*contentEntity.ContentBannerItem, error)
+	IncrementClickCount(ctx context.Context, id uint) error
 }
 
 type bannerItemService struct {
@@ -194,4 +195,8 @@ func (s *bannerItemService) List(ctx context.Context, query *contentDto.ContentB
 
 func (s *bannerItemService) GetByGroupID(ctx context.Context, groupID uint) ([]*contentEntity.ContentBannerItem, error) {
 	return s.repo.GetByGroupID(ctx, groupID)
+}
+
+func (s *bannerItemService) IncrementClickCount(ctx context.Context, id uint) error {
+	return s.repo.IncrementClickCount(ctx, id)
 }
