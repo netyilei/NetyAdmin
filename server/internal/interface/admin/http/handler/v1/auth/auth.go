@@ -89,13 +89,13 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 }
 
 func (h *AuthHandler) GetUserInfo(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	adminID, exists := c.Get("adminID")
 	if !exists {
 		response.FailWithCode(c, errorx.CodeUnauthorized, "未授权")
 		return
 	}
 
-	result, err := h.adminService.GetAdminInfo(c.Request.Context(), userID.(uint))
+	result, err := h.adminService.GetAdminInfo(c.Request.Context(), adminID.(uint))
 	if err != nil {
 		response.Fail(c, err)
 		return
@@ -105,13 +105,13 @@ func (h *AuthHandler) GetUserInfo(c *gin.Context) {
 }
 
 func (h *AuthHandler) GetProfile(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	adminID, exists := c.Get("adminID")
 	if !exists {
 		response.FailWithCode(c, errorx.CodeUnauthorized, "未授权")
 		return
 	}
 
-	result, err := h.adminService.GetProfile(c.Request.Context(), userID.(uint))
+	result, err := h.adminService.GetProfile(c.Request.Context(), adminID.(uint))
 	if err != nil {
 		response.Fail(c, err)
 		return
@@ -121,7 +121,7 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 }
 
 func (h *AuthHandler) UpdateProfile(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	adminID, exists := c.Get("adminID")
 	if !exists {
 		response.FailWithCode(c, errorx.CodeUnauthorized, "未授权")
 		return
@@ -133,7 +133,7 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	if err := h.adminService.UpdateProfile(c.Request.Context(), userID.(uint), &req); err != nil {
+	if err := h.adminService.UpdateProfile(c.Request.Context(), adminID.(uint), &req); err != nil {
 		response.Fail(c, err)
 		return
 	}
@@ -142,7 +142,7 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 }
 
 func (h *AuthHandler) ChangePassword(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	adminID, exists := c.Get("adminID")
 	if !exists {
 		response.FailWithCode(c, errorx.CodeUnauthorized, "未授权")
 		return
@@ -154,7 +154,7 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	if err := h.adminService.ChangePassword(c.Request.Context(), userID.(uint), &req); err != nil {
+	if err := h.adminService.ChangePassword(c.Request.Context(), adminID.(uint), &req); err != nil {
 		response.Fail(c, err)
 		return
 	}

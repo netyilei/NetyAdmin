@@ -35,7 +35,7 @@ const {
   showTotal: true,
   apiParams: {
     current: 1,
-    size: 10,
+    size: 30,
     method: '',
     path: '',
     name: '',

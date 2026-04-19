@@ -40,7 +40,7 @@ func (s *operationService) List(ctx context.Context, req *logDto.OperationQueryR
 	for _, log := range logs {
 		list = append(list, logVO.OperationVO{
 			ID:        log.ID,
-			UserID:    log.UserID,
+			AdminID:   log.AdminID,
 			Username:  log.Username,
 			Action:    log.Action,
 			Resource:  log.Resource,

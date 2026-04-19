@@ -2,7 +2,7 @@
 import { reactive, ref, watch } from 'vue';
 import { NButton, NCard, NForm, NFormItem, NInput, NRadio, NRadioGroup, NSelect, NSpace, NSwitch } from 'naive-ui';
 import { fetchTemplateList, sendDirect } from '@/service/api/v1/message-hub';
-import { fetchGetAdminList } from '@/service/api/v1/system-manage';
+import { fetchUserAutocomplete } from '@/service/api/v1/system-manage';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { $t } from '@/locales';
 import type { MessageHub } from '@/typings/api/v1/message-hub';
@@ -16,10 +16,10 @@ const { defaultRequiredRule } = useFormRules();
 
 const loading = ref(false);
 const templates = ref<MessageHub.Template[]>([]);
-const admins = ref<any[]>([]);
+const users = ref<any[]>([]);
 const templateLoading = ref(false);
-const adminLoading = ref(false);
-let adminSearchTimer: ReturnType<typeof setTimeout> | null = null;
+const userLoading = ref(false);
+let userSearchTimer: ReturnType<typeof setTimeout> | null = null;
 
 const model = reactive({
   channel: 'internal',
@@ -53,23 +53,23 @@ async function getTemplates() {
   templateLoading.value = false;
 }
 
-async function getAdmins(query: string) {
+async function getUsers(query: string) {
   if (!query || query.trim().length === 0) {
-    admins.value = [];
+    users.value = [];
     return;
   }
-  adminLoading.value = true;
-  const { data } = await fetchGetAdminList({ current: 1, size: 20, userName: query.trim() });
+  userLoading.value = true;
+  const { data } = await fetchUserAutocomplete(query.trim());
   if (data) {
-    admins.value = data.records;
+    users.value = data;
   }
-  adminLoading.value = false;
+  userLoading.value = false;
 }
 
-function handleAdminSearch(query: string) {
-  if (adminSearchTimer) clearTimeout(adminSearchTimer);
-  adminSearchTimer = setTimeout(() => {
-    getAdmins(query);
+function handleUserSearch(query: string) {
+  if (userSearchTimer) clearTimeout(userSearchTimer);
+  userSearchTimer = setTimeout(() => {
+    getUsers(query);
   }, 300);
 }
 
@@ -145,13 +145,13 @@ getTemplates();
               filterable
               placeholder="输入用户名搜索"
               :options="
-                admins.map(item => ({
+                users.map(item => ({
                   label: item.nickname ? `${item.username} (${item.nickname})` : item.username,
                   value: String(item.id)
                 }))
               "
-              :loading="adminLoading"
-              @search="handleAdminSearch"
+              :loading="userLoading"
+              @search="handleUserSearch"
             />
           </NFormItem>
           <NFormItem :label="$t('page.messageHub.template.title')" path="templateCode">

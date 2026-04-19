@@ -16,6 +16,7 @@ type OpenApiService interface {
 	GetApiByID(ctx context.Context, id uint64) (*open_platform.OpenApi, error)
 	ListApis(ctx context.Context, query *openRepo.OpenApiRepoQuery) ([]*open_platform.OpenApi, int64, error)
 	ListAllApis(ctx context.Context) ([]*open_platform.OpenApi, error)
+	ListGroupedApis(ctx context.Context) (interface{}, error)
 
 	GetScopeApis(ctx context.Context, scopeID uint64) ([]*open_platform.OpenApi, error)
 	UpdateScopeApis(ctx context.Context, scopeID uint64, apiIDs []uint64) error
@@ -25,16 +26,18 @@ type OpenApiService interface {
 }
 
 type openApiService struct {
-	apiRepo  openRepo.OpenApiRepository
-	appRepo  openRepo.AppRepository
-	cacheMgr cache.LazyCacheManager
+	apiRepo        openRepo.OpenApiRepository
+	appRepo        openRepo.AppRepository
+	scopeGroupRepo openRepo.AppRepository
+	cacheMgr       cache.LazyCacheManager
 }
 
-func NewOpenApiService(apiRepo openRepo.OpenApiRepository, appRepo openRepo.AppRepository, cacheMgr cache.LazyCacheManager) OpenApiService {
+func NewOpenApiService(apiRepo openRepo.OpenApiRepository, appRepo openRepo.AppRepository, scopeGroupRepo openRepo.AppRepository, cacheMgr cache.LazyCacheManager) OpenApiService {
 	return &openApiService{
-		apiRepo:  apiRepo,
-		appRepo:  appRepo,
-		cacheMgr: cacheMgr,
+		apiRepo:        apiRepo,
+		appRepo:        appRepo,
+		scopeGroupRepo: scopeGroupRepo,
+		cacheMgr:       cacheMgr,
 	}
 }
 
@@ -87,11 +90,49 @@ func (s *openApiService) ListAllApis(ctx context.Context) ([]*open_platform.Open
 	return list, err
 }
 
+func (s *openApiService) ListGroupedApis(ctx context.Context) (interface{}, error) {
+	var result []map[string]interface{}
+	key := cache.KeyOpenApiGrouped()
+	err := s.cacheMgr.Fetch(ctx, key, cache.TagOpenApi, []string{cache.TagOpenApi}, 3600*time.Second, &result, func() (interface{}, error) {
+		apis, err := s.apiRepo.ListAll(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		groups := make(map[string][]map[string]interface{})
+		for _, api := range apis {
+			item := map[string]interface{}{
+				"id":     api.ID,
+				"name":   api.Name,
+				"method": api.Method,
+				"path":   api.Path,
+			}
+			groups[api.Group] = append(groups[api.Group], item)
+		}
+
+		var grouped []map[string]interface{}
+		for group, list := range groups {
+			grouped = append(grouped, map[string]interface{}{
+				"group": group,
+				"apis":  list,
+			})
+		}
+		return grouped, nil
+	})
+	return result, err
+}
+
 func (s *openApiService) GetScopeApis(ctx context.Context, scopeID uint64) ([]*open_platform.OpenApi, error) {
+	if _, err := s.scopeGroupRepo.GetScopeGroupByID(ctx, scopeID); err != nil {
+		return nil, err
+	}
 	return s.apiRepo.GetScopeApis(ctx, scopeID)
 }
 
 func (s *openApiService) UpdateScopeApis(ctx context.Context, scopeID uint64, apiIDs []uint64) error {
+	if _, err := s.scopeGroupRepo.GetScopeGroupByID(ctx, scopeID); err != nil {
+		return err
+	}
 	if err := s.apiRepo.UpdateScopeApis(ctx, scopeID, apiIDs); err != nil {
 		return err
 	}

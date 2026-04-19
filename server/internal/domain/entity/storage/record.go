@@ -28,12 +28,12 @@ type Record struct {
 	FileExt         string       `gorm:"column:file_ext;type:varchar(20);comment:文件扩展名" json:"fileExt"`
 	MD5             string       `gorm:"column:md5;type:varchar(32);comment:文件MD5" json:"md5"`
 	Source          UploadSource `gorm:"column:source;type:varchar(20);not null;index;comment:上传来源" json:"source"`
-	SourceID        uint         `gorm:"column:source_id;index;comment:来源ID(如管理员ID/用户ID)" json:"sourceId"`
+	SourceID        string       `gorm:"column:source_id;size:26;index;comment:来源ID(如管理员ID/用户ID)" json:"sourceId"`
 	SourceInfo      string       `gorm:"column:source_info;type:text;comment:来源附加信息JSON" json:"sourceInfo"`
 	UploaderIP      string       `gorm:"column:uploader_ip;type:varchar(50);comment:上传者IP" json:"uploaderIp"`
 	UserAgent       string       `gorm:"column:user_agent;type:varchar(500);comment:用户代理" json:"userAgent"`
 	BusinessType    string       `gorm:"column:business_type;type:varchar(50);index;comment:业务类型" json:"businessType"`
-	BusinessID      uint         `gorm:"column:business_id;index;comment:业务ID" json:"businessId"`
+	BusinessID      string       `gorm:"column:business_id;size:26;index;comment:业务ID" json:"businessId"`
 	UploadedAt      time.Time    `gorm:"column:uploaded_at;autoCreateTime;comment:上传时间" json:"uploadedAt"`
 }
 

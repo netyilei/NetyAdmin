@@ -33,3 +33,15 @@ type UpdateScopeApisReq struct {
 	ScopeID uint64   `json:"scopeId" binding:"required"`
 	ApiIDs  []uint64 `json:"apiIds"`
 }
+
+type GroupedOpenApi struct {
+	Group string         `json:"group"`
+	Apis  []*OpenApiItem `json:"apis"`
+}
+
+type OpenApiItem struct {
+	ID     uint64 `json:"id"`
+	Name   string `json:"name"`
+	Method string `json:"method"`
+	Path   string `json:"path"`
+}

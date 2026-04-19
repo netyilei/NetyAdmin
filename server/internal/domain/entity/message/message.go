@@ -34,7 +34,7 @@ const (
 // MsgRecord 消息记录实体
 type MsgRecord struct {
 	ID         uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID     uint64    `json:"userId"`
+	UserID     string    `gorm:"size:26;index" json:"userId"`
 	Channel    string    `gorm:"size:20;not null" json:"channel"`
 	Receiver   string    `gorm:"size:100;not null" json:"receiver"`
 	Title      string    `gorm:"size:200" json:"title"`
@@ -61,4 +61,16 @@ type MsgInternal struct {
 
 func (MsgInternal) TableName() string {
 	return "msg_internal"
+}
+
+// MsgInternalRead 站内信已读记录
+type MsgInternalRead struct {
+	ID            uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	MsgInternalID uint64    `gorm:"not null" json:"msgInternalId"`
+	UserID        string    `gorm:"size:26;not null" json:"userId"`
+	ReadAt        time.Time `json:"readAt"`
+}
+
+func (MsgInternalRead) TableName() string {
+	return "msg_internal_reads"
 }

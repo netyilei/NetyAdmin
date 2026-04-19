@@ -23,9 +23,17 @@ func Recovery(errorLogSvc logService.ErrorService) gin.HandlerFunc {
 					c.Header("X-Request-ID", requestID)
 				}
 
-				var userID uint
-				if uid, exists := c.Get("userID"); exists {
-					userID = uid.(uint)
+				var userID interface{}
+				if uid, exists := c.Get("adminID"); exists {
+					userID = uid
+				} else if uid, exists := c.Get("userID"); exists {
+					userID = uid
+				}
+
+				var adminIDUint uint
+				switch v := userID.(type) {
+				case uint:
+					adminIDUint = v
 				}
 
 				errorLogSvc.LogPanic(
@@ -36,7 +44,7 @@ func Recovery(errorLogSvc logService.ErrorService) gin.HandlerFunc {
 					c.Request.Method,
 					c.ClientIP(),
 					c.Request.UserAgent(),
-					userID,
+					adminIDUint,
 				)
 
 				response.FailWithStatus(c, http.StatusInternalServerError, errorx.CodeInternalError, "服务器内部错误")
@@ -67,9 +75,17 @@ func ErrorLogger(errorLogSvc logService.ErrorService) gin.HandlerFunc {
 		if len(c.Errors) > 0 {
 			requestID := c.GetString("requestID")
 
-			var userID uint
-			if uid, exists := c.Get("userID"); exists {
-				userID = uid.(uint)
+			var userID interface{}
+			if uid, exists := c.Get("adminID"); exists {
+				userID = uid
+			} else if uid, exists := c.Get("userID"); exists {
+				userID = uid
+			}
+
+			var adminIDUint uint
+			switch v := userID.(type) {
+			case uint:
+				adminIDUint = v
 			}
 
 			for _, err := range c.Errors {
@@ -81,7 +97,7 @@ func ErrorLogger(errorLogSvc logService.ErrorService) gin.HandlerFunc {
 					c.Request.Method,
 					c.ClientIP(),
 					c.Request.UserAgent(),
-					userID,
+					adminIDUint,
 				)
 			}
 		}

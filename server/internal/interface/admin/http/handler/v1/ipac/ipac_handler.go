@@ -56,7 +56,7 @@ func (h *IPACHandler) Create(c *gin.Context) {
 		return
 	}
 
-	operatorID := c.GetUint("userID")
+	operatorID := c.GetUint("adminID")
 
 	item := &ipacEntity.IPAccessControl{
 		AppID:     req.AppID,
@@ -92,7 +92,7 @@ func (h *IPACHandler) Update(c *gin.Context) {
 		return
 	}
 
-	operatorID := c.GetUint("userID")
+	operatorID := c.GetUint("adminID")
 
 	item := &ipacEntity.IPAccessControl{
 		ID:        req.ID,

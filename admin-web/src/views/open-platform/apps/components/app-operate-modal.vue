@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { addApp, fetchAvailableScopes, updateApp } from '@/service/api/v1/open-app';
+import { addApp, fetchAvailableScopes, linkAppIPRules, updateApp } from '@/service/api/v1/open-app';
+import { fetchIPACList } from '@/service/api/v1/system-ipac';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { $t } from '@/locales';
 import type { OpenApp } from '@/typings/api/v1/open-app';
@@ -29,12 +30,15 @@ const visible = defineModel<boolean>('visible', {
 const { formRef, validate, restoreValidation } = useNaiveForm();
 const { defaultRequiredRule } = useFormRules();
 
-const availableScopes = ref<{ label: string; value: string }[]>([]);
+const availableScopes = ref<{ name: string; code: string }[]>([]);
+const ipRuleOptions = ref<{ label: string; value: number }[]>([]);
+const selectedRuleIds = ref<number[]>([]);
+const ipRulesLoading = ref(false);
 
 const scopeOptions = computed(() => {
   return availableScopes.value.map(item => ({
-    label: item.label,
-    value: item.value
+    label: item.name,
+    value: item.code
   }));
 });
 
@@ -45,8 +49,28 @@ async function getAvailableScopes() {
   }
 }
 
+async function loadIPRules() {
+  ipRulesLoading.value = true;
+  const { data } = await fetchIPACList({ current: 1, size: 500 });
+  if (data) {
+    ipRuleOptions.value = data.records.map(item => ({
+      label: `${item.ipAddr} (${item.type === 1 ? $t('page.ops.ipac.typeAllow') : $t('page.ops.ipac.typeDeny')})`,
+      value: item.id
+    }));
+  }
+  ipRulesLoading.value = false;
+}
+
+async function loadAppIPRules(appId: string) {
+  const { data } = await fetchIPACList({ current: 1, size: 500, appId: Number(appId) || undefined });
+  if (data) {
+    selectedRuleIds.value = data.records.map(item => item.id);
+  }
+}
+
 onMounted(() => {
   getAvailableScopes();
+  loadIPRules();
 });
 
 const title = computed(() => {
@@ -65,7 +89,7 @@ function createDefaultModel(): Model {
   return {
     name: '',
     status: 1,
-    ipStrategy: 1,
+    ipFilterEnabled: false,
     remark: '',
     scopes: []
   };
@@ -73,8 +97,7 @@ function createDefaultModel(): Model {
 
 const rules: Record<string, App.Global.FormRule[]> = {
   name: [defaultRequiredRule],
-  status: [defaultRequiredRule],
-  ipStrategy: [defaultRequiredRule]
+  status: [defaultRequiredRule]
 };
 
 async function handleSubmit() {
@@ -90,6 +113,9 @@ async function handleSubmit() {
   } else if (props.operateType === 'edit' && model.id) {
     const { error } = await updateApp(model as OpenApp.UpdateAppReq);
     if (!error) {
+      if (model.ipFilterEnabled) {
+        await linkAppIPRules({ id: model.id, ruleIds: selectedRuleIds.value });
+      }
       window.$message?.success($t('common.updateSuccess'));
       closeModal();
       emit('submitted');
@@ -107,8 +133,12 @@ watch(visible, () => {
       Object.assign(model, {
         ...props.rowData
       });
+      if (props.rowData.id) {
+        loadAppIPRules(props.rowData.id);
+      }
     } else {
       Object.assign(model, createDefaultModel());
+      selectedRuleIds.value = [];
     }
     restoreValidation();
   }
@@ -128,11 +158,16 @@ watch(visible, () => {
           :placeholder="$t('page.openPlatform.app.form.statusPlaceholder')"
         />
       </NFormItem>
-      <NFormItem :label="$t('page.openPlatform.app.ipStrategy')" path="ipStrategy">
-        <AppDictSelect
-          v-model:value="model.ipStrategy"
-          dict-code="sys_app_ip_strategy"
-          :placeholder="$t('page.openPlatform.app.form.ipStrategyPlaceholder')"
+      <NFormItem :label="$t('page.openPlatform.app.ipFilterEnabled')" path="ipFilterEnabled">
+        <NSwitch v-model:value="model.ipFilterEnabled" />
+      </NFormItem>
+      <NFormItem v-if="model.ipFilterEnabled" :label="$t('page.openPlatform.app.ipRules')">
+        <NSelect
+          v-model:value="selectedRuleIds"
+          multiple
+          :options="ipRuleOptions"
+          :loading="ipRulesLoading"
+          :placeholder="$t('page.openPlatform.app.form.ipRulesPlaceholder')"
         />
       </NFormItem>
       <NFormItem :label="$t('page.openPlatform.app.remark')" path="remark">

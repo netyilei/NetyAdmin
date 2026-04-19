@@ -85,7 +85,7 @@ admin-web/
     │       ├── button-icon.vue
     │       ├── count-to.vue
     │       ├── custom-icon-select.vue
-    │       ├── netyadmin-avatar.vue
+    │       ├── nety-admin-avatar.vue
     │       ├── storage-config-select.vue
     │       ├── svg-icon.vue
     │       └── toast-ui-editor.vue

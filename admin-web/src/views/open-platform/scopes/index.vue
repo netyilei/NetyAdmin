@@ -1,8 +1,24 @@
 <script setup lang="tsx">
 import { computed, reactive, ref } from 'vue';
-import { NButton, NCard, NDataTable, NForm, NFormItem, NInput, NModal, NPopconfirm, NSpace, NTag } from 'naive-ui';
+import {
+  NButton,
+  NCard,
+  NCheckbox,
+  NCheckboxGroup,
+  NCollapse,
+  NCollapseItem,
+  NDataTable,
+  NForm,
+  NFormItem,
+  NInput,
+  NModal,
+  NPopconfirm,
+  NSpace,
+  NSpin,
+  NTag
+} from 'naive-ui';
 import { addScopeGroup, deleteScopeGroup, fetchScopeGroupList, updateScopeGroup } from '@/service/api/v1/open-app';
-import { fetchAllApis, fetchScopeApis, updateScopeApis } from '@/service/api/v1/open-api';
+import { fetchGroupedApis, fetchScopeApis, updateScopeApis } from '@/service/api/v1/open-api';
 import { useNaiveForm } from '@/hooks/common/form';
 import { useDict } from '@/hooks/common/dict';
 import { $t } from '@/locales';
@@ -115,10 +131,10 @@ const apiBindVisible = ref(false);
 const apiBindLoading = ref(false);
 const currentScopeId = ref(0);
 const currentScopeName = ref('');
-const allApis = ref<OpenApi.Api[]>([]);
+const groupedApis = ref<OpenApi.GroupedApi[]>([]);
 const selectedApiIds = ref<number[]>([]);
 
-const methodColorMap: Record<string, string> = {
+const methodColorMap: Record<string, 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error'> = {
   GET: 'success',
   POST: 'info',
   PUT: 'warning',
@@ -127,12 +143,42 @@ const methodColorMap: Record<string, string> = {
 };
 
 function toggleApiSelection(apiId: number) {
-  const idx = selectedApiIds.value.indexOf(apiId);
+  const newSelected = [...selectedApiIds.value];
+  const idx = newSelected.indexOf(apiId);
   if (idx >= 0) {
-    selectedApiIds.value.splice(idx, 1);
+    newSelected.splice(idx, 1);
   } else {
-    selectedApiIds.value.push(apiId);
+    newSelected.push(apiId);
   }
+  selectedApiIds.value = newSelected;
+}
+
+function handleToggleGroup(apis: OpenApi.ApiItem[]) {
+  const apiIds = apis.map(api => api.id);
+  const allSelected = apiIds.every(id => selectedApiIds.value.includes(id));
+
+  if (allSelected) {
+    // Unselect all in this group
+    selectedApiIds.value = selectedApiIds.value.filter(id => !apiIds.includes(id));
+  } else {
+    // Select all in this group
+    const newSelected = [...selectedApiIds.value];
+    apiIds.forEach(id => {
+      if (!newSelected.includes(id)) {
+        newSelected.push(id);
+      }
+    });
+    selectedApiIds.value = newSelected;
+  }
+}
+
+function isGroupAllSelected(apis: OpenApi.ApiItem[]) {
+  return apis.length > 0 && apis.every(api => selectedApiIds.value.includes(api.id));
+}
+
+function isGroupIndeterminate(apis: OpenApi.ApiItem[]) {
+  const selectedCount = apis.filter(api => selectedApiIds.value.includes(api.id)).length;
+  return selectedCount > 0 && selectedCount < apis.length;
 }
 
 async function handleBindApis(row: OpenApp.ScopeGroup) {
@@ -141,11 +187,11 @@ async function handleBindApis(row: OpenApp.ScopeGroup) {
   apiBindLoading.value = true;
   apiBindVisible.value = true;
 
-  const [allRes, scopeRes] = await Promise.all([fetchAllApis(), fetchScopeApis(row.id)]);
+  const [groupedRes, scopeRes] = await Promise.all([fetchGroupedApis(), fetchScopeApis(row.id)]);
   apiBindLoading.value = false;
 
-  if (allRes.data) {
-    allApis.value = allRes.data;
+  if (groupedRes.data) {
+    groupedApis.value = groupedRes.data;
   }
   if (scopeRes.data) {
     selectedApiIds.value = scopeRes.data.map((api: OpenApi.Api) => api.id);
@@ -232,32 +278,50 @@ getData();
       v-model:show="apiBindVisible"
       :title="$t('page.openPlatform.scope.bindApis') + ' - ' + currentScopeName"
       preset="card"
-      class="w-700px"
+      class="w-800px"
     >
       <NSpin :show="apiBindLoading">
-        <NCheckboxGroup v-model:value="selectedApiIds">
-          <NSpace vertical>
-            <NCard
-              v-for="api in allApis"
-              :key="api.id"
-              size="small"
-              :bordered="true"
-              class="mb-8px cursor-pointer"
-              :class="{ 'border-primary!': selectedApiIds.includes(api.id) }"
-              @click="toggleApiSelection(api.id)"
-            >
-              <NSpace align="center" justify="space-between">
-                <NSpace align="center">
-                  <NCheckbox :value="api.id" @click.stop />
-                  <NTag :type="methodColorMap[api.method] || 'default'" size="small">{{ api.method }}</NTag>
-                  <span class="font-mono">{{ api.path }}</span>
-                  <span class="text-gray-400">- {{ api.name }}</span>
-                </NSpace>
-                <NTag v-if="api.group" size="small" :bordered="false">{{ api.group }}</NTag>
+        <NCollapse>
+          <NCollapseItem v-for="group in groupedApis" :key="group.group" :name="group.group">
+            <template #header>
+              <NSpace align="center" @click.stop>
+                <NCheckbox
+                  :checked="isGroupAllSelected(group.apis)"
+                  :indeterminate="isGroupIndeterminate(group.apis)"
+                  @update:checked="handleToggleGroup(group.apis)"
+                />
+                <span class="font-bold">{{ group.group }}</span>
+                <NTag size="small" :bordered="false" round type="primary">
+                  {{ group.apis.filter(api => selectedApiIds.includes(api.id)).length }} / {{ group.apis.length }}
+                </NTag>
               </NSpace>
-            </NCard>
-          </NSpace>
-        </NCheckboxGroup>
+            </template>
+            <NCheckboxGroup v-model:value="selectedApiIds">
+              <div class="grid grid-cols-2 gap-8px pt-8px">
+                <NCard
+                  v-for="api in group.apis"
+                  :key="api.id"
+                  size="small"
+                  :bordered="true"
+                  class="cursor-pointer transition-all hover:border-primary"
+                  :class="{ 'border-primary! bg-primary/5': selectedApiIds.includes(api.id) }"
+                  @click="toggleApiSelection(api.id)"
+                >
+                  <NSpace align="center" justify="space-between" :wrap="false">
+                    <NSpace align="center" :wrap="false" class="overflow-hidden">
+                      <NCheckbox :value="api.id" @click.stop />
+                      <NTag :type="methodColorMap[api.method] || 'default'" size="small">{{ api.method }}</NTag>
+                      <div class="flex-col overflow-hidden">
+                        <div class="truncate font-mono text-12px" :title="api.path">{{ api.path }}</div>
+                        <div class="truncate text-12px text-gray-400" :title="api.name">{{ api.name }}</div>
+                      </div>
+                    </NSpace>
+                  </NSpace>
+                </NCard>
+              </div>
+            </NCheckboxGroup>
+          </NCollapseItem>
+        </NCollapse>
       </NSpin>
       <template #footer>
         <NSpace justify="end">

@@ -14,7 +14,7 @@ type Error struct {
 	RequestID       string    `gorm:"column:request_id;size:50;comment:请求ID" json:"requestId"`
 	Path            string    `gorm:"column:path;size:200;comment:请求路径" json:"path"`
 	Method          string    `gorm:"column:method;size:10;comment:请求方法" json:"method"`
-	UserID          uint      `gorm:"column:user_id;comment:用户ID" json:"userId"`
+	AdminID         uint      `gorm:"column:admin_id;comment:管理员ID" json:"adminId"`
 	IP              string    `gorm:"column:ip;size:50;comment:IP地址" json:"ip"`
 	UserAgent       string    `gorm:"column:user_agent;size:500;comment:User-Agent" json:"userAgent"`
 	Hash            string    `gorm:"column:hash;size:64;index;comment:错误指纹" json:"hash"`

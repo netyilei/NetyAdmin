@@ -151,6 +151,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		handlers.client.echo,
 		handlers.client.user,
 		handlers.client.auth,
+		handlers.client.message,
 		services.app,
 		services.openApi,
 		services.openLog,
@@ -280,8 +281,8 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	s.sysConfig = systemService.NewConfigService(repos.systemConfig, nil, &cfg.Redis, configWatcher) // Redis client passed later if needed
 	s.dict = dictServicePkg.NewDictService(repos.dict, lazyCacheMgr)
 	s.ipac = ipacServicePkg.NewIPACService(repos.ipac, lazyCacheMgr)
-	s.app = openServicePkg.NewAppService(repos.app, lazyCacheMgr, cfg.Security.AESKey, s.ipac)
-	s.openApi = openServicePkg.NewOpenApiService(repos.openApi, repos.app, lazyCacheMgr)
+	s.app = openServicePkg.NewAppService(repos.app, lazyCacheMgr, cfg.Security.AESKey, s.ipac, repos.ipac)
+	s.openApi = openServicePkg.NewOpenApiService(repos.openApi, repos.app, repos.app, lazyCacheMgr)
 	s.openLog = openServicePkg.NewOpenLogService(repos.openLog)
 
 	// Message Drivers
@@ -345,9 +346,10 @@ type handlerSet struct {
 	}
 	route  *route.RouteHandler
 	client struct {
-		echo *clientHandler.EchoHandler
-		user *clientHandler.UserHandler
-		auth *clientHandler.AuthHandler
+		echo    *clientHandler.EchoHandler
+		user    *clientHandler.UserHandler
+		auth    *clientHandler.AuthHandler
+		message *clientHandler.MessageHandler
 	}
 }
 
@@ -377,6 +379,7 @@ func initHandlers(services *serviceSet, captchaMgr *captcha.Manager, configWatch
 	h.client.echo = clientHandler.NewEchoHandler()
 	h.client.user = clientHandler.NewUserHandler(services.user)
 	h.client.auth = clientHandler.NewAuthHandler(services.verification, captchaMgr)
+	h.client.message = clientHandler.NewMessageHandler(services.message)
 
 	return h
 }

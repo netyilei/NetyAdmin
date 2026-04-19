@@ -164,7 +164,7 @@ func GenerateObjectKey(originalName string, pathPrefix string) string {
 	return key
 }
 
-func GenerateObjectKeyWithBusiness(originalName string, pathPrefix string, businessType string, businessID uint) string {
+func GenerateObjectKeyWithBusiness(originalName string, pathPrefix string, businessType string, businessID string) string {
 	ext := filepath.Ext(originalName)
 	timestamp := time.Now().UnixNano()
 	hash := md5.Sum([]byte(fmt.Sprintf("%s%d", originalName, timestamp)))
@@ -174,7 +174,7 @@ func GenerateObjectKeyWithBusiness(originalName string, pathPrefix string, busin
 
 	var key string
 	if businessType != "" {
-		key = fmt.Sprintf("%s/%d/%s/%s%s", businessType, businessID, datePath, hashStr, ext)
+		key = fmt.Sprintf("%s/%s/%s/%s%s", businessType, businessID, datePath, hashStr, ext)
 	} else {
 		key = fmt.Sprintf("%s/%s%s", datePath, hashStr, ext)
 	}

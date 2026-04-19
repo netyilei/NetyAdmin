@@ -47,6 +47,21 @@ func (h *UserHandler) List(c *gin.Context) {
 	response.SuccessWithPage(c, req.Current, req.Size, total, users)
 }
 
+// Autocomplete 查找用户自动补全
+func (h *UserHandler) Autocomplete(c *gin.Context) {
+	keyword := c.Query("keyword")
+	if keyword == "" {
+		response.Success(c, []any{})
+		return
+	}
+	users, err := h.svc.SearchForAutocomplete(c.Request.Context(), keyword, 20)
+	if err != nil {
+		response.Fail(c, err)
+		return
+	}
+	response.Success(c, users)
+}
+
 // Create 创建用户
 func (h *UserHandler) Create(c *gin.Context) {
 	var req userDto.CreateUserReq

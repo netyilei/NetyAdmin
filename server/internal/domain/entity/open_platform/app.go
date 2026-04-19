@@ -11,11 +11,6 @@ const (
 	AppStatusEnabled  = 1
 )
 
-const (
-	IPStrategyBlacklist = 1
-	IPStrategyWhitelist = 2
-)
-
 // AppQuotaConfig 应用限流配置
 type AppQuotaConfig struct {
 	Rate     int `json:"rate"`     // 每秒请求数
@@ -32,17 +27,18 @@ const (
 
 // App 开放平台应用实体
 type App struct {
-	ID          string                `gorm:"primaryKey;size:26" json:"id"` // ULID
-	AppKey      string                `gorm:"size:26;not null;uniqueIndex:idx_apps_key,where:deleted_at = 0" json:"appKey"`
-	AppSecret   string                `gorm:"size:255;not null" json:"-"` // AES 加密存储
-	Name        string                `gorm:"size:100;not null" json:"name"`
-	Status      int                   `gorm:"default:1;index" json:"status"` // 1: Enabled, 0: Disabled
-	IPStrategy  int                   `gorm:"default:1" json:"ipStrategy"`   // 1: Blacklist, 2: Whitelist
-	QuotaConfig string                `gorm:"type:jsonb" json:"quotaConfig"`
-	Remark      string                `gorm:"size:255" json:"remark"`
-	CreatedAt   time.Time             `json:"createdAt"`
-	UpdatedAt   time.Time             `json:"updatedAt"`
-	DeletedAt   soft_delete.DeletedAt `gorm:"column:deleted_at;softDelete:milli;default:0" json:"-"`
+	ID              string                `gorm:"primaryKey;size:26" json:"id"` // ULID
+	AppKey          string                `gorm:"size:26;not null;uniqueIndex:idx_apps_key,where:deleted_at = 0" json:"appKey"`
+	AppSecret       string                `gorm:"size:255;not null" json:"-"` // AES 加密存储
+	Name            string                `gorm:"size:100;not null" json:"name"`
+	Status          int                   `gorm:"default:1;index" json:"status"`        // 1: Enabled, 0: Disabled
+	IPStrategy      int                   `gorm:"default:1" json:"ipStrategy"`          // 1: Blacklist, 2: Whitelist
+	IPFilterEnabled bool                  `gorm:"default:false" json:"ipFilterEnabled"` // 是否启用 IP 过滤
+	QuotaConfig     string                `gorm:"type:jsonb" json:"quotaConfig"`
+	Remark          string                `gorm:"size:255" json:"remark"`
+	CreatedAt       time.Time             `json:"createdAt"`
+	UpdatedAt       time.Time             `json:"updatedAt"`
+	DeletedAt       soft_delete.DeletedAt `gorm:"column:deleted_at;softDelete:milli;default:0" json:"-"`
 
 	// Scopes 不落库，仅用于 API 返回
 	Scopes []string `gorm:"-" json:"scopes,omitempty"`

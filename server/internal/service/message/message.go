@@ -2,13 +2,17 @@ package message
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 	"time"
 
+	"gorm.io/gorm"
+
 	msgEntity "NetyAdmin/internal/domain/entity/message"
 	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/errorx"
 	msgPkg "NetyAdmin/internal/pkg/message"
 	"NetyAdmin/internal/pkg/task"
 	msgRepo "NetyAdmin/internal/repository/message"
@@ -31,6 +35,13 @@ type MessageService interface {
 
 	// Record Admin
 	RetryRecord(ctx context.Context, id uint64) error
+
+	// Client Internal Message
+	ListUserInternalMsgs(ctx context.Context, userID string, page, pageSize int, readFilter *int) ([]*msgRepo.UserInternalMsg, int64, error)
+	GetInternalMsgDetail(ctx context.Context, msgInternalID uint64, userID string) (*msgRepo.UserInternalMsg, error)
+	MarkInternalMsgRead(ctx context.Context, msgInternalID uint64, userID string) error
+	MarkAllInternalMsgRead(ctx context.Context, userID string) error
+	CountUnreadInternalMsgs(ctx context.Context, userID string) (int64, error)
 }
 
 type messageService struct {
@@ -157,4 +168,31 @@ func (s *messageService) renderTemplate(content string, params map[string]string
 		}
 		return match
 	})
+}
+
+func (s *messageService) ListUserInternalMsgs(ctx context.Context, userID string, page, pageSize int, readFilter *int) ([]*msgRepo.UserInternalMsg, int64, error) {
+	return s.repo.ListUserInternalMsgs(ctx, userID, page, pageSize, readFilter)
+}
+
+func (s *messageService) GetInternalMsgDetail(ctx context.Context, msgInternalID uint64, userID string) (*msgRepo.UserInternalMsg, error) {
+	msg, err := s.repo.GetInternalMsgDetail(ctx, msgInternalID, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errorx.New(errorx.CodeMsgRecordNotFound)
+		}
+		return nil, err
+	}
+	return msg, nil
+}
+
+func (s *messageService) MarkInternalMsgRead(ctx context.Context, msgInternalID uint64, userID string) error {
+	return s.repo.MarkInternalMsgRead(ctx, msgInternalID, userID)
+}
+
+func (s *messageService) MarkAllInternalMsgRead(ctx context.Context, userID string) error {
+	return s.repo.MarkAllInternalMsgRead(ctx, userID)
+}
+
+func (s *messageService) CountUnreadInternalMsgs(ctx context.Context, userID string) (int64, error) {
+	return s.repo.CountUnreadInternalMsgs(ctx, userID)
 }

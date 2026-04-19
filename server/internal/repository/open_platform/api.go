@@ -44,7 +44,17 @@ func (r *openApiRepository) Create(ctx context.Context, api *open_platform.OpenA
 }
 
 func (r *openApiRepository) Update(ctx context.Context, api *open_platform.OpenApi) error {
-	return r.db.WithContext(ctx).Save(api).Error
+	return r.db.WithContext(ctx).
+		Model(&open_platform.OpenApi{}).
+		Where("id = ?", api.ID).
+		Updates(map[string]any{
+			"method":      api.Method,
+			"path":        api.Path,
+			"name":        api.Name,
+			"group_name":  api.Group,
+			"description": api.Description,
+			"status":      api.Status,
+		}).Error
 }
 
 func (r *openApiRepository) Delete(ctx context.Context, id uint64) error {
@@ -99,8 +109,10 @@ func (r *openApiRepository) ListAll(ctx context.Context) ([]*open_platform.OpenA
 func (r *openApiRepository) GetScopeApis(ctx context.Context, scopeID uint64) ([]*open_platform.OpenApi, error) {
 	var list []*open_platform.OpenApi
 	err := r.db.WithContext(ctx).
-		Joins("JOIN sys_scope_apis ON sys_scope_apis.api_id = sys_open_apis.id AND sys_scope_apis.deleted_at = 0").
-		Where("sys_scope_apis.scope_id = ?", scopeID).
+		Where("id IN (?)", r.db.Table("sys_scope_apis").
+			Select("api_id").
+			Where("scope_id = ? AND deleted_at = 0", scopeID)).
+		Order("id ASC").
 		Find(&list).Error
 	return list, err
 }
@@ -132,9 +144,10 @@ func (r *openApiRepository) GetApisByScopeIDs(ctx context.Context, scopeIDs []ui
 	}
 	var list []*open_platform.OpenApi
 	err := r.db.WithContext(ctx).
-		Joins("JOIN sys_scope_apis ON sys_scope_apis.api_id = sys_open_apis.id AND sys_scope_apis.deleted_at = 0").
-		Where("sys_scope_apis.scope_id IN ?", scopeIDs).
-		Group("sys_open_apis.id").
+		Where("id IN (?)", r.db.Table("sys_scope_apis").
+			Select("api_id").
+			Where("scope_id IN ? AND deleted_at = 0", scopeIDs)).
+		Order("id ASC").
 		Find(&list).Error
 	return list, err
 }

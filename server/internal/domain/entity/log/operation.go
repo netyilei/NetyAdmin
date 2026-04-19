@@ -4,7 +4,7 @@ import "NetyAdmin/internal/domain/entity"
 
 type Operation struct {
 	entity.Model
-	UserID    uint   `gorm:"column:user_id;not null;comment:操作人ID" json:"userId"`
+	AdminID   uint   `gorm:"column:admin_id;not null;comment:操作人ID" json:"adminId"`
 	Username  string `gorm:"column:username;size:50;not null;comment:操作人名称" json:"username"`
 	Action    string `gorm:"column:action;size:100;not null;comment:操作动作" json:"action"`
 	Resource  string `gorm:"column:resource;size:200;not null;comment:操作资源" json:"resource"`

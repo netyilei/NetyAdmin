@@ -32,9 +32,9 @@ export function deleteApi(id: number) {
   });
 }
 
-export function fetchAllApis() {
-  return request<OpenApi.Api[]>({
-    url: '/admin/v1/open/apis/all',
+export function fetchGroupedApis() {
+  return request<OpenApi.GroupedApi[]>({
+    url: '/admin/v1/open/apis/grouped',
     method: 'get'
   });
 }

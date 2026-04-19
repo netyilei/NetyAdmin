@@ -14,6 +14,7 @@ const common = {
   delete: 'Delete',
   deleteSuccess: 'Delete Success',
   confirmDelete: 'Are you sure you want to delete?',
+  detail: 'Detail',
   edit: 'Edit',
   warning: 'Warning',
   error: 'Error',

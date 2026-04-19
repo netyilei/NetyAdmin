@@ -36,13 +36,21 @@ func (m *Migrator) Run() error {
 
 	var tableFiles []string
 	var dataFiles []string
+	var constraintFiles []string
 	var otherFiles []string
 
 	for _, file := range allFiles {
 		base := filepath.Base(file)
-		if strings.HasPrefix(base, "table_") {
+		// 获取相对于迁移根目录的路径
+		rel, _ := filepath.Rel(m.dir, file)
+		relDir := filepath.ToSlash(filepath.Dir(rel)) // 统一使用正斜杠处理
+
+		// 优先根据路径中的文件夹判断，其次根据文件前缀判断
+		if strings.HasPrefix(relDir, "table") || strings.HasPrefix(base, "table_") {
 			tableFiles = append(tableFiles, file)
-		} else if strings.HasPrefix(base, "data_") {
+		} else if strings.HasPrefix(relDir, "constraint") || strings.HasPrefix(base, "constraint_") || strings.HasPrefix(base, "fk_") {
+			constraintFiles = append(constraintFiles, file)
+		} else if strings.HasPrefix(relDir, "data") || strings.HasPrefix(base, "data_") {
 			dataFiles = append(dataFiles, file)
 		} else {
 			otherFiles = append(otherFiles, file)
@@ -51,11 +59,13 @@ func (m *Migrator) Run() error {
 
 	sort.Strings(tableFiles)
 	sort.Strings(dataFiles)
+	sort.Strings(constraintFiles)
 	sort.Strings(otherFiles)
 
-	// 执行顺序: table_ -> data_ -> other
+	// 执行顺序: table_ -> constraint_ -> data_ -> other
 	files := make([]string, 0, len(allFiles))
 	files = append(files, tableFiles...)
+	files = append(files, constraintFiles...)
 	files = append(files, dataFiles...)
 	files = append(files, otherFiles...)
 

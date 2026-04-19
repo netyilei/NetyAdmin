@@ -47,8 +47,8 @@ func (h *TaskHandler) RunTask(c *gin.Context) {
 // StartTask 启动任务
 func (h *TaskHandler) StartTask(c *gin.Context) {
 	name := c.Param("name")
-	userID, _ := c.Get("userID")
-	operatorID := userID.(uint)
+	adminID, _ := c.Get("adminID")
+	operatorID := adminID.(uint)
 
 	if err := h.taskSvc.StartTask(c.Request.Context(), name, operatorID); err != nil {
 		response.FailWithCode(c, errorx.CodeInternalError, err.Error())
@@ -60,8 +60,8 @@ func (h *TaskHandler) StartTask(c *gin.Context) {
 // StopTask 停止任务
 func (h *TaskHandler) StopTask(c *gin.Context) {
 	name := c.Param("name")
-	userID, _ := c.Get("userID")
-	operatorID := userID.(uint)
+	adminID, _ := c.Get("adminID")
+	operatorID := adminID.(uint)
 
 	if err := h.taskSvc.StopTask(c.Request.Context(), name, operatorID); err != nil {
 		response.FailWithCode(c, errorx.CodeInternalError, err.Error())
@@ -88,8 +88,8 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("userID")
-	operatorID := userID.(uint)
+	adminID, _ := c.Get("adminID")
+	operatorID := adminID.(uint)
 
 	if err := h.taskSvc.UpdateTask(c.Request.Context(), req.Name, req.Enabled, req.Spec, operatorID); err != nil {
 		response.FailWithCode(c, errorx.CodeInternalError, err.Error())

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	storageDto "NetyAdmin/internal/interface/admin/dto/storage"
 	storageEntity "NetyAdmin/internal/domain/entity/storage"
 	storageVO "NetyAdmin/internal/domain/vo/storage"
+	storageDto "NetyAdmin/internal/interface/admin/dto/storage"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/storage"
 	storageRepo "NetyAdmin/internal/repository/storage"
@@ -20,10 +20,10 @@ type RecordService interface {
 	Delete(ctx context.Context, id uint) error
 	DeleteMultiple(ctx context.Context, ids []uint) error
 	CreateRecord(ctx context.Context, record *storageEntity.Record) error
-	CreateUploadRecord(ctx context.Context, req *storageDto.CreateRecordReq, source storageEntity.UploadSource, sourceID uint, uploaderIP, userAgent string) (*storageVO.RecordVO, error)
+	CreateUploadRecord(ctx context.Context, req *storageDto.CreateRecordReq, source storageEntity.UploadSource, sourceID string, uploaderIP, userAgent string) (*storageVO.RecordVO, error)
 	GetByMD5(ctx context.Context, md5 string) (*storageEntity.Record, error)
 	GetUploadCredentials(ctx context.Context, req *storageDto.GetCredentialsReq) (*storageDto.Credentials, error)
-	RecordUpload(ctx context.Context, configID uint, fileName, storedName, filePath, fileURL string, fileSize int64, mimeType, md5 string, source storageEntity.UploadSource, sourceID uint, sourceInfo interface{}, uploaderIP, userAgent, businessType string, businessID uint) error
+	RecordUpload(ctx context.Context, configID uint, fileName, storedName, filePath, fileURL string, fileSize int64, mimeType, md5 string, source storageEntity.UploadSource, sourceID string, sourceInfo interface{}, uploaderIP, userAgent, businessType string, businessID string) error
 }
 
 type recordService struct {
@@ -114,7 +114,7 @@ func (s *recordService) CreateRecord(ctx context.Context, record *storageEntity.
 	return s.recordRepo.Create(ctx, record)
 }
 
-func (s *recordService) CreateUploadRecord(ctx context.Context, req *storageDto.CreateRecordReq, source storageEntity.UploadSource, sourceID uint, uploaderIP, userAgent string) (*storageVO.RecordVO, error) {
+func (s *recordService) CreateUploadRecord(ctx context.Context, req *storageDto.CreateRecordReq, source storageEntity.UploadSource, sourceID string, uploaderIP, userAgent string) (*storageVO.RecordVO, error) {
 	var config *storageEntity.Config
 	var err error
 
@@ -218,23 +218,23 @@ func (s *recordService) GetUploadCredentials(ctx context.Context, req *storageDt
 	finalURL := strings.TrimSuffix(baseDomain, "/") + "/" + strings.TrimPrefix(key, "/")
 
 	return &storageDto.Credentials{
-		URL:             presignedURL,
-		Method:          "PUT",
-		Headers:         map[string]string{"Content-Type": contentType},
-		ExpiresAt:       time.Now().Add(expires),
-		ObjectKey:       key,
-		Domain:          config.Domain,
-		FinalURL:        finalURL,
-		ConfigID:        config.ID,
-		Region:          storage.GetProviderRegion(storage.Provider(config.Provider), config.Region),
-		Bucket:          config.Bucket,
-		Endpoint:        config.Endpoint,
-		PathPrefix:      config.PathPrefix,
-		MaxFileSize:     config.MaxFileSize,
+		URL:         presignedURL,
+		Method:      "PUT",
+		Headers:     map[string]string{"Content-Type": contentType},
+		ExpiresAt:   time.Now().Add(expires),
+		ObjectKey:   key,
+		Domain:      config.Domain,
+		FinalURL:    finalURL,
+		ConfigID:    config.ID,
+		Region:      storage.GetProviderRegion(storage.Provider(config.Provider), config.Region),
+		Bucket:      config.Bucket,
+		Endpoint:    config.Endpoint,
+		PathPrefix:  config.PathPrefix,
+		MaxFileSize: config.MaxFileSize,
 	}, nil
 }
 
-func (s *recordService) RecordUpload(ctx context.Context, configID uint, fileName, storedName, filePath, fileURL string, fileSize int64, mimeType, md5 string, source storageEntity.UploadSource, sourceID uint, sourceInfo interface{}, uploaderIP, userAgent, businessType string, businessID uint) error {
+func (s *recordService) RecordUpload(ctx context.Context, configID uint, fileName, storedName, filePath, fileURL string, fileSize int64, mimeType, md5 string, source storageEntity.UploadSource, sourceID string, sourceInfo interface{}, uploaderIP, userAgent, businessType string, businessID string) error {
 	sourceInfoJSON := ""
 	if sourceInfo != nil {
 		if data, err := json.Marshal(sourceInfo); err == nil {

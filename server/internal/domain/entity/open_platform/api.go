@@ -7,7 +7,7 @@ type OpenApi struct {
 	Method      string    `gorm:"size:10;not null" json:"method"`
 	Path        string    `gorm:"size:255;not null" json:"path"`
 	Name        string    `gorm:"size:100;not null" json:"name"`
-	Group       string    `gorm:"size:50;not null" json:"group"`
+	Group       string    `gorm:"column:group_name;size:50;not null" json:"group"`
 	Description string    `gorm:"type:text" json:"description"`
 	Status      int       `gorm:"default:1" json:"status"`
 	CreatedAt   time.Time `json:"createdAt"`

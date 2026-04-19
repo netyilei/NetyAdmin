@@ -4,7 +4,7 @@ export namespace OpenApp {
     appKey: string;
     name: string;
     status: 0 | 1;
-    ipStrategy: 1 | 2;
+    ipFilterEnabled: boolean;
     quotaConfig: string;
     remark: string;
     createdAt: string;
@@ -26,7 +26,7 @@ export namespace OpenApp {
   interface CreateAppReq {
     name: string;
     status: number;
-    ipStrategy: number;
+    ipFilterEnabled: boolean;
     remark?: string;
     scopes?: string[];
   }
@@ -35,7 +35,7 @@ export namespace OpenApp {
     id: string;
     name: string;
     status: number;
-    ipStrategy: number;
+    ipFilterEnabled: boolean;
     remark?: string;
     scopes?: string[];
   }
@@ -46,6 +46,11 @@ export namespace OpenApp {
 
   interface ResetSecretResult {
     appSecret: string;
+  }
+
+  interface LinkIPRulesReq {
+    id: string;
+    ruleIds: number[];
   }
 
   interface ScopeGroup {

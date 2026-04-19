@@ -2,7 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { NButton, NCard, NForm, NFormItem, NInput, NSelect, NSpace, NSwitch } from 'naive-ui';
 import { fetchTemplateList, sendDirect } from '@/service/api/v1/message-hub';
-import { fetchGetUserList } from '@/service/api/v1/system-manage';
+import { fetchUserAutocomplete } from '@/service/api/v1/system-manage';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { $t } from '@/locales';
 import type { MessageHub } from '@/typings/api/v1/message-hub';
@@ -75,9 +75,9 @@ async function getUsers(query: string) {
     return;
   }
   userLoading.value = true;
-  const { data } = await fetchGetUserList({ current: 1, size: 50, username: query.trim() });
+  const { data } = await fetchUserAutocomplete(query.trim());
   if (data) {
-    users.value = data.records;
+    users.value = data;
   }
   userLoading.value = false;
 }

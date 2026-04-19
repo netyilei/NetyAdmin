@@ -43,7 +43,7 @@ func (h *AdminHandler) List(c *gin.Context) {
 }
 
 func (h *AdminHandler) Create(c *gin.Context) {
-	operatorID, _ := c.Get("userID")
+	operatorID, _ := c.Get("adminID")
 
 	var req systemDto.CreateAdminReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -61,7 +61,7 @@ func (h *AdminHandler) Create(c *gin.Context) {
 }
 
 func (h *AdminHandler) Update(c *gin.Context) {
-	operatorID, _ := c.Get("userID")
+	operatorID, _ := c.Get("adminID")
 
 	var req systemDto.UpdateAdminReq
 	if err := c.ShouldBindJSON(&req); err != nil {

@@ -18,16 +18,16 @@ type RecordRepository interface {
 	GetByMD5(ctx context.Context, md5 string) (*storageEntity.Record, error)
 	List(ctx context.Context, query *RecordQuery) ([]*storageEntity.Record, int64, error)
 	GetByStorageConfigID(ctx context.Context, configID uint) ([]*storageEntity.Record, error)
-	GetBySource(ctx context.Context, source storageEntity.UploadSource, sourceID uint) ([]*storageEntity.Record, error)
-	GetByBusiness(ctx context.Context, businessType string, businessID uint) ([]*storageEntity.Record, error)
+	GetBySource(ctx context.Context, source storageEntity.UploadSource, sourceID string) ([]*storageEntity.Record, error)
+	GetByBusiness(ctx context.Context, businessType string, businessID string) ([]*storageEntity.Record, error)
 }
 
 type RecordQuery struct {
 	FileName        string
 	Source          string
-	SourceID        uint
+	SourceID        string
 	BusinessType    string
-	BusinessID      uint
+	BusinessID      string
 	MimeType        string
 	StorageConfigID uint
 	StartTime       string
@@ -91,13 +91,13 @@ func (r *recordRepository) List(ctx context.Context, query *RecordQuery) ([]*sto
 	if query.Source != "" {
 		db = db.Where("source = ?", query.Source)
 	}
-	if query.SourceID > 0 {
+	if query.SourceID != "" {
 		db = db.Where("source_id = ?", query.SourceID)
 	}
 	if query.BusinessType != "" {
 		db = db.Where("business_type = ?", query.BusinessType)
 	}
-	if query.BusinessID > 0 {
+	if query.BusinessID != "" {
 		db = db.Where("business_id = ?", query.BusinessID)
 	}
 	if query.MimeType != "" {
@@ -154,10 +154,10 @@ func (r *recordRepository) GetByStorageConfigID(ctx context.Context, configID ui
 	return records, nil
 }
 
-func (r *recordRepository) GetBySource(ctx context.Context, source storageEntity.UploadSource, sourceID uint) ([]*storageEntity.Record, error) {
+func (r *recordRepository) GetBySource(ctx context.Context, source storageEntity.UploadSource, sourceID string) ([]*storageEntity.Record, error) {
 	var records []*storageEntity.Record
 	db := r.db.WithContext(ctx).Where("source = ?", source)
-	if sourceID > 0 {
+	if sourceID != "" {
 		db = db.Where("source_id = ?", sourceID)
 	}
 	err := db.Order("uploaded_at DESC").Find(&records).Error
@@ -167,10 +167,10 @@ func (r *recordRepository) GetBySource(ctx context.Context, source storageEntity
 	return records, nil
 }
 
-func (r *recordRepository) GetByBusiness(ctx context.Context, businessType string, businessID uint) ([]*storageEntity.Record, error) {
+func (r *recordRepository) GetByBusiness(ctx context.Context, businessType string, businessID string) ([]*storageEntity.Record, error) {
 	var records []*storageEntity.Record
 	db := r.db.WithContext(ctx).Where("business_type = ?", businessType)
-	if businessID > 0 {
+	if businessID != "" {
 		db = db.Where("business_id = ?", businessID)
 	}
 	err := db.Order("uploaded_at DESC").Find(&records).Error

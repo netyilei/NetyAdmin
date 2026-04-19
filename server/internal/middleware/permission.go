@@ -42,14 +42,14 @@ func PermissionAuth(authVerifier AuthVerifier) gin.HandlerFunc {
 			return
 		}
 
-		userID, exists := c.Get("userID")
+		adminID, exists := c.Get("adminID")
 		if !exists {
 			response.FailWithCode(c, errorx.CodeUnauthorized, "未授权，请先登录")
 			c.Abort()
 			return
 		}
 
-		_ = userID
+		_ = adminID
 
 		roles, _ := c.Get("roles")
 		roleCodes := roles.([]string)

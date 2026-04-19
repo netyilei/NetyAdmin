@@ -24,7 +24,7 @@ const { columns, columnChecks, data, getData, loading, mobilePagination } = useT
   apiParams: {
     current: 1,
     size: 20,
-    userId: undefined,
+    adminId: undefined,
     action: undefined,
     startDate: undefined,
     endDate: undefined

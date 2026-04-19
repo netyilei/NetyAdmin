@@ -49,11 +49,15 @@ const {
       width: 150
     } as any,
     {
-      key: 'ipStrategy',
-      title: $t('page.openPlatform.app.ipStrategy'),
+      key: 'ipFilterEnabled',
+      title: $t('page.openPlatform.app.ipFilterEnabled'),
       align: 'center',
       width: 150,
-      render: (row: any) => renderDictTag('sys_app_ip_strategy', String(row.ipStrategy))
+      render: (row: any) => (
+        <NTag type={row.ipFilterEnabled ? 'success' : 'default'}>
+          {row.ipFilterEnabled ? $t('common.enable') : $t('common.disable')}
+        </NTag>
+      )
     } as any,
     {
       key: 'status',

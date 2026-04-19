@@ -14,6 +14,7 @@ const common = {
   delete: '删除',
   deleteSuccess: '删除成功',
   confirmDelete: '确认删除吗？',
+  detail: '详情',
   edit: '编辑',
   warning: '警告',
   error: '错误',

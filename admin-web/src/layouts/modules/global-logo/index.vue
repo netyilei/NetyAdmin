@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+import { useRouteStore } from '@/store/modules/route';
 import { $t } from '@/locales';
 
 defineOptions({
@@ -13,10 +15,17 @@ interface Props {
 withDefaults(defineProps<Props>(), {
   showTitle: true
 });
+
+const routeStore = useRouteStore();
+
+const routeHomePath = computed(() => routeStore.routeHome);
 </script>
 
 <template>
-  <RouterLink to="/" class="w-full flex-center nowrap-hidden">
+  <RouterLink
+    :to="routeStore.routeHome.startsWith('/') ? routeStore.routeHome : { name: routeStore.routeHome }"
+    class="w-full flex-center nowrap-hidden"
+  >
     <SystemLogo class="text-32px text-primary" />
     <h2 v-show="showTitle" class="pl-8px text-16px text-primary font-bold transition duration-300 ease-in-out">
       {{ $t('system.title') }}

@@ -39,6 +39,7 @@ type UserService interface {
 
 	// Admin API
 	List(ctx context.Context, current, size int, query *userRepo.UserRepoQuery) ([]userEntity.User, int64, error)
+	SearchForAutocomplete(ctx context.Context, keyword string, limit int) ([]userEntity.User, error)
 	Create(ctx context.Context, user *userEntity.User) error
 	Update(ctx context.Context, user *userEntity.User) error
 	UpdateStatus(ctx context.Context, id string, status string) error
@@ -330,6 +331,10 @@ func (s *userService) List(ctx context.Context, current, size int, query *userRe
 	query.Current = current
 	query.Size = size
 	return s.repo.List(ctx, query)
+}
+
+func (s *userService) SearchForAutocomplete(ctx context.Context, keyword string, limit int) ([]userEntity.User, error) {
+	return s.repo.SearchForAutocomplete(ctx, keyword, limit)
 }
 
 func (s *userService) Create(ctx context.Context, user *userEntity.User) error {

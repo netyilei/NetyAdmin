@@ -3,7 +3,7 @@ export namespace Log {
 
   type OperationLog = {
     id: number;
-    userId: number;
+    adminId: number;
     username: string;
     action: string;
     resource: string;
@@ -14,7 +14,7 @@ export namespace Log {
   };
 
   type OperationLogSearchParams = CommonSearchParams & {
-    userId?: number;
+    adminId?: number;
     action?: string;
     startDate?: string;
     endDate?: string;
@@ -32,7 +32,7 @@ export namespace Log {
     requestId: string;
     path: string;
     method: string;
-    userId: number;
+    adminId: number;
     ip: string;
     userAgent: string;
     resolved: boolean;

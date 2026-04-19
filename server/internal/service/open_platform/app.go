@@ -10,6 +10,7 @@ import (
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/utils"
+	ipacRepoPkg "NetyAdmin/internal/repository/ipac"
 	openRepo "NetyAdmin/internal/repository/open_platform"
 	ipacSvcPkg "NetyAdmin/internal/service/ipac"
 
@@ -31,6 +32,7 @@ type AppService interface {
 	DeleteApp(ctx context.Context, id string) error
 	GetAppScopes(ctx context.Context, appID string) ([]string, error)
 	ListAvailableScopes(ctx context.Context) ([]map[string]string, error)
+	LinkIPRules(ctx context.Context, appID string, ruleIDs []uint) error
 
 	// Scope Group Admin
 	ListScopeGroups(ctx context.Context) ([]*open_platform.AppScopeGroup, error)
@@ -44,14 +46,16 @@ type appService struct {
 	cacheMgr cache.LazyCacheManager
 	aesKey   string
 	ipacSvc  ipacSvcPkg.IPACService
+	ipacRepo ipacRepoPkg.IPACRepository
 }
 
-func NewAppService(repo openRepo.AppRepository, cacheMgr cache.LazyCacheManager, aesKey string, ipacSvc ipacSvcPkg.IPACService) AppService {
+func NewAppService(repo openRepo.AppRepository, cacheMgr cache.LazyCacheManager, aesKey string, ipacSvc ipacSvcPkg.IPACService, ipacRepo ipacRepoPkg.IPACRepository) AppService {
 	return &appService{
 		repo:     repo,
 		cacheMgr: cacheMgr,
 		aesKey:   aesKey,
 		ipacSvc:  ipacSvc,
+		ipacRepo: ipacRepo,
 	}
 }
 
@@ -294,5 +298,13 @@ func (s *appService) DeleteScopeGroup(ctx context.Context, id uint64) error {
 		return err
 	}
 	_ = s.cacheMgr.Delete(ctx, "app:available_scopes")
+	return nil
+}
+
+func (s *appService) LinkIPRules(ctx context.Context, appID string, ruleIDs []uint) error {
+	if err := s.ipacRepo.LinkRulesToApp(ctx, appID, ruleIDs); err != nil {
+		return err
+	}
+	_ = s.ipacSvc.ReloadCache(ctx)
 	return nil
 }

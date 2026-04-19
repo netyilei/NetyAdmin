@@ -1,439 +1,135 @@
 # 数据迁移模块详解
 
-本文档详细介绍 NetyAdmin 数据迁移模块的架构设计、使用方式和二次开发指南。
+本文档详细介绍 NetyAdmin 数据迁移模块的架构设计、目录结构和最佳实践。
 
 ---
 
 ## 一、模块概述
 
-数据迁移模块提供数据库结构和基础数据的版本化管理，支持启动期自动执行迁移脚本。
+数据迁移模块是 NetyAdmin 的核心基础设施之一，负责在系统启动阶段自动执行数据库初始化与结构更新。它确保了不同环境（开发、测试、生产）下的数据库一致性。
 
 ### 1.1 核心特性
 
-- **自动执行**：服务启动时自动检测并执行迁移
-- **版本控制**：基于文件名的版本排序
-- **幂等执行**：支持重复执行不报错
-- **可控开关**：通过配置开启/关闭迁移
-- **脚本分类**：表结构和基础数据分离
+- **启动即同步**：在后端服务 Bootstrap 阶段自动触发，无需手动维护 SQL 脚本执行顺序。
+- **目录化管理**：通过物理文件夹区分脚本类型，结构清晰。
+- **阶段化执行**：严格按照 `结构 -> 约束 -> 数据 -> 其他` 的顺序执行，完美解决外键依赖问题。
+- **幂等性保证**：采用“全量扫描+幂等执行”策略，支持脚本重复执行而不报错。
+- **智能识别**：支持通过文件夹名称或文件前缀两种方式自动识别脚本类型。
 
 ---
 
 ## 二、目录结构
 
-```
+迁移脚本存放在 [server/migrations/](file:///d:/NetyAdmin/server/migrations) 目录下，按以下子目录组织，并使用 **3 位数字前缀** 严格控制执行顺序：
+
+```text
 server/migrations/
-├── table_admin_system.sql      # 管理员系统表结构
-├── table_captcha_base.sql      # 验证码基础表
-├── table_content.sql           # 内容管理表结构
-├── table_storage.sql           # 存储模块表结构
-├── table_sys_configs.sql       # 系统配置表结构
-├── table_sys_dict.sql          # 字典表结构
-├── data_admin_system.sql       # 管理员系统基础数据
-├── data_captcha_base.sql       # 验证码基础数据
-├── data_content.sql            # 内容管理基础数据
-├── data_storage.sql            # 存储模块基础数据
-├── data_sys_configs.sql        # 系统配置基础数据
-└── data_sys_dict.sql           # 字典基础数据
-
-server/internal/pkg/migration/
-└── migrator.go                 # 迁移执行器
+├── table/                  # 1. 表结构定义阶段 (001-999)
+│   ├── 001_sys_dict_type.sql
+│   ├── 011_admin_user.sql
+│   └── 031_users.sql
+├── constraint/             # 2. 约束与关联阶段 (001-999)
+│   ├── 001_storage.sql
+│   └── 002_open_platform.sql
+├── data/                   # 3. 基础数据填充阶段 (001-999)
+│   ├── 001_sys_dict_type.sql
+│   ├── 021_admin_menu.sql
+│   └── 901_admin_auth.sql
+└── (root)                  # 4. 其他/兜底阶段
+    └── custom_patch.sql
 ```
 
 ---
 
-## 三、架构设计
+## 三、执行顺序逻辑
 
-### 3.1 迁移执行器
+迁移引擎 [migrator.go](file:///d:/NetyAdmin/server/internal/pkg/migration/migrator.go) 会递归扫描目录并按以下顺序排序执行：
 
-```go
-// Migrator 迁移执行器
-type Migrator struct {
-    db      *gorm.DB
-    enabled bool
-    source  string // 迁移脚本目录
-}
+1.  **Table 阶段**：执行 `table/` 目录或以 `table_` 开头的文件。
+2.  **Constraint 阶段**：执行 `constraint/` 目录或以 `constraint_` / `fk_` 开头的文件。
+3.  **Data 阶段**：执行 `data/` 目录或以 `data_` 开头的文件。
+4.  **Other 阶段**：执行补丁、兼容性补丁和其他所有 `.sql` 文件。
 
-// Migrate 执行所有迁移
-func (m *Migrator) Migrate() error {
-    if !m.enabled {
-        log.Println("Migration is disabled")
-        return nil
-    }
-    
-    // 1. 创建迁移记录表
-    if err := m.createMigrationTable(); err != nil {
-        return err
-    }
-    
-    // 2. 读取所有迁移文件
-    files, err := m.readMigrationFiles()
-    if err != nil {
-        return err
-    }
-    
-    // 3. 按版本排序
-    sort.Slice(files, func(i, j int) bool {
-        return files[i].Version < files[j].Version
-    })
-    
-    // 4. 执行未执行的迁移
-    for _, file := range files {
-        executed, err := m.isExecuted(file.Version)
-        if err != nil {
-            return err
-        }
-        
-        if executed {
-            log.Printf("Migration %s already executed, skipping", file.Version)
-            continue
-        }
-        
-        if err := m.execute(file); err != nil {
-            return fmt.Errorf("execute migration %s failed: %w", file.Version, err)
-        }
-        
-        if err := m.record(file); err != nil {
-            return fmt.Errorf("record migration %s failed: %w", file.Version, err)
-        }
-    }
-    
-    return nil
-}
-```
-
-### 3.2 迁移记录表
-
-```sql
-CREATE TABLE IF NOT EXISTS schema_migrations (
-    id SERIAL PRIMARY KEY,
-    version VARCHAR(64) NOT NULL UNIQUE,  -- 迁移版本（文件名）
-    executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    execution_time INTEGER               -- 执行耗时（毫秒）
-);
-```
+> **核心规则**：在同一阶段内部，文件按**文件名的数字前缀**顺序执行。因此所有脚本必须以 `NNN_` 格式开头。
 
 ---
 
-## 四、配置说明
+## 四、脚本编写规范
 
-### 4.1 配置文件（config.toml）
+为了确保迁移模块正常工作，开发者必须遵循以下规范：
 
-```toml
-[migration]
-# 是否启用自动迁移
-enabled = true
+### 4.1 命名规范
 
-# 迁移脚本目录（相对路径）
-source = "./migrations"
-```
+所有脚本文件必须遵循以下命名格式：
+`数字前缀_描述.sql`
 
-### 4.2 环境变量覆盖
+- **数字前缀**：3 位数字（如 `001`, `010`, `100`），决定了同一目录下的执行先后。
+- **描述**：简短的英文描述（如 `sys_user`, `add_column_age`）。
 
-```bash
-# 生产环境建议关闭自动迁移
-export MIGRATION_ENABLED=false
-```
+**推荐的数字分配**：
+- `001-099`: 核心基础模块
+- `100-499`: 业务模块
+- `900-999`: 权限分配、数据同步、清理脚本
 
----
+脚本必须支持多次执行。
+- **创建表**：使用 `CREATE TABLE IF NOT EXISTS`。
+- **插入数据**：使用 `INSERT INTO ... ON CONFLICT DO NOTHING` 或 `ON CONFLICT (...) DO UPDATE`。
+- **修改字段**：使用 `DO` 块检查列是否存在。
 
-## 五、迁移脚本规范
+### 4.2 约束分离
 
-### 5.1 文件命名规则
+**严禁**在 `table/` 脚本中使用内联外键（Inline Foreign Keys）。所有的外键关联必须写在 `constraint/` 目录下，使用 `ALTER TABLE` 语句添加。这样可以避免“循环依赖”导致的表创建失败。
 
-```
-{类型}_{模块}_{描述}.sql
-
-类型：
-- table: 表结构定义
-- data: 基础数据
-- alter: 结构变更
-- index: 索引创建
-
-示例：
-- table_admin_system.sql      # 管理员系统表结构
-- data_admin_system.sql       # 管理员系统基础数据
-- alter_article_add_tags.sql  # 文章表新增tags字段
-```
-
-### 5.2 脚本内容规范
+### 4.3 示例：添加外键
 
 ```sql
--- table_admin_system.sql
-
--- 管理员表
-CREATE TABLE IF NOT EXISTS sys_admins (
-    id SERIAL PRIMARY KEY,
-    username VARCHAR(64) NOT NULL UNIQUE,
-    password VARCHAR(256) NOT NULL,
-    nickname VARCHAR(128),
-    avatar VARCHAR(512),
-    email VARCHAR(128),
-    phone VARCHAR(32),
-    status SMALLINT DEFAULT 1,
-    last_login_at BIGINT,
-    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()),
-    updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()),
-    deleted_at BIGINT
-);
-
--- 角色表
-CREATE TABLE IF NOT EXISTS sys_roles (
-    id SERIAL PRIMARY KEY,
-    code VARCHAR(64) NOT NULL UNIQUE,
-    name VARCHAR(128) NOT NULL,
-    description VARCHAR(256),
-    status SMALLINT DEFAULT 1,
-    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()),
-    updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()),
-    deleted_at BIGINT
-);
-
--- 索引
-CREATE INDEX IF NOT EXISTS idx_sys_admins_status ON sys_admins(status);
-CREATE INDEX IF NOT EXISTS idx_sys_roles_status ON sys_roles(status);
-```
-
-### 5.3 幂等性保证
-
-```sql
--- 使用IF NOT EXISTS确保幂等
-
--- 创建表
-CREATE TABLE IF NOT EXISTS table_name (...);
-
--- 添加列
-DO $$
-BEGIN
+-- server/migrations/constraint/example.sql
+BEGIN;
+DO $$ 
+BEGIN 
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'articles' AND column_name = 'tags'
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE constraint_name = 'fk_user_profile_user'
     ) THEN
-        ALTER TABLE articles ADD COLUMN tags VARCHAR(512);
+        ALTER TABLE user_profiles 
+        ADD CONSTRAINT fk_user_profile_user 
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
     END IF;
 END $$;
-
--- 创建索引
-CREATE INDEX IF NOT EXISTS idx_name ON table_name(column);
+COMMIT;
 ```
 
 ---
 
-## 六、使用示例
+## 五、系统集成
 
-### 6.1 启动期自动执行
+### 5.1 初始化执行
+
+在 [wire.go](file:///d:/NetyAdmin/server/internal/app/wire.go) 的 `Bootstrap` 函数中，系统会自动调用迁移引擎：
 
 ```go
-// internal/app/init.go
-
-func InitDB(config *config.Config) (*gorm.DB, error) {
-    // 1. 连接数据库
-    db, err := gorm.Open(postgres.Open(config.Database.DSN), &gorm.Config{})
-    if err != nil {
-        return nil, err
-    }
-    
-    // 2. 执行迁移
-    migrator := migration.NewMigrator(db, config.Migration.Enabled, config.Migration.Source)
-    if err := migrator.Migrate(); err != nil {
-        return nil, fmt.Errorf("migration failed: %w", err)
-    }
-    
-    return db, nil
+// Run 执行迁移
+if err := migrator.Run(); err != nil {
+    return fmt.Errorf("database migration failed: %w", err)
 }
 ```
 
-### 6.2 手动执行迁移
+### 5.2 事务保证
 
-```go
-// cmd/migrate/main.go
-
-package main
-
-import (
-    "log"
-    "server/internal/config"
-    "server/internal/pkg/migration"
-    "gorm.io/driver/postgres"
-    "gorm.io/gorm"
-)
-
-func main() {
-    cfg := config.Load("config.toml")
-    
-    db, err := gorm.Open(postgres.Open(cfg.Database.DSN), &gorm.Config{})
-    if err != nil {
-        log.Fatal(err)
-    }
-    
-    migrator := migration.NewMigrator(db, true, "./migrations")
-    if err := migrator.Migrate(); err != nil {
-        log.Fatal(err)
-    }
-    
-    log.Println("Migration completed successfully")
-}
-```
+迁移引擎会将所有待执行的 SQL 文件包裹在一个大的数据库事务中。如果其中任何一个脚本执行失败，整个迁移过程将回滚，确保数据库状态的一致性。
 
 ---
 
-## 七、二次开发示例
+## 六、最佳实践
 
-### 7.1 新增业务模块迁移
-
-```sql
--- migrations/table_order.sql
-
--- 订单表
-CREATE TABLE IF NOT EXISTS orders (
-    id SERIAL PRIMARY KEY,
-    order_no VARCHAR(64) NOT NULL UNIQUE,
-    user_id INTEGER NOT NULL,
-    total_amount DECIMAL(10, 2) NOT NULL,
-    status SMALLINT DEFAULT 1,
-    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()),
-    updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())
-);
-
--- 订单项表
-CREATE TABLE IF NOT EXISTS order_items (
-    id SERIAL PRIMARY KEY,
-    order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    product_id INTEGER NOT NULL,
-    product_name VARCHAR(256) NOT NULL,
-    price DECIMAL(10, 2) NOT NULL,
-    quantity INTEGER NOT NULL,
-    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())
-);
-
--- 索引
-CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
-CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
-CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
-```
-
-```sql
--- migrations/data_order.sql
-
--- 插入订单状态字典
-INSERT INTO sys_dict_type (code, name, description, status) VALUES
-('order_status', '订单状态', '订单的各种状态', 1);
-
-INSERT INTO sys_dict_data (type_code, label, value, sort, status) VALUES
-('order_status', '待支付', 'pending', 1, 1),
-('order_status', '已支付', 'paid', 2, 1),
-('order_status', '已发货', 'shipped', 3, 1),
-('order_status', '已完成', 'completed', 4, 1),
-('order_status', '已取消', 'cancelled', 5, 1);
-```
-
-### 7.2 表结构变更
-
-```sql
--- migrations/alter_article_add_tags.sql
-
--- 文章表新增tags字段
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'articles' AND column_name = 'tags'
-    ) THEN
-        ALTER TABLE articles ADD COLUMN tags VARCHAR(512);
-        COMMENT ON COLUMN articles.tags IS '文章标签，逗号分隔';
-    END IF;
-END $$;
-
--- 文章表新增source字段
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'articles' AND column_name = 'source'
-    ) THEN
-        ALTER TABLE articles ADD COLUMN source VARCHAR(256);
-        ALTER TABLE articles ADD COLUMN source_url VARCHAR(512);
-    END IF;
-END $$;
-```
-
-### 7.3 创建索引
-
-```sql
--- migrations/index_article_search.sql
-
--- 为文章搜索创建索引
-CREATE INDEX IF NOT EXISTS idx_articles_title_search 
-ON articles USING gin(to_tsvector('chinese', title));
-
-CREATE INDEX IF NOT EXISTS idx_articles_content_search 
-ON articles USING gin(to_tsvector('chinese', content));
-
--- 复合索引
-CREATE INDEX IF NOT EXISTS idx_articles_status_publish_time 
-ON articles(status, publish_time DESC);
-```
+1.  **一表一文件**：为每个表创建独立的 `table/xxx.sql`，便于管理和追踪变更。
+2.  **数据与结构分离**：不要在建表脚本里写 `INSERT` 语句。
+3.  **事务控制**：建议在 SQL 脚本内部也使用 `BEGIN;` 和 `COMMIT;` 包裹（虽然引擎已有外层事务）。
+4.  **日志观察**：服务启动时，通过控制台日志确认每个迁移脚本的执行状态。
 
 ---
 
-## 八、版本管理策略
+## 七、相关参考
 
-### 8.1 版本号规则
-
-```
-格式：YYYYMMDD_NNN
-
-示例：
-- 20240115_001  # 2024年1月15日的第1个迁移
-- 20240115_002  # 2024年1月15日的第2个迁移
-- 20240120_001  # 2024年1月20日的第1个迁移
-```
-
-### 8.2 迁移回滚
-
-```go
-// internal/pkg/migration/migrator.go
-
-// Rollback 回滚指定版本的迁移
-func (m *Migrator) Rollback(version string) error {
-    // 1. 检查迁移是否已执行
-    executed, err := m.isExecuted(version)
-    if err != nil {
-        return err
-    }
-    if !executed {
-        return fmt.Errorf("migration %s not executed", version)
-    }
-    
-    // 2. 读取回滚脚本
-    rollbackSQL, err := m.readRollbackScript(version)
-    if err != nil {
-        return err
-    }
-    
-    // 3. 执行回滚
-    if err := m.db.Exec(rollbackSQL).Error; err != nil {
-        return err
-    }
-    
-    // 4. 删除迁移记录
-    return m.db.Exec("DELETE FROM schema_migrations WHERE version = ?", version).Error
-}
-```
-
----
-
-## 九、最佳实践
-
-1. **开发环境**：开启自动迁移，方便快速迭代
-2. **生产环境**：关闭自动迁移，手动执行并备份
-3. **脚本测试**：迁移脚本在开发环境充分测试后再提交
-4. **数据备份**：生产环境执行前务必备份数据库
-5. **事务包裹**：每个迁移脚本应在事务中执行
-6. **版本锁定**：发布后不再修改已执行的迁移脚本
-
----
-
-## 十、相关文档
-
-- [Server架构设计](./server-architecture.md)
-- [PostgreSQL文档](https://www.postgresql.org/docs/)
+- [Server 架构设计](./server-architecture.md)
+- [API 管理指南](./api-management.md)

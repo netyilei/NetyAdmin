@@ -271,6 +271,15 @@ export function fetchGetUserList(params?: ClientUser.ClientUserSearchParams) {
   });
 }
 
+/** 用户自动补全（用于消息中心收件人等场景） */
+export function fetchUserAutocomplete(keyword: string) {
+  return request<ClientUser.UserInfo[]>({
+    url: '/admin/v1/systemManage/users/autocomplete',
+    method: 'get',
+    params: { keyword }
+  });
+}
+
 /** 新增终端用户 */
 export function fetchAddUser(data: any) {
   return request({

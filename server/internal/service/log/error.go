@@ -17,8 +17,8 @@ import (
 
 type ErrorService interface {
 	Log(ctx context.Context, log *logEntity.Error) error
-	LogPanic(ctx context.Context, err interface{}, requestID, path, method, ip, userAgent string, userID uint)
-	LogError(ctx context.Context, err error, requestID, path, method, ip, userAgent string, userID uint)
+	LogPanic(ctx context.Context, err interface{}, requestID, path, method, ip, userAgent string, adminID uint)
+	LogError(ctx context.Context, err error, requestID, path, method, ip, userAgent string, adminID uint)
 	List(ctx context.Context, level string, resolved *bool, page, pageSize int) ([]logEntity.Error, int64, error)
 	Resolve(ctx context.Context, id, resolvedBy uint) error
 	Delete(ctx context.Context, id uint) error
@@ -70,7 +70,7 @@ func (s *errorService) Log(ctx context.Context, logRecord *logEntity.Error) erro
 	return s.logRepo.UpsertByHash(ctx, logRecord)
 }
 
-func (s *errorService) LogPanic(ctx context.Context, err interface{}, requestID, path, method, ip, userAgent string, userID uint) {
+func (s *errorService) LogPanic(ctx context.Context, err interface{}, requestID, path, method, ip, userAgent string, adminID uint) {
 	stack := s.getStack(3)
 
 	logRecord := &logEntity.Error{
@@ -80,7 +80,7 @@ func (s *errorService) LogPanic(ctx context.Context, err interface{}, requestID,
 		RequestID: requestID,
 		Path:      path,
 		Method:    method,
-		UserID:    userID,
+		AdminID:   adminID,
 		IP:        ip,
 		UserAgent: userAgent,
 	}
@@ -88,7 +88,7 @@ func (s *errorService) LogPanic(ctx context.Context, err interface{}, requestID,
 	_ = s.Log(ctx, logRecord)
 }
 
-func (s *errorService) LogError(ctx context.Context, err error, requestID, path, method, ip, userAgent string, userID uint) {
+func (s *errorService) LogError(ctx context.Context, err error, requestID, path, method, ip, userAgent string, adminID uint) {
 	stack := s.getStack(3)
 
 	logRecord := &logEntity.Error{
@@ -98,7 +98,7 @@ func (s *errorService) LogError(ctx context.Context, err error, requestID, path,
 		RequestID: requestID,
 		Path:      path,
 		Method:    method,
-		UserID:    userID,
+		AdminID:   adminID,
 		IP:        ip,
 		UserAgent: userAgent,
 	}

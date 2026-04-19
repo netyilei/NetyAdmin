@@ -1,12 +1,13 @@
 package storage
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 
-	storageDto "NetyAdmin/internal/interface/admin/dto/storage"
 	storageEntity "NetyAdmin/internal/domain/entity/storage"
+	storageDto "NetyAdmin/internal/interface/admin/dto/storage"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
 	storageService "NetyAdmin/internal/service/storage"
@@ -77,8 +78,8 @@ func (h *StorageHandler) CreateStorageConfig(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("userID")
-	operatorID := userID.(uint)
+	adminID, _ := c.Get("adminID")
+	operatorID := adminID.(uint)
 
 	id, err := h.configService.Create(c.Request.Context(), &req, operatorID)
 	if err != nil {
@@ -96,8 +97,8 @@ func (h *StorageHandler) UpdateStorageConfig(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("userID")
-	operatorID := userID.(uint)
+	adminID, _ := c.Get("adminID")
+	operatorID := adminID.(uint)
 
 	if err := h.configService.Update(c.Request.Context(), &req, operatorID); err != nil {
 		response.Fail(c, err)
@@ -244,7 +245,7 @@ func (h *StorageHandler) CreateUploadRecord(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("userID")
+	adminID, exists := c.Get("adminID")
 	if !exists {
 		response.FailWithCode(c, errorx.CodeUnauthorized)
 		return
@@ -255,7 +256,7 @@ func (h *StorageHandler) CreateUploadRecord(c *gin.Context) {
 		c.Request.Context(),
 		&req,
 		source,
-		userID.(uint),
+		fmt.Sprintf("%d", adminID.(uint)),
 		c.ClientIP(),
 		c.GetHeader("User-Agent"),
 	)

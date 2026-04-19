@@ -67,9 +67,9 @@ func OperationLogger(opLogSvc logService.OperationService) gin.HandlerFunc {
 		statusCode := c.Writer.Status()
 
 		var userIDUint uint = 0
-		userID, exists := c.Get("userID")
+		adminID, exists := c.Get("adminID")
 		if exists {
-			userIDUint, _ = userID.(uint)
+			userIDUint, _ = adminID.(uint)
 		}
 
 		action := getActionFromMethod(method)
@@ -111,7 +111,7 @@ func OperationLogger(opLogSvc logService.OperationService) gin.HandlerFunc {
 		}
 
 		log := &logEntity.Operation{
-			UserID:    userIDUint,
+			AdminID:   userIDUint,
 			Username:  usernameStr,
 			Action:    action,
 			Resource:  resource,

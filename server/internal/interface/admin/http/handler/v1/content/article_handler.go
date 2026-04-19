@@ -66,10 +66,10 @@ func (h *ContentArticleHandler) Create(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("userID")
-	adminID := userID.(uint)
+	adminID, _ := c.Get("adminID")
+	operatorID := adminID.(uint)
 
-	article, err := h.service.Create(c.Request.Context(), adminID, &req)
+	article, err := h.service.Create(c.Request.Context(), operatorID, &req)
 	if err != nil {
 		response.Fail(c, err)
 		return
@@ -92,10 +92,10 @@ func (h *ContentArticleHandler) Update(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("userID")
-	adminID := userID.(uint)
+	adminID, _ := c.Get("adminID")
+	operatorID := adminID.(uint)
 
-	article, err := h.service.Update(c.Request.Context(), adminID, uint(id), &req)
+	article, err := h.service.Update(c.Request.Context(), operatorID, uint(id), &req)
 	if err != nil {
 		response.Fail(c, err)
 		return

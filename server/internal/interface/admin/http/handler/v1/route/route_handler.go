@@ -50,12 +50,12 @@ func traverseTree(menus []*systemVO.MenuTreeVO) []UserRouteItem {
 }
 
 func (h *RouteHandler) GetUserRoutes(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	adminID, exists := c.Get("adminID")
 	if !exists {
 		response.FailWithCode(c, errorx.CodeUnauthorized, "未授权")
 		return
 	}
-	uid := userID.(uint)
+	uid := adminID.(uint)
 
 	// 1. 获取管理员信息（主要是角色）
 	info, err := h.adminService.GetAdminInfo(c.Request.Context(), uid)

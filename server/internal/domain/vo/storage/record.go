@@ -15,11 +15,11 @@ type RecordVO struct {
 	FileExt         string    `json:"fileExt"`
 	MD5             string    `json:"md5"`
 	Source          string    `json:"source"`
-	SourceID        uint      `json:"sourceId"`
+	SourceID        string    `json:"sourceId"`
 	SourceInfo      string    `json:"sourceInfo"`
 	UploaderIP      string    `json:"uploaderIp"`
 	BusinessType    string    `json:"businessType"`
-	BusinessID      uint      `json:"businessId"`
+	BusinessID      string    `json:"businessId"`
 	UploadedAt      time.Time `json:"uploadedAt"`
 	CreatedAt       time.Time `json:"createdAt"`
 }

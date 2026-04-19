@@ -50,7 +50,16 @@ func (r *appRepository) Create(ctx context.Context, app *open_platform.App) erro
 }
 
 func (r *appRepository) Update(ctx context.Context, app *open_platform.App) error {
-	return r.db.WithContext(ctx).Save(app).Error
+	return r.db.WithContext(ctx).
+		Model(&open_platform.App{}).
+		Where("id = ?", app.ID).
+		Updates(map[string]any{
+			"name":              app.Name,
+			"status":            app.Status,
+			"ip_filter_enabled": app.IPFilterEnabled,
+			"remark":            app.Remark,
+			"app_secret":        app.AppSecret,
+		}).Error
 }
 
 func (r *appRepository) UpdateSecret(ctx context.Context, id string, encryptedSecret string) error {
@@ -142,7 +151,14 @@ func (r *appRepository) CreateScopeGroup(ctx context.Context, group *open_platfo
 }
 
 func (r *appRepository) UpdateScopeGroup(ctx context.Context, group *open_platform.AppScopeGroup) error {
-	return r.db.WithContext(ctx).Save(group).Error
+	return r.db.WithContext(ctx).
+		Model(&open_platform.AppScopeGroup{}).
+		Where("id = ?", group.ID).
+		Updates(map[string]any{
+			"name":        group.Name,
+			"description": group.Description,
+			"status":      group.Status,
+		}).Error
 }
 
 func (r *appRepository) DeleteScopeGroup(ctx context.Context, id uint64) error {

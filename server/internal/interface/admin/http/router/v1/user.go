@@ -22,6 +22,7 @@ func (r *UserRouter) RegisterPermission(group *gin.RouterGroup) {
 	// 用户管理归属系统管理组
 	userGroup := group.Group("/systemManage/users")
 	{
+		userGroup.GET("/autocomplete", r.user.Autocomplete)
 		userGroup.GET("", r.user.List)
 		userGroup.POST("", r.user.Create)
 		userGroup.PUT("/:id", r.user.Update)

@@ -65,6 +65,7 @@ func (h *OpenApiHandler) Create(c *gin.Context) {
 	}
 
 	if err := h.svc.CreateApi(c.Request.Context(), api); err != nil {
+		log.Printf("[OpenApi] Create error: %v", err)
 		response.FailWithCode(c, errorx.CodeInternalError)
 		return
 	}
@@ -90,6 +91,7 @@ func (h *OpenApiHandler) Update(c *gin.Context) {
 	}
 
 	if err := h.svc.UpdateApi(c.Request.Context(), api); err != nil {
+		log.Printf("[OpenApi] Update error: %v", err)
 		response.FailWithCode(c, errorx.CodeInternalError)
 		return
 	}
@@ -117,8 +119,8 @@ func (h *OpenApiHandler) Delete(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-func (h *OpenApiHandler) ListAll(c *gin.Context) {
-	list, err := h.svc.ListAllApis(c.Request.Context())
+func (h *OpenApiHandler) ListGrouped(c *gin.Context) {
+	list, err := h.svc.ListGroupedApis(c.Request.Context())
 	if err != nil {
 		response.FailWithCode(c, errorx.CodeInternalError)
 		return

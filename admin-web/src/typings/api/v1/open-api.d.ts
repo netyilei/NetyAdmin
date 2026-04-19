@@ -46,4 +46,16 @@ export namespace OpenApi {
     scopeId: number;
     apiIds: number[];
   }
+
+  interface GroupedApi {
+    group: string;
+    apis: ApiItem[];
+  }
+
+  interface ApiItem {
+    id: number;
+    name: string;
+    method: string;
+    path: string;
+  }
 }

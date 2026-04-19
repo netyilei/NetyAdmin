@@ -26,7 +26,7 @@ export namespace MessageHub {
 
   interface Record {
     id: number;
-    userId?: number;
+    userId?: string;
     channel: string;
     receiver: string;
     title?: string;

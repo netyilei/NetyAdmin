@@ -57,7 +57,7 @@ func (h *SystemHandler) GetAdminApiTree(c *gin.Context) {
 }
 
 func (h *SystemHandler) AddAdminMenu(c *gin.Context) {
-	operatorID, _ := c.Get("userID")
+	operatorID, _ := c.Get("adminID")
 
 	var req systemDto.CreateMenuReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -75,7 +75,7 @@ func (h *SystemHandler) AddAdminMenu(c *gin.Context) {
 }
 
 func (h *SystemHandler) UpdateAdminMenu(c *gin.Context) {
-	operatorID, _ := c.Get("userID")
+	operatorID, _ := c.Get("adminID")
 
 	var req systemDto.UpdateMenuReq
 	if err := c.ShouldBindJSON(&req); err != nil {

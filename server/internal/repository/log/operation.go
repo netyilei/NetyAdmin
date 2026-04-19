@@ -28,8 +28,8 @@ func (r *OperationRepository) List(ctx context.Context, req *logDto.OperationQue
 
 	query := r.db.WithContext(ctx).Model(&logEntity.Operation{})
 
-	if req.UserID != 0 {
-		query = query.Where("user_id = ?", req.UserID)
+	if req.AdminID != 0 {
+		query = query.Where("admin_id = ?", req.AdminID)
 	}
 
 	if req.Action != "" {

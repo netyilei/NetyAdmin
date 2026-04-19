@@ -5,9 +5,8 @@ const openPlatform = {
     appKey: 'AppKey',
     appSecret: 'AppSecret',
     status: 'Status',
-    ipStrategy: 'IP Strategy',
-    ipStrategyBlacklist: 'Blacklist Mode',
-    ipStrategyWhitelist: 'Whitelist Mode',
+    ipFilterEnabled: 'IP Filter',
+    ipRules: 'IP Rules',
     remark: 'Remark',
     time: 'Created At',
     scopes: 'Scopes',
@@ -18,7 +17,7 @@ const openPlatform = {
       namePlaceholder: 'Please enter app name',
       appKeyPlaceholder: 'Please enter AppKey',
       statusPlaceholder: 'Please select status',
-      ipStrategyPlaceholder: 'Please select IP strategy',
+      ipRulesPlaceholder: 'Please select IP rules',
       remarkPlaceholder: 'Please enter remark',
       scopesPlaceholder: 'Please select scopes'
     }

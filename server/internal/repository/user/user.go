@@ -18,6 +18,7 @@ type UserRepository interface {
 	ExistsByPhone(ctx context.Context, phone string, excludeID ...string) (bool, error)
 	ExistsByEmail(ctx context.Context, email string, excludeID ...string) (bool, error)
 	List(ctx context.Context, query *UserRepoQuery) ([]userEntity.User, int64, error)
+	SearchForAutocomplete(ctx context.Context, keyword string, limit int) ([]userEntity.User, error)
 	Update(ctx context.Context, user *userEntity.User) error
 	Delete(ctx context.Context, id string) error
 	DeleteBatch(ctx context.Context, ids []string) error
@@ -153,6 +154,18 @@ func (r *userRepository) List(ctx context.Context, query *UserRepoQuery) ([]user
 	}
 
 	return users, total, nil
+}
+
+func (r *userRepository) SearchForAutocomplete(ctx context.Context, keyword string, limit int) ([]userEntity.User, error) {
+	var users []userEntity.User
+	db := r.db.WithContext(ctx).Model(&userEntity.User{}).
+		Where("username LIKE ? OR email LIKE ? OR phone LIKE ?", "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%").
+		Limit(limit).
+		Order("id DESC")
+	if err := db.Find(&users).Error; err != nil {
+		return nil, err
+	}
+	return users, nil
 }
 
 func (r *userRepository) Update(ctx context.Context, user *userEntity.User) error {

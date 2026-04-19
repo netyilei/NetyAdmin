@@ -113,10 +113,6 @@ func (w *configWatcher) IsCacheEnabled(moduleName string) bool {
 
 // WatchBlocking 如果启用了 Redis，则订阅配置修改通知，实现热发布
 func (w *configWatcher) WatchBlocking(ctx context.Context) {
-	if err := w.ForceReload(ctx); err != nil {
-		log.Printf("[Config Watcher] 首次加载全局配置失败: %v", err)
-	}
-
 	if w.redisCfg == nil || !w.redisCfg.Enabled || w.redisClient == nil {
 		log.Println("[Config Watcher] 当前为无 Redis 模式，配置热更通道(Pub/Sub)未开启。")
 		return

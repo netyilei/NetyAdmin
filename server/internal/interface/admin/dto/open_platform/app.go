@@ -9,22 +9,27 @@ type AppQuery struct {
 }
 
 type CreateAppReq struct {
-	Name       string   `json:"name" binding:"required"`
-	Status     int      `json:"status" binding:"oneof=0 1"`
-	IPStrategy int      `json:"ipStrategy" binding:"oneof=1 2"`
-	Remark     string   `json:"remark"`
-	Scopes     []string `json:"scopes"`
+	Name            string   `json:"name" binding:"required"`
+	Status          int      `json:"status" binding:"oneof=0 1"`
+	IPFilterEnabled bool     `json:"ipFilterEnabled"`
+	Remark          string   `json:"remark"`
+	Scopes          []string `json:"scopes"`
 }
 
 type UpdateAppReq struct {
-	ID         string   `json:"id" binding:"required"`
-	Name       string   `json:"name" binding:"required"`
-	Status     int      `json:"status" binding:"oneof=0 1"`
-	IPStrategy int      `json:"ipStrategy" binding:"oneof=1 2"`
-	Remark     string   `json:"remark"`
-	Scopes     []string `json:"scopes"`
+	ID              string   `json:"id" binding:"required"`
+	Name            string   `json:"name" binding:"required"`
+	Status          int      `json:"status" binding:"oneof=0 1"`
+	IPFilterEnabled bool     `json:"ipFilterEnabled"`
+	Remark          string   `json:"remark"`
+	Scopes          []string `json:"scopes"`
 }
 
 type ResetSecretReq struct {
 	ID string `json:"id" binding:"required"`
+}
+
+type LinkIPRulesReq struct {
+	ID      string `json:"id" binding:"required"`
+	RuleIDs []uint `json:"ruleIds"`
 }

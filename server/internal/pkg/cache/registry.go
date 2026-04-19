@@ -224,6 +224,11 @@ func KeyOpenApiAll() string {
 	return "open:api:all"
 }
 
+// KeyOpenApiGrouped 分组开放API列表缓存
+func KeyOpenApiGrouped() string {
+	return "open:api:grouped"
+}
+
 // KeyAppApis 应用允许的API列表缓存 Key
 func KeyAppApis(appID string) string {
 	return fmt.Sprintf("open:app:%s:apis", appID)

@@ -2,7 +2,7 @@ package log
 
 type OperationVO struct {
 	ID         uint   `json:"id"`
-	UserID     uint   `json:"userId"`
+	AdminID    uint   `json:"adminId"`
 	Username   string `json:"username"`
 	Action     string `json:"action"`
 	Resource   string `json:"resource"`

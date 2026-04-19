@@ -62,7 +62,7 @@ func (h *ConfigHandler) Upsert(c *gin.Context) {
 		return
 	}
 
-	operatorID := c.GetUint("userID")
+	operatorID := c.GetUint("adminID")
 
 	if err := h.configSvc.Upsert(c.Request.Context(), &req, operatorID); err != nil {
 		response.FailWithCode(c, errorx.CodeInternalError, "更新配置失败")

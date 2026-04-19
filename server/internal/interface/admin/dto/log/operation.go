@@ -3,7 +3,7 @@ package log
 type OperationQueryReq struct {
 	Current   int    `form:"current" binding:"min=1"`
 	Size      int    `form:"size" binding:"min=1,max=100"`
-	UserID    uint   `form:"userId"`
+	AdminID   uint   `form:"adminId"`
 	Action    string `form:"action"`
 	StartDate string `form:"startDate"`
 	EndDate   string `form:"endDate"`

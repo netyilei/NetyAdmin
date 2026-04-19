@@ -71,9 +71,9 @@ func (h *ErrorLogHandler) Resolve(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("userID")
+	adminID, _ := c.Get("adminID")
 
-	if err := h.svc.Resolve(c.Request.Context(), req.ID, userID.(uint)); err != nil {
+	if err := h.svc.Resolve(c.Request.Context(), req.ID, adminID.(uint)); err != nil {
 		response.Fail(c, err)
 		return
 	}

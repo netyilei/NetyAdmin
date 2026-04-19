@@ -174,7 +174,11 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 		// 9. 验证 API 权限
 		allowedApis, err := apiSvc.GetAppAllowedApis(c.Request.Context(), app.ID)
 		if err == nil && len(allowedApis) > 0 {
-			currentApi := strings.ToUpper(c.Request.Method) + ":" + c.Request.URL.Path
+			matchedPath := c.FullPath()
+			if matchedPath == "" {
+				matchedPath = c.Request.URL.Path
+			}
+			currentApi := strings.ToUpper(c.Request.Method) + ":" + matchedPath
 			matched := false
 			for _, api := range allowedApis {
 				if api == currentApi {

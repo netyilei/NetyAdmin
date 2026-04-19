@@ -77,11 +77,11 @@ export namespace Storage {
     fileExt: string;
     md5: string;
     source: UploadSource;
-    sourceId: number;
+    sourceId: string;
     sourceInfo: string;
     uploaderIp: string;
     businessType: string;
-    businessId: number;
+    businessId: string;
     uploadedAt: string;
     createdAt: string;
   };
@@ -89,9 +89,9 @@ export namespace Storage {
   type UploadRecordSearchParams = CommonSearchParams & {
     fileName?: string;
     source?: UploadSource;
-    sourceId?: number;
+    sourceId?: string;
     businessType?: string;
-    businessId?: number;
+    businessId?: string;
     mimeType?: string;
     storageConfigId?: number;
     startTime?: string;
@@ -106,7 +106,7 @@ export namespace Storage {
     fileSize?: number;
     contentType?: string;
     businessType?: string;
-    businessId?: number;
+    businessId?: string;
   };
 
   type UploadCredentials = {
@@ -133,7 +133,7 @@ export namespace Storage {
     mimeType?: string;
     md5?: string;
     businessType?: string;
-    businessId?: number;
+    businessId?: string;
     sourceInfo?: string;
   };
 

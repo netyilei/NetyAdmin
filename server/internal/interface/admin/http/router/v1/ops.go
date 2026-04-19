@@ -53,6 +53,7 @@ func (r *OpsRouter) registerOpenPlatform(group *gin.RouterGroup) {
 		appGroup.PUT("", r.app.Update)
 		appGroup.DELETE("/:id", r.app.Delete)
 		appGroup.PUT("/reset-secret", r.app.ResetSecret)
+		appGroup.PUT("/ip-rules", r.app.LinkIPRules)
 		appGroup.GET("/scopes", r.app.GetScopes)
 		appGroup.GET("/available-scopes", r.app.ListAvailableScopes)
 	}
@@ -73,7 +74,7 @@ func (r *OpsRouter) registerOpenApi(group *gin.RouterGroup) {
 		apiGroup.POST("", r.openApi.Create)
 		apiGroup.PUT("", r.openApi.Update)
 		apiGroup.DELETE("/:id", r.openApi.Delete)
-		apiGroup.GET("/all", r.openApi.ListAll)
+		apiGroup.GET("/grouped", r.openApi.ListGrouped)
 		apiGroup.GET("/scope-apis", r.openApi.GetScopeApis)
 		apiGroup.PUT("/scope-apis", r.openApi.UpdateScopeApis)
 	}

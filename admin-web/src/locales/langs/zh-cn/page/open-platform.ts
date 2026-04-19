@@ -5,9 +5,8 @@ const openPlatform = {
     appKey: 'AppKey',
     appSecret: 'AppSecret',
     status: '状态',
-    ipStrategy: 'IP 策略',
-    ipStrategyBlacklist: '黑名单模式',
-    ipStrategyWhitelist: '白名单模式',
+    ipFilterEnabled: 'IP 过滤',
+    ipRules: 'IP 规则',
     remark: '备注',
     time: '创建时间',
     scopes: '权限范围',
@@ -18,7 +17,7 @@ const openPlatform = {
       namePlaceholder: '请输入应用名称',
       appKeyPlaceholder: '请输入 AppKey',
       statusPlaceholder: '请选择状态',
-      ipStrategyPlaceholder: '请选择 IP 策略',
+      ipRulesPlaceholder: '请选择 IP 规则',
       remarkPlaceholder: '请输入备注',
       scopesPlaceholder: '请选择权限范围'
     }

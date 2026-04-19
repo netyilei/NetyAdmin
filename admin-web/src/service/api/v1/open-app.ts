@@ -45,6 +45,15 @@ export function resetAppSecret(id: string) {
   });
 }
 
+/** 关联 IP 规则到应用 */
+export function linkAppIPRules(data: OpenApp.LinkIPRulesReq) {
+  return request({
+    url: '/admin/v1/open/apps/ip-rules',
+    method: 'put',
+    data
+  });
+}
+
 /** 获取应用的权限范围 */
 export function fetchAppScopes(id: string) {
   return request<string[]>({
@@ -56,7 +65,7 @@ export function fetchAppScopes(id: string) {
 
 /** 获取所有可用的权限范围 */
 export function fetchAvailableScopes() {
-  return request<{ label: string; value: string; i18nKey: string }[]>({
+  return request<{ name: string; code: string }[]>({
     url: '/admin/v1/open/apps/available-scopes',
     method: 'get'
   });

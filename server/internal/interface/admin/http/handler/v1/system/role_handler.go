@@ -44,7 +44,7 @@ func (h *SystemHandler) GetAdminRoleByID(c *gin.Context) {
 }
 
 func (h *SystemHandler) AddAdminRole(c *gin.Context) {
-	operatorID, _ := c.Get("userID")
+	operatorID, _ := c.Get("adminID")
 
 	var req systemDto.CreateRoleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -62,7 +62,7 @@ func (h *SystemHandler) AddAdminRole(c *gin.Context) {
 }
 
 func (h *SystemHandler) UpdateAdminRole(c *gin.Context) {
-	operatorID, _ := c.Get("userID")
+	operatorID, _ := c.Get("adminID")
 
 	var req systemDto.UpdateRoleReq
 	if err := c.ShouldBindJSON(&req); err != nil {

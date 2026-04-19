@@ -55,10 +55,10 @@ func (h *AppHandler) Create(c *gin.Context) {
 	}
 
 	app := &openEntity.App{
-		Name:       req.Name,
-		Status:     req.Status,
-		IPStrategy: req.IPStrategy,
-		Remark:     req.Remark,
+		Name:            req.Name,
+		Status:          req.Status,
+		IPFilterEnabled: req.IPFilterEnabled,
+		Remark:          req.Remark,
 	}
 
 	if err := h.svc.CreateApp(c.Request.Context(), app, req.Scopes); err != nil {
@@ -78,11 +78,11 @@ func (h *AppHandler) Update(c *gin.Context) {
 	}
 
 	app := &openEntity.App{
-		ID:         req.ID,
-		Name:       req.Name,
-		Status:     req.Status,
-		IPStrategy: req.IPStrategy,
-		Remark:     req.Remark,
+		ID:              req.ID,
+		Name:            req.Name,
+		Status:          req.Status,
+		IPFilterEnabled: req.IPFilterEnabled,
+		Remark:          req.Remark,
 	}
 
 	if err := h.svc.UpdateApp(c.Request.Context(), app, req.Scopes); err != nil {
@@ -128,6 +128,22 @@ func (h *AppHandler) ResetSecret(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"appSecret": newSecret})
+}
+
+// LinkIPRules 关联 IP 规则到应用
+func (h *AppHandler) LinkIPRules(c *gin.Context) {
+	var req openDto.LinkIPRulesReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithCode(c, errorx.CodeInvalidParams)
+		return
+	}
+
+	if err := h.svc.LinkIPRules(c.Request.Context(), req.ID, req.RuleIDs); err != nil {
+		response.FailWithCode(c, errorx.CodeInternalError)
+		return
+	}
+
+	response.Success(c, nil)
 }
 
 // GetScopes 获取应用的权限范围

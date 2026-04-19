@@ -17,7 +17,8 @@ type IPACRepository interface {
 	GetByIP(ctx context.Context, ip string, appID *string) (*ipac.IPAccessControl, error)
 	GetAllEffective(ctx context.Context) ([]*ipac.IPAccessControl, error)
 	DeleteBatch(ctx context.Context, ids []uint) error
-	GetAppIPStrategies(ctx context.Context) (map[string]int, error)
+	GetAppIPFilterEnabled(ctx context.Context) (map[string]bool, error)
+	LinkRulesToApp(ctx context.Context, appID string, ruleIDs []uint) error
 }
 
 type IPACQuery struct {
@@ -115,22 +116,39 @@ func (r *ipacRepository) DeleteBatch(ctx context.Context, ids []uint) error {
 	return r.db.WithContext(ctx).Delete(&ipac.IPAccessControl{}, ids).Error
 }
 
-func (r *ipacRepository) GetAppIPStrategies(ctx context.Context) (map[string]int, error) {
-	type appStrategy struct {
-		ID         string `gorm:"primaryKey"`
-		IPStrategy int
+func (r *ipacRepository) GetAppIPFilterEnabled(ctx context.Context) (map[string]bool, error) {
+	type appFilter struct {
+		ID string `gorm:"primaryKey"`
 	}
-	var list []appStrategy
+	var list []appFilter
 	err := r.db.WithContext(ctx).Table("sys_apps").
-		Select("id, ip_strategy").
-		Where("deleted_at = 0").
+		Select("id").
+		Where("ip_filter_enabled = ? AND deleted_at = 0", true).
 		Find(&list).Error
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[string]int, len(list))
+	result := make(map[string]bool, len(list))
 	for _, item := range list {
-		result[item.ID] = item.IPStrategy
+		result[item.ID] = true
 	}
 	return result, nil
+}
+
+func (r *ipacRepository) LinkRulesToApp(ctx context.Context, appID string, ruleIDs []uint) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&ipac.IPAccessControl{}).
+			Where("app_id = ?", appID).
+			Update("app_id", nil).Error; err != nil {
+			return err
+		}
+		if len(ruleIDs) > 0 {
+			if err := tx.Model(&ipac.IPAccessControl{}).
+				Where("id IN ?", ruleIDs).
+				Update("app_id", appID).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }

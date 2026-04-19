@@ -66,10 +66,10 @@ func (h *ContentCategoryHandler) Create(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("userID")
-	adminID := userID.(uint)
+	adminID, _ := c.Get("adminID")
+	operatorID := adminID.(uint)
 
-	category, err := h.service.Create(c.Request.Context(), adminID, &req)
+	category, err := h.service.Create(c.Request.Context(), operatorID, &req)
 	if err != nil {
 		response.Fail(c, err)
 		return
@@ -92,10 +92,10 @@ func (h *ContentCategoryHandler) Update(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("userID")
-	adminID := userID.(uint)
+	adminID, _ := c.Get("adminID")
+	operatorID := adminID.(uint)
 
-	category, err := h.service.Update(c.Request.Context(), adminID, uint(id), &req)
+	category, err := h.service.Update(c.Request.Context(), operatorID, uint(id), &req)
 	if err != nil {
 		response.Fail(c, err)
 		return
