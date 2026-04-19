@@ -28,6 +28,9 @@ type MessageService interface {
 	CreateTemplate(ctx context.Context, tpl *msgEntity.MsgTemplate) error
 	UpdateTemplate(ctx context.Context, tpl *msgEntity.MsgTemplate) error
 	DeleteTemplate(ctx context.Context, id uint64) error
+
+	// Record Admin
+	RetryRecord(ctx context.Context, id uint64) error
 }
 
 type messageService struct {
@@ -122,6 +125,27 @@ func (s *messageService) DeleteTemplate(ctx context.Context, id uint64) error {
 	}
 	// 失效缓存
 	return s.cacheMgr.InvalidateByTags(ctx, cache.TagMsgTemplate)
+}
+
+func (s *messageService) RetryRecord(ctx context.Context, id uint64) error {
+	rec, err := s.repo.GetRecordByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if rec.Status != msgEntity.MsgStatusFailed {
+		return fmt.Errorf("only failed records can be retried")
+	}
+
+	// 重置状态为等待发送
+	rec.Status = msgEntity.MsgStatusPending
+	rec.ErrorMsg = ""
+	if err := s.repo.UpdateRecord(ctx, rec); err != nil {
+		return err
+	}
+
+	// 重新投递任务
+	return s.dispatcher.Dispatch(ctx, "msg_send_job", rec.ID, task.WeightEssential)
 }
 
 func (s *messageService) renderTemplate(content string, params map[string]string) string {

@@ -1,5 +1,5 @@
-import { request } from '../../request';
 import type { MessageHub } from '@/typings/api/v1/message-hub';
+import { request } from '../../request';
 
 /** 获取消息模板列表 */
 export function fetchTemplateList(params: MessageHub.TemplateQueryParams) {
@@ -51,5 +51,13 @@ export function sendDirect(data: MessageHub.SendDirectReq) {
     url: '/admin/v1/message/send',
     method: 'post',
     data
+  });
+}
+
+/** 失败消息重发 */
+export function retryRecord(id: number) {
+  return request({
+    url: `/admin/v1/message/records/${id}/retry`,
+    method: 'post'
   });
 }

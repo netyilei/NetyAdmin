@@ -3,22 +3,22 @@ package message
 import (
 	"time"
 
-	"gorm.io/gorm"
+	"gorm.io/plugin/soft_delete"
 )
 
 // MsgTemplate 消息模板实体
 type MsgTemplate struct {
-	ID            uint64         `gorm:"primaryKey;autoIncrement" json:"id"`
-	Code          string         `gorm:"size:50;not null;uniqueIndex:idx_msg_tpl_code,where:deleted_at = 0" json:"code"`
-	Name          string         `gorm:"size:100;not null" json:"name"`
-	Channel       string         `gorm:"size:20;not null" json:"channel"` // sms, email, internal, push
-	Title         string         `gorm:"size:200" json:"title"`
-	Content       string         `gorm:"type:text;not null" json:"content"`
-	ProviderTplID string         `gorm:"size:100" json:"providerTplId"`
-	Status        int            `gorm:"default:1" json:"status"` // 1:启用, 0:禁用
-	CreatedAt     time.Time      `json:"createdAt"`
-	UpdatedAt     time.Time      `json:"updatedAt"`
-	DeletedAt     gorm.DeletedAt `gorm:"index" json:"-"`
+	ID            uint64                `gorm:"primaryKey;autoIncrement" json:"id"`
+	Code          string                `gorm:"size:50;not null;uniqueIndex:idx_msg_tpl_code,where:deleted_at = 0" json:"code"`
+	Name          string                `gorm:"size:100;not null" json:"name"`
+	Channel       string                `gorm:"size:20;not null" json:"channel"` // sms, email, internal, push
+	Title         string                `gorm:"size:200" json:"title"`
+	Content       string                `gorm:"type:text;not null" json:"content"`
+	ProviderTplID string                `gorm:"size:100" json:"providerTplId"`
+	Status        int                   `gorm:"default:1" json:"status"` // 1:启用, 0:禁用
+	CreatedAt     time.Time             `json:"createdAt"`
+	UpdatedAt     time.Time             `json:"updatedAt"`
+	DeletedAt     soft_delete.DeletedAt `gorm:"column:deleted_at;softDelete:milli;default:0" json:"-"`
 }
 
 func (MsgTemplate) TableName() string {

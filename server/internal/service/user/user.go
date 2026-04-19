@@ -4,16 +4,22 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
+	"regexp"
+	"strconv"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 
 	userEntity "NetyAdmin/internal/domain/entity/user"
 	clientDto "NetyAdmin/internal/interface/client/dto/v1"
 
 	userVO "NetyAdmin/internal/domain/vo/user"
+	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
+	storagePkg "NetyAdmin/internal/pkg/storage"
 	"NetyAdmin/internal/pkg/utils"
 	userRepo "NetyAdmin/internal/repository/user"
 )
@@ -28,9 +34,13 @@ type UserService interface {
 	ChangePassword(ctx context.Context, userID string, req *clientDto.UserChangePasswordReq) error
 	Logout(ctx context.Context, userID string, token string) error
 	ResetPassword(ctx context.Context, req *clientDto.UserResetPasswordReq) error
+	DeleteAccount(ctx context.Context, userID string) error
+	GetUploadToken(ctx context.Context, userID string) (interface{}, error)
 
 	// Admin API
 	List(ctx context.Context, current, size int, query *userRepo.UserRepoQuery) ([]userEntity.User, int64, error)
+	Create(ctx context.Context, user *userEntity.User) error
+	Update(ctx context.Context, user *userEntity.User) error
 	UpdateStatus(ctx context.Context, id string, status string) error
 	Delete(ctx context.Context, id string) error
 	DeleteBatch(ctx context.Context, ids []string) error
@@ -40,21 +50,24 @@ type UserService interface {
 }
 
 type userService struct {
-	repo      userRepo.UserRepository
-	jwt       *jwt.JWT
-	verifySvc VerificationService
+	repo          userRepo.UserRepository
+	jwt           *jwt.JWT
+	verifySvc     VerificationService
+	configWatcher configsync.ConfigWatcher
+	storageMgr    *storagePkg.Manager
 }
 
-func NewUserService(repo userRepo.UserRepository, jwtInstance *jwt.JWT, verifySvc VerificationService) UserService {
+func NewUserService(repo userRepo.UserRepository, jwtInstance *jwt.JWT, verifySvc VerificationService, configWatcher configsync.ConfigWatcher, storageMgr *storagePkg.Manager) UserService {
 	return &userService{
-		repo:      repo,
-		jwt:       jwtInstance,
-		verifySvc: verifySvc,
+		repo:          repo,
+		jwt:           jwtInstance,
+		verifySvc:     verifySvc,
+		configWatcher: configWatcher,
+		storageMgr:    storageMgr,
 	}
 }
 
 func (s *userService) Register(ctx context.Context, req *clientDto.UserRegisterReq) (string, error) {
-	// 0. 验证码校验
 	target := req.Phone
 	if target == "" {
 		target = req.Email
@@ -63,9 +76,15 @@ func (s *userService) Register(ctx context.Context, req *clientDto.UserRegisterR
 		return "", errorx.New(errorx.CodeInvalidParams, "手机号或邮箱必填其一")
 	}
 
-	ok, err := s.verifySvc.VerifyAndClearCode(ctx, SceneRegister, target, req.Code)
-	if err != nil || !ok {
-		return "", errorx.New(errorx.CodeCaptchaInvalid, "验证码错误或已过期")
+	verifyConfig, _ := s.verifySvc.GetVerifyConfig(ctx, SceneRegister)
+	if verifyConfig != nil && verifyConfig.Enabled {
+		if req.Code == "" {
+			return "", errorx.New(errorx.CodeCaptchaRequired, "验证码必填")
+		}
+		ok, err := s.verifySvc.VerifyAndClearCode(ctx, SceneRegister, target, req.Code)
+		if err != nil || !ok {
+			return "", errorx.New(errorx.CodeCaptchaInvalid, "验证码错误或已过期")
+		}
 	}
 
 	// 1. 检查唯一性
@@ -274,14 +293,19 @@ func (s *userService) Logout(ctx context.Context, userID string, token string) e
 }
 
 func (s *userService) ResetPassword(ctx context.Context, req *clientDto.UserResetPasswordReq) error {
-	// 1. 校验验证码
-	ok, err := s.verifySvc.VerifyAndClearCode(ctx, SceneResetPassword, req.Target, req.Code)
-	if err != nil || !ok {
-		return errorx.New(errorx.CodeCaptchaInvalid, "验证码错误或已过期")
+	verifyConfig, _ := s.verifySvc.GetVerifyConfig(ctx, SceneResetPassword)
+	if verifyConfig != nil && verifyConfig.Enabled {
+		if req.Code == "" {
+			return errorx.New(errorx.CodeCaptchaRequired, "验证码必填")
+		}
+		ok, err := s.verifySvc.VerifyAndClearCode(ctx, SceneResetPassword, req.Target, req.Code)
+		if err != nil || !ok {
+			return errorx.New(errorx.CodeCaptchaInvalid, "验证码错误或已过期")
+		}
 	}
 
-	// 2. 查找用户
 	var user *userEntity.User
+	var err error
 	if utils.IsEmail(req.Target) {
 		user, err = s.repo.GetByEmail(ctx, req.Target)
 	} else {
@@ -306,6 +330,108 @@ func (s *userService) List(ctx context.Context, current, size int, query *userRe
 	query.Current = current
 	query.Size = size
 	return s.repo.List(ctx, query)
+}
+
+func (s *userService) Create(ctx context.Context, user *userEntity.User) error {
+	// 1. 检查唯一性
+	exists, _ := s.repo.ExistsByUsername(ctx, user.Username)
+	if exists {
+		return errorx.New(errorx.CodeUserAlreadyExists, "用户名已存在")
+	}
+	if user.Phone != "" {
+		exists, _ = s.repo.ExistsByPhone(ctx, user.Phone)
+		if exists {
+			return errorx.New(errorx.CodeUserAlreadyExists, "手机号已存在")
+		}
+	}
+	if user.Email != "" {
+		exists, _ = s.repo.ExistsByEmail(ctx, user.Email)
+		if exists {
+			return errorx.New(errorx.CodeUserAlreadyExists, "邮箱已存在")
+		}
+	}
+
+	// 2. 密码加密
+	if user.Password != "" {
+		if err := s.validatePasswordStrength(ctx, user.Password); err != nil {
+			return err
+		}
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return errorx.New(errorx.CodeInternalError, "密码加密失败")
+		}
+		user.Password = string(hashedPassword)
+	}
+
+	// 3. 设置 ID 和默认状态
+	if user.ID == "" {
+		user.ID = utils.NewULID()
+	}
+	if user.Status == "" {
+		user.Status = userEntity.UserStatusEnabled
+	}
+
+	return s.repo.Create(ctx, user)
+}
+
+func (s *userService) Update(ctx context.Context, user *userEntity.User) error {
+	oldUser, err := s.repo.GetByID(ctx, user.ID)
+	if err != nil {
+		return errorx.New(errorx.CodeUserNotFound, "用户不存在")
+	}
+
+	// 1. 检查唯一性
+	if user.Username != "" && user.Username != oldUser.Username {
+		exists, _ := s.repo.ExistsByUsername(ctx, user.Username)
+		if exists {
+			return errorx.New(errorx.CodeUserAlreadyExists, "用户名已存在")
+		}
+		oldUser.Username = user.Username
+	}
+	if user.Phone != "" && user.Phone != oldUser.Phone {
+		exists, _ := s.repo.ExistsByPhone(ctx, user.Phone, user.ID)
+		if exists {
+			return errorx.New(errorx.CodeUserAlreadyExists, "手机号已存在")
+		}
+		oldUser.Phone = user.Phone
+	}
+	if user.Email != "" && user.Email != oldUser.Email {
+		exists, _ := s.repo.ExistsByEmail(ctx, user.Email, user.ID)
+		if exists {
+			return errorx.New(errorx.CodeUserAlreadyExists, "邮箱已存在")
+		}
+		oldUser.Email = user.Email
+	}
+
+	// 2. 处理密码更新
+	if user.Password != "" {
+		if err := s.validatePasswordStrength(ctx, user.Password); err != nil {
+			return err
+		}
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return errorx.New(errorx.CodeInternalError, "密码加密失败")
+		}
+		oldUser.Password = string(hashedPassword)
+		// 强制清理 Token
+		_ = s.repo.DeleteAllTokenHashes(ctx, user.ID)
+	}
+
+	// 3. 更新其他字段
+	if user.Nickname != "" {
+		oldUser.Nickname = user.Nickname
+	}
+	if user.Avatar != "" {
+		oldUser.Avatar = user.Avatar
+	}
+	if user.Gender != "" {
+		oldUser.Gender = user.Gender
+	}
+	if user.Status != "" {
+		oldUser.Status = user.Status
+	}
+
+	return s.repo.Update(ctx, oldUser)
 }
 
 func (s *userService) UpdateStatus(ctx context.Context, id string, status string) error {
@@ -335,6 +461,78 @@ func (s *userService) UpdateLastReadID(ctx context.Context, userID string, lastR
 	return s.repo.UpdateFields(ctx, userID, map[string]interface{}{
 		"last_read_announcement_id": lastReadID,
 	})
+}
+
+func (s *userService) DeleteAccount(ctx context.Context, userID string) error {
+	// 1. 清理 Token
+	_ = s.repo.DeleteAllTokenHashes(ctx, userID)
+	// 2. 软删除用户
+	return s.repo.Delete(ctx, userID)
+}
+
+func (s *userService) GetUploadToken(ctx context.Context, userID string) (interface{}, error) {
+	storageSource, _ := s.configWatcher.GetConfig("user_config", "storage_module")
+
+	if storageSource != "" {
+		configID, err := strconv.ParseUint(storageSource, 10, 32)
+		if err == nil && configID > 0 {
+			presignedURL, err := s.storageMgr.GetPresignedUploadURL(ctx, uint(configID), "user/"+userID+"/", "application/octet-stream", 15*time.Minute)
+			if err != nil {
+				return nil, errorx.New(errorx.CodeInternalError, "获取上传凭证失败")
+			}
+			return gin.H{"uploadUrl": presignedURL, "storageConfigId": configID}, nil
+		}
+	}
+
+	driver, config, err := s.storageMgr.GetDefaultDriver()
+	if err != nil {
+		return nil, errorx.New(errorx.CodeInternalError, "未配置默认存储源")
+	}
+
+	presignedURL, err := driver.GetPresignedUploadURL(ctx, "user/"+userID+"/", "application/octet-stream", 15*time.Minute)
+	if err != nil {
+		return nil, errorx.New(errorx.CodeInternalError, "获取上传凭证失败")
+	}
+
+	return gin.H{"uploadUrl": presignedURL, "storageConfigId": config.ID}, nil
+}
+
+func (s *userService) validatePasswordStrength(ctx context.Context, password string) error {
+	minLengthStr, _ := s.configWatcher.GetConfig("user_config", "password_min_length")
+	minLength := 8
+	if v, err := strconv.Atoi(minLengthStr); err == nil && v > 0 {
+		minLength = v
+	}
+
+	requireTypesStr, _ := s.configWatcher.GetConfig("user_config", "password_require_types")
+	requireTypes := 2
+	if v, err := strconv.Atoi(requireTypesStr); err == nil && v > 0 {
+		requireTypes = v
+	}
+
+	if len(password) < minLength {
+		return fmt.Errorf("密码长度不能少于 %d 位", minLength)
+	}
+
+	types := 0
+	if matched, _ := regexp.MatchString(`[a-z]`, password); matched {
+		types++
+	}
+	if matched, _ := regexp.MatchString(`[A-Z]`, password); matched {
+		types++
+	}
+	if matched, _ := regexp.MatchString(`[0-9]`, password); matched {
+		types++
+	}
+	if matched, _ := regexp.MatchString(`[^a-zA-Z0-9]`, password); matched {
+		types++
+	}
+
+	if types < requireTypes {
+		return fmt.Errorf("密码必须包含数字、大小写字母、特殊符号中的至少 %d 种", requireTypes)
+	}
+
+	return nil
 }
 
 func (s *userService) computeHash(token string) string {

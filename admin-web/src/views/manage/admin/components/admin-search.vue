@@ -59,7 +59,7 @@ async function search() {
             >
               <AppDictSelect
                 v-model:value="model.userGender"
-                dict-code="user_gender"
+                dict-code="sys_gender"
                 :placeholder="$t('page.manage.admin.form.userGender')"
               />
             </NFormItemGi>

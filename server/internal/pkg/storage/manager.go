@@ -6,9 +6,12 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"log"
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type Manager struct {
@@ -87,6 +90,31 @@ func (m *Manager) GetDefaultDriver() (Driver, *Config, error) {
 	}
 
 	return nil, nil, fmt.Errorf("no available storage config")
+}
+
+func (m *Manager) WatchConfigChanges(ctx context.Context, redisClient *redis.Client, channel string, reloadFunc func(ctx context.Context) error) {
+	if redisClient == nil {
+		log.Println("[StorageManager] 无 Redis Client，集群同步未开启")
+		return
+	}
+
+	sub := redisClient.Subscribe(ctx, channel)
+	defer sub.Close()
+
+	log.Printf("[StorageManager] 已订阅集群同步频道: %s", channel)
+
+	ch := sub.Channel()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg := <-ch:
+			log.Printf("[StorageManager] 收到集群同步信号: %v, 即将重载存储配置...", msg.Payload)
+			if err := reloadFunc(ctx); err != nil {
+				log.Printf("[StorageManager] 集群同步重载失败: %v", err)
+			}
+		}
+	}
 }
 
 func (m *Manager) Upload(ctx context.Context, configID uint, key string, reader io.Reader, size int64, contentType string) (*UploadResult, error) {

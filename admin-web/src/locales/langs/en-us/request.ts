@@ -39,7 +39,32 @@ const request = {
     buttonCodeDuplicate: 'Duplicate button code',
     apiNotFound: 'API not found',
     apiAlreadyExists: 'API already exists',
-    apiPathDuplicate: 'Duplicate API path'
+    apiPathDuplicate: 'Duplicate API path',
+    // User Module (1011xx)
+    clientUserNotFound: 'User not found',
+    clientUserAlreadyExists: 'Username already exists',
+    emailAlreadyExists: 'Email already exists',
+    phoneAlreadyExists: 'Phone already exists',
+    // Message Module (1012xx)
+    msgTemplateNotFound: 'Message template not found',
+    msgTemplateCodeExists: 'Template code already exists',
+    msgSendFailed: 'Message send failed',
+    msgRecordNotFound: 'Message record not found',
+    msgDriverNotFound: 'Message driver not configured or not found',
+    // Open Platform (1013xx)
+    appKeyInvalid: 'Invalid AppKey',
+    signatureFailed: 'Signature verification failed',
+    requestExpired: 'Request expired',
+    scopeMismatch: 'Insufficient permissions (Scope mismatch)',
+    rateLimited: 'Rate limited',
+    // IP Access Control (1014xx)
+    ipBlocked: 'Access denied (Your IP has been blocked)',
+    ipInvalid: 'Invalid IP/CIDR format',
+    whitelistMode: 'System is in whitelist mode, your IP is not authorized',
+    // User Module Integration (2006xx)
+    captchaExpired: 'Captcha expired',
+    captchaSendTooFrequent: 'Sending too frequently, please try later',
+    verifyTypeNotConfigured: 'Verification type not configured, please contact admin'
   }
 };
 

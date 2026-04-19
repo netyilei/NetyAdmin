@@ -1,4 +1,5 @@
 <script setup lang="tsx">
+import { ref } from 'vue';
 import { NButton, NPopconfirm, NTag } from 'naive-ui';
 import dayjs from 'dayjs';
 import {
@@ -12,9 +13,13 @@ import { useTable, useTableOperate } from '@/hooks/common/table';
 import { useAuth } from '@/hooks/business/auth';
 import { $t } from '@/locales';
 import ErrorLogSearch from './components/error-log-search.vue';
+import ErrorLogDetailModal from './components/error-log-detail-modal.vue';
 
 const appStore = useAppStore();
 const { hasAuth } = useAuth();
+
+const detailVisible = ref(false);
+const detailRow = ref<any>(null);
 
 const {
   columns,
@@ -132,9 +137,12 @@ const {
       key: 'operate',
       title: $t('common.operate'),
       align: 'center',
-      width: 160,
+      width: 200,
       render: row => (
         <div class="flex-center gap-8px">
+          <NButton type="primary" ghost size="small" onClick={() => viewDetail(row)}>
+            {$t('common.detail')}
+          </NButton>
           {hasAuth('ops:error-log:resolve') && !row.resolved && (
             <NPopconfirm onPositiveClick={() => handleResolve(row.id)}>
               {{
@@ -196,6 +204,11 @@ async function handleResolve(id: number) {
     await getData();
   }
 }
+
+function viewDetail(row: any) {
+  detailRow.value = row;
+  detailVisible.value = true;
+}
 </script>
 
 <template>
@@ -227,5 +240,6 @@ async function handleResolve(id: number) {
         class="sm:h-full"
       />
     </NCard>
+    <ErrorLogDetailModal v-model:visible="detailVisible" :row-data="detailRow" />
   </div>
 </template>

@@ -167,7 +167,9 @@ const manage = {
       captcha: '验证码配置',
       user: '用户配置',
       task: '任务配置',
-      log: '日志管理'
+      log: '日志管理',
+      email: '邮件配置',
+      sms: '短信配置'
     },
     cache: {
       title: '缓存降级开关',
@@ -193,6 +195,8 @@ const manage = {
       params: '参数配置',
       admin_login_enabled: '管理员登录',
       user_register_enabled: '用户注册',
+      user_login_captcha_enabled: '用户登录',
+      user_reset_pwd_captcha_enabled: '用户重置密码',
       user_login_pc: 'PC客户端登录',
       user_login_web: 'Web端登录',
       user_login_app: 'APP登录',
@@ -235,9 +239,36 @@ const manage = {
       taskLog: '任务调度日志',
       operationLog: '管理员操作日志',
       errorLog: '系统错误日志',
+      msgRecord: '发送记录',
       enabled: '记录开关',
       retentionDays: '保留天数(0为永久)',
       daysUnit: '天'
+    },
+    email: {
+      description: '配置邮件服务参数。留空的字段将使用 config.toml 中的默认值作为兜底。',
+      enabled: '启用邮件服务',
+      host: 'SMTP 服务器',
+      hostPlaceholder: '如: smtp.example.com',
+      port: 'SMTP 端口',
+      user: '发件人账号',
+      userPlaceholder: '如: your-email@example.com',
+      password: '发件人密码/授权码',
+      passwordPlaceholder: '请输入密码或授权码',
+      from: '发件人地址',
+      fromPlaceholder: '如: your-email@example.com'
+    },
+    sms: {
+      description: '配置短信服务参数。留空的字段将使用 config.toml 中的默认值作为兜底。',
+      enabled: '启用短信服务',
+      driver: '短信驱动',
+      secretId: 'SecretId',
+      secretIdPlaceholder: '请输入 SecretId',
+      secretKey: 'SecretKey',
+      secretKeyPlaceholder: '请输入 SecretKey',
+      appId: 'AppId',
+      appIdPlaceholder: '请输入 AppId',
+      signName: '短信签名',
+      signNamePlaceholder: '请输入短信签名'
     },
     system: {
       admin_max_login_fails: '管理员最多连续登录失败次数'
@@ -262,6 +293,20 @@ const manage = {
     editType: '编辑字典类型',
     addData: '新增字典数据',
     editData: '编辑字典数据'
+  },
+  user: {
+    title: '终端用户列表',
+    username: '用户名',
+    password: '密码',
+    nickname: '昵称',
+    avatar: '头像',
+    phone: '手机号',
+    email: '邮箱',
+    gender: '性别',
+    status: '状态',
+    lastLoginAt: '最后登录',
+    addUser: '新增用户',
+    editUser: '编辑用户'
   }
 };
 

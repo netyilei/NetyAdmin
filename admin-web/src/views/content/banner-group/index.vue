@@ -1,6 +1,6 @@
 <script setup lang="tsx">
 import { useRouter } from 'vue-router';
-import { NButton, NPopconfirm, NTag } from 'naive-ui';
+import { NButton, NPopconfirm } from 'naive-ui';
 import dayjs from 'dayjs';
 import { fetchDeleteBannerGroup, fetchGetBannerGroupList } from '@/service/api/v1/content';
 import { useAppStore } from '@/store/modules/app';

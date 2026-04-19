@@ -23,7 +23,7 @@ password = ""
 db = 0
 
 # L1 缓存 (BigCache) 配置
-l1_enabled = true       # 当 Redis 开启时，是否开启本地一级缓存 (开启可大幅提升读性能)
+l1_enabled = false       # 当 Redis 开启时，是否开启本地一级缓存 (开启可大幅提升读性能)
 local_max_size_mb = 256 # 本地缓存最大内存占用 (MB)
 local_max_entry_kb = 500 # 单条缓存记录最大大小 (KB)
 local_ttl_min = 10      # 本地缓存默认过期时间 (分钟)

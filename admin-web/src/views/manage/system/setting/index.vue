@@ -37,7 +37,26 @@ const logConfigs = reactive<Record<string, ConfigItem | undefined>>({
   task_log_enabled: undefined,
   task_retention: undefined,
   ops_retention: undefined,
-  err_retention: undefined
+  err_retention: undefined,
+  msg_record_retention: undefined
+});
+
+const emailConfigs = reactive<Record<string, ConfigItem | undefined>>({
+  enabled: undefined,
+  host: undefined,
+  port: undefined,
+  user: undefined,
+  password: undefined,
+  from: undefined
+});
+
+const smsConfigs = reactive<Record<string, ConfigItem | undefined>>({
+  enabled: undefined,
+  driver: undefined,
+  secret_id: undefined,
+  secret_key: undefined,
+  app_id: undefined,
+  sign_name: undefined
 });
 
 const captchaConfigs = reactive<{
@@ -97,7 +116,10 @@ async function init() {
     fetchGetSysConfigs('error_config'),
     fetchGetSysConfigs('captcha_config'),
     fetchGetSysConfigs('user_config'),
-    fetchGetAllEnabledStorageConfigs()
+    fetchGetAllEnabledStorageConfigs(),
+    fetchGetSysConfigs('email_config'),
+    fetchGetSysConfigs('sms_config'),
+    fetchGetSysConfigs('msg_record_config')
   ]);
 
   if (!results[0].error) cacheConfigs.value = results[0].data;
@@ -145,7 +167,9 @@ async function init() {
       if (Object.keys(userConfigs).includes(item.configKey)) {
         userConfigs[item.configKey] = {
           ...item,
-          numValue: !['_verify_type', 'storage_module', 'login_storage'].some(k => item.configKey.endsWith(k))
+          numValue: !['_verify_type', 'storage_module', 'login_storage', '_verify'].some(k =>
+            item.configKey.endsWith(k)
+          )
             ? Number.parseInt(item.configValue, 10) || 0
             : undefined
         };
@@ -158,6 +182,33 @@ async function init() {
       label: item.name,
       value: item.id.toString()
     }));
+  }
+
+  if (!results[7].error) {
+    results[7].data.forEach(item => {
+      if (Object.keys(emailConfigs).includes(item.configKey)) {
+        emailConfigs[item.configKey] = {
+          ...item,
+          numValue: item.configKey === 'port' ? Number.parseInt(item.configValue, 10) || 0 : undefined
+        };
+      }
+    });
+  }
+
+  if (!results[8].error) {
+    results[8].data.forEach(item => {
+      if (Object.keys(smsConfigs).includes(item.configKey)) {
+        smsConfigs[item.configKey] = item;
+      }
+    });
+  }
+
+  if (!results[9].error) {
+    results[9].data.forEach(item => {
+      if (item.configKey === 'retention_days') {
+        logConfigs.msg_record_retention = { ...item, numValue: Number.parseInt(item.configValue, 10) || 0 };
+      }
+    });
   }
 
   loading.value = false;
@@ -419,7 +470,10 @@ onMounted(init);
                             @blur="handleNumberUpdate(userConfigs.password_min_length)"
                           />
                         </NFormItem>
-                        <NFormItem :label="$t('page.manage.setting.user.password_require_types')" label-placement="left">
+                        <NFormItem
+                          :label="$t('page.manage.setting.user.password_require_types')"
+                          label-placement="left"
+                        >
                           <NInputNumber
                             v-if="userConfigs.password_require_types"
                             v-model:value="userConfigs.password_require_types.numValue"
@@ -438,8 +492,11 @@ onMounted(init);
                     <NCard :title="$t('page.manage.setting.user.verify')" size="small" class="h-full">
                       <NSpace vertical :size="16">
                         <!-- Register Verify -->
-                        <div class="p-4 rounded-8px border border-gray-100 bg-gray-50/30">
-                          <NFormItem :label="$t('page.manage.setting.user.user_register_verify')" label-placement="left">
+                        <div class="border border-gray-100 rounded-8px bg-gray-50/30 p-4">
+                          <NFormItem
+                            :label="$t('page.manage.setting.user.user_register_verify')"
+                            label-placement="left"
+                          >
                             <NSwitch
                               v-if="userConfigs.user_register_verify"
                               v-model:value="userConfigs.user_register_verify.configValue"
@@ -466,8 +523,11 @@ onMounted(init);
                         </div>
 
                         <!-- Reset Pwd Verify -->
-                        <div class="mt-4 p-4 rounded-8px border border-gray-100 bg-gray-50/30">
-                          <NFormItem :label="$t('page.manage.setting.user.user_reset_pwd_verify')" label-placement="left">
+                        <div class="mt-4 border border-gray-100 rounded-8px bg-gray-50/30 p-4">
+                          <NFormItem
+                            :label="$t('page.manage.setting.user.user_reset_pwd_verify')"
+                            label-placement="left"
+                          >
                             <NSwitch
                               v-if="userConfigs.user_reset_pwd_verify"
                               v-model:value="userConfigs.user_reset_pwd_verify.configValue"
@@ -575,7 +635,168 @@ onMounted(init);
                   </NFormItem>
                 </NCard>
               </NGridItem>
+
+              <NGridItem>
+                <!-- Message Record -->
+                <NCard :title="$t('page.manage.setting.log.msgRecord')" size="small">
+                  <NFormItem :label="$t('page.manage.setting.log.retentionDays')">
+                    <NInputNumber
+                      v-if="logConfigs.msg_record_retention !== undefined"
+                      v-model:value="logConfigs.msg_record_retention.numValue"
+                      :min="0"
+                      :max="3650"
+                      class="w-full"
+                      @blur="handleNumberUpdate(logConfigs.msg_record_retention)"
+                    >
+                      <template #suffix>{{ $t('page.manage.setting.log.daysUnit') }}</template>
+                    </NInputNumber>
+                  </NFormItem>
+                </NCard>
+              </NGridItem>
             </NGrid>
+          </div>
+        </NTabPane>
+
+        <!-- Tab: Email Configuration -->
+        <NTabPane name="email" :tab="$t('page.manage.setting.tabs.email')">
+          <div class="max-w-600px pt-4">
+            <NAlert type="info" class="mb-6">
+              {{ $t('page.manage.setting.email.description') }}
+            </NAlert>
+            <NSpin :show="loading">
+              <NSpace vertical :size="20">
+                <NFormItem :label="$t('page.manage.setting.email.enabled')" label-placement="left">
+                  <NSwitch
+                    v-if="emailConfigs.enabled"
+                    v-model:value="emailConfigs.enabled.configValue"
+                    checked-value="true"
+                    unchecked-value="false"
+                    :loading="updating === emailConfigs.enabled?.configKey"
+                    @update:value="handleUpdate(emailConfigs.enabled)"
+                  />
+                </NFormItem>
+                <NFormItem :label="$t('page.manage.setting.email.host')" label-placement="left">
+                  <NInput
+                    v-if="emailConfigs.host"
+                    v-model:value="emailConfigs.host.configValue"
+                    :placeholder="$t('page.manage.setting.email.hostPlaceholder')"
+                    class="w-300px"
+                    @blur="handleUpdate(emailConfigs.host)"
+                  />
+                </NFormItem>
+                <NFormItem :label="$t('page.manage.setting.email.port')" label-placement="left">
+                  <NInputNumber
+                    v-if="emailConfigs.port"
+                    v-model:value="emailConfigs.port.numValue"
+                    :min="1"
+                    :max="65535"
+                    class="w-200px"
+                    @blur="handleNumberUpdate(emailConfigs.port)"
+                  />
+                </NFormItem>
+                <NFormItem :label="$t('page.manage.setting.email.user')" label-placement="left">
+                  <NInput
+                    v-if="emailConfigs.user"
+                    v-model:value="emailConfigs.user.configValue"
+                    :placeholder="$t('page.manage.setting.email.userPlaceholder')"
+                    class="w-300px"
+                    @blur="handleUpdate(emailConfigs.user)"
+                  />
+                </NFormItem>
+                <NFormItem :label="$t('page.manage.setting.email.password')" label-placement="left">
+                  <NInput
+                    v-if="emailConfigs.password"
+                    v-model:value="emailConfigs.password.configValue"
+                    type="password"
+                    show-password-on="click"
+                    :placeholder="$t('page.manage.setting.email.passwordPlaceholder')"
+                    class="w-300px"
+                    @blur="handleUpdate(emailConfigs.password)"
+                  />
+                </NFormItem>
+                <NFormItem :label="$t('page.manage.setting.email.from')" label-placement="left">
+                  <NInput
+                    v-if="emailConfigs.from"
+                    v-model:value="emailConfigs.from.configValue"
+                    :placeholder="$t('page.manage.setting.email.fromPlaceholder')"
+                    class="w-300px"
+                    @blur="handleUpdate(emailConfigs.from)"
+                  />
+                </NFormItem>
+              </NSpace>
+            </NSpin>
+          </div>
+        </NTabPane>
+
+        <!-- Tab: SMS Configuration -->
+        <NTabPane name="sms" :tab="$t('page.manage.setting.tabs.sms')">
+          <div class="max-w-600px pt-4">
+            <NAlert type="info" class="mb-6">
+              {{ $t('page.manage.setting.sms.description') }}
+            </NAlert>
+            <NSpin :show="loading">
+              <NSpace vertical :size="20">
+                <NFormItem :label="$t('page.manage.setting.sms.enabled')" label-placement="left">
+                  <NSwitch
+                    v-if="smsConfigs.enabled"
+                    v-model:value="smsConfigs.enabled.configValue"
+                    checked-value="true"
+                    unchecked-value="false"
+                    :loading="updating === smsConfigs.enabled?.configKey"
+                    @update:value="handleUpdate(smsConfigs.enabled)"
+                  />
+                </NFormItem>
+                <NFormItem :label="$t('page.manage.setting.sms.driver')" label-placement="left">
+                  <NSelect
+                    v-if="smsConfigs.driver"
+                    v-model:value="smsConfigs.driver.configValue"
+                    :options="[{ label: 'Tencent Cloud', value: 'tencent' }]"
+                    class="w-200px"
+                    @update:value="handleUpdate(smsConfigs.driver)"
+                  />
+                </NFormItem>
+                <NFormItem :label="$t('page.manage.setting.sms.secretId')" label-placement="left">
+                  <NInput
+                    v-if="smsConfigs.secret_id"
+                    v-model:value="smsConfigs.secret_id.configValue"
+                    type="password"
+                    show-password-on="click"
+                    :placeholder="$t('page.manage.setting.sms.secretIdPlaceholder')"
+                    class="w-300px"
+                    @blur="handleUpdate(smsConfigs.secret_id)"
+                  />
+                </NFormItem>
+                <NFormItem :label="$t('page.manage.setting.sms.secretKey')" label-placement="left">
+                  <NInput
+                    v-if="smsConfigs.secret_key"
+                    v-model:value="smsConfigs.secret_key.configValue"
+                    type="password"
+                    show-password-on="click"
+                    :placeholder="$t('page.manage.setting.sms.secretKeyPlaceholder')"
+                    class="w-300px"
+                    @blur="handleUpdate(smsConfigs.secret_key)"
+                  />
+                </NFormItem>
+                <NFormItem :label="$t('page.manage.setting.sms.appId')" label-placement="left">
+                  <NInput
+                    v-if="smsConfigs.app_id"
+                    v-model:value="smsConfigs.app_id.configValue"
+                    :placeholder="$t('page.manage.setting.sms.appIdPlaceholder')"
+                    class="w-300px"
+                    @blur="handleUpdate(smsConfigs.app_id)"
+                  />
+                </NFormItem>
+                <NFormItem :label="$t('page.manage.setting.sms.signName')" label-placement="left">
+                  <NInput
+                    v-if="smsConfigs.sign_name"
+                    v-model:value="smsConfigs.sign_name.configValue"
+                    :placeholder="$t('page.manage.setting.sms.signNamePlaceholder')"
+                    class="w-300px"
+                    @blur="handleUpdate(smsConfigs.sign_name)"
+                  />
+                </NFormItem>
+              </NSpace>
+            </NSpin>
           </div>
         </NTabPane>
       </NTabs>

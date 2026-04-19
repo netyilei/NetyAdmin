@@ -123,6 +123,27 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 	response.Success(c, nil)
 }
 
+// DeleteAccount 注销账号
+func (h *UserHandler) DeleteAccount(c *gin.Context) {
+	userID := c.GetString("userID")
+	if err := h.userSvc.DeleteAccount(c.Request.Context(), userID); err != nil {
+		response.Fail(c, err)
+		return
+	}
+	response.Success(c, nil)
+}
+
+// GetUploadToken 获取上传凭证
+func (h *UserHandler) GetUploadToken(c *gin.Context) {
+	userID := c.GetString("userID")
+	token, err := h.userSvc.GetUploadToken(c.Request.Context(), userID)
+	if err != nil {
+		response.Fail(c, err)
+		return
+	}
+	response.Success(c, token)
+}
+
 // Logout 退出登录
 func (h *UserHandler) Logout(c *gin.Context) {
 	userID := c.GetString("userID")

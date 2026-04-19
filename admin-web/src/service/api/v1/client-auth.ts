@@ -1,5 +1,5 @@
-import { request } from '../../request';
 import type { ClientAuth } from '@/typings/api/v1/client-auth';
+import { request } from '../../request';
 
 /**
  * get client captcha

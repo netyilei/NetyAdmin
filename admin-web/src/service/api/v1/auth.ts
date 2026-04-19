@@ -1,16 +1,11 @@
 import type { Auth } from '@/typings/api/v1/auth';
 import { request } from '../../request';
 
-export function fetchLogin(userName: string, password: string, captchaId?: string, captchaValue?: string) {
+export function fetchLogin(params: Auth.LoginReq) {
   return request<Auth.LoginToken>({
     url: '/admin/v1/auth/login',
     method: 'post',
-    data: {
-      username: userName,
-      password,
-      captchaId,
-      captchaValue
-    }
+    data: params
   });
 }
 

@@ -42,9 +42,9 @@ export function fetchReloadTask(name: string) {
 }
 
 /** update task config */
-export function fetchUpdateTask(name: string, data: { name: string; enabled: boolean; spec: string }) {
+export function fetchUpdateTask(data: { name: string; enabled: boolean; spec: string }) {
   return request({
-    url: `/admin/v1/system/tasks/${name}`,
+    url: '/admin/v1/system/tasks/update',
     method: 'put',
     data
   });

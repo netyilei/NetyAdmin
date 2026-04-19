@@ -120,7 +120,7 @@ onMounted(() => {
               <NInput v-model:value="profileModel.userEmail" :placeholder="$t('common.pleaseInput')" />
             </NFormItem>
             <NFormItem :label="$t('page.manage.admin.userGender')" path="userGender">
-              <AppDictRadioGroup v-model:value="userGender" dict-code="user_gender" />
+              <AppDictRadioGroup v-model:value="userGender" dict-code="sys_gender" />
             </NFormItem>
           </NForm>
         </NSpin>

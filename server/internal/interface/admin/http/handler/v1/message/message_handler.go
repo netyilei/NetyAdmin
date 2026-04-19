@@ -132,3 +132,19 @@ func (h *MessageHandler) DeleteTemplate(c *gin.Context) {
 	}
 	response.Success(c, nil)
 }
+
+// RetryRecord 重发失败的消息
+func (h *MessageHandler) RetryRecord(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		response.FailWithCode(c, errorx.CodeInvalidParams)
+		return
+	}
+
+	if err := h.svc.RetryRecord(c.Request.Context(), id); err != nil {
+		response.FailWithCode(c, errorx.CodeInternalError, err.Error())
+		return
+	}
+	response.Success(c, nil)
+}

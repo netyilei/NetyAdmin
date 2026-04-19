@@ -1,5 +1,5 @@
-import { request } from '../../request';
 import type { ClientUser } from '@/typings/api/v1/client-user';
+import { request } from '../../request';
 
 /**
  * user register

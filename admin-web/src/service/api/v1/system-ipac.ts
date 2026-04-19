@@ -1,5 +1,5 @@
-import { request } from '../../request';
 import type { SystemIPAC } from '@/typings/api/v1/system-ipac';
+import { request } from '../../request';
 
 /** 获取 IP 规则列表 */
 export function fetchIPACList(params: SystemIPAC.IPACQueryParams) {

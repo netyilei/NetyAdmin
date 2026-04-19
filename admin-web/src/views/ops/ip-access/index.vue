@@ -3,9 +3,8 @@ import { NButton, NPopconfirm, NSpace, NTag } from 'naive-ui';
 import { batchDeleteIPAC, deleteIPAC, fetchIPACList } from '@/service/api/v1/system-ipac';
 import { useAppStore } from '@/store/modules/app';
 import { useTable, useTableOperate } from '@/hooks/common/table';
-import { $t } from '@/locales';
 import { useDict } from '@/hooks/common/dict';
-import type { SystemIPAC } from '@/typings/api/v1/system-ipac';
+import { $t } from '@/locales';
 import IPACSearch from './components/ipac-search.vue';
 import IPACOperateModal from './components/ipac-operate-modal.vue';
 
@@ -109,22 +108,16 @@ const {
   ]
 });
 
-const {
-  checkedRowKeys,
-  onBatchDeleted,
-  onDeleted,
-  handleAdd,
-  handleEdit,
-  drawerVisible,
-  operateType,
-  editingData
-} = useTableOperate(data, getData);
+const { checkedRowKeys, onBatchDeleted, onDeleted, handleAdd, handleEdit, drawerVisible, operateType, editingData } =
+  useTableOperate(data, getData);
 
 async function handleBatchDelete() {
-  const ids = (checkedRowKeys.value as unknown) as number[];
+  const ids = checkedRowKeys.value as unknown as number[];
   if (!ids.length) return;
 
+  loading.value = true;
   const { error } = await batchDeleteIPAC(ids);
+  loading.value = false;
   if (!error) {
     window.$message?.success?.($t('common.deleteSuccess'));
     onBatchDeleted();
@@ -132,7 +125,9 @@ async function handleBatchDelete() {
 }
 
 async function handleDelete(id: number) {
+  loading.value = true;
   const { error } = await deleteIPAC(id);
+  loading.value = false;
   if (!error) {
     window.$message?.success?.($t('common.deleteSuccess'));
     onDeleted();
@@ -147,7 +142,7 @@ function edit(id: number) {
 <template>
   <div class="min-h-500px flex-col-stretch gap-16px overflow-hidden lt-sm:overflow-auto">
     <IPACSearch v-model:model="searchParams" @reset="resetSearchParams" @search="getDataByPage" />
-    <NCard :title="$t('page.ops.ipac.title')" :bordered="false" size="small" class="sm:flex-1-hidden card-wrapper">
+    <NCard :title="$t('page.ops.ipac.title')" :bordered="false" size="small" class="card-wrapper sm:flex-1-hidden">
       <template #header-extra>
         <TableHeaderOperation
           v-model:columns="columnChecks"

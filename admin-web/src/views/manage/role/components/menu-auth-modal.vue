@@ -1,11 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from 'vue';
 import { consola } from 'consola';
-import {
-  fetchGetMenuIdsByRole,
-  fetchGetMenuTree,
-  fetchUpdateMenuIdsByRole
-} from '@/service/api/v1/system-manage';
+import { fetchGetMenuIdsByRole, fetchGetMenuTree, fetchUpdateMenuIdsByRole } from '@/service/api/v1/system-manage';
 import type { SystemManage } from '@/typings/api/v1/system-manage';
 import { $t } from '@/locales';
 

@@ -1,17 +1,22 @@
 <script setup lang="tsx">
-import { NButton, NPopconfirm, NTag } from 'naive-ui';
+import { ref } from 'vue';
+import { NButton, NPopconfirm } from 'naive-ui';
 import { fetchBatchDeleteOperationLog, fetchDeleteOperationLog, fetchGetOperationLogList } from '@/service/api/v1/log';
 import { useAppStore } from '@/store/modules/app';
 import { useTable, useTableOperate } from '@/hooks/common/table';
 import { useAuth } from '@/hooks/business/auth';
 import { useDict } from '@/hooks/common/dict';
 import { $t } from '@/locales';
+import OperationLogDetailModal from './components/operation-log-detail-modal.vue';
 
 const appStore = useAppStore();
 const { hasAuth } = useAuth();
 const { loadDicts, renderDictTag } = useDict();
 
 loadDicts(['sys_operation_action']);
+
+const detailVisible = ref(false);
+const detailRow = ref<any>(null);
 
 const {
   columns,
@@ -90,9 +95,12 @@ const {
       key: 'operate',
       title: $t('common.operate'),
       align: 'center',
-      width: 100,
+      width: 160,
       render: row => (
         <div class="flex-center gap-8px">
+          <NButton type="primary" ghost size="small" onClick={() => viewDetail(row)}>
+            {$t('common.detail')}
+          </NButton>
           {hasAuth('ops:operation-log:delete') && (
             <NPopconfirm onPositiveClick={() => handleDelete(row.id)}>
               {{
@@ -133,6 +141,11 @@ async function handleDelete(id: number) {
     await onDeleted();
   }
 }
+
+function viewDetail(row: any) {
+  detailRow.value = row;
+  detailVisible.value = true;
+}
 </script>
 
 <template>
@@ -168,5 +181,6 @@ async function handleDelete(id: number) {
         class="sm:h-full"
       />
     </NCard>
+    <OperationLogDetailModal v-model:visible="detailVisible" :row-data="detailRow" />
   </div>
 </template>

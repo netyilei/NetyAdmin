@@ -34,7 +34,6 @@ func (h *AppHandler) List(c *gin.Context) {
 		PageSize: req.Size,
 		Name:     req.Name,
 		AppKey:   req.AppKey,
-		Type:     req.Type,
 		Status:   req.Status,
 	}
 
@@ -57,7 +56,6 @@ func (h *AppHandler) Create(c *gin.Context) {
 
 	app := &openEntity.App{
 		Name:       req.Name,
-		Type:       req.Type,
 		Status:     req.Status,
 		IPStrategy: req.IPStrategy,
 		Remark:     req.Remark,
@@ -82,7 +80,6 @@ func (h *AppHandler) Update(c *gin.Context) {
 	app := &openEntity.App{
 		ID:         req.ID,
 		Name:       req.Name,
-		Type:       req.Type,
 		Status:     req.Status,
 		IPStrategy: req.IPStrategy,
 		Remark:     req.Remark,

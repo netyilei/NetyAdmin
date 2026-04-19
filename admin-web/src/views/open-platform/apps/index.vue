@@ -1,11 +1,10 @@
 <script setup lang="tsx">
 import { NButton, NPopconfirm, NSpace, NTag } from 'naive-ui';
 import { deleteApp, fetchAppList, resetAppSecret } from '@/service/api/v1/open-app';
-import { useTable, useTableOperate } from '@/hooks/common/table';
 import { useAppStore } from '@/store/modules/app';
-import { $t } from '@/locales';
+import { useTable, useTableOperate } from '@/hooks/common/table';
 import { useDict } from '@/hooks/common/dict';
-import type { OpenApp } from '@/typings/api/v1/open-app';
+import { $t } from '@/locales';
 import AppSearch from './components/app-search.vue';
 import AppOperateModal from './components/app-operate-modal.vue';
 
@@ -30,7 +29,6 @@ const {
     size: 10,
     name: '',
     appKey: '',
-    type: undefined,
     status: undefined,
     total: 0
   },
@@ -48,13 +46,6 @@ const {
       title: $t('page.openPlatform.app.appKey'),
       align: 'center',
       width: 150
-    } as any,
-    {
-      key: 'type',
-      title: $t('page.openPlatform.app.type'),
-      align: 'center',
-      width: 120,
-      render: (row: any) => renderDictTag('sys_app_type', String(row.type))
     } as any,
     {
       key: 'ipStrategy',
@@ -112,16 +103,8 @@ const {
   ]
 });
 
-const {
-  drawerVisible,
-  operateType,
-  editingData,
-  handleAdd,
-  handleEdit,
-  checkedRowKeys,
-  onBatchDeleted,
-  onDeleted
-} = useTableOperate(data, getData);
+const { drawerVisible, operateType, editingData, handleAdd, handleEdit, checkedRowKeys, onBatchDeleted, onDeleted } =
+  useTableOperate(data, getData);
 
 async function handleDelete(id: string) {
   const { error } = await deleteApp(id);
@@ -156,7 +139,12 @@ function edit(id: string) {
 <template>
   <div class="min-h-500px flex-col-stretch gap-16px overflow-hidden lt-sm:overflow-auto">
     <AppSearch v-model:model="searchParams" @reset="resetSearchParams" @search="getDataByPage" />
-    <NCard :title="$t('page.openPlatform.app.title')" :bordered="false" size="small" class="sm:flex-1-hidden card-wrapper">
+    <NCard
+      :title="$t('page.openPlatform.app.title')"
+      :bordered="false"
+      size="small"
+      class="card-wrapper sm:flex-1-hidden"
+    >
       <template #header-extra>
         <TableHeaderOperation
           v-model:columns="columnChecks"
@@ -167,10 +155,11 @@ function edit(id: string) {
         />
       </template>
       <NDataTable
+        v-model:checked-row-keys="checkedRowKeys"
         remote
         striped
         size="small"
-        class="sm:flex-1-hidden"
+        class="sm:h-full"
         :data="data"
         :columns="columns"
         :flex-height="!appStore.isMobile"
@@ -178,7 +167,6 @@ function edit(id: string) {
         :single-line="false"
         :row-key="row => row.id"
         :pagination="mobilePagination"
-        v-model:checked-row-keys="checkedRowKeys"
         @update:page="getDataByPage"
       />
       <AppOperateModal

@@ -55,7 +55,10 @@ const common = {
   },
   networkError: '网络错误',
   uploadCancelled: '上传已取消',
-  uploadFailed: '上传失败'
+  uploadFailed: '上传失败',
+  sendSuccess: '发送成功',
+  fail: '失败',
+  operationSuccess: '操作成功'
 };
 
 export default common;

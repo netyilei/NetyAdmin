@@ -30,7 +30,11 @@ func OperationLogger(opLogSvc logService.OperationService) gin.HandlerFunc {
 		method := c.Request.Method
 		path := c.Request.URL.Path
 
-		// 1. 不记录操作日志自身的删除操作
+		if !strings.HasPrefix(path, "/admin/") {
+			c.Next()
+			return
+		}
+
 		if (method == "DELETE" && strings.HasPrefix(path, "/admin/v1/operation-logs/")) ||
 			(method == "POST" && path == "/admin/v1/operation-logs/batch-delete") {
 			c.Next()

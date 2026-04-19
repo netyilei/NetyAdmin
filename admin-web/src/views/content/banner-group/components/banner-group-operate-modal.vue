@@ -171,16 +171,32 @@ watch(
   >
     <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="100">
       <NFormItem :label="$t('page.content.bannerGroup.groupName')" path="name">
-        <NInput v-model:value="model.name" :placeholder="$t('page.content.bannerGroup.form.groupName')" maxlength="100" />
+        <NInput
+          v-model:value="model.name"
+          :placeholder="$t('page.content.bannerGroup.form.groupName')"
+          maxlength="100"
+        />
       </NFormItem>
       <NFormItem :label="$t('page.content.bannerGroup.groupCode')" path="code">
-        <NInput v-model:value="model.code" :placeholder="$t('page.content.bannerGroup.form.groupCode')" maxlength="50" />
+        <NInput
+          v-model:value="model.code"
+          :placeholder="$t('page.content.bannerGroup.form.groupCode')"
+          maxlength="50"
+        />
       </NFormItem>
       <NFormItem :label="$t('page.content.bannerGroup.description')" path="description">
-        <NInput v-model:value="model.description" :placeholder="$t('page.content.bannerGroup.form.description')" maxlength="255" />
+        <NInput
+          v-model:value="model.description"
+          :placeholder="$t('page.content.bannerGroup.form.description')"
+          maxlength="255"
+        />
       </NFormItem>
       <NFormItem :label="$t('page.content.bannerGroup.position')" path="position">
-        <NInput v-model:value="model.position" :placeholder="$t('page.content.bannerGroup.form.position')" maxlength="50" />
+        <NInput
+          v-model:value="model.position"
+          :placeholder="$t('page.content.bannerGroup.form.position')"
+          maxlength="50"
+        />
       </NFormItem>
       <NFormItem :label="$t('page.content.bannerGroup.storageConfigId')" path="storageConfigId">
         <StorageConfigSelect
@@ -201,18 +217,35 @@ watch(
         </NGridItem>
       </NGrid>
       <NFormItem :label="$t('page.content.bannerGroup.maxItems')" path="maxItems">
-        <NInputNumber v-model:value="model.maxItems" :placeholder="$t('page.content.bannerGroup.maxItems')" :min="1" :max="50" class="w-full" />
+        <NInputNumber
+          v-model:value="model.maxItems"
+          :placeholder="$t('page.content.bannerGroup.maxItems')"
+          :min="1"
+          :max="50"
+          class="w-full"
+        />
       </NFormItem>
       <NFormItem :label="$t('page.content.bannerGroup.autoPlay')" path="autoPlay">
         <NSwitch v-model:value="model.autoPlay" />
       </NFormItem>
       <NFormItem v-if="model.autoPlay" :label="$t('page.content.bannerGroup.interval')" path="interval">
-        <NInputNumber v-model:value="model.interval" :placeholder="$t('page.content.bannerGroup.interval')" :min="1000" :step="1000" class="w-full">
+        <NInputNumber
+          v-model:value="model.interval"
+          :placeholder="$t('page.content.bannerGroup.interval')"
+          :min="1000"
+          :step="1000"
+          class="w-full"
+        >
           <template #suffix>ms</template>
         </NInputNumber>
       </NFormItem>
       <NFormItem :label="$t('page.content.bannerGroup.sort')" path="sort">
-        <NInputNumber v-model:value="model.sort" :placeholder="$t('page.content.bannerGroup.form.sort')" :min="0" class="w-full" />
+        <NInputNumber
+          v-model:value="model.sort"
+          :placeholder="$t('page.content.bannerGroup.form.sort')"
+          :min="0"
+          class="w-full"
+        />
       </NFormItem>
       <NFormItem :label="$t('common.status')" path="status">
         <NRadioGroup v-model:value="model.status">

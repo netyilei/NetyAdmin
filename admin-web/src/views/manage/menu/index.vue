@@ -1,9 +1,8 @@
 <script setup lang="tsx">
 import { computed, onMounted, ref } from 'vue';
 import type { Ref } from 'vue';
-import { NButton, NDataTable, NPopconfirm, NTag } from 'naive-ui';
+import { NButton, NDataTable, NPopconfirm } from 'naive-ui';
 import { useBoolean } from '@na/hooks';
-import TableHeaderOperation from '@/components/advanced/table-header-operation.vue';
 import {
   fetchBatchDeleteMenu,
   fetchDeleteMenu,
@@ -14,6 +13,7 @@ import {
 import { useAppStore } from '@/store/modules/app';
 import { useTable, useTableOperate } from '@/hooks/common/table';
 import { useDict } from '@/hooks/common/dict';
+import TableHeaderOperation from '@/components/advanced/table-header-operation.vue';
 import type { SystemManage } from '@/typings/api/v1/system-manage';
 import { $t } from '@/locales';
 import SvgIcon from '@/components/custom/svg-icon.vue';

@@ -6,10 +6,10 @@ import {
   themeScrollModeOptions,
   themeTabModeOptions
 } from '@/constants/app';
+import { APP_CONFIG } from '@/config';
 import { useThemeStore } from '@/store/modules/theme';
 import { translateOptions } from '@/utils/common';
 import { $t } from '@/locales';
-import { APP_CONFIG } from '@/config';
 import SettingItem from '../components/setting-item.vue';
 
 defineOptions({

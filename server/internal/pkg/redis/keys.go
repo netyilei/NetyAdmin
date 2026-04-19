@@ -19,6 +19,14 @@ func ChannelConfigSync(prefix string) string {
 	return fmt.Sprintf("%s:channel:config_sync", prefix)
 }
 
+// ChannelStorageSync 存储配置热重载广播频道
+func ChannelStorageSync(prefix string) string {
+	if prefix == "" {
+		prefix = DefaultPrefix
+	}
+	return fmt.Sprintf("%s:channel:storage_sync", prefix)
+}
+
 // KeyLockAccount 账号抢占/操作锁
 func KeyLockAccount(prefix string, accountID uint) string {
 	if prefix == "" {

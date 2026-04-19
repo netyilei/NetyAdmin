@@ -12,6 +12,7 @@ import (
 
 type ClientRouter struct {
 	appSvc  openSvcPkg.AppService
+	apiSvc  openSvcPkg.OpenApiService
 	logSvc  openSvcPkg.OpenLogService
 	ipacSvc ipacSvcPkg.IPACService
 	routers []v1.ClientModuleRouter
@@ -22,11 +23,13 @@ func NewClientRouter(
 	userH *handler.UserHandler,
 	authH *handler.AuthHandler,
 	appSvc openSvcPkg.AppService,
+	apiSvc openSvcPkg.OpenApiService,
 	logSvc openSvcPkg.OpenLogService,
 	ipacSvc ipacSvcPkg.IPACService,
 ) *ClientRouter {
 	return &ClientRouter{
 		appSvc:  appSvc,
+		apiSvc:  apiSvc,
 		logSvc:  logSvc,
 		ipacSvc: ipacSvc,
 		routers: []v1.ClientModuleRouter{
@@ -48,7 +51,7 @@ func (r *ClientRouter) Register(engine *gin.Engine) {
 
 	// 2. 需要开放平台签名验证的接口
 	authGroup := clientV1.Group("")
-	authGroup.Use(middleware.OpenPlatformAuth(r.appSvc, r.logSvc, r.ipacSvc))
+	authGroup.Use(middleware.OpenPlatformAuth(r.appSvc, r.apiSvc, r.logSvc, r.ipacSvc))
 	for _, module := range r.routers {
 		module.RegisterAuth(authGroup)
 	}

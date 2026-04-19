@@ -252,7 +252,7 @@ async function handleEdit(row: SystemManage.TaskInfo) {
 }
 
 async function handleUpdateTask() {
-  const { error } = await fetchUpdateTask(editForm.name, {
+  const { error } = await fetchUpdateTask({
     name: editForm.name,
     enabled: editForm.enabled,
     spec: editForm.spec

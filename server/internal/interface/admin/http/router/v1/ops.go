@@ -10,13 +10,15 @@ import (
 type OpsRouter struct {
 	ipac    *ipacHandler.IPACHandler
 	app     *openHandler.AppHandler
+	openApi *openHandler.OpenApiHandler
 	openLog *openHandler.OpenLogHandler
 }
 
-func NewOpsRouter(ipac *ipacHandler.IPACHandler, app *openHandler.AppHandler, openLog *openHandler.OpenLogHandler) *OpsRouter {
+func NewOpsRouter(ipac *ipacHandler.IPACHandler, app *openHandler.AppHandler, openApi *openHandler.OpenApiHandler, openLog *openHandler.OpenLogHandler) *OpsRouter {
 	return &OpsRouter{
 		ipac:    ipac,
 		app:     app,
+		openApi: openApi,
 		openLog: openLog,
 	}
 }
@@ -28,6 +30,7 @@ func (r *OpsRouter) RegisterAuth(group *gin.RouterGroup) {}
 func (r *OpsRouter) RegisterPermission(group *gin.RouterGroup) {
 	r.registerIPAC(group)
 	r.registerOpenPlatform(group)
+	r.registerOpenApi(group)
 	r.registerOpenLog(group)
 }
 
@@ -60,6 +63,19 @@ func (r *OpsRouter) registerOpenPlatform(group *gin.RouterGroup) {
 		scopeGroup.POST("", r.app.CreateScopeGroup)
 		scopeGroup.PUT("", r.app.UpdateScopeGroup)
 		scopeGroup.DELETE("/:id", r.app.DeleteScopeGroup)
+	}
+}
+
+func (r *OpsRouter) registerOpenApi(group *gin.RouterGroup) {
+	apiGroup := group.Group("/open/apis")
+	{
+		apiGroup.GET("", r.openApi.List)
+		apiGroup.POST("", r.openApi.Create)
+		apiGroup.PUT("", r.openApi.Update)
+		apiGroup.DELETE("/:id", r.openApi.Delete)
+		apiGroup.GET("/all", r.openApi.ListAll)
+		apiGroup.GET("/scope-apis", r.openApi.GetScopeApis)
+		apiGroup.PUT("/scope-apis", r.openApi.UpdateScopeApis)
 	}
 }
 

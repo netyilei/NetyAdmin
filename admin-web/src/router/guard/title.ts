@@ -1,7 +1,7 @@
 import type { Router } from 'vue-router';
 import { useTitle } from '@vueuse/core';
-import { $t } from '@/locales';
 import { APP_CONFIG } from '@/config';
+import { $t } from '@/locales';
 
 export function createDocumentTitleGuard(router: Router) {
   router.afterEach(to => {

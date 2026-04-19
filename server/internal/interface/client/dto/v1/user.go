@@ -14,7 +14,7 @@ type UserRegisterReq struct {
 	Nickname string `json:"nickname" binding:"required"`
 	Phone    string `json:"phone"`
 	Email    string `json:"email"`
-	Code     string `json:"code" binding:"required"` // 手机或邮箱验证码
+	Code     string `json:"code"`
 }
 
 // UserResetPasswordReq 找回密码请求

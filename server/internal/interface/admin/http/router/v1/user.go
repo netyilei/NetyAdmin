@@ -23,6 +23,8 @@ func (r *UserRouter) RegisterPermission(group *gin.RouterGroup) {
 	userGroup := group.Group("/systemManage/users")
 	{
 		userGroup.GET("", r.user.List)
+		userGroup.POST("", r.user.Create)
+		userGroup.PUT("/:id", r.user.Update)
 		userGroup.PATCH("/:id/status", r.user.UpdateStatus)
 		userGroup.DELETE("/:id", r.user.Delete)
 	}

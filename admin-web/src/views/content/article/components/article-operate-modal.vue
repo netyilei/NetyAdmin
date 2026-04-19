@@ -262,15 +262,20 @@ async function handleSubmit() {
 
   try {
     if (props.operateType === 'add') {
-      await fetchCreateArticle(params);
-      window.$message?.success($t('common.addSuccess'));
+      const { error } = await fetchCreateArticle(params);
+      if (!error) {
+        window.$message?.success($t('common.addSuccess'));
+        closeModal();
+        emit('submitted');
+      }
     } else {
-      await fetchUpdateArticle(props.rowData!.id, params);
-      window.$message?.success($t('common.updateSuccess'));
+      const { error } = await fetchUpdateArticle(props.rowData!.id, params);
+      if (!error) {
+        window.$message?.success($t('common.updateSuccess'));
+        closeModal();
+        emit('submitted');
+      }
     }
-
-    closeModal();
-    emit('submitted');
   } finally {
     loading.value = false;
   }

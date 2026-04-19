@@ -36,7 +36,7 @@ func (w *openPlatformResponseWriter) Write(b []byte) (int, error) {
 }
 
 // OpenPlatformAuth 开放平台签名验证中间件
-func OpenPlatformAuth(appSvc openSvcPkg.AppService, logSvc openSvcPkg.OpenLogService, ipacSvc ipacSvcPkg.IPACService) gin.HandlerFunc {
+func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiService, logSvc openSvcPkg.OpenLogService, ipacSvc ipacSvcPkg.IPACService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		startTime := time.Now()
 		appKey := c.GetHeader("X-App-Key")
@@ -171,11 +171,18 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, logSvc openSvcPkg.OpenLogSer
 			return
 		}
 
-		// 9. 验证权限范围 (Scope)
-		requiredScope, _ := c.Get("requiredScope")
-		if requiredScope != nil {
-			allowed, err = appSvc.VerifyAppScope(c.Request.Context(), app.ID, requiredScope.(string))
-			if err != nil || !allowed {
+		// 9. 验证 API 权限
+		allowedApis, err := apiSvc.GetAppAllowedApis(c.Request.Context(), app.ID)
+		if err == nil && len(allowedApis) > 0 {
+			currentApi := strings.ToUpper(c.Request.Method) + ":" + c.Request.URL.Path
+			matched := false
+			for _, api := range allowedApis {
+				if api == currentApi {
+					matched = true
+					break
+				}
+			}
+			if !matched {
 				response.FailWithCode(c, errorx.CodeScopeMismatch, "权限不足")
 				c.Abort()
 				return

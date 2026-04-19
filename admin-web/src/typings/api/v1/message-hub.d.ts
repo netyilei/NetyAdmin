@@ -45,6 +45,7 @@ export namespace MessageHub {
     size: number;
     channel?: string;
     receiver?: string;
+    status?: number;
     total?: number;
   }
 

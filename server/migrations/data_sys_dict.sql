@@ -26,7 +26,7 @@ END $$;
 -- Initial Dictionary Types
 INSERT INTO sys_dict_type (name, code, description) VALUES 
 ('系统状态', 'sys_status', '通用启用/禁用状态'),
-('用户性别', 'user_gender', '用户性别字典'),
+('用户性别', 'sys_gender', '用户性别字典'),
 ('菜单类型', 'menu_type', '系统菜单分类类型'),
 ('操作动作', 'sys_operation_action', '管理员操作日志动作类型')
 ON CONFLICT (code) WHERE deleted_at = 0 DO UPDATE SET name = EXCLUDED.name;
@@ -39,9 +39,9 @@ ON CONFLICT (dict_code, value) WHERE deleted_at = 0 DO UPDATE SET label = EXCLUD
 
 -- Insert user_gender data
 INSERT INTO sys_dict_data (dict_code, label, value, tag_type, order_by) VALUES 
-('user_gender', 'page.manage.admin.gender.male', '1', 'primary', 1),
-('user_gender', 'page.manage.admin.gender.female', '2', 'error', 2),
-('user_gender', 'page.manage.admin.gender.unknown', '3', 'default', 3)
+('sys_gender', 'page.manage.admin.gender.unknown', '0', 'default', 1),
+('sys_gender', 'page.manage.admin.gender.male', '1', 'primary', 2),
+('sys_gender', 'page.manage.admin.gender.female', '2', 'error', 3)
 ON CONFLICT (dict_code, value) WHERE deleted_at = 0 DO UPDATE SET label = EXCLUDED.label;
 
 -- Insert menu_type data
@@ -63,7 +63,6 @@ ON CONFLICT (dict_code, value) WHERE deleted_at = 0 DO UPDATE SET label = EXCLUD
 INSERT INTO sys_dict_type (name, code, description) VALUES 
 ('图标类型', 'menu_icon_type', '侧边栏图标渲染方式'),
 ('是否', 'sys_yes_no', '通用布尔状态字典'),
-('应用类型', 'sys_app_type', '开放平台应用类型'),
 ('IP策略', 'sys_app_ip_strategy', '应用IP访问控制策略'),
 ('消息通道', 'sys_msg_channel', '消息发送通道 (sms, email, internal, push)'),
 ('消息状态', 'sys_msg_status', '消息发送状态 (0:等待, 1:成功, 2:失败)'),
@@ -75,8 +74,6 @@ INSERT INTO sys_dict_data (dict_code, label, value, tag_type, order_by) VALUES
 ('menu_icon_type', 'page.manage.menu.iconType.local', '2', 'info', 2),
 ('sys_yes_no', 'common.yes', '1', 'success', 1),
 ('sys_yes_no', 'common.no', '0', 'error', 2),
-('sys_app_type', 'page.openPlatform.app.typeInternal', '1', 'success', 1),
-('sys_app_type', 'page.openPlatform.app.typeExternal', '2', 'info', 2),
 ('sys_app_ip_strategy', 'page.openPlatform.app.ipStrategyBlacklist', '1', 'error', 1),
 ('sys_app_ip_strategy', 'page.openPlatform.app.ipStrategyWhitelist', '2', 'success', 2),
 ('sys_msg_channel', 'page.messageHub.channel.sms', 'sms', 'info', 1),

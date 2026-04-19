@@ -14,7 +14,7 @@ const appStore = useAppStore();
 const { routerPushByKey } = useRouterPush();
 const { loadDicts, renderDictTag } = useDict();
 
-loadDicts(['sys_status', 'user_gender']);
+loadDicts(['sys_status', 'sys_gender']);
 
 const {
   columns,
@@ -62,7 +62,7 @@ const {
       title: $t('page.manage.admin.userGender'),
       align: 'center',
       width: 100,
-      render: row => renderDictTag('user_gender', row.userGender ?? '')
+      render: row => renderDictTag('sys_gender', row.userGender ?? '')
     },
     {
       key: 'nickName',

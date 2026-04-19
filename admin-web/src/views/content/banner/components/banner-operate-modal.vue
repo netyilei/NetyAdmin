@@ -258,7 +258,11 @@ watch(
         </NSpace>
       </NFormItem>
       <NFormItem :label="$t('page.content.bannerItem.imageAlt')" path="imageAlt">
-        <NInput v-model:value="model.imageAlt" :placeholder="$t('page.content.bannerItem.form.imageAlt')" maxlength="200" />
+        <NInput
+          v-model:value="model.imageAlt"
+          :placeholder="$t('page.content.bannerItem.form.imageAlt')"
+          maxlength="200"
+        />
       </NFormItem>
       <NFormItem :label="$t('page.content.bannerItem.linkType')" path="linkType">
         <NSelect
@@ -273,10 +277,19 @@ watch(
         />
       </NFormItem>
       <NFormItem v-if="model.linkType === 'external'" :label="$t('page.content.bannerItem.link')" path="linkUrl">
-        <NInput v-model:value="model.linkUrl" :placeholder="$t('page.content.bannerItem.form.linkUrl')" maxlength="500" />
+        <NInput
+          v-model:value="model.linkUrl"
+          :placeholder="$t('page.content.bannerItem.form.linkUrl')"
+          maxlength="500"
+        />
       </NFormItem>
       <NFormItem v-if="model.linkType === 'article'" label="文章ID" path="linkArticleId">
-        <NInputNumber v-model:value="model.linkArticleId" :placeholder="$t('page.content.bannerItem.form.linkArticleId')" :min="1" class="w-full" />
+        <NInputNumber
+          v-model:value="model.linkArticleId"
+          :placeholder="$t('page.content.bannerItem.form.linkArticleId')"
+          :min="1"
+          class="w-full"
+        />
       </NFormItem>
       <NFormItem :label="$t('page.content.bannerItem.content')" path="content">
         <NInput

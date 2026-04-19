@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/smtp"
+	"strconv"
 	"strings"
 )
 
@@ -15,34 +16,69 @@ type EmailConfig struct {
 	From     string
 }
 
-type emailDriver struct {
-	cfg EmailConfig
+type ConfigProvider interface {
+	GetByGroup(ctx context.Context, groupName string) (map[string]string, error)
 }
 
-func NewEmailDriver(cfg EmailConfig) Driver {
-	return &emailDriver{cfg: cfg}
+type emailDriver struct {
+	cfg      EmailConfig
+	provider ConfigProvider
+}
+
+func NewEmailDriver(cfg EmailConfig, provider ConfigProvider) Driver {
+	return &emailDriver{cfg: cfg, provider: provider}
+}
+
+func (d *emailDriver) resolveConfig(ctx context.Context) EmailConfig {
+	cfg := d.cfg
+	if d.provider == nil {
+		return cfg
+	}
+	vals, err := d.provider.GetByGroup(ctx, "email_config")
+	if err != nil || len(vals) == 0 {
+		return cfg
+	}
+	if v, ok := vals["host"]; ok && v != "" {
+		cfg.Host = v
+	}
+	if v, ok := vals["port"]; ok && v != "" {
+		if p, e := strconv.Atoi(v); e == nil && p > 0 {
+			cfg.Port = p
+		}
+	}
+	if v, ok := vals["user"]; ok && v != "" {
+		cfg.User = v
+	}
+	if v, ok := vals["password"]; ok && v != "" {
+		cfg.Password = v
+	}
+	if v, ok := vals["from"]; ok && v != "" {
+		cfg.From = v
+	}
+	return cfg
 }
 
 func (d *emailDriver) Send(ctx context.Context, receiver string, title string, content string, params map[string]string) error {
-	auth := smtp.PlainAuth("", d.cfg.User, d.cfg.Password, d.cfg.Host)
-	addr := fmt.Sprintf("%s:%d", d.cfg.Host, d.cfg.Port)
+	cfg := d.resolveConfig(ctx)
+	if cfg.Host == "" || cfg.User == "" {
+		return fmt.Errorf("email config incomplete: host or user is empty")
+	}
+	auth := smtp.PlainAuth("", cfg.User, cfg.Password, cfg.Host)
+	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
 
-	// 构造简单的邮件报文
 	msg := []byte(fmt.Sprintf("To: %s\r\n"+
 		"Subject: %s\r\n"+
 		"Content-Type: text/html; charset=UTF-8\r\n"+
 		"\r\n"+
 		"%s\r\n", receiver, title, content))
 
-	err := smtp.SendMail(addr, auth, d.cfg.From, []string{receiver}, msg)
+	err := smtp.SendMail(addr, auth, cfg.From, []string{receiver}, msg)
 	if err != nil {
 		return fmt.Errorf("failed to send email: %w", err)
 	}
 
 	return nil
 }
-
-// --- Mock SMS Driver ---
 
 type mockSmsDriver struct{}
 

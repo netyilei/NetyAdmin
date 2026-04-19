@@ -21,8 +21,8 @@ func NewAuthHandler(verifySvc userService.VerificationService, captcha *captcha.
 	}
 }
 
-// GetCaptcha 获取图形验证码
-func (h *AuthHandler) GetCaptcha(c *gin.Context) {
+// Captcha 获取验证码
+func (h *AuthHandler) Captcha(c *gin.Context) {
 	id, b64s, err := h.captcha.Generate("digit", 120, 40, 4)
 	if err != nil {
 		response.FailWithCode(c, errorx.CodeInternalError, "验证码生成失败")
@@ -34,8 +34,27 @@ func (h *AuthHandler) GetCaptcha(c *gin.Context) {
 	})
 }
 
-// GetVerifyConfig 获取验证配置
-func (h *AuthHandler) GetVerifyConfig(c *gin.Context) {
+// CaptchaStatus 获取验证码开关状态
+func (h *AuthHandler) CaptchaStatus(c *gin.Context) {
+	scene := c.Query("scene")
+	if scene == "" {
+		response.FailWithCode(c, errorx.CodeInvalidParams)
+		return
+	}
+
+	config, err := h.verifySvc.GetVerifyConfig(c.Request.Context(), scene)
+	if err != nil {
+		response.Fail(c, err)
+		return
+	}
+
+	response.Success(c, gin.H{
+		"enabled": config.Enabled,
+	})
+}
+
+// VerifyConfig 获取公开配置 (如密码最小长度等)
+func (h *AuthHandler) VerifyConfig(c *gin.Context) {
 	scene := c.Query("scene")
 	if scene == "" {
 		response.FailWithCode(c, errorx.CodeInvalidParams, "scene 不能为空")

@@ -1,3 +1,4 @@
+import type { ClientUser } from '@/typings/api/v1/client-user';
 import type { SystemManage } from '@/typings/api/v1/system-manage';
 import { request } from '../../request';
 
@@ -261,16 +262,34 @@ export function fetchBatchDeleteMenu(ids: number[]) {
   });
 }
 
-/** get user list (terminal users) */
-export function fetchGetUserList(params?: any) {
-  return request<any>({
+/** 获取终端用户列表 */
+export function fetchGetUserList(params?: ClientUser.ClientUserSearchParams) {
+  return request<ClientUser.ClientUserList>({
     url: '/admin/v1/systemManage/users',
     method: 'get',
     params
   });
 }
 
-/** update user status */
+/** 新增终端用户 */
+export function fetchAddUser(data: any) {
+  return request({
+    url: '/admin/v1/systemManage/users',
+    method: 'post',
+    data
+  });
+}
+
+/** 更新终端用户 */
+export function fetchUpdateUser(id: string, data: any) {
+  return request({
+    url: `/admin/v1/systemManage/users/${id}`,
+    method: 'put',
+    data
+  });
+}
+
+/** 更新终端用户状态 */
 export function fetchUpdateUserStatus(id: string, status: string) {
   return request({
     url: `/admin/v1/systemManage/users/${id}/status`,
@@ -279,7 +298,7 @@ export function fetchUpdateUserStatus(id: string, status: string) {
   });
 }
 
-/** delete user */
+/** 删除终端用户 */
 export function fetchDeleteUser(id: string) {
   return request({
     url: `/admin/v1/systemManage/users/${id}`,

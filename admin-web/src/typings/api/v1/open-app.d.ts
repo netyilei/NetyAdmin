@@ -3,9 +3,8 @@ export namespace OpenApp {
     id: string;
     appKey: string;
     name: string;
-    type: 1 | 2; // 1: Internal, 2: External
-    status: 0 | 1; // 0: Disabled, 1: Enabled
-    ipStrategy: 1 | 2; // 1: Blacklist, 2: Whitelist
+    status: 0 | 1;
+    ipStrategy: 1 | 2;
     quotaConfig: string;
     remark: string;
     createdAt: string;
@@ -18,7 +17,6 @@ export namespace OpenApp {
     size: number;
     name?: string;
     appKey?: string;
-    type?: 1 | 2;
     status?: 0 | 1;
     total?: number;
   }
@@ -27,7 +25,6 @@ export namespace OpenApp {
 
   interface CreateAppReq {
     name: string;
-    type: number;
     status: number;
     ipStrategy: number;
     remark?: string;
@@ -37,7 +34,6 @@ export namespace OpenApp {
   interface UpdateAppReq {
     id: string;
     name: string;
-    type: number;
     status: number;
     ipStrategy: number;
     remark?: string;
@@ -56,7 +52,6 @@ export namespace OpenApp {
     id: number;
     code: string;
     name: string;
-    i18nKey: string;
     description: string;
     status: 0 | 1;
     createdAt: string;

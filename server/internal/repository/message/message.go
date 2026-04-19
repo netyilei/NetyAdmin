@@ -2,6 +2,7 @@ package message
 
 import (
 	"context"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -21,6 +22,7 @@ type MsgRepository interface {
 	UpdateRecord(ctx context.Context, rec *msgEntity.MsgRecord) error
 	GetRecordByID(ctx context.Context, id uint64) (*msgEntity.MsgRecord, error)
 	ListRecords(ctx context.Context, query *MsgRepoQuery) ([]*msgEntity.MsgRecord, int64, error)
+	DeleteRecordsBefore(ctx context.Context, before time.Time) error
 }
 
 type MsgRepoQuery struct {
@@ -89,6 +91,10 @@ func (r *msgRepository) ListTemplates(ctx context.Context, query *MsgRepoQuery) 
 
 	err := db.Order("created_at DESC").Find(&list).Error
 	return list, total, err
+}
+
+func (r *msgRepository) DeleteRecordsBefore(ctx context.Context, before time.Time) error {
+	return r.db.WithContext(ctx).Where("created_at < ?", before).Delete(&msgEntity.MsgRecord{}).Error
 }
 
 // Record implementations

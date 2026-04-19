@@ -10,7 +10,6 @@ CREATE TABLE IF NOT EXISTS sys_apps (
     app_key VARCHAR(26) NOT NULL, -- 唯一标识 (同 ID)
     app_secret VARCHAR(255) NOT NULL, -- AES 加密存储的私钥
     name VARCHAR(100) NOT NULL, -- 应用名称
-    type SMALLINT DEFAULT 1, -- 类型 (1: 官方内部, 2: 外部合作伙伴)
     status SMALLINT DEFAULT 1, -- 状态 (1: 启用, 0: 禁用)
     ip_strategy SMALLINT DEFAULT 1, -- IP 策略 (1: 黑名单模式, 2: 白名单模式)
     quota_config JSONB, -- 限流配额配置 (QPS, Burst等)

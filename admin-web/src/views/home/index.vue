@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { NSpace, NGrid, NGi, NCard } from 'naive-ui';
+import { NCard, NGi, NGrid, NSpace } from 'naive-ui';
 import { useAppStore } from '@/store/modules/app';
 import HeaderBanner from './components/header-banner.vue';
 import CardData from './components/card-data.vue';

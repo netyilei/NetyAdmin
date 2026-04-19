@@ -54,7 +54,11 @@ export const BackendErrorCode = {
   // IP 访问控制 (1014xx)
   ipBlocked: '101401',
   ipInvalid: '101402',
-  whitelistMode: '101403'
+  whitelistMode: '101403',
+  // 用户模块集成 (2006xx)
+  captchaExpired: '200601',
+  captchaSendTooFrequent: '200604',
+  verifyTypeNotConfigured: '200605'
 } as const;
 
 const backendErrorI18nKeyMap: Record<string, string> = {
@@ -111,7 +115,11 @@ const backendErrorI18nKeyMap: Record<string, string> = {
   // IP 访问控制 (1014xx)
   [BackendErrorCode.ipBlocked]: 'request.backend.ipBlocked',
   [BackendErrorCode.ipInvalid]: 'request.backend.ipInvalid',
-  [BackendErrorCode.whitelistMode]: 'request.backend.whitelistMode'
+  [BackendErrorCode.whitelistMode]: 'request.backend.whitelistMode',
+  // 用户模块集成 (2006xx)
+  [BackendErrorCode.captchaExpired]: 'request.backend.captchaExpired',
+  [BackendErrorCode.captchaSendTooFrequent]: 'request.backend.captchaSendTooFrequent',
+  [BackendErrorCode.verifyTypeNotConfigured]: 'request.backend.verifyTypeNotConfigured'
 };
 
 export function getBackendErrorMessage(code: string) {

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue';
-import { useFormRules, useNaiveForm } from '@/hooks/common/form';
+import { computed, reactive, ref, watch } from 'vue';
 import { addIPAC, updateIPAC } from '@/service/api/v1/system-ipac';
+import { useFormRules, useNaiveForm } from '@/hooks/common/form';
+import { useOperation } from '@/hooks/common/operation';
 import { $t } from '@/locales';
 import type { SystemIPAC } from '@/typings/api/v1/system-ipac';
 
@@ -30,6 +31,8 @@ const visible = defineModel<boolean>('visible', {
 
 const { formRef, validate, restoreValidation } = useNaiveForm();
 const { defaultRequiredRule } = useFormRules();
+
+const loading = ref(false);
 
 const title = computed(() => {
   const titles: Record<NaiveUI.TableOperateType, string> = {
@@ -63,21 +66,14 @@ const rules: Record<string, App.Global.FormRule[]> = {
 async function handleSubmit() {
   await validate();
 
-  if (props.operateType === 'add') {
-    const { error } = await addIPAC(model);
-    if (!error) {
-      window.$message?.success($t('common.addSuccess'));
+  await useOperation(props.operateType, loading, {
+    add: () => addIPAC(model),
+    edit: () => updateIPAC(model as SystemIPAC.UpdateIPACReq),
+    onSuccess: () => {
       closeModal();
       emit('submitted');
     }
-  } else if (props.operateType === 'edit' && model.id) {
-    const { error } = await updateIPAC(model as SystemIPAC.UpdateIPACReq);
-    if (!error) {
-      window.$message?.success($t('common.updateSuccess'));
-      closeModal();
-      emit('submitted');
-    }
-  }
+  });
 }
 
 function closeModal() {
@@ -140,7 +136,7 @@ watch(visible, () => {
     <template #footer>
       <NSpace justify="end">
         <NButton @click="closeModal">{{ $t('common.cancel') }}</NButton>
-        <NButton type="primary" @click="handleSubmit">{{ $t('common.confirm') }}</NButton>
+        <NButton type="primary" :loading="loading" @click="handleSubmit">{{ $t('common.confirm') }}</NButton>
       </NSpace>
     </template>
   </NModal>

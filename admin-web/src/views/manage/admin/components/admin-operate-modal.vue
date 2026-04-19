@@ -136,7 +136,7 @@ watch(visible, val => {
         <NInput v-model:value="model.username" :placeholder="$t('page.manage.admin.form.userName')" />
       </NFormItem>
       <NFormItem :label="$t('page.manage.admin.userGender')" path="gender">
-        <AppDictRadioGroup v-model:value="model.gender" dict-code="user_gender" />
+        <AppDictRadioGroup v-model:value="model.gender" dict-code="sys_gender" />
       </NFormItem>
       <NFormItem :label="$t('page.manage.admin.nickName')" path="nickname">
         <NInput v-model:value="model.nickname" :placeholder="$t('page.manage.admin.form.nickName')" />

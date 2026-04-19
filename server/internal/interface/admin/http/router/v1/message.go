@@ -26,6 +26,7 @@ func (r *MessageRouter) RegisterPermission(group *gin.RouterGroup) {
 		msgGroup.PUT("/templates", r.msg.UpdateTemplate)
 		msgGroup.DELETE("/templates/:id", r.msg.DeleteTemplate)
 		msgGroup.GET("/records", r.msg.ListRecords)
+		msgGroup.POST("/records/:id/retry", r.msg.RetryRecord)
 		msgGroup.POST("/send", r.msg.SendDirect)
 	}
 }

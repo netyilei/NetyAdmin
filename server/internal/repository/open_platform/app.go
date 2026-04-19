@@ -33,7 +33,6 @@ type AppRepoQuery struct {
 	PageSize int
 	Name     string
 	AppKey   string
-	Type     *int
 	Status   *int
 }
 
@@ -79,9 +78,6 @@ func (r *appRepository) List(ctx context.Context, query *AppRepoQuery) ([]*open_
 	}
 	if query.AppKey != "" {
 		db = db.Where("app_key = ?", query.AppKey)
-	}
-	if query.Type != nil {
-		db = db.Where("type = ?", *query.Type)
 	}
 	if query.Status != nil {
 		db = db.Where("status = ?", *query.Status)

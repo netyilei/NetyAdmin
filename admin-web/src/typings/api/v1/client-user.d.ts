@@ -1,5 +1,6 @@
 export namespace ClientUser {
-  /** user registration request */
+  type CommonSearchParams = Pick<import('@/typings/api/v1/common').Common.PaginatingCommonParams, 'current' | 'size'>;
+
   interface RegisterReq {
     username: string;
     password: string;
@@ -9,21 +10,18 @@ export namespace ClientUser {
     code: string;
   }
 
-  /** user reset password request */
   interface ResetPasswordReq {
     target: string;
     code: string;
     newPassword: string;
   }
 
-  /** login token */
   interface LoginToken {
     accessToken: string;
     refreshToken: string;
     expiresIn: number;
   }
 
-  /** user info */
   interface UserInfo {
     id: string;
     userName: string;
@@ -35,4 +33,17 @@ export namespace ClientUser {
     status: string;
     lastLoginAt?: string;
   }
+
+  type ClientUserSearchParams = CommonType.RecordNullable<
+    {
+      username: string;
+      nickname: string;
+      phone: string;
+      email: string;
+      gender: string | null;
+      status: string | null;
+    } & CommonSearchParams
+  >;
+
+  type ClientUserList = import('@/typings/api/v1/common').Common.PaginatingQueryRecord<UserInfo>;
 }

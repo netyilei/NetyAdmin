@@ -1,5 +1,5 @@
-import { request } from '../../request';
 import type { OpenApp } from '@/typings/api/v1/open-app';
+import { request } from '../../request';
 
 /** 获取应用列表 */
 export function fetchAppList(params: OpenApp.AppQueryParams) {
@@ -95,5 +95,3 @@ export function deleteScopeGroup(id: number) {
     method: 'delete'
   });
 }
-
-

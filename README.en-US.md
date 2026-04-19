@@ -15,7 +15,7 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 
 ### 🏗️ Clear Architecture Design
 
-- **BFF Multi-terminal Isolation**: Physical isolation of Admin/Client/EA terminals to avoid business logic mixing
+- **BFF Multi-terminal Isolation**: Physical isolation of Admin/Client terminals to avoid business logic mixing
 - **Layered Architecture**: Strictly follows `router -> handler -> service -> repository -> entity` call chain
 - **API Version Control**: Explicit version management, supporting smooth evolution
 - **Dependency Injection**: Uses Wire for dependency assembly, facilitating testing and replacement

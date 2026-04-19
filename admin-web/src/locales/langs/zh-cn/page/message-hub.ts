@@ -30,6 +30,7 @@ const messageHub = {
     retryCount: '重试次数',
     detail: '详情',
     resend: '重发',
+    retry: '重发',
     sendSuccess: '发送成功',
     sendFailed: '发送失败',
     pending: '等待发送'
@@ -44,6 +45,19 @@ const messageHub = {
     high: '高',
     medium: '中',
     low: '低'
+  },
+  send: {
+    contentMode: '内容模式',
+    customContent: '自定义内容',
+    templateContent: '模板选择',
+    selectTemplate: '请选择模板',
+    phonePlaceholder: '输入手机号或搜索用户',
+    phoneHint: '可直接输入手机号后回车添加，也可从下拉列表选择用户手机号',
+    emailPlaceholder: '输入邮箱或搜索用户',
+    emailHint: '可直接输入邮箱后回车添加，也可从下拉列表选择用户邮箱',
+    customSmsPlaceholder: '请输入短信内容',
+    emailTitlePlaceholder: '请输入邮件标题',
+    templateAutoFill: '模板内容自动填充'
   }
 };
 

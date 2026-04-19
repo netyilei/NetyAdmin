@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { addApp, fetchAvailableScopes, updateApp } from '@/service/api/v1/open-app';
+import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { $t } from '@/locales';
 import type { OpenApp } from '@/typings/api/v1/open-app';
 
@@ -10,9 +10,7 @@ defineOptions({
 });
 
 interface Props {
-  /** the type of operation */
   operateType: NaiveUI.TableOperateType;
-  /** the edit row data */
   rowData?: OpenApp.App | null;
 }
 
@@ -31,11 +29,11 @@ const visible = defineModel<boolean>('visible', {
 const { formRef, validate, restoreValidation } = useNaiveForm();
 const { defaultRequiredRule } = useFormRules();
 
-const availableScopes = ref<{ label: string; value: string; i18nKey: string }[]>([]);
+const availableScopes = ref<{ label: string; value: string }[]>([]);
 
 const scopeOptions = computed(() => {
   return availableScopes.value.map(item => ({
-    label: item.i18nKey ? $t(item.i18nKey as any) : item.label,
+    label: item.label,
     value: item.value
   }));
 });
@@ -66,7 +64,6 @@ const model: Model = reactive(createDefaultModel());
 function createDefaultModel(): Model {
   return {
     name: '',
-    type: 1,
     status: 1,
     ipStrategy: 1,
     remark: '',
@@ -76,7 +73,6 @@ function createDefaultModel(): Model {
 
 const rules: Record<string, App.Global.FormRule[]> = {
   name: [defaultRequiredRule],
-  type: [defaultRequiredRule],
   status: [defaultRequiredRule],
   ipStrategy: [defaultRequiredRule]
 };
@@ -124,13 +120,6 @@ watch(visible, () => {
     <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="100">
       <NFormItem :label="$t('page.openPlatform.app.name')" path="name">
         <NInput v-model:value="model.name" :placeholder="$t('page.openPlatform.app.form.namePlaceholder')" />
-      </NFormItem>
-      <NFormItem :label="$t('page.openPlatform.app.type')" path="type">
-        <AppDictSelect
-          v-model:value="model.type"
-          dict-code="sys_app_type"
-          :placeholder="$t('page.openPlatform.app.form.typePlaceholder')"
-        />
       </NFormItem>
       <NFormItem :label="$t('page.openPlatform.app.status')" path="status">
         <AppDictSelect

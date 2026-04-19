@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
-import { useAuthStore } from '@/store/modules/auth';
-import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { fetchGetCaptcha } from '@/service/api/v1/auth';
 import { fetchGetSysConfigs } from '@/service/api/v1/system-manage';
+import { useAuthStore } from '@/store/modules/auth';
+import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { $t } from '@/locales';
 
 defineOptions({
@@ -62,7 +62,12 @@ async function checkCaptchaEnabled() {
 
 async function handleSubmit() {
   await validate();
-  await authStore.login(model.userName, model.password, model.captchaId, model.captchaValue);
+  await authStore.login({
+    username: model.userName,
+    password: model.password,
+    captchaId: model.captchaId,
+    captchaValue: model.captchaValue
+  });
   // 如果登录失败且开启了验证码，刷新验证码
   if (!authStore.token && captchaEnabled.value) {
     getCaptcha();
@@ -89,7 +94,7 @@ onMounted(() => {
       />
     </NFormItem>
     <NFormItem v-if="captchaEnabled" path="captchaValue">
-      <div class="flex-y-center w-full gap-12px">
+      <div class="w-full flex-y-center gap-12px">
         <NInput v-model:value="model.captchaValue" :placeholder="$t('page.login.common.captchaPlaceholder')" />
         <div class="h-38px w-120px cursor-pointer border border-gray-200 rounded-4px" @click="getCaptcha">
           <img v-if="captchaImg" :src="captchaImg" class="h-full w-full" />

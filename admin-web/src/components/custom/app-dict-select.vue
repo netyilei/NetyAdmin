@@ -22,6 +22,11 @@ const emit = defineEmits<{
 const dictStore = useDictStore();
 const loading = ref(false);
 
+const normalizedValue = computed(() => {
+  if (props.value === null || props.value === undefined) return null;
+  return String(props.value);
+});
+
 const options = computed<SelectOption[]>(() => {
   const data = dictStore.dictMap.get(props.dictCode);
   return (
@@ -41,18 +46,27 @@ async function loadOptions() {
 }
 
 function handleUpdateValue(val: string | number | null) {
-  emit('update:value', val);
+  if (val === null || val === undefined) {
+    emit('update:value', null);
+    return;
+  }
+  const originalValue = props.value;
+  if (typeof originalValue === 'number') {
+    const num = Number(val);
+    emit('update:value', Number.isNaN(num) ? val : num);
+  } else {
+    emit('update:value', String(val));
+  }
 }
 
 onMounted(loadOptions);
 
-// 如果 dictCode 动态变化
 watch(() => props.dictCode, loadOptions);
 </script>
 
 <template>
   <NSelect
-    :value="value"
+    :value="normalizedValue"
     :options="options"
     :placeholder="placeholder || '请选择'"
     :loading="loading"

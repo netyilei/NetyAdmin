@@ -31,7 +31,9 @@ func (r *userRouter) RegisterAuth(authGroup *gin.RouterGroup) {
 	{
 		group.GET("/profile", r.handler.GetProfile)
 		group.PUT("/profile", r.handler.UpdateProfile)
-		group.POST("/change-password", r.handler.ChangePassword)
+		group.PUT("/password", r.handler.ChangePassword)
+		group.DELETE("/account", r.handler.DeleteAccount)
+		group.GET("/upload-token", r.handler.GetUploadToken)
 		group.POST("/logout", r.handler.Logout)
 	}
 }

@@ -4,6 +4,13 @@
  * backend api module: "auth"
  */
 export namespace Auth {
+  interface LoginReq {
+    username: string;
+    password: string;
+    captchaId?: string;
+    captchaValue?: string;
+  }
+
   interface LoginToken {
     token: string;
     refreshToken: string;

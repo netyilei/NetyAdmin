@@ -1,13 +1,16 @@
 <script setup lang="tsx">
+import { ref } from 'vue';
 import { NButton, NSpace, NTag } from 'naive-ui';
 import { fetchOpenLogList } from '@/service/api/v1/open-log';
 import { useAppStore } from '@/store/modules/app';
 import { useTable } from '@/hooks/common/table';
 import { $t } from '@/locales';
-import { useDict } from '@/hooks/common/dict';
+import OpenPlatformLogDetailModal from './components/open-platform-log-detail-modal.vue';
 
 const appStore = useAppStore();
-const { renderDictTag } = useDict();
+
+const detailVisible = ref(false);
+const detailRow = ref<any>(null);
 
 const {
   columns,
@@ -111,14 +114,14 @@ const {
 });
 
 function viewDetail(row: any) {
-  // TODO: 实现详情查看弹窗
-  window.$message?.info('详情功能开发中...');
+  detailRow.value = row;
+  detailVisible.value = true;
 }
 </script>
 
 <template>
   <div class="min-h-500px flex-col-stretch gap-16px overflow-hidden lt-sm:overflow-auto">
-    <NCard title="开放平台调用日志" :bordered="false" size="small" class="sm:flex-1-hidden card-wrapper">
+    <NCard title="开放平台调用日志" :bordered="false" size="small" class="card-wrapper sm:flex-1-hidden">
       <NDataTable
         remote
         striped
@@ -134,6 +137,7 @@ function viewDetail(row: any) {
         @update:page="getDataByPage"
       />
     </NCard>
+    <OpenPlatformLogDetailModal v-model:visible="detailVisible" :row-data="detailRow" />
   </div>
 </template>
 

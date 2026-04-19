@@ -17,7 +17,14 @@ BEGIN
         INSERT INTO admin_menu (parent_id, name, route_name, route_path, component, icon, order_by, hide_in_menu, status, type, i18_n_key, created_at, updated_at) 
         VALUES 
         (ops_menu_id, 'IP 访问控制', 'ops_ip-access', '/ops/ip-access', 'view.ops_ip-access', 'ic:baseline-security', 4, false, '1', '2', 'route.ops_ip-access', NOW(), NOW()) 
-        ON CONFLICT (route_name) WHERE deleted_at = 0 DO UPDATE SET i18_n_key = EXCLUDED.i18_n_key, component = EXCLUDED.component; 
+        ON CONFLICT (route_name) WHERE deleted_at = 0 DO UPDATE SET 
+            name = EXCLUDED.name,
+            route_path = EXCLUDED.route_path,
+            component = EXCLUDED.component,
+            icon = EXCLUDED.icon,
+            order_by = EXCLUDED.order_by,
+            i18_n_key = EXCLUDED.i18_n_key,
+            updated_at = NOW(); 
     END IF; 
 
     SELECT id INTO ipac_menu_id FROM admin_menu WHERE route_name = 'ops_ip-access' AND deleted_at = 0;

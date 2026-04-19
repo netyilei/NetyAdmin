@@ -55,7 +55,10 @@ const common = {
   },
   networkError: 'Network Error',
   uploadCancelled: 'Upload Cancelled',
-  uploadFailed: 'Upload Failed'
+  uploadFailed: 'Upload Failed',
+  sendSuccess: 'Send Success',
+  fail: 'Failed',
+  operationSuccess: 'Operation Success'
 };
 
 export default common;

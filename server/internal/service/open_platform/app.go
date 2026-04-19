@@ -248,9 +248,8 @@ func (s *appService) ListAvailableScopes(ctx context.Context) ([]map[string]stri
 	res := make([]map[string]string, 0, len(groups))
 	for _, g := range groups {
 		res = append(res, map[string]string{
-			"name":    g.Name,
-			"code":    g.Code,
-			"i18nKey": g.I18nKey,
+			"name": g.Name,
+			"code": g.Code,
 		})
 	}
 	return res, nil

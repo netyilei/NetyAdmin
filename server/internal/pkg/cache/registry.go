@@ -28,9 +28,9 @@ const (
 	// TagMsgTemplate 消息模板缓存标签
 	TagMsgTemplate = "msg:template"
 	// TagIPAC IPAC 缓存标签
-	TagIPAC = "ipac"
-	// TagApp 开放平台应用缓存标签
-	TagApp = "open:app"
+	TagIPAC    = "ipac"
+	TagApp     = "open:app"
+	TagOpenApi = "open:api"
 )
 
 // 定义系统统一的缓存 Key 生成函数
@@ -217,4 +217,14 @@ func TagAppKey(appKey string) string {
 // TagAppID 应用 ID 标签
 func TagAppID(appID string) string {
 	return "app:" + appID
+}
+
+// KeyOpenApiAll 全量开放API列表缓存
+func KeyOpenApiAll() string {
+	return "open:api:all"
+}
+
+// KeyAppApis 应用允许的API列表缓存 Key
+func KeyAppApis(appID string) string {
+	return fmt.Sprintf("open:app:%s:apis", appID)
 }

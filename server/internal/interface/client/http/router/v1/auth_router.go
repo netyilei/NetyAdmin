@@ -16,8 +16,9 @@ func NewAuthRouter(h *handler.AuthHandler) ClientModuleRouter {
 func (r *authRouter) RegisterPublic(publicGroup *gin.RouterGroup) {
 	group := publicGroup.Group("/auth")
 	{
-		group.GET("/captcha", r.handler.GetCaptcha)
-		group.GET("/verify-config", r.handler.GetVerifyConfig)
+		group.GET("/captcha", r.handler.Captcha)
+		group.GET("/captcha-status", r.handler.CaptchaStatus)
+		group.GET("/verify-config", r.handler.VerifyConfig)
 		group.POST("/send-code", r.handler.SendCode)
 	}
 }

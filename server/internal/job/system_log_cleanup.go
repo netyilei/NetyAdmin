@@ -10,6 +10,7 @@ import (
 	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/task"
 	logRepo "NetyAdmin/internal/repository/log"
+	msgRepo "NetyAdmin/internal/repository/message"
 	taskRepoPkg "NetyAdmin/internal/repository/task"
 )
 
@@ -18,6 +19,7 @@ type SystemLogCleanupJob struct {
 	taskLogRepo taskRepoPkg.TaskLogRepository
 	opsLogRepo  *logRepo.OperationRepository
 	errLogRepo  *logRepo.ErrorRepository
+	msgRepo     msgRepo.MsgRepository
 	watcher     configsync.ConfigWatcher
 }
 
@@ -25,12 +27,14 @@ func NewSystemLogCleanupJob(
 	taskLogRepo taskRepoPkg.TaskLogRepository,
 	opsLogRepo *logRepo.OperationRepository,
 	errLogRepo *logRepo.ErrorRepository,
+	msgRepo msgRepo.MsgRepository,
 	watcher configsync.ConfigWatcher,
 ) *SystemLogCleanupJob {
 	return &SystemLogCleanupJob{
 		taskLogRepo: taskLogRepo,
 		opsLogRepo:  opsLogRepo,
 		errLogRepo:  errLogRepo,
+		msgRepo:     msgRepo,
 		watcher:     watcher,
 	}
 }
@@ -73,6 +77,16 @@ func (j *SystemLogCleanupJob) Run(ctx context.Context) error {
 			log.Printf("[Cleaner] Clean error logs failed: %v", err)
 		} else {
 			log.Printf("[Cleaner] Clean error logs older than %d days success", days)
+		}
+	}
+
+	// 4. Message Records
+	if days, ok := j.getRetentionDays("msg_record_config", "retention_days"); ok && days > 0 {
+		before := time.Now().AddDate(0, 0, -days)
+		if err := j.msgRepo.DeleteRecordsBefore(ctx, before); err != nil {
+			log.Printf("[Cleaner] Clean message records failed: %v", err)
+		} else {
+			log.Printf("[Cleaner] Clean message records older than %d days success", days)
 		}
 	}
 

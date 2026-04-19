@@ -97,7 +97,7 @@ func (s *verificationService) SendCode(ctx context.Context, scene, target, captc
 	limitKey := fmt.Sprintf("auth:limit:%s:%s", scene, target)
 	exists, _ := s.cacheMgr.Exists(ctx, limitKey)
 	if exists {
-		return errorx.New(errorx.CodeTooManyRequest, "验证码发送过于频繁，请稍后再试")
+		return errorx.New(errorx.CodeCaptchaSendTooFrequent, "验证码发送过于频繁，请稍后再试")
 	}
 
 	// 2. 生成 6 位随机验证码

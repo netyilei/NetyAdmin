@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	userDto "NetyAdmin/internal/interface/admin/dto/user"
+	"NetyAdmin/internal/domain/entity/user"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
 	userRepo "NetyAdmin/internal/repository/user"
@@ -44,6 +45,61 @@ func (h *UserHandler) List(c *gin.Context) {
 	}
 
 	response.SuccessWithPage(c, req.Current, req.Size, total, users)
+}
+
+// Create 创建用户
+func (h *UserHandler) Create(c *gin.Context) {
+	var req userDto.CreateUserReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithCode(c, errorx.CodeInvalidParams)
+		return
+	}
+
+	u := &user.User{
+		Username: req.Username,
+		Password: req.Password,
+		Nickname: req.Nickname,
+		Avatar:   req.Avatar,
+		Gender:   req.Gender,
+		Phone:    req.Phone,
+		Email:    req.Email,
+		Status:   req.Status,
+	}
+
+	if err := h.svc.Create(c.Request.Context(), u); err != nil {
+		response.Fail(c, err)
+		return
+	}
+
+	response.Success(c, nil)
+}
+
+// Update 更新用户
+func (h *UserHandler) Update(c *gin.Context) {
+	id := c.Param("id")
+	var req userDto.UpdateUserReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithCode(c, errorx.CodeInvalidParams)
+		return
+	}
+
+	u := &user.User{
+		ID:       id,
+		Password: req.Password,
+		Nickname: req.Nickname,
+		Avatar:   req.Avatar,
+		Gender:   req.Gender,
+		Phone:    req.Phone,
+		Email:    req.Email,
+		Status:   req.Status,
+	}
+
+	if err := h.svc.Update(c.Request.Context(), u); err != nil {
+		response.Fail(c, err)
+		return
+	}
+
+	response.Success(c, nil)
 }
 
 // UpdateStatus 更新用户状态

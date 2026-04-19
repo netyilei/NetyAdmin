@@ -60,7 +60,11 @@ const request = {
     // IP 访问控制 (1014xx)
     ipBlocked: '访问受限 (您的 IP 已被封禁)',
     ipInvalid: '非法 IP/CIDR 格式',
-    whitelistMode: '系统处于白名单模式，您的 IP 未被授权'
+    whitelistMode: '系统处于白名单模式，您的 IP 未被授权',
+    // 用户模块集成 (2006xx)
+    captchaExpired: '验证码已过期',
+    captchaSendTooFrequent: '发送过于频繁，请稍后再试',
+    verifyTypeNotConfigured: '未配置验证方式，请联系管理员'
   }
 };
 

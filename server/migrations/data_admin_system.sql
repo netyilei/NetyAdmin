@@ -57,8 +57,9 @@ BEGIN
         INSERT INTO admin_menu (parent_id, name, route_name, route_path, component, icon, order_by, hide_in_menu, status, type, i18_n_key, created_at, updated_at) 
         VALUES 
         (manage_menu_id, '管理员管理', 'manage_admin', '/manage/admin', 'view.manage_admin', 'ic:round-manage-accounts', 1, false, '1', '2', 'route.manage_admin', NOW(), NOW()), 
-        (manage_menu_id, '角色管理', 'manage_role', '/manage/role', 'view.manage_role', 'carbon:user-role', 2, false, '1', '2', 'route.manage_role', NOW(), NOW()), 
-        (manage_menu_id, '菜单管理', 'manage_menu', '/manage/menu', 'view.manage_menu', 'material-symbols:route', 3, false, '1', '2', 'route.manage_menu', NOW(), NOW())
+        (manage_menu_id, '用户管理', 'manage_user', '/manage/user', 'view.manage_user', 'ic:round-people', 2, false, '1', '2', 'route.manage_user', NOW(), NOW()),
+        (manage_menu_id, '角色管理', 'manage_role', '/manage/role', 'view.manage_role', 'carbon:user-role', 3, false, '1', '2', 'route.manage_role', NOW(), NOW()), 
+        (manage_menu_id, '菜单管理', 'manage_menu', '/manage/menu', 'view.manage_menu', 'material-symbols:route', 4, false, '1', '2', 'route.manage_menu', NOW(), NOW())
         ON CONFLICT (route_name) WHERE deleted_at = 0 DO UPDATE SET i18_n_key = EXCLUDED.i18_n_key; 
     END IF; 
  
@@ -94,8 +95,10 @@ DECLARE
         err_log_menu_id BIGINT;
         task_menu_id BIGINT;
         config_menu_id BIGINT;
+        user_menu_id BIGINT;
     BEGIN
         SELECT id INTO admin_menu_id FROM admin_menu WHERE route_name = 'manage_admin' AND deleted_at = 0;
+        SELECT id INTO user_menu_id FROM admin_menu WHERE route_name = 'manage_user' AND deleted_at = 0;
         SELECT id INTO role_menu_id FROM admin_menu WHERE route_name = 'manage_role' AND deleted_at = 0;
         SELECT id INTO menu_menu_id FROM admin_menu WHERE route_name = 'manage_menu' AND deleted_at = 0;
         SELECT id INTO button_menu_id FROM admin_menu WHERE route_name = 'manage_button' AND deleted_at = 0;
@@ -105,7 +108,7 @@ DECLARE
         SELECT id INTO task_menu_id FROM admin_menu WHERE route_name = 'ops_task' AND deleted_at = 0;
         SELECT id INTO config_menu_id FROM admin_menu WHERE route_name = 'manage_system_setting' AND deleted_at = 0;
 
-        -- 用户管理API
+        -- 管理员管理API
         IF admin_menu_id IS NOT NULL THEN
             INSERT INTO admin_api (menu_id, name, method, path, description, auth, created_at, updated_at)
             VALUES 
@@ -115,6 +118,26 @@ DECLARE
             (admin_menu_id, '更新管理员', 'PUT', '/admin/v1/admins/:id', '更新管理员', '1', NOW(), NOW()),
             (admin_menu_id, '删除管理员', 'DELETE', '/admin/v1/admins/:id', '删除管理员', '1', NOW(), NOW())
             ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
+        END IF;
+
+        -- 终端用户管理API
+        IF user_menu_id IS NOT NULL THEN
+            INSERT INTO admin_api (menu_id, name, method, path, description, auth, created_at, updated_at)
+            VALUES 
+            (user_menu_id, '获取用户列表', 'GET', '/admin/v1/systemManage/users', '获取终端用户列表', '1', NOW(), NOW()),
+            (user_menu_id, '创建用户', 'POST', '/admin/v1/systemManage/users', '创建终端用户', '1', NOW(), NOW()),
+            (user_menu_id, '更新用户', 'PUT', '/admin/v1/systemManage/users/:id', '更新终端用户', '1', NOW(), NOW()),
+            (user_menu_id, '更新用户状态', 'PATCH', '/admin/v1/systemManage/users/:id/status', '更新终端用户状态', '1', NOW(), NOW()),
+            (user_menu_id, '删除用户', 'DELETE', '/admin/v1/systemManage/users/:id', '删除终端用户', '1', NOW(), NOW())
+            ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
+
+            INSERT INTO admin_button (menu_id, label, code, created_at, updated_at)
+            VALUES
+            (user_menu_id, '查询', 'user:query', NOW(), NOW()),
+            (user_menu_id, '新增', 'user:add', NOW(), NOW()),
+            (user_menu_id, '编辑', 'user:edit', NOW(), NOW()),
+            (user_menu_id, '删除', 'user:delete', NOW(), NOW())
+            ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
         END IF;
 
         -- 角色管理API

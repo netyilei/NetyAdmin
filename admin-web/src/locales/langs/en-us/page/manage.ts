@@ -167,7 +167,9 @@ const manage = {
       captcha: 'Captcha Config',
       user: 'User Config',
       task: 'Task Config',
-      log: 'Log Maintenance'
+      log: 'Log Maintenance',
+      email: 'Email Config',
+      sms: 'SMS Config'
     },
     cache: {
       title: 'Cache Degradation Switches',
@@ -193,6 +195,8 @@ const manage = {
       params: 'Parameter Configuration',
       admin_login_enabled: 'Admin Login',
       user_register_enabled: 'User Registration',
+      user_login_captcha_enabled: 'User Login',
+      user_reset_pwd_captcha_enabled: 'User Reset Password',
       user_login_pc: 'PC Client Login',
       user_login_web: 'Web Client Login',
       user_login_app: 'APP Login',
@@ -209,7 +213,8 @@ const manage = {
     },
     user: {
       title: 'User Module Settings',
-      description: 'Configure independent system for client users, supporting multi-terminal login, storage isolation and security verification.',
+      description:
+        'Configure independent system for client users, supporting multi-terminal login, storage isolation and security verification.',
       basic: 'Basic Security',
       verify: 'Message Verification',
       storage_module: 'Dedicated Storage',
@@ -236,9 +241,36 @@ const manage = {
       taskLog: 'Task Scheduling Log',
       operationLog: 'Admin Operation Log',
       errorLog: 'System Error Log',
+      msgRecord: 'Message Send Records',
       enabled: 'Logging Enabled',
       retentionDays: 'Retention Days (0 for Permanent)',
       daysUnit: 'Days'
+    },
+    email: {
+      description: 'Configure email service parameters. Empty fields will fall back to config.toml defaults.',
+      enabled: 'Enable Email Service',
+      host: 'SMTP Server',
+      hostPlaceholder: 'e.g. smtp.example.com',
+      port: 'SMTP Port',
+      user: 'Sender Account',
+      userPlaceholder: 'e.g. your-email@example.com',
+      password: 'Password/Auth Code',
+      passwordPlaceholder: 'Enter password or auth code',
+      from: 'Sender Address',
+      fromPlaceholder: 'e.g. your-email@example.com'
+    },
+    sms: {
+      description: 'Configure SMS service parameters. Empty fields will fall back to config.toml defaults.',
+      enabled: 'Enable SMS Service',
+      driver: 'SMS Driver',
+      secretId: 'SecretId',
+      secretIdPlaceholder: 'Enter SecretId',
+      secretKey: 'SecretKey',
+      secretKeyPlaceholder: 'Enter SecretKey',
+      appId: 'AppId',
+      appIdPlaceholder: 'Enter AppId',
+      signName: 'Sign Name',
+      signNamePlaceholder: 'Enter SMS sign name'
     },
     system: {
       admin_max_login_fails: 'Max consecutive login failures for admin'
@@ -263,6 +295,20 @@ const manage = {
     editType: 'Edit Dict Type',
     addData: 'Add Dict Data',
     editData: 'Edit Dict Data'
+  },
+  user: {
+    title: 'Client User List',
+    username: 'Username',
+    password: 'Password',
+    nickname: 'Nickname',
+    avatar: 'Avatar',
+    phone: 'Phone',
+    email: 'Email',
+    gender: 'Gender',
+    status: 'Status',
+    lastLoginAt: 'Last Login',
+    addUser: 'Add User',
+    editUser: 'Edit User'
   }
 };
 

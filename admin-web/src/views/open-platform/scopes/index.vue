@@ -2,13 +2,15 @@
 import { computed, reactive, ref } from 'vue';
 import { NButton, NCard, NDataTable, NForm, NFormItem, NInput, NModal, NPopconfirm, NSpace, NTag } from 'naive-ui';
 import { addScopeGroup, deleteScopeGroup, fetchScopeGroupList, updateScopeGroup } from '@/service/api/v1/open-app';
+import { fetchAllApis, fetchScopeApis, updateScopeApis } from '@/service/api/v1/open-api';
 import { useNaiveForm } from '@/hooks/common/form';
-import { $t } from '@/locales';
 import { useDict } from '@/hooks/common/dict';
+import { $t } from '@/locales';
 import type { OpenApp } from '@/typings/api/v1/open-app';
+import type { OpenApi } from '@/typings/api/v1/open-api';
 
 const { renderDictTag } = useDict();
-const { formRef, validate, restoreValidation } = useNaiveForm();
+const { formRef, validate } = useNaiveForm();
 
 const loading = ref(false);
 const data = ref<OpenApp.ScopeGroup[]>([]);
@@ -26,18 +28,11 @@ const columns = [
   { key: 'id', title: 'ID', align: 'center', width: 80 },
   { key: 'code', title: $t('page.openPlatform.scope.name'), align: 'center', width: 150 },
   {
-    key: 'i18nKey',
-    title: 'I18n Key',
-    align: 'center',
-    width: 200,
-    render: (row: OpenApp.ScopeGroup) => <NTag size="small">{row.i18nKey}</NTag>
-  },
-  {
-    key: 'label',
-    title: '当前显示',
+    key: 'name',
+    title: $t('page.openPlatform.scope.displayName'),
     align: 'center',
     width: 150,
-    render: (row: OpenApp.ScopeGroup) => <span>{$t(row.i18nKey as any) || row.name}</span>
+    render: (row: OpenApp.ScopeGroup) => <span>{row.name}</span>
   },
   {
     key: 'status',
@@ -50,11 +45,14 @@ const columns = [
     key: 'operate',
     title: $t('common.operate'),
     align: 'center',
-    width: 150,
+    width: 250,
     render: (row: OpenApp.ScopeGroup) => (
       <NSpace justify="center">
         <NButton type="primary" ghost size="small" onClick={() => handleEdit(row)}>
           {$t('common.edit')}
+        </NButton>
+        <NButton type="info" ghost size="small" onClick={() => handleBindApis(row)}>
+          {$t('page.openPlatform.scope.bindApis')}
         </NButton>
         <NPopconfirm onPositiveClick={() => handleDelete(row.id)}>
           {{
@@ -71,14 +69,12 @@ const columns = [
   }
 ] as any[];
 
-// --- Modal ---
 const visible = ref(false);
 const operateType = ref<'add' | 'edit'>('add');
 const model = reactive({
   id: 0,
   code: '',
   name: '',
-  i18nKey: '',
   description: '',
   status: 1
 });
@@ -87,7 +83,7 @@ const title = computed(() => (operateType.value === 'add' ? $t('common.add') : $
 
 function handleAdd() {
   operateType.value = 'add';
-  Object.assign(model, { id: 0, code: '', name: '', i18nKey: '', description: '', status: 1 });
+  Object.assign(model, { id: 0, code: '', name: '', description: '', status: 1 });
   visible.value = true;
 }
 
@@ -115,12 +111,71 @@ async function handleSubmit() {
   }
 }
 
+const apiBindVisible = ref(false);
+const apiBindLoading = ref(false);
+const currentScopeId = ref(0);
+const currentScopeName = ref('');
+const allApis = ref<OpenApi.Api[]>([]);
+const selectedApiIds = ref<number[]>([]);
+
+const methodColorMap: Record<string, string> = {
+  GET: 'success',
+  POST: 'info',
+  PUT: 'warning',
+  DELETE: 'error',
+  PATCH: 'default'
+};
+
+function toggleApiSelection(apiId: number) {
+  const idx = selectedApiIds.value.indexOf(apiId);
+  if (idx >= 0) {
+    selectedApiIds.value.splice(idx, 1);
+  } else {
+    selectedApiIds.value.push(apiId);
+  }
+}
+
+async function handleBindApis(row: OpenApp.ScopeGroup) {
+  currentScopeId.value = row.id;
+  currentScopeName.value = row.name;
+  apiBindLoading.value = true;
+  apiBindVisible.value = true;
+
+  const [allRes, scopeRes] = await Promise.all([fetchAllApis(), fetchScopeApis(row.id)]);
+  apiBindLoading.value = false;
+
+  if (allRes.data) {
+    allApis.value = allRes.data;
+  }
+  if (scopeRes.data) {
+    selectedApiIds.value = scopeRes.data.map((api: OpenApi.Api) => api.id);
+  }
+}
+
+async function handleSaveApis() {
+  apiBindLoading.value = true;
+  const { error } = await updateScopeApis({
+    scopeId: currentScopeId.value,
+    apiIds: selectedApiIds.value
+  });
+  apiBindLoading.value = false;
+  if (!error) {
+    window.$message?.success($t('common.updateSuccess'));
+    apiBindVisible.value = false;
+  }
+}
+
 getData();
 </script>
 
 <template>
   <div class="min-h-500px flex-col-stretch gap-16px overflow-hidden lt-sm:overflow-auto">
-    <NCard :title="$t('page.openPlatform.scope.title')" :bordered="false" size="small" class="sm:flex-1-hidden card-wrapper">
+    <NCard
+      :title="$t('page.openPlatform.scope.title')"
+      :bordered="false"
+      size="small"
+      class="card-wrapper sm:flex-1-hidden"
+    >
       <template #header-extra>
         <NSpace>
           <NButton type="primary" size="small" @click="handleAdd">
@@ -155,11 +210,8 @@ getData();
         <NFormItem :label="$t('page.openPlatform.scope.name')" path="code">
           <NInput v-model:value="model.code" placeholder="例如: user_base" :disabled="operateType === 'edit'" />
         </NFormItem>
-        <NFormItem label="默认名称" path="name">
-          <NInput v-model:value="model.name" placeholder="降级显示名称" />
-        </NFormItem>
-        <NFormItem label="I18n Key" path="i18nKey">
-          <NInput v-model:value="model.i18nKey" placeholder="例如: page.openPlatform.scope.userBase" />
+        <NFormItem :label="$t('page.openPlatform.scope.displayName')" path="name">
+          <NInput v-model:value="model.name" :placeholder="$t('page.openPlatform.scope.form.displayNamePlaceholder')" />
         </NFormItem>
         <NFormItem :label="$t('page.openPlatform.app.status')" path="status">
           <AppDictSelect v-model:value="model.status" dict-code="sys_status" />
@@ -172,6 +224,47 @@ getData();
         <NSpace justify="end">
           <NButton @click="visible = false">{{ $t('common.cancel') }}</NButton>
           <NButton type="primary" @click="handleSubmit">{{ $t('common.confirm') }}</NButton>
+        </NSpace>
+      </template>
+    </NModal>
+
+    <NModal
+      v-model:show="apiBindVisible"
+      :title="$t('page.openPlatform.scope.bindApis') + ' - ' + currentScopeName"
+      preset="card"
+      class="w-700px"
+    >
+      <NSpin :show="apiBindLoading">
+        <NCheckboxGroup v-model:value="selectedApiIds">
+          <NSpace vertical>
+            <NCard
+              v-for="api in allApis"
+              :key="api.id"
+              size="small"
+              :bordered="true"
+              class="mb-8px cursor-pointer"
+              :class="{ 'border-primary!': selectedApiIds.includes(api.id) }"
+              @click="toggleApiSelection(api.id)"
+            >
+              <NSpace align="center" justify="space-between">
+                <NSpace align="center">
+                  <NCheckbox :value="api.id" @click.stop />
+                  <NTag :type="methodColorMap[api.method] || 'default'" size="small">{{ api.method }}</NTag>
+                  <span class="font-mono">{{ api.path }}</span>
+                  <span class="text-gray-400">- {{ api.name }}</span>
+                </NSpace>
+                <NTag v-if="api.group" size="small" :bordered="false">{{ api.group }}</NTag>
+              </NSpace>
+            </NCard>
+          </NSpace>
+        </NCheckboxGroup>
+      </NSpin>
+      <template #footer>
+        <NSpace justify="end">
+          <NButton @click="apiBindVisible = false">{{ $t('common.cancel') }}</NButton>
+          <NButton type="primary" :loading="apiBindLoading" @click="handleSaveApis">
+            {{ $t('common.confirm') }}
+          </NButton>
         </NSpace>
       </template>
     </NModal>
