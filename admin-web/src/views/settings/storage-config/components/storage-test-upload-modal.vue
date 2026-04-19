@@ -130,7 +130,7 @@ watch(visible, val => {
     :title="$t('page.settings.storageTest.title')"
     preset="card"
     display-directive="show"
-    :style="{ width: '520px', maxWidth: '94vw' }"
+    class="max-w-94vw w-520px"
   >
     <NSpin :show="loading">
       <NForm ref="formRef" :model="model" :rules="rules" label-placement="top">

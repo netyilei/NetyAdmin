@@ -8,7 +8,6 @@ import {
   fetchGetDictDataList,
   fetchGetDictTypeList
 } from '@/service/api/v1/system-dict';
-import { useAppStore } from '@/store/modules/app';
 import { useTable } from '@/hooks/common/table';
 import { useDict } from '@/hooks/common/dict';
 import type { SystemDict } from '@/typings/api/v1/system-dict';
@@ -18,7 +17,6 @@ import DictDataModal from './components/dict-data-modal.vue';
 
 defineOptions({ name: 'ManageDict' });
 
-const appStore = useAppStore();
 const { loadDicts, renderDictTag } = useDict();
 loadDicts(['sys_status']);
 
@@ -30,10 +28,7 @@ const {
   data: typeData,
   loading: typeLoading,
   getData: getTypeData,
-  getDataByPage: getTypeDataByPage,
-  mobilePagination: typePagination,
-  searchParams: typeSearchParams,
-  resetSearchParams: resetTypeSearchParams
+  mobilePagination: typePagination
 } = useTable({
   apiFn: fetchGetDictTypeList,
   apiParams: { current: 1, size: 20, name: null, code: null, status: null },
@@ -88,7 +83,6 @@ const {
   columns: dataColumns,
   data: dictData,
   loading: dataLoading,
-  getData: getDictData,
   mobilePagination: dataPagination
 } = useTable({
   apiFn: fetchGetDictDataList,

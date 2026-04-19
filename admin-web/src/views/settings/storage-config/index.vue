@@ -31,7 +31,7 @@ const storageProviderRecord: Record<Storage.StorageProvider, string> = {
   custom: $t('page.settings.storageConfig.provider.custom')
 };
 
-const { columns, columnChecks, data, getData, loading, mobilePagination } = useTable({
+const { columns, data, getData, loading, mobilePagination } = useTable({
   apiFn: fetchGetStorageConfigList,
   showTotal: true,
   apiParams: {
@@ -149,10 +149,6 @@ async function handleSetDefault(id: number) {
   if (!error) {
     await getData();
   }
-}
-
-async function handleSubmit() {
-  await getData();
 }
 
 function edit(id: number) {

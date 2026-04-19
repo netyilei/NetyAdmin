@@ -6,7 +6,7 @@ import { $t } from '@/locales';
  * Filter auth routes by roles (DEPRECATED: Now handled entirely by backend filtering)
  * Kept for interface compatibility but skips role matching since dynamic payload handles it.
  */
-export function filterAuthRoutesByRoles(routes: RouteRecordRaw[], roles: string[]) {
+export function filterAuthRoutesByRoles(routes: RouteRecordRaw[]) {
   return routes;
 }
 

@@ -171,7 +171,7 @@ watch(
 </script>
 
 <template>
-  <NModal v-model:show="drawerVisible" preset="card" :title="title" :style="{ width: '800px', maxWidth: '95vw' }">
+  <NModal v-model:show="drawerVisible" preset="card" :title="title" class="max-w-95vw w-800px">
     <NScrollbar class="max-h-600px pr-20px">
       <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="100">
         <NFormItem :label="$t('page.content.category.parentId')" path="parentId">

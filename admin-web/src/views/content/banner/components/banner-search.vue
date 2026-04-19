@@ -7,12 +7,6 @@ defineOptions({
   name: 'BannerSearch'
 });
 
-interface Props {
-  groupId?: number;
-}
-
-defineProps<Props>();
-
 interface Emits {
   (e: 'reset'): void;
   (e: 'search'): void;

@@ -72,6 +72,18 @@ type MsgRecord struct {
 }
 ```
 
+### 3.3 站内信扩展 (`msg_internal`)
+
+```go
+type MsgInternal struct {
+    ID          uint64 `gorm:"primaryKey"`
+    MsgRecordID uint64 `gorm:"not null;index"` // 关联消息记录
+    Type        int    `gorm:"default:1"`      // 1:系统公告, 2:私信
+}
+```
+
+> **说明**：站内信通过 `msg_internal` 表扩展，支持系统公告（全员）和私信（指定用户）两种类型。
+
 ---
 
 ## 四、核心逻辑
@@ -85,7 +97,26 @@ type MsgRecord struct {
 5. **投递任务**：调用 `Dispatcher.Dispatch` 投递 `msg_send_job` 任务。
 6. **异步执行**：`MsgSendJob` 消费者调用对应通道驱动，物理下发消息。
 
-### 4.2 驱动接口
+### 4.2 站内信特殊处理
+
+站内信（`channel=internal`）不依赖外部驱动，由系统直接处理：
+
+1. **消息记录**：创建 `msg_records` 记录，状态直接设为成功。
+2. **扩展记录**：同时创建 `msg_internal` 扩展记录，关联 `msg_record_id`。
+3. **类型区分**：
+   - `type=1`：系统公告（`receiver="all"` 时自动设置）
+   - `type=2`：私信（指定用户时）
+
+```go
+// MsgSendJob.Execute 中的 internal channel 处理
+if rec.Channel == "internal" {
+    rec.Status = msgEntity.MsgStatusSuccess
+    // 更新记录状态
+    // 创建 msg_internal 扩展记录
+}
+```
+
+### 4.3 驱动接口
 
 ```go
 type Driver interface {

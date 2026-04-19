@@ -329,7 +329,7 @@ onUnmounted(() => {
       v-model:show="logModalVisible"
       preset="card"
       :title="`${$t('page.ops.task.history')} - ${currentTaskName}`"
-      style="width: 600px"
+      class="w-600px"
     >
       <div class="max-h-500px overflow-y-auto pr-4">
         <NSpin :show="logsLoading">
@@ -374,7 +374,7 @@ onUnmounted(() => {
       v-model:show="editModalVisible"
       preset="card"
       :title="`${$t('common.edit')} - ${editForm.displayName}`"
-      style="width: 500px"
+      class="w-500px"
     >
       <NForm :model="editForm" label-placement="left" label-width="100">
         <NFormItem :label="$t('page.ops.task.name')">

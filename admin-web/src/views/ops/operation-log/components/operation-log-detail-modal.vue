@@ -5,9 +5,7 @@ defineOptions({ name: 'OperationLogDetailModal' });
 
 const visible = defineModel<boolean>('visible', { default: false });
 
-defineProps<{
-  rowData?: any;
-}>();
+const rowData = defineModel<any>('rowData', { default: null });
 </script>
 
 <template>

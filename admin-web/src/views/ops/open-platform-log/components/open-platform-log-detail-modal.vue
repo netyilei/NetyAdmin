@@ -5,9 +5,7 @@ defineOptions({ name: 'OpenPlatformLogDetailModal' });
 
 const visible = defineModel<boolean>('visible', { default: false });
 
-const props = defineProps<{
-  rowData?: any;
-}>();
+const rowData = defineModel<any>('rowData', { default: null });
 
 function formatLatency(ns: number) {
   return `${(ns / 1000000).toFixed(2)}ms`;

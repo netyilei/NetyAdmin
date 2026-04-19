@@ -1,9 +1,7 @@
 <script setup lang="ts">
-interface Props {
-  id: string;
-}
-
-defineProps<Props>();
+defineOptions({
+  name: 'AdminDetail'
+});
 </script>
 
 <template>

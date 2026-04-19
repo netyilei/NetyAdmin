@@ -294,14 +294,8 @@ watch(
 </script>
 
 <template>
-  <NModal
-    v-model:show="drawerVisible"
-    preset="card"
-    :title="title"
-    :style="{ width: '1400px' }"
-    class="overflow-y-auto"
-  >
-    <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="100">
+  <NModal v-model:show="drawerVisible" preset="card" :title="title" class="w-1400px overflow-y-auto">
+    <NForm :model="model" :rules="rules" label-placement="left" :label-width="100">
       <NGrid :cols="24" :x-gap="16">
         <NGridItem :span="12">
           <NFormItem :label="$t('page.content.article.categoryId')" path="categoryId">

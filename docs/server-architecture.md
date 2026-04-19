@@ -191,23 +191,27 @@ server/
 // internal/domain/entity/content/comment.go
 package content
 
-import "gorm.io/gorm"
+import (
+    "gorm.io/plugin/soft_delete"
+)
 
 type Comment struct {
-    ID        uint           `gorm:"primarykey"`
-    ArticleID uint           `gorm:"not null;index"`
-    UserID    uint           `gorm:"not null;index"`
-    Content   string         `gorm:"type:text;not null"`
-    Status    int8           `gorm:"default:1"` // 1:正常 2:禁用
-    CreatedAt int64          `gorm:"autoCreateTime"`
-    UpdatedAt int64          `gorm:"autoUpdateTime"`
-    DeletedAt gorm.DeletedAt `gorm:"index"`
+    ID        uint                  `gorm:"primarykey"`
+    ArticleID uint                  `gorm:"not null;index"`
+    UserID    uint                  `gorm:"not null;index"`
+    Content   string                `gorm:"type:text;not null"`
+    Status    int8                  `gorm:"default:1"` // 1:正常 2:禁用
+    CreatedAt int64                 `gorm:"autoCreateTime"`
+    UpdatedAt int64                 `gorm:"autoUpdateTime"`
+    DeletedAt soft_delete.DeletedAt `gorm:"column:deleted_at;softDelete:milli;default:0;index"`
 }
 
 func (Comment) TableName() string {
     return "comments"
 }
 ```
+
+> **注意**：NetyAdmin 使用 `soft_delete.DeletedAt`（BIGINT 类型）而非 `gorm.DeletedAt`（TIMESTAMP 类型），以支持毫秒级软删除时间戳，并避免时区问题。数据库列类型为 `BIGINT DEFAULT 0`。
 
 #### 步骤2：创建仓储
 

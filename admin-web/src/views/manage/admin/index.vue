@@ -4,14 +4,12 @@ import { fetchBatchDeleteAdmin, fetchDeleteAdmin, fetchGetAdminList } from '@/se
 import { useAppStore } from '@/store/modules/app';
 import { useTable, useTableOperate } from '@/hooks/common/table';
 import { useDict } from '@/hooks/common/dict';
-import { useRouterPush } from '@/hooks/common/router';
 import type { SystemManage } from '@/typings/api/v1/system-manage';
 import { $t } from '@/locales';
 import AdminOperateModal from './components/admin-operate-modal.vue';
 import AdminSearch from './components/admin-search.vue';
 
 const appStore = useAppStore();
-const { routerPushByKey } = useRouterPush();
 const { loadDicts, renderDictTag } = useDict();
 
 loadDicts(['sys_status', 'sys_gender']);

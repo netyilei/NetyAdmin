@@ -25,7 +25,8 @@ const props = withDefaults(defineProps<Props>(), {
   height: '400px',
   placeholder: '',
   disabled: false,
-  initialEditType: 'markdown'
+  initialEditType: 'markdown',
+  storageConfigId: undefined
 });
 
 const emit = defineEmits<Emits>();

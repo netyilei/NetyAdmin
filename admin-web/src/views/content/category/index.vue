@@ -138,7 +138,7 @@ function findNodeById(nodes: Content.CategoryTree[], id: number): Content.Catego
   return null;
 }
 
-const { drawerVisible, operateType, handleAdd, handleEdit, editingData, checkedRowKeys, onDeleted } = useTableOperate(
+const { drawerVisible, operateType, handleAdd, editingData, checkedRowKeys, onDeleted } = useTableOperate(
   data as any,
   getData
 );

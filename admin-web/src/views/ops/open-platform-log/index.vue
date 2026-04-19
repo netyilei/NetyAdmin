@@ -12,17 +12,7 @@ const appStore = useAppStore();
 const detailVisible = ref(false);
 const detailRow = ref<any>(null);
 
-const {
-  columns,
-  columnChecks,
-  data,
-  getData,
-  getDataByPage,
-  loading,
-  mobilePagination,
-  searchParams,
-  resetSearchParams
-} = useTable({
+const { columns, data, getDataByPage, loading, mobilePagination } = useTable({
   apiFn: fetchOpenLogList,
   showTotal: true,
   apiParams: {
@@ -137,7 +127,7 @@ function viewDetail(row: any) {
         @update:page="getDataByPage"
       />
     </NCard>
-    <OpenPlatformLogDetailModal v-model:visible="detailVisible" :row-data="detailRow" />
+    <OpenPlatformLogDetailModal v-model:visible="detailVisible" v-model:row-data="detailRow" />
   </div>
 </template>
 

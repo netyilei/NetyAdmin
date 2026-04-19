@@ -124,13 +124,7 @@ watch(visible, val => {
 </script>
 
 <template>
-  <NModal
-    v-model:show="visible"
-    preset="card"
-    :title="title"
-    :style="{ width: '800px', maxWidth: '95vw' }"
-    class="overflow-y-auto"
-  >
+  <NModal v-model:show="visible" preset="card" :title="title" class="max-w-95vw w-800px overflow-y-auto">
     <NForm ref="formRef" :model="model" :rules="rules">
       <NFormItem :label="$t('page.manage.admin.userName')" path="username">
         <NInput v-model:value="model.username" :placeholder="$t('page.manage.admin.form.userName')" />

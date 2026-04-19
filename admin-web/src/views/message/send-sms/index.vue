@@ -20,6 +20,7 @@ const templates = ref<MessageHub.Template[]>([]);
 const users = ref<ClientUser.UserInfo[]>([]);
 const templateLoading = ref(false);
 const userLoading = ref(false);
+let userSearchTimer: ReturnType<typeof setTimeout> | null = null;
 
 const model = reactive({
   channel: 'sms',
@@ -68,13 +69,24 @@ async function getTemplates() {
   templateLoading.value = false;
 }
 
-async function getUsers(query = '') {
+async function getUsers(query: string) {
+  if (!query || query.trim().length === 0) {
+    users.value = [];
+    return;
+  }
   userLoading.value = true;
-  const { data } = await fetchGetUserList({ current: 1, size: 50, username: query });
+  const { data } = await fetchGetUserList({ current: 1, size: 50, username: query.trim() });
   if (data) {
     users.value = data.records;
   }
   userLoading.value = false;
+}
+
+function handleUserSearch(query: string) {
+  if (userSearchTimer) clearTimeout(userSearchTimer);
+  userSearchTimer = setTimeout(() => {
+    getUsers(query);
+  }, 300);
 }
 
 function handleTemplateChange(code: string | null) {
@@ -144,7 +156,6 @@ watch(
 );
 
 getTemplates();
-getUsers();
 </script>
 
 <template>
@@ -162,7 +173,7 @@ getUsers();
                 :options="userPhoneOptions"
                 :loading="userLoading"
                 :placeholder="$t('page.messageHub.send.phonePlaceholder')"
-                @search="getUsers"
+                @search="handleUserSearch"
               />
               <div class="mt-4px text-12px text-gray-400">
                 {{ $t('page.messageHub.send.phoneHint') }}

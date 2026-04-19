@@ -5,7 +5,6 @@ import type {
   RouteLocationRaw,
   Router
 } from 'vue-router';
-import { useAuthStore } from '@/store/modules/auth';
 import { useRouteStore } from '@/store/modules/route';
 import { localStg } from '@/utils/storage';
 
@@ -23,11 +22,8 @@ export function createRouteGuard(router: Router) {
       return;
     }
 
-    const authStore = useAuthStore();
-
     const rootRoute = 'root';
     const loginRoute = 'login';
-    const noAuthorizationRoute = '403';
 
     const isLogin = Boolean(localStg.get('token'));
     const needLogin = !to.meta.constant;

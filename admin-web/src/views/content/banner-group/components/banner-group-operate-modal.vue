@@ -162,14 +162,8 @@ watch(
 </script>
 
 <template>
-  <NModal
-    v-model:show="drawerVisible"
-    preset="card"
-    :title="title"
-    :style="{ width: '800px', maxWidth: '95vw' }"
-    class="overflow-y-auto"
-  >
-    <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="100">
+  <NModal v-model:show="drawerVisible" preset="card" :title="title" class="max-w-95vw w-800px overflow-y-auto">
+    <NForm :model="model" :rules="rules" label-placement="left" :label-width="100">
       <NFormItem :label="$t('page.content.bannerGroup.groupName')" path="name">
         <NInput
           v-model:value="model.name"

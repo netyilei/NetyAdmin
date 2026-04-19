@@ -105,8 +105,10 @@ const {
   ]
 });
 
-const { drawerVisible, operateType, editingData, handleAdd, handleEdit, checkedRowKeys, onBatchDeleted, onDeleted } =
-  useTableOperate(data, getData);
+const { drawerVisible, operateType, editingData, handleAdd, handleEdit, checkedRowKeys, onDeleted } = useTableOperate(
+  data,
+  getData
+);
 
 async function handleDelete(id: string) {
   const { error } = await deleteApp(id);

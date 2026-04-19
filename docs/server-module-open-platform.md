@@ -143,6 +143,7 @@ function computeSignature(secret, method, path, timestamp, nonce, payload) {
 2. **时钟同步**：客户端与服务器时间偏差不得超过 60s，否则请求失效。
 3. **日志清理**：开放平台日志增长较快，建议结合 `task_config` 设置 30 天自动清理。
 4. **IPAC 联动**：建议为合作伙伴应用开启白名单模式（`IPStrategy=2`），仅允许其固定服务器 IP 访问。
+5. **缓存同步**：应用创建、更新、删除时，系统会自动触发 IPAC 缓存重载，确保 IP 策略实时生效。
 
 ---
 

@@ -17,7 +17,7 @@ interface Emits {
   (e: 'update:value', value: number | null | undefined): void;
 }
 
-const props = withDefaults(defineProps<Props>(), {
+withDefaults(defineProps<Props>(), {
   placeholder: '',
   disabled: false
 });

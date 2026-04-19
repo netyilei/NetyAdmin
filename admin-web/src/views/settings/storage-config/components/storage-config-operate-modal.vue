@@ -201,8 +201,7 @@ watch(visible, val => {
     :title="title"
     preset="card"
     display-directive="show"
-    :style="{ width: '800px', maxWidth: '94vw' }"
-    class="storage-config-modal"
+    class="storage-config-modal max-w-94vw w-800px"
   >
     <NSpin :show="loading">
       <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="120">

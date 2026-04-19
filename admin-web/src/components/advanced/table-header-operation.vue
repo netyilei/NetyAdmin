@@ -14,6 +14,7 @@ interface Props {
 }
 
 withDefaults(defineProps<Props>(), {
+  itemAlign: 'end',
   showAdd: true,
   showDelete: true
 });

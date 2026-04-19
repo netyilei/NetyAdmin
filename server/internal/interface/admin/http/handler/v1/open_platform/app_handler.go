@@ -119,6 +119,10 @@ func (h *AppHandler) ResetSecret(c *gin.Context) {
 
 	newSecret, err := h.svc.ResetAppSecret(c.Request.Context(), req.ID)
 	if err != nil {
+		if errorx.Is(err, errorx.CodeNotFound) {
+			response.FailWithCode(c, errorx.CodeNotFound)
+			return
+		}
 		response.FailWithCode(c, errorx.CodeInternalError)
 		return
 	}

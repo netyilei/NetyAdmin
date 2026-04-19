@@ -65,7 +65,7 @@ const rules = {
   tagType: defaultRequiredRule
 };
 
-function renderOption({ node, option }: { node: VNode; option: SelectOption }) {
+function renderOption({ option }: { node: VNode; option: SelectOption }) {
   return h(
     NTag,
     {

@@ -8,9 +8,12 @@ import (
 
 	"NetyAdmin/internal/domain/entity/open_platform"
 	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/utils"
 	openRepo "NetyAdmin/internal/repository/open_platform"
 	ipacSvcPkg "NetyAdmin/internal/service/ipac"
+
+	"gorm.io/gorm"
 )
 
 type AppService interface {
@@ -179,22 +182,24 @@ func (s *appService) UpdateApp(ctx context.Context, app *open_platform.App, scop
 func (s *appService) ResetAppSecret(ctx context.Context, id string) (string, error) {
 	app, err := s.repo.GetByID(ctx, id)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", errorx.New(errorx.CodeNotFound)
+		}
 		return "", err
 	}
-	// 不需要在这里查 scopes，仅重置密钥
 	rawSecret := utils.NewULID() + utils.NewULID()
 
 	encryptedSecret, err := utils.Encrypt(rawSecret, s.aesKey)
 	if err != nil {
 		return "", err
 	}
-	app.AppSecret = encryptedSecret
 
-	if err := s.repo.Update(ctx, app); err != nil {
+	if err := s.repo.UpdateSecret(ctx, app.ID, encryptedSecret); err != nil {
 		return "", err
 	}
 
 	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagAppKey(app.AppKey))
+	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagAppID(app.ID))
 	return rawSecret, nil
 }
 

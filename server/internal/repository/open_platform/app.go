@@ -11,6 +11,7 @@ import (
 type AppRepository interface {
 	Create(ctx context.Context, app *open_platform.App) error
 	Update(ctx context.Context, app *open_platform.App) error
+	UpdateSecret(ctx context.Context, id string, encryptedSecret string) error
 	Delete(ctx context.Context, id string) error
 	GetByID(ctx context.Context, id string) (*open_platform.App, error)
 	GetByKey(ctx context.Context, appKey string) (*open_platform.App, error)
@@ -50,6 +51,10 @@ func (r *appRepository) Create(ctx context.Context, app *open_platform.App) erro
 
 func (r *appRepository) Update(ctx context.Context, app *open_platform.App) error {
 	return r.db.WithContext(ctx).Save(app).Error
+}
+
+func (r *appRepository) UpdateSecret(ctx context.Context, id string, encryptedSecret string) error {
+	return r.db.WithContext(ctx).Model(&open_platform.App{}).Where("id = ?", id).Update("app_secret", encryptedSecret).Error
 }
 
 func (r *appRepository) Delete(ctx context.Context, id string) error {

@@ -19,6 +19,7 @@ const templates = ref<MessageHub.Template[]>([]);
 const admins = ref<any[]>([]);
 const templateLoading = ref(false);
 const adminLoading = ref(false);
+let adminSearchTimer: ReturnType<typeof setTimeout> | null = null;
 
 const model = reactive({
   channel: 'internal',
@@ -52,13 +53,24 @@ async function getTemplates() {
   templateLoading.value = false;
 }
 
-async function getAdmins(query = '') {
+async function getAdmins(query: string) {
+  if (!query || query.trim().length === 0) {
+    admins.value = [];
+    return;
+  }
   adminLoading.value = true;
-  const { data } = await fetchGetAdminList({ current: 1, size: 20, username: query });
+  const { data } = await fetchGetAdminList({ current: 1, size: 20, userName: query.trim() });
   if (data) {
     admins.value = data.records;
   }
   adminLoading.value = false;
+}
+
+function handleAdminSearch(query: string) {
+  if (adminSearchTimer) clearTimeout(adminSearchTimer);
+  adminSearchTimer = setTimeout(() => {
+    getAdmins(query);
+  }, 300);
 }
 
 function handleTemplateChange(code: string | null) {
@@ -112,7 +124,6 @@ watch(
 );
 
 getTemplates();
-getAdmins();
 </script>
 
 <template>
@@ -132,15 +143,15 @@ getAdmins();
             <NSelect
               v-model:value="model.receiver"
               filterable
-              placeholder="搜索管理员"
+              placeholder="输入用户名搜索"
               :options="
                 admins.map(item => ({
-                  label: `${item.username} (${item.nickname || '无昵称'})`,
+                  label: item.nickname ? `${item.username} (${item.nickname})` : item.username,
                   value: String(item.id)
                 }))
               "
               :loading="adminLoading"
-              @search="getAdmins"
+              @search="handleAdminSearch"
             />
           </NFormItem>
           <NFormItem :label="$t('page.messageHub.template.title')" path="templateCode">
@@ -181,5 +192,3 @@ getAdmins();
     </NCard>
   </div>
 </template>
-
-<style scoped></style>

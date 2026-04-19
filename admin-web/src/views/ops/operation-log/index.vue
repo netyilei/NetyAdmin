@@ -18,17 +18,7 @@ loadDicts(['sys_operation_action']);
 const detailVisible = ref(false);
 const detailRow = ref<any>(null);
 
-const {
-  columns,
-  columnChecks,
-  data,
-  getData,
-  getDataByPage,
-  loading,
-  mobilePagination,
-  searchParams,
-  resetSearchParams
-} = useTable({
+const { columns, columnChecks, data, getData, loading, mobilePagination } = useTable({
   apiFn: fetchGetOperationLogList,
   showTotal: true,
   apiParams: {
@@ -181,6 +171,6 @@ function viewDetail(row: any) {
         class="sm:h-full"
       />
     </NCard>
-    <OperationLogDetailModal v-model:visible="detailVisible" :row-data="detailRow" />
+    <OperationLogDetailModal v-model:visible="detailVisible" v-model:row-data="detailRow" />
   </div>
 </template>

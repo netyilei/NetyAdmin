@@ -233,8 +233,8 @@ watch(
 </script>
 
 <template>
-  <NModal v-model:show="drawerVisible" preset="card" :title="title" :style="{ width: '600px' }" class="overflow-y-auto">
-    <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="100">
+  <NModal v-model:show="drawerVisible" preset="card" :title="title" class="w-600px overflow-y-auto">
+    <NForm :model="model" :rules="rules" label-placement="left" :label-width="100">
       <NFormItem :label="$t('page.content.bannerItem.groupId')" path="groupId">
         <NSelect
           v-model:value="model.groupId"
