@@ -1,5 +1,6 @@
 <script setup lang="tsx">
 import { NButton, NPopconfirm, NSpace, NTag } from 'naive-ui';
+import dayjs from 'dayjs';
 import { deleteApi, fetchApiList } from '@/service/api/v1/open-api';
 import { useAppStore } from '@/store/modules/app';
 import { useTable, useTableOperate } from '@/hooks/common/table';
@@ -84,7 +85,8 @@ const {
       key: 'createdAt',
       title: $t('page.openPlatform.api.time'),
       align: 'center',
-      width: 160
+      width: 160,
+      render: (row: any) => (row.createdAt ? dayjs(row.createdAt).format('YYYY-MM-DD HH:mm:ss') : '-')
     } as any,
     {
       key: 'operate',

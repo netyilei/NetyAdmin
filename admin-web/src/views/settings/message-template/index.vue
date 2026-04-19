@@ -1,6 +1,7 @@
 <script setup lang="tsx">
 import { ref } from 'vue';
 import { NButton, NPopconfirm, NSpace } from 'naive-ui';
+import dayjs from 'dayjs';
 import { useBoolean } from '@na/hooks';
 import { deleteTemplate, fetchTemplateList } from '@/service/api/v1/message-hub';
 import { useAppStore } from '@/store/modules/app';
@@ -75,7 +76,8 @@ const {
       key: 'createdAt',
       title: $t('page.messageHub.template.time'),
       align: 'center',
-      width: 160
+      width: 160,
+      render: (row: any) => (row.createdAt ? dayjs(row.createdAt).format('YYYY-MM-DD HH:mm:ss') : '-')
     } as any,
     {
       key: 'operate',

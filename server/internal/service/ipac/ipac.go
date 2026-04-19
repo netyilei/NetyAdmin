@@ -34,8 +34,9 @@ type ipacService struct {
 }
 
 type appIPRules struct {
-	Allow []*net.IPNet
-	Deny  []*net.IPNet
+	Allow      []*net.IPNet
+	Deny       []*net.IPNet
+	IPStrategy int // 1: 黑名单模式(默认放行), 2: 白名单模式(默认拒绝)
 }
 
 func NewIPACService(repo ipacRepo.IPACRepository, cacheMgr cache.LazyCacheManager) IPACService {
@@ -81,6 +82,11 @@ func (s *ipacService) ReloadCache(ctx context.Context) error {
 		return err
 	}
 
+	appStrategies, err := s.repo.GetAppIPStrategies(ctx)
+	if err != nil {
+		return err
+	}
+
 	newGlobalDeny := make([]*net.IPNet, 0)
 	newGlobalAllow := make([]*net.IPNet, 0)
 	newAppRules := make(map[string]appIPRules)
@@ -88,7 +94,6 @@ func (s *ipacService) ReloadCache(ctx context.Context) error {
 	for _, r := range rules {
 		_, ipNet, err := net.ParseCIDR(r.IPAddr)
 		if err != nil {
-			// Try parsing as single IP
 			ip := net.ParseIP(r.IPAddr)
 			if ip == nil {
 				continue
@@ -116,6 +121,12 @@ func (s *ipacService) ReloadCache(ctx context.Context) error {
 			}
 			newAppRules[appID] = ar
 		}
+	}
+
+	for appID, strategy := range appStrategies {
+		ar := newAppRules[appID]
+		ar.IPStrategy = strategy
+		newAppRules[appID] = ar
 	}
 
 	s.mu.Lock()
@@ -165,11 +176,14 @@ func (s *ipacService) CheckIP(ctx context.Context, ipStr string, appID *string) 
 					return true, nil
 				}
 			}
+			// 白名单模式：未匹配任何规则时默认拒绝
+			if rules.IPStrategy == 2 {
+				return false, nil
+			}
 		}
 	}
 
-	// 默认放行 (黑名单模式)
-	// 若均未命中，默认执行放行 (可通过配置调整为全局白名单模式)
+	// 黑名单模式：默认放行
 	return true, nil
 }
 

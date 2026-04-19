@@ -280,7 +280,7 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	s.sysConfig = systemService.NewConfigService(repos.systemConfig, nil, &cfg.Redis, configWatcher) // Redis client passed later if needed
 	s.dict = dictServicePkg.NewDictService(repos.dict, lazyCacheMgr)
 	s.ipac = ipacServicePkg.NewIPACService(repos.ipac, lazyCacheMgr)
-	s.app = openServicePkg.NewAppService(repos.app, lazyCacheMgr, cfg.Security.AESKey)
+	s.app = openServicePkg.NewAppService(repos.app, lazyCacheMgr, cfg.Security.AESKey, s.ipac)
 	s.openApi = openServicePkg.NewOpenApiService(repos.openApi, repos.app, lazyCacheMgr)
 	s.openLog = openServicePkg.NewOpenLogService(repos.openLog)
 

@@ -17,15 +17,16 @@ type IPACRepository interface {
 	GetByIP(ctx context.Context, ip string, appID *string) (*ipac.IPAccessControl, error)
 	GetAllEffective(ctx context.Context) ([]*ipac.IPAccessControl, error)
 	DeleteBatch(ctx context.Context, ids []uint) error
+	GetAppIPStrategies(ctx context.Context) (map[string]int, error)
 }
 
 type IPACQuery struct {
-	AppID     *string
-	IPAddr    string
-	Type      int
-	Status    *int
-	Page      int
-	PageSize  int
+	AppID    *string
+	IPAddr   string
+	Type     int
+	Status   *int
+	Page     int
+	PageSize int
 }
 
 type ipacRepository struct {
@@ -112,4 +113,24 @@ func (r *ipacRepository) GetAllEffective(ctx context.Context) ([]*ipac.IPAccessC
 
 func (r *ipacRepository) DeleteBatch(ctx context.Context, ids []uint) error {
 	return r.db.WithContext(ctx).Delete(&ipac.IPAccessControl{}, ids).Error
+}
+
+func (r *ipacRepository) GetAppIPStrategies(ctx context.Context) (map[string]int, error) {
+	type appStrategy struct {
+		ID         string `gorm:"primaryKey"`
+		IPStrategy int
+	}
+	var list []appStrategy
+	err := r.db.WithContext(ctx).Table("sys_apps").
+		Select("id, ip_strategy").
+		Where("deleted_at = 0").
+		Find(&list).Error
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]int, len(list))
+	for _, item := range list {
+		result[item.ID] = item.IPStrategy
+	}
+	return result, nil
 }

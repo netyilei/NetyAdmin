@@ -60,6 +60,7 @@ func (h *MessageHandler) ListRecords(c *gin.Context) {
 		PageSize: req.Size,
 		Channel:  req.Channel,
 		Receiver: req.Receiver,
+		Status:   req.Status,
 	}
 
 	list, total, err := h.svc.ListRecords(c.Request.Context(), query)

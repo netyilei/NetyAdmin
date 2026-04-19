@@ -14,6 +14,7 @@ type MsgRecordQuery struct {
 	Size     int    `form:"size"`
 	Channel  string `form:"channel"`
 	Receiver string `form:"receiver"`
+	Status   *int   `form:"status"`
 }
 
 type SendDirectReq struct {

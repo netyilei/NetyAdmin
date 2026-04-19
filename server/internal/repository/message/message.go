@@ -23,6 +23,9 @@ type MsgRepository interface {
 	GetRecordByID(ctx context.Context, id uint64) (*msgEntity.MsgRecord, error)
 	ListRecords(ctx context.Context, query *MsgRepoQuery) ([]*msgEntity.MsgRecord, int64, error)
 	DeleteRecordsBefore(ctx context.Context, before time.Time) error
+
+	// Internal
+	CreateInternal(ctx context.Context, msg *msgEntity.MsgInternal) error
 }
 
 type MsgRepoQuery struct {
@@ -93,6 +96,10 @@ func (r *msgRepository) ListTemplates(ctx context.Context, query *MsgRepoQuery) 
 	return list, total, err
 }
 
+func (r *msgRepository) CreateInternal(ctx context.Context, msg *msgEntity.MsgInternal) error {
+	return r.db.WithContext(ctx).Create(msg).Error
+}
+
 func (r *msgRepository) DeleteRecordsBefore(ctx context.Context, before time.Time) error {
 	return r.db.WithContext(ctx).Where("created_at < ?", before).Delete(&msgEntity.MsgRecord{}).Error
 }
@@ -122,6 +129,9 @@ func (r *msgRepository) ListRecords(ctx context.Context, query *MsgRepoQuery) ([
 	}
 	if query.Receiver != "" {
 		db = db.Where("receiver LIKE ?", "%"+query.Receiver+"%")
+	}
+	if query.Status != nil {
+		db = db.Where("status = ?", *query.Status)
 	}
 	if query.UserID != 0 {
 		db = db.Where("user_id = ?", query.UserID)

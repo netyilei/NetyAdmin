@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import dayjs from 'dayjs';
 import { useDict } from '@/hooks/common/dict';
 import type { MessageHub } from '@/typings/api/v1/message-hub';
 import { $t } from '@/locales';
@@ -43,7 +44,7 @@ function closeModal() {
         {{ rowData?.retryCount }}
       </NDescriptionsItem>
       <NDescriptionsItem :label="$t('page.messageHub.record.time')">
-        {{ rowData?.createdAt }}
+        {{ rowData?.createdAt ? dayjs(rowData.createdAt).format('YYYY-MM-DD HH:mm:ss') : '-' }}
       </NDescriptionsItem>
       <NDescriptionsItem v-if="rowData?.title" :label="$t('page.messageHub.template.msgTitle')">
         {{ rowData?.title }}

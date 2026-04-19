@@ -8,12 +8,8 @@ defineOptions({
 
 <template>
   <DarkModeContainer class="h-full flex-center">
-    <a
-      href="https://github.com/NetyAdminjs/NetyAdmin-admin/blob/main/LICENSE"
-      target="_blank"
-      rel="noopener noreferrer"
-    >
-      Copyright MIT © 2021 {{ APP_CONFIG.name }}
+    <a href="https://github.com/netyilei/NetyAdmin/blob/master/LICENSE" target="_blank" rel="noopener noreferrer">
+      Copyright MIT © 2026 {{ APP_CONFIG.name }}
     </a>
   </DarkModeContainer>
 </template>

@@ -108,7 +108,6 @@ cd NetyAdmin
 
 # 2. 启动服务端
 cd server
-cp config.toml.example config.toml
 # 编辑 config.toml 配置数据库
 go mod download
 go run cmd/server/main.go

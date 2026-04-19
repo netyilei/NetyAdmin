@@ -1,5 +1,6 @@
 <script setup lang="tsx">
 import { NButton, NPopconfirm, NSpace, NTag } from 'naive-ui';
+import dayjs from 'dayjs';
 import { batchDeleteIPAC, deleteIPAC, fetchIPACList } from '@/service/api/v1/system-ipac';
 import { useAppStore } from '@/store/modules/app';
 import { useTable, useTableOperate } from '@/hooks/common/table';
@@ -67,7 +68,8 @@ const {
       title: $t('page.ops.ipac.expiredAt'),
       align: 'center',
       width: 160,
-      render: (row: any) => (row.expiredAt ? row.expiredAt : $t('page.ops.ipac.permanent'))
+      render: (row: any) =>
+        row.expiredAt ? dayjs(row.expiredAt).format('YYYY-MM-DD HH:mm:ss') : $t('page.ops.ipac.permanent')
     } as any,
     {
       key: 'status',
@@ -80,7 +82,8 @@ const {
       key: 'createdAt',
       title: $t('page.ops.ipac.time'),
       align: 'center',
-      width: 160
+      width: 160,
+      render: (row: any) => (row.createdAt ? dayjs(row.createdAt).format('YYYY-MM-DD HH:mm:ss') : '-')
     } as any,
     {
       key: 'operate',

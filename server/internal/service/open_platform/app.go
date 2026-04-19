@@ -10,6 +10,7 @@ import (
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/utils"
 	openRepo "NetyAdmin/internal/repository/open_platform"
+	ipacSvcPkg "NetyAdmin/internal/service/ipac"
 )
 
 type AppService interface {
@@ -39,13 +40,15 @@ type appService struct {
 	repo     openRepo.AppRepository
 	cacheMgr cache.LazyCacheManager
 	aesKey   string
+	ipacSvc  ipacSvcPkg.IPACService
 }
 
-func NewAppService(repo openRepo.AppRepository, cacheMgr cache.LazyCacheManager, aesKey string) AppService {
+func NewAppService(repo openRepo.AppRepository, cacheMgr cache.LazyCacheManager, aesKey string, ipacSvc ipacSvcPkg.IPACService) AppService {
 	return &appService{
 		repo:     repo,
 		cacheMgr: cacheMgr,
 		aesKey:   aesKey,
+		ipacSvc:  ipacSvc,
 	}
 }
 
@@ -167,6 +170,9 @@ func (s *appService) UpdateApp(ctx context.Context, app *open_platform.App, scop
 	// 清除缓存
 	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagAppID(app.ID))
 	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagAppKey(app.AppKey))
+
+	// IP策略可能变更，触发IPAC缓存重载
+	_ = s.ipacSvc.ReloadCache(ctx)
 	return nil
 }
 
@@ -215,6 +221,9 @@ func (s *appService) DeleteApp(ctx context.Context, id string) error {
 	}
 	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagAppKey(app.AppKey))
 	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagAppID(id))
+
+	// 应用删除后，IPAC缓存中的应用规则也应清除
+	_ = s.ipacSvc.ReloadCache(ctx)
 	return nil
 }
 

@@ -108,7 +108,6 @@ cd NetyAdmin
 
 # 2. Start server
 cd server
-cp config.toml.example config.toml
 # Edit config.toml to configure database
 go mod download
 go run cmd/server/main.go

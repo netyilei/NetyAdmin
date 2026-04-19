@@ -61,7 +61,23 @@ func (j *MsgSendJob) Execute(ctx context.Context, payload json.RawMessage) error
 	}
 
 	if rec.Status != msgEntity.MsgStatusPending {
-		return nil // 已经处理过
+		return nil
+	}
+
+	if rec.Channel == "internal" {
+		rec.Status = msgEntity.MsgStatusSuccess
+		if err := j.repo.UpdateRecord(ctx, rec); err != nil {
+			return err
+		}
+		msgType := 2
+		if rec.Receiver == "all" {
+			msgType = 1
+		}
+		internalMsg := &msgEntity.MsgInternal{
+			MsgRecordID: rec.ID,
+			Type:        msgType,
+		}
+		return j.repo.CreateInternal(ctx, internalMsg)
 	}
 
 	driver, ok := j.drivers[rec.Channel]
@@ -71,7 +87,6 @@ func (j *MsgSendJob) Execute(ctx context.Context, payload json.RawMessage) error
 		return j.repo.UpdateRecord(ctx, rec)
 	}
 
-	// 执行物理发送
 	sendCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 

@@ -8,8 +8,8 @@ type ConfigQuery struct {
 type UpdateConfigReq struct {
 	GroupName   string `json:"groupName" binding:"required"`
 	ConfigKey   string `json:"configKey" binding:"required"`
-	ConfigValue string `json:"configValue" binding:"required"`
-	ValueType   string `json:"valueType" binding:"required"`
+	ConfigValue string `json:"configValue"`
+	ValueType   string `json:"valueType"`
 	Description string `json:"description"`
 }
 
