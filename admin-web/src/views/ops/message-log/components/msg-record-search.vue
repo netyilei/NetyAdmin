@@ -60,6 +60,7 @@ async function search() {
               <AppDictSelect
                 v-model:value="model.status"
                 dict-code="sys_msg_status"
+                value-type="number"
                 :placeholder="$t('common.pleaseSelect')"
               />
             </NFormItemGi>

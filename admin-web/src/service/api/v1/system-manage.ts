@@ -332,3 +332,12 @@ export function fetchUpdateSysConfig(data: SystemManage.SysConfig) {
     data
   });
 }
+
+/** 测试邮件发送 */
+export function fetchTestEmail(data: { receiver: string }) {
+  return request({
+    url: '/admin/v1/system/test-email',
+    method: 'post',
+    data
+  });
+}

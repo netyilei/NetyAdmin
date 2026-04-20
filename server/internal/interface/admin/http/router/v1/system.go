@@ -42,6 +42,8 @@ func (r *SystemRouter) RegisterPermission(group *gin.RouterGroup) {
 	{
 		// 配置修改需要权限
 		system.PUT("/configs", r.handler.Config.Upsert)
+		// 测试邮件发送需要权限
+		system.POST("/test-email", r.handler.Config.TestEmail)
 	}
 }
 

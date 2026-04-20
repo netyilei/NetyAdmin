@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import {
   NAlert,
+  NButton,
   NCard,
   NDivider,
   NFormItem,
@@ -16,7 +17,7 @@ import {
   NTabPane,
   NTabs
 } from 'naive-ui';
-import { fetchGetSysConfigs, fetchUpdateSysConfig } from '@/service/api/v1/system-manage';
+import { fetchGetSysConfigs, fetchTestEmail, fetchUpdateSysConfig } from '@/service/api/v1/system-manage';
 import { fetchGetAllEnabledStorageConfigs } from '@/service/api/v1/storage';
 import type { SystemManage } from '@/typings/api/v1/system-manage';
 import { $t } from '@/locales';
@@ -47,8 +48,23 @@ const emailConfigs = reactive<Record<string, ConfigItem | undefined>>({
   port: undefined,
   user: undefined,
   password: undefined,
-  from: undefined
+  from: undefined,
+  ssl_enabled: undefined,
+  starttls_enabled: undefined,
+  auth_type: undefined,
+  connect_timeout: undefined,
+  send_timeout: undefined
 });
+
+const emailAuthTypeOptions = [
+  { label: $t('page.manage.setting.email.authTypePlain'), value: 'plain' },
+  { label: $t('page.manage.setting.email.authTypeLogin'), value: 'login' },
+  { label: $t('page.manage.setting.email.authTypeCrammd5'), value: 'crammd5' },
+  { label: $t('page.manage.setting.email.authTypeAuto'), value: 'auto' }
+];
+
+const testEmailLoading = ref(false);
+const testEmailReceiver = ref('');
 
 const smsConfigs = reactive<Record<string, ConfigItem | undefined>>({
   enabled: undefined,
@@ -189,7 +205,9 @@ async function init() {
       if (Object.keys(emailConfigs).includes(item.configKey)) {
         emailConfigs[item.configKey] = {
           ...item,
-          numValue: item.configKey === 'port' ? Number.parseInt(item.configValue, 10) || 0 : undefined
+          numValue: ['port', 'connect_timeout', 'send_timeout'].includes(item.configKey)
+            ? Number.parseInt(item.configValue, 10) || 0
+            : undefined
         };
       }
     });
@@ -228,6 +246,19 @@ async function handleNumberUpdate(item?: ConfigItem) {
   if (!item || item.numValue === undefined || item.numValue === Number.parseInt(item.configValue, 10)) return;
   item.configValue = item.numValue.toString();
   await handleUpdate(item);
+}
+
+async function handleTestEmail() {
+  if (!testEmailReceiver.value) {
+    window.$message?.warning($t('page.manage.setting.email.testReceiverRequired'));
+    return;
+  }
+  testEmailLoading.value = true;
+  const { error } = await fetchTestEmail({ receiver: testEmailReceiver.value });
+  testEmailLoading.value = false;
+  if (!error) {
+    window.$message?.success($t('page.manage.setting.email.testSuccess'));
+  }
 }
 
 onMounted(init);
@@ -694,6 +725,55 @@ onMounted(init);
                     @blur="handleNumberUpdate(emailConfigs.port)"
                   />
                 </NFormItem>
+                <NFormItem :label="$t('page.manage.setting.email.sslEnabled')" label-placement="left">
+                  <NSwitch
+                    v-if="emailConfigs.ssl_enabled"
+                    v-model:value="emailConfigs.ssl_enabled.configValue"
+                    checked-value="true"
+                    unchecked-value="false"
+                    :loading="updating === emailConfigs.ssl_enabled?.configKey"
+                    @update:value="handleUpdate(emailConfigs.ssl_enabled)"
+                  />
+                </NFormItem>
+                <NFormItem :label="$t('page.manage.setting.email.starttlsEnabled')" label-placement="left">
+                  <NSwitch
+                    v-if="emailConfigs.starttls_enabled"
+                    v-model:value="emailConfigs.starttls_enabled.configValue"
+                    checked-value="true"
+                    unchecked-value="false"
+                    :loading="updating === emailConfigs.starttls_enabled?.configKey"
+                    @update:value="handleUpdate(emailConfigs.starttls_enabled)"
+                  />
+                </NFormItem>
+                <NFormItem :label="$t('page.manage.setting.email.authType')" label-placement="left">
+                  <NSelect
+                    v-if="emailConfigs.auth_type"
+                    v-model:value="emailConfigs.auth_type.configValue"
+                    :options="emailAuthTypeOptions"
+                    class="w-200px"
+                    @update:value="handleUpdate(emailConfigs.auth_type)"
+                  />
+                </NFormItem>
+                <NFormItem :label="$t('page.manage.setting.email.connectTimeout')" label-placement="left">
+                  <NInputNumber
+                    v-if="emailConfigs.connect_timeout"
+                    v-model:value="emailConfigs.connect_timeout.numValue"
+                    :min="5"
+                    :max="120"
+                    class="w-200px"
+                    @blur="handleNumberUpdate(emailConfigs.connect_timeout)"
+                  />
+                </NFormItem>
+                <NFormItem :label="$t('page.manage.setting.email.sendTimeout')" label-placement="left">
+                  <NInputNumber
+                    v-if="emailConfigs.send_timeout"
+                    v-model:value="emailConfigs.send_timeout.numValue"
+                    :min="5"
+                    :max="120"
+                    class="w-200px"
+                    @blur="handleNumberUpdate(emailConfigs.send_timeout)"
+                  />
+                </NFormItem>
                 <NFormItem :label="$t('page.manage.setting.email.user')" label-placement="left">
                   <NInput
                     v-if="emailConfigs.user"
@@ -722,6 +802,24 @@ onMounted(init);
                     class="w-300px"
                     @blur="handleUpdate(emailConfigs.from)"
                   />
+                </NFormItem>
+                <NDivider />
+                <NFormItem :label="$t('page.manage.setting.email.testEmail')" label-placement="left">
+                  <NSpace align="center">
+                    <NInput
+                      v-model:value="testEmailReceiver"
+                      :placeholder="$t('page.manage.setting.email.testReceiverPlaceholder')"
+                      class="w-250px"
+                    />
+                    <NButton
+                      type="primary"
+                      :loading="testEmailLoading"
+                      :disabled="!testEmailReceiver"
+                      @click="handleTestEmail"
+                    >
+                      {{ $t('page.manage.setting.email.testSend') }}
+                    </NButton>
+                  </NSpace>
                 </NFormItem>
               </NSpace>
             </NSpin>

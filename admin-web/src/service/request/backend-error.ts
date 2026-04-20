@@ -45,6 +45,8 @@ export const BackendErrorCode = {
   msgSendFailed: '101203',
   msgRecordNotFound: '101204',
   msgDriverNotFound: '101205',
+  // 系统配置模块 (1090xx)
+  emailTestFailed: '109008',
   // 开放平台 (1013xx)
   appKeyInvalid: '101301',
   signatureFailed: '101302',
@@ -106,6 +108,8 @@ const backendErrorI18nKeyMap: Record<string, string> = {
   [BackendErrorCode.msgSendFailed]: 'request.backend.msgSendFailed',
   [BackendErrorCode.msgRecordNotFound]: 'request.backend.msgRecordNotFound',
   [BackendErrorCode.msgDriverNotFound]: 'request.backend.msgDriverNotFound',
+  // 系统配置模块 (1090xx)
+  [BackendErrorCode.emailTestFailed]: 'request.backend.emailTestFailed',
   // 开放平台 (1013xx)
   [BackendErrorCode.appKeyInvalid]: 'request.backend.appKeyInvalid',
   [BackendErrorCode.signatureFailed]: 'request.backend.signatureFailed',

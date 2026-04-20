@@ -1,8 +1,8 @@
 [server]
 port = 8010
 mode = "debug"
-read_timeout = 60
-write_timeout = 60
+read_timeout = 120
+write_timeout = 120
 
 [database]
 host = "localhost"
@@ -15,8 +15,8 @@ max_idle = 10
 max_open = 50
 
 [redis]
-enabled = true         # 是否启用 Redis (关闭则降级为本地内存缓存)
-prefix = "so"          # 统一的 Key 前缀 (多项目共用 Redis 时用于隔离)
+enabled = true       # 是否启用 Redis (关闭则降级为本地内存缓存)
+prefix = "netyadmin" # 统一的 Key 前缀 (多项目共用 Redis 时用于隔离)
 host = "localhost"
 port = 6379
 password = ""
@@ -24,9 +24,9 @@ db = 0
 
 # L1 缓存 (BigCache) 配置
 l1_enabled = false       # 当 Redis 开启时，是否开启本地一级缓存 (开启可大幅提升读性能)
-local_max_size_mb = 256 # 本地缓存最大内存占用 (MB)
+local_max_size_mb = 256  # 本地缓存最大内存占用 (MB)
 local_max_entry_kb = 500 # 单条缓存记录最大大小 (KB)
-local_ttl_min = 10      # 本地缓存默认过期时间 (分钟)
+local_ttl_min = 10       # 本地缓存默认过期时间 (分钟)
 
 [jwt]
 secret = "your-secret-key-change-in-production"
@@ -58,6 +58,11 @@ port = 465
 user = "your-email@example.com"
 password = "your-password"
 from = "your-email@example.com"
+ssl = true
+starttls = false
+auth_type = "plain"
+connect_timeout = 30
+send_timeout = 30
 
 [sms]
 enabled = false
@@ -66,4 +71,3 @@ secret_id = ""
 secret_key = ""
 app_id = ""
 sign_name = ""
-

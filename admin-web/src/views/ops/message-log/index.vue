@@ -34,8 +34,7 @@ const {
     size: 20,
     channel: undefined,
     receiver: '',
-    status: undefined,
-    total: 0
+    status: undefined
   },
   columns: () => [
     { key: 'index', title: $t('common.index'), align: 'center', width: 64 },
@@ -126,7 +125,7 @@ async function handleRetry(id: number) {
         remote
         striped
         size="small"
-        class="sm:flex-1-hidden"
+        class="sm:h-full"
         :data="data"
         :columns="columns"
         :flex-height="!appStore.isMobile"

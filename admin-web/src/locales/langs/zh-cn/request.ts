@@ -51,6 +51,8 @@ const request = {
     msgSendFailed: '消息发送失败',
     msgRecordNotFound: '消息记录不存在',
     msgDriverNotFound: '消息驱动未配置或不存在',
+    // 系统配置模块 (1090xx)
+    emailTestFailed: '邮件测试发送失败，请检查邮件配置',
     // 开放平台 (1013xx)
     appKeyInvalid: 'AppKey无效',
     signatureFailed: '签名验证失败',

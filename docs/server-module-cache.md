@@ -10,11 +10,12 @@
 
 ### 1.1 核心特性
 
-- **双引擎支持**：Redis / BigCache 自动切换
-- **透明缓存**：业务层无感知切换
-- **Tags批量失效**：支持按标签批量清除缓存
-- **动态开关**：支持运行时开启/关闭缓存
-- **Key规范**：统一的Key命名规范
+- **L1/L2 二级缓存**：本地 BigCache (L1) + Redis (L2) 分层架构，兼顾性能与一致性
+- **多机缓存一致性**：基于 Redis Pub/Sub 的分布式缓存失效广播，确保集群环境缓存同步
+- **透明缓存**：业务层无感知切换，自动处理缓存穿透、回源逻辑
+- **Tags批量失效**：支持按标签批量清除缓存，跨机器自动同步
+- **动态开关**：支持运行时开启/关闭缓存，无需重启服务
+- **Key规范**：统一的Key命名规范，严禁硬编码
 
 ---
 
@@ -70,12 +71,79 @@ type LazyCacheManager interface {
 }
 ```
 
-### 3.2 存储优先级与降级逻辑
+### 3.2 L1/L2 二级缓存架构
 
-系统采用 **“自适应双引擎”** 架构：
-1.  **配置驱动**: 优先读取 `config.toml` 中的 `[redis].enabled`。
-2.  **写透模式**: `Fetch` 成功后，会根据配置同时写入 Redis 和本地 BigCache（L1/L2 二级缓存结构）。
-3.  **原子模拟**: 在未开启 Redis 的单机环境下，`SetNX` 通过内存锁模拟原子性，`RateLimit` 通过 `golang.org/x/time/rate` 保证单机限流准确。
+系统采用 **L1/L2 分层缓存** 架构，根据部署模式自动适配：
+
+#### 单机模式（无 Redis）
+
+```
+┌─────────────────────────────────────┐
+│           Application               │
+│  ┌─────────────────────────────┐    │
+│  │      L1: BigCache           │    │
+│  │   (本地内存， ultra-fast)    │    │
+│  └─────────────────────────────┘    │
+└─────────────────────────────────────┘
+```
+
+#### 多机模式（有 Redis）
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      多机部署环境                              │
+│  ┌──────────────┐        Redis Cluster        ┌──────────┐  │
+│  │   Machine A  │◄───────────────────────────►│  L2存储   │  │
+│  │ ┌──────────┐ │        (共享缓存层)          │ (Redis)  │  │
+│  │ │ L1: Big  │ │                             └──────────┘  │
+│  │ │  Cache   │ │                                   ▲       │
+│  │ └──────────┘ │         Pub/Sub 广播              │       │
+│  └──────────────┘◄──────────────────────────────────┘       │
+│         ▲                                                   │
+│         │         ┌──────────────┐                          │
+│         └────────►│   Machine B  │                          │
+│   缓存失效广播     │ ┌──────────┐ │                          │
+│                   │ │ L1: Big  │ │                          │
+│                   │ │  Cache   │ │                          │
+│                   │ └──────────┘ │                          │
+│                   └──────────────┘                          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### 读写流程
+
+**读取流程**（Fetch）：
+
+1. 检查模块缓存开关（`cache_switches`）
+2. 尝试从 L1 (BigCache) 读取 → 命中直接返回
+3. L1 未命中，尝试从 L2 (Redis) 读取 → 命中则回填 L1 并返回
+4. L2 未命中，执行 Loader 回源数据库 → 结果异步写入 L1 和 L2
+
+**写入流程**（Set）：
+
+- 同时写入 L1 (BigCache) 和 L2 (Redis)
+- 带 Tags 的缓存可被批量失效
+
+**失效流程**（InvalidateByTags）：
+
+1. 本地执行缓存失效（L1 + L2）
+2. 通过 Redis Pub/Sub 向所有机器广播失效信号
+3. 其他机器收到广播后，仅失效本地 L1（避免重复失效 L2）
+
+#### 配置参数
+
+```toml
+[redis]
+enabled = true          # 启用 Redis 即进入多机模式
+host = "localhost"
+port = 6379
+prefix = "netyadmin"    # 全局 Key 前缀
+
+[cache]
+local_ttl = 10          # L1 本地缓存 TTL（分钟）
+local_max_size_mb = 256 # L1 最大内存占用（MB）
+l1_enabled = true       # 是否启用 L1 缓存（多机模式下）
+```
 
 ---
 
@@ -109,15 +177,109 @@ local_max_entries = 10000
 
 ---
 
-## 五、Key 注册表规范 (Registry)
+## 五、多机部署与缓存一致性
+
+### 5.1 架构概述
+
+在多机部署环境下，NetyAdmin 采用 **L1/L2 + Pub/Sub** 方案保证缓存一致性：
+
+- **L1 (BigCache)**: 每台机器的本地内存缓存，访问速度极快（微秒级）
+- **L2 (Redis)**: 共享的分布式缓存层，所有机器共享
+- **Pub/Sub 广播**: 基于 Redis 发布订阅的缓存失效同步机制
+
+### 5.2 缓存失效广播机制
+
+当某台机器执行 `InvalidateByTags` 时：
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│  Machine A   │     │    Redis     │     │  Machine B   │
+│              │     │   Pub/Sub    │     │              │
+│ Invalidate   │────►│  Channel:    │────►│  收到广播     │
+│ ByTags(tags) │     │ cache_inval  │     │              │
+│              │     │ idation      │     │ 仅失效本地L1  │
+│ L1+L2失效    │     │              │     │ (不碰L2)     │
+└──────────────┘     └──────────────┘     └──────────────┘
+```
+
+**关键设计决策**：
+
+1. **独立频道**: 缓存失效使用独立频道 `{prefix}:channel:cache_invalidation`，与配置热更频道 `{prefix}:channel:config_sync` 解耦，避免互相干扰
+
+2. **仅失效 L1**: 收到广播的机器只失效本地 L1 (BigCache)，不操作 L2 (Redis)。因为 L2 在发起失效的机器上已经被清除，其他机器直接回源 L2 即可拿到最新数据
+
+3. **幂等性**: 缓存失效是幂等操作，多次执行无副作用
+
+### 5.3 核心代码实现
+
+**失效广播**（`InvalidateByTags`）：
+
+```go
+func (m *lazyCacheManager) InvalidateByTags(ctx context.Context, tags ...string) error {
+    // 1. 本地失效 L1 + L2
+    err := m.cacheManager.Invalidate(ctx, store.WithInvalidateTags(tags))
+    
+    // 2. 向集群广播（如果启用了 Redis）
+    if m.redisClient != nil && len(tags) > 0 {
+        channel := internalRedis.ChannelCacheInvalidation(m.prefix)
+        payload, _ := json.Marshal(tags)
+        _ = m.redisClient.Publish(ctx, channel, payload).Err()
+    }
+    return err
+}
+```
+
+**监听广播**（`ListenInvalidation`）：
+
+```go
+func (m *lazyCacheManager) ListenInvalidation(ctx context.Context) {
+    channel := internalRedis.ChannelCacheInvalidation(m.prefix)
+    sub := m.redisClient.Subscribe(ctx, channel)
+    
+    go func() {
+        defer sub.Close()
+        ch := sub.Channel()
+        for msg := range ch {
+            var tags []string
+            if err := json.Unmarshal([]byte(msg.Payload), &tags); err == nil {
+                // 仅失效 L1，避免重复失效 L2
+                if m.l1Cache != nil {
+                    _ = m.l1Cache.Invalidate(ctx, store.WithInvalidateTags(tags))
+                }
+            }
+        }
+    }()
+}
+```
+
+### 5.4 部署建议
+
+| 部署模式 | Redis | L1 (BigCache) | 适用场景 |
+|---------|-------|---------------|---------|
+| 单机开发 | 可选 | 启用 | 开发环境，快速启动 |
+| 单机生产 | 建议启用 | 启用 | 小型项目，数据持久化 |
+| 多机集群 | **必须** | 启用 | 中大型项目，高可用 |
+
+**多机部署 checklist**：
+
+- [ ] Redis 配置正确，`enabled = true`
+- [ ] 所有机器使用同一个 Redis 实例/集群
+- [ ] `prefix` 配置一致（避免频道隔离导致广播失效）
+- [ ] 防火墙放行 Redis 端口（默认 6379）
+
+---
+
+## 六、Key 注册表规范 (Registry)
 
 **强制规范**: 严禁在业务 Service 中硬编码任何字符串作为缓存 Key 或 Tag。必须在 `internal/pkg/cache/registry.go` 中统一定义。
 
 ### 5.1 定义原则
-1.  **Key 函数化**: 接收唯一标识（如 ID, Code），返回格式化后的 Key 字符串。
-2.  **Tag 语义化**: Tag 用于关联一组 Key。如修改用户资料后，失效 `TagUser(userID)` 对应的所有列表和详情缓存。
+
+1. **Key 函数化**: 接收唯一标识（如 ID, Code），返回格式化后的 Key 字符串。
+2. **Tag 语义化**: Tag 用于关联一组 Key。如修改用户资料后，失效 `TagUser(userID)` 对应的所有列表和详情缓存。
 
 ### 5.2 示例代码 (registry.go)
+
 ```go
 // Key 定义
 func KeyAppInfo(appKey string) string { return fmt.Sprintf("open:app:info:%s", appKey) }

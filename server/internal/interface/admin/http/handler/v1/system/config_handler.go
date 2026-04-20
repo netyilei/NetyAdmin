@@ -5,17 +5,20 @@ import (
 
 	systemDto "NetyAdmin/internal/interface/admin/dto/system"
 	"NetyAdmin/internal/pkg/errorx"
+	msgPkg "NetyAdmin/internal/pkg/message"
 	"NetyAdmin/internal/pkg/response"
 	systemService "NetyAdmin/internal/service/system"
 )
 
 type ConfigHandler struct {
-	configSvc systemService.ConfigService
+	configSvc  systemService.ConfigService
+	emailDriver msgPkg.Driver
 }
 
-func NewConfigHandler(configSvc systemService.ConfigService) *ConfigHandler {
+func NewConfigHandler(configSvc systemService.ConfigService, emailDriver msgPkg.Driver) *ConfigHandler {
 	return &ConfigHandler{
-		configSvc: configSvc,
+		configSvc:  configSvc,
+		emailDriver: emailDriver,
 	}
 }
 
@@ -35,7 +38,7 @@ func (h *ConfigHandler) ListByGroup(c *gin.Context) {
 	}
 
 	if req.GroupName == "" {
-		req.GroupName = "cache_switches" // default for now
+		req.GroupName = "cache_switches"
 	}
 
 	configs, err := h.configSvc.ListByGroup(c.Request.Context(), req.GroupName)
@@ -66,6 +69,40 @@ func (h *ConfigHandler) Upsert(c *gin.Context) {
 
 	if err := h.configSvc.Upsert(c.Request.Context(), &req, operatorID); err != nil {
 		response.FailWithCode(c, errorx.CodeInternalError, "更新配置失败")
+		return
+	}
+
+	response.Success(c, nil)
+}
+
+// @Summary      测试邮件发送
+// @Description  使用当前邮件配置发送测试邮件，验证配置是否正确
+// @Tags         系统配置管理
+// @Accept       json
+// @Produce      json
+// @Param        req body system.TestEmailReq true "测试邮件信息"
+// @Success      200 {object} response.Response "发送成功"
+// @Router       /admin/v1/system/test-email [post]
+func (h *ConfigHandler) TestEmail(c *gin.Context) {
+	var req systemDto.TestEmailReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithCode(c, errorx.CodeInvalidParams, "参数格式错误")
+		return
+	}
+
+	if req.Receiver == "" {
+		response.FailWithCode(c, errorx.CodeInvalidParams, "收件人地址不能为空")
+		return
+	}
+
+	if h.emailDriver == nil {
+		response.FailWithCode(c, errorx.CodeInternalError, "邮件驱动未初始化")
+		return
+	}
+
+	err := h.emailDriver.Send(c.Request.Context(), req.Receiver, "NetyAdmin 测试邮件", "<h2>测试邮件</h2><p>这是一封来自 NetyAdmin 的测试邮件，如果您收到了此邮件，说明邮件配置正确。</p>", nil)
+	if err != nil {
+		response.FailWithCode(c, errorx.CodeEmailTestFailed, err.Error())
 		return
 	}
 

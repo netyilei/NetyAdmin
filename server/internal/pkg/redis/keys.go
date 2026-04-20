@@ -8,7 +8,7 @@ import "fmt"
 
 const (
 	// DefaultPrefix 全局默认前缀
-	DefaultPrefix = "so"
+	DefaultPrefix = "netyadmin"
 )
 
 // ChannelConfigSync 配置/缓存热重载广播频道
@@ -27,26 +27,10 @@ func ChannelStorageSync(prefix string) string {
 	return fmt.Sprintf("%s:channel:storage_sync", prefix)
 }
 
-// KeyLockAccount 账号抢占/操作锁
-func KeyLockAccount(prefix string, accountID uint) string {
+// ChannelCacheInvalidation 缓存失效广播频道
+func ChannelCacheInvalidation(prefix string) string {
 	if prefix == "" {
 		prefix = DefaultPrefix
 	}
-	return fmt.Sprintf("%s:lock:account:%d", prefix, accountID)
-}
-
-// KeyLockOrder 订单处理排他锁
-func KeyLockOrder(prefix string, orderID uint) string {
-	if prefix == "" {
-		prefix = DefaultPrefix
-	}
-	return fmt.Sprintf("%s:lock:order:%d", prefix, orderID)
-}
-
-// KeyIdemLock 接口幂等执行锁
-func KeyIdemLock(prefix string, userID uint, method, route, requestID string) string {
-	if prefix == "" {
-		prefix = DefaultPrefix
-	}
-	return fmt.Sprintf("%s:idem:lock:%d:%s:%s:%s", prefix, userID, method, route, requestID)
+	return fmt.Sprintf("%s:channel:cache_invalidation", prefix)
 }

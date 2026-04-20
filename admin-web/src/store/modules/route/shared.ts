@@ -3,14 +3,6 @@ import { useSvgIcon } from '@/hooks/common/icon';
 import { $t } from '@/locales';
 
 /**
- * Filter auth routes by roles (DEPRECATED: Now handled entirely by backend filtering)
- * Kept for interface compatibility but skips role matching since dynamic payload handles it.
- */
-export function filterAuthRoutesByRoles(routes: RouteRecordRaw[]) {
-  return routes;
-}
-
-/**
  * sort route by order
  */
 function sortRouteByOrder(route: RouteRecordRaw) {
@@ -249,15 +241,16 @@ export function getBreadcrumbsByRoute(
 /**
  * Transform menu to searchMenus
  */
-export function transformMenuToSearchMenus(menus: App.Global.Menu[], treeMap: App.Global.Menu[] = []) {
-  if (menus && menus.length === 0) return [];
-  return menus.reduce((acc, cur) => {
-    if (!cur.children) {
-      acc.push(cur);
+export function transformMenuToSearchMenus(menus: App.Global.Menu[]): App.Global.Menu[] {
+  const result: App.Global.Menu[] = [];
+
+  for (const menu of menus) {
+    if (menu.children && menu.children.length > 0) {
+      result.push(...transformMenuToSearchMenus(menu.children));
+    } else {
+      result.push(menu);
     }
-    if (cur.children && cur.children.length > 0) {
-      transformMenuToSearchMenus(cur.children, treeMap);
-    }
-    return acc;
-  }, treeMap);
+  }
+
+  return result;
 }

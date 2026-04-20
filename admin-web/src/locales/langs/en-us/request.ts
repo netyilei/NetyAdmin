@@ -51,6 +51,8 @@ const request = {
     msgSendFailed: 'Message send failed',
     msgRecordNotFound: 'Message record not found',
     msgDriverNotFound: 'Message driver not configured or not found',
+    // System Config (1090xx)
+    emailTestFailed: 'Email test failed, please check email configuration',
     // Open Platform (1013xx)
     appKeyInvalid: 'Invalid AppKey',
     signatureFailed: 'Signature verification failed',

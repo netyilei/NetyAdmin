@@ -312,7 +312,7 @@ getData();
                       <NCheckbox :value="api.id" @click.stop />
                       <NTag :type="methodColorMap[api.method] || 'default'" size="small">{{ api.method }}</NTag>
                       <div class="flex-col overflow-hidden">
-                        <div class="truncate font-mono text-12px" :title="api.path">{{ api.path }}</div>
+                        <div class="truncate text-12px font-mono" :title="api.path">{{ api.path }}</div>
                         <div class="truncate text-12px text-gray-400" :title="api.name">{{ api.name }}</div>
                       </div>
                     </NSpace>

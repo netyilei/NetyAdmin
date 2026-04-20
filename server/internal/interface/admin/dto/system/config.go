@@ -18,3 +18,7 @@ type ToggleCacheReq struct {
 	ModuleName string `json:"moduleName" binding:"required"`
 	Enabled    bool   `json:"enabled"`
 }
+
+type TestEmailReq struct {
+	Receiver string `json:"receiver" binding:"required,email"`
+}

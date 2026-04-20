@@ -12,7 +12,7 @@ const appStore = useAppStore();
 const detailVisible = ref(false);
 const detailRow = ref<any>(null);
 
-const { columns, data, getDataByPage, loading, mobilePagination } = useTable({
+const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagination } = useTable({
   apiFn: fetchOpenLogList,
   showTotal: true,
   apiParams: {
@@ -23,8 +23,7 @@ const { columns, data, getDataByPage, loading, mobilePagination } = useTable({
     apiPath: '',
     statusCode: undefined,
     startTime: '',
-    endTime: '',
-    total: 0
+    endTime: ''
   },
   columns: () => [
     { key: 'index', title: $t('common.index'), align: 'center', width: 64 },
@@ -112,11 +111,14 @@ function viewDetail(row: any) {
 <template>
   <div class="min-h-500px flex-col-stretch gap-16px overflow-hidden lt-sm:overflow-auto">
     <NCard title="开放平台调用日志" :bordered="false" size="small" class="card-wrapper sm:flex-1-hidden">
+      <template #header-extra>
+        <TableHeaderOperation v-model:columns="columnChecks" :show-add="false" :loading="loading" @refresh="getData" />
+      </template>
       <NDataTable
         remote
         striped
         size="small"
-        class="sm:flex-1-hidden"
+        class="sm:h-full"
         :data="data"
         :columns="columns"
         :flex-height="!appStore.isMobile"

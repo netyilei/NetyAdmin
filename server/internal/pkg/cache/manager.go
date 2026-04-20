@@ -61,12 +61,12 @@ type SwitchChecker interface {
 
 type lazyCacheManager struct {
 	cacheManager cache.CacheInterface[any]
+	l1Cache      *cache.Cache[any]
 	switches     SwitchChecker
 	prefix       string
 	redisClient  *redis.Client
 
-	// 本地限流器缓存
-	localLimiters sync.Map // map[string]*rate.Limiter
+	localLimiters sync.Map
 }
 
 // DefaultSwitchChecker 给一个总是返回 True 的默认校验器，直到我们实现 configsync
@@ -107,29 +107,26 @@ func NewLazyCacheManager(cfg *config.RedisConfig, redisClient *redis.Client, che
 	l1Store := bigcacheStore.NewBigcache(bigcacheClient)
 
 	var cacheMgr cache.CacheInterface[any]
+	var l1Cache *cache.Cache[any]
 
-	// 2. 根据开关组合确定引擎
 	if cfg.Enabled && redisClient != nil {
-		// 开启了 Redis (L2)
 		l2Store := redisStore.NewRedis(redisClient)
 		l2Cache := cache.New[any](l2Store)
 
 		if cfg.L1Enabled {
-			// L1 + L2 链式模式
-			l1Cache := cache.New[any](l1Store)
+			l1Cache = cache.New[any](l1Store)
 			cacheMgr = cache.NewChain[any](l1Cache, l2Cache)
 		} else {
-			// 仅使用 L2 (Redis)
 			cacheMgr = l2Cache
 		}
 	} else {
-		// Redis 关闭，降级使用 L1 (BigCache)
-		// 注意：这种情况下无论 L1Enabled 是否为 true，都必须有一个存储引擎，所以强制开启 BigCache
-		cacheMgr = cache.New[any](l1Store)
+		l1Cache = cache.New[any](l1Store)
+		cacheMgr = l1Cache
 	}
 
 	mgr := &lazyCacheManager{
 		cacheManager:  cacheMgr,
+		l1Cache:       l1Cache,
 		switches:      checker,
 		prefix:        cfg.Prefix,
 		redisClient:   redisClient,
@@ -354,12 +351,10 @@ func (m *lazyCacheManager) isNil(i interface{}) bool {
 }
 
 func (m *lazyCacheManager) InvalidateByTags(ctx context.Context, tags ...string) error {
-	// 1. 失效本地和共享缓存
 	err := m.cacheManager.Invalidate(ctx, store.WithInvalidateTags(tags))
 
-	// 2. 如果开启了 Redis，广播失效信号给其他实例
 	if m.redisClient != nil && len(tags) > 0 {
-		channel := internalRedis.ChannelConfigSync(m.prefix) + ":cache_invalidation"
+		channel := internalRedis.ChannelCacheInvalidation(m.prefix)
 		payload, _ := json.Marshal(tags)
 		_ = m.redisClient.Publish(ctx, channel, payload).Err()
 	}
@@ -372,7 +367,7 @@ func (m *lazyCacheManager) ListenInvalidation(ctx context.Context) {
 		return
 	}
 
-	channel := internalRedis.ChannelConfigSync(m.prefix) + ":cache_invalidation"
+	channel := internalRedis.ChannelCacheInvalidation(m.prefix)
 	sub := m.redisClient.Subscribe(ctx, channel)
 
 	go func() {
@@ -385,10 +380,9 @@ func (m *lazyCacheManager) ListenInvalidation(ctx context.Context) {
 			case msg := <-ch:
 				var tags []string
 				if err := json.Unmarshal([]byte(msg.Payload), &tags); err == nil {
-					// 仅失效本地 L1 缓存。由于 gocache 的 Chain 不支持仅对第一层失效，
-					// 但由于我们是广播失效，其他层级在 L2 已经是失效的了。
-					// 这里我们直接调用整体失效，gocache 会处理 L1 的清除。
-					_ = m.cacheManager.Invalidate(ctx, store.WithInvalidateTags(tags))
+					if m.l1Cache != nil {
+						_ = m.l1Cache.Invalidate(ctx, store.WithInvalidateTags(tags))
+					}
 				}
 			}
 		}

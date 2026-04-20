@@ -71,6 +71,12 @@ const (
 	CodeIPInvalid     Code = 101402
 	CodeWhitelistMode Code = 101403
 
+	// 任务调度模块 (109xxx)
+	CodeTaskNotFound       Code = 109005
+	CodeTaskAlreadyRunning Code = 109006
+	CodeTaskNotRunning     Code = 109007
+	CodeEmailTestFailed    Code = 109008
+
 	// 用户模块集成 (2006xx)
 	CodeCaptchaExpired          Code = 200601
 	CodeCaptchaSendTooFrequent  Code = 200604
@@ -131,6 +137,9 @@ var codeMessages = map[Code]string{
 	CodeMsgSendFailed:         "消息发送失败",
 	CodeMsgRecordNotFound:     "消息记录不存在",
 	CodeMsgDriverNotFound:     "消息驱动未配置或不存在",
+
+	// 系统配置模块 (1090xx)
+	CodeEmailTestFailed: "邮件测试发送失败",
 
 	// 开放平台 (1013xx)
 	CodeAppKeyInvalid:   "AppKey无效",

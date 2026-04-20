@@ -187,6 +187,7 @@
 | `109005` | `CodeTaskNotFound` | `taskNotFound` | 任务不存在 | Task not found |
 | `109006` | `CodeTaskAlreadyRunning` | `taskAlreadyRunning` | 任务正在运行 | Task already running |
 | `109007` | `CodeTaskNotRunning` | `taskNotRunning` | 任务未运行 | Task not running |
+| `109008` | `CodeEmailTestFailed` | `emailTestFailed` | 邮件测试发送失败 | Email test failed |
 
 ---
 

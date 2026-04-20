@@ -11,9 +11,15 @@ interface Props {
   value?: string | number | null;
   placeholder?: string;
   disabled?: boolean;
+  valueType?: 'string' | 'number';
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  value: null,
+  placeholder: '',
+  disabled: false,
+  valueType: 'string'
+});
 
 const emit = defineEmits<{
   (e: 'update:value', val: string | number | null): void;
@@ -50,8 +56,7 @@ function handleUpdateValue(val: string | number | null) {
     emit('update:value', null);
     return;
   }
-  const originalValue = props.value;
-  if (typeof originalValue === 'number') {
+  if (props.valueType === 'number') {
     const num = Number(val);
     emit('update:value', Number.isNaN(num) ? val : num);
   } else {

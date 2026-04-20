@@ -57,7 +57,7 @@ async function search() {
               <NInput v-model:value="model.name" :placeholder="$t('page.openPlatform.api.form.namePlaceholder')" />
             </NFormItemGi>
             <NFormItemGi span="24 s:12 m:6" :label="$t('page.openPlatform.api.status')" path="status" class="pr-24px">
-              <AppDictSelect v-model:value="model.status" dict-code="sys_status" clearable />
+              <AppDictSelect v-model:value="model.status" dict-code="sys_status" value-type="number" clearable />
             </NFormItemGi>
             <NFormItemGi span="24">
               <NSpace class="w-full" justify="end">

@@ -36,7 +36,7 @@ import (
 	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/jwt"
-	"NetyAdmin/internal/pkg/message"
+	msgPkg "NetyAdmin/internal/pkg/message"
 	pkgredis "NetyAdmin/internal/pkg/redis"
 	storagePkg "NetyAdmin/internal/pkg/storage"
 	"NetyAdmin/internal/pkg/task"
@@ -177,7 +177,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	engine.Use(middleware.RequestID())
 	engine.Use(middleware.Recovery(services.errorLog))
 	engine.Use(middleware.ErrorLogger(services.errorLog))
-	engine.Use(middleware.Timeout(30 * time.Second))
+	engine.Use(middleware.Timeout(120 * time.Second))
 	engine.Use(middleware.Logger())
 	engine.Use(middleware.OperationLogger(services.operationLog))
 
@@ -267,6 +267,7 @@ type serviceSet struct {
 	contentArticle     contentService.ArticleService
 	contentBannerGroup contentService.BannerGroupService
 	contentBannerItem  contentService.BannerItemService
+	emailDriver        msgPkg.Driver
 }
 
 func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache.LazyCacheManager, taskManager *task.Manager, configWatcher configsync.ConfigWatcher, cfg *config.Config, captchaStore base64Captcha.Store, redisClient *goRedis.Client) *serviceSet {
@@ -287,16 +288,22 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	s.openLog = openServicePkg.NewOpenLogService(repos.openLog)
 
 	// Message Drivers
-	configProvider := message.NewDbConfigProvider(repos.systemConfig)
-	drivers := make(map[string]message.Driver)
-	drivers["sms"] = message.NewMockSmsDriver()
-	drivers["email"] = message.NewEmailDriver(message.EmailConfig{
-		Host:     cfg.Email.Host,
-		Port:     cfg.Email.Port,
-		User:     cfg.Email.User,
-		Password: cfg.Email.Password,
-		From:     cfg.Email.From,
+	configProvider := msgPkg.NewDbConfigProvider(repos.systemConfig)
+	drivers := make(map[string]msgPkg.Driver)
+	drivers["sms"] = msgPkg.NewMockSmsDriver()
+	drivers["email"] = msgPkg.NewEmailDriver(msgPkg.EmailConfig{
+		Host:           cfg.Email.Host,
+		Port:           cfg.Email.Port,
+		User:           cfg.Email.User,
+		Password:       cfg.Email.Password,
+		From:           cfg.Email.From,
+		SSL:            cfg.Email.SSL,
+		StartTLS:       cfg.Email.StartTLS,
+		AuthType:       cfg.Email.AuthType,
+		ConnectTimeout: cfg.Email.ConnectTimeout,
+		SendTimeout:    cfg.Email.SendTimeout,
 	}, configProvider)
+	s.emailDriver = drivers["email"]
 
 	s.message = msgServicePkg.NewMessageService(repos.message, taskManager, drivers, lazyCacheMgr)
 	s.msgSendJob = msgServicePkg.NewMsgSendJob(repos.message, drivers)
@@ -362,7 +369,7 @@ func initHandlers(services *serviceSet, captchaMgr *captcha.Manager, configWatch
 	h.admin = admin.NewAdminHandler(services.admin)
 	h.operationLog = operation_log.NewOperationLogHandler(services.operationLog)
 	h.errorLog = error_log.NewErrorLogHandler(services.errorLog)
-	h.system = system.NewSystemHandler(services.role, services.menu, services.api, services.button, services.admin, services.sysConfig)
+	h.system = system.NewSystemHandler(services.role, services.menu, services.api, services.button, services.admin, services.sysConfig, services.emailDriver)
 	h.storage = storageHandler.NewStorageHandler(services.storageConfig, services.uploadRecord)
 	h.ipac = ipacHandler.NewIPACHandler(services.ipac)
 	h.app = openHandler.NewAppHandler(services.app)

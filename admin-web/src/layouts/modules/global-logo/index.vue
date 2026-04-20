@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { useRouteStore } from '@/store/modules/route';
 import { $t } from '@/locales';
 
@@ -17,8 +16,6 @@ withDefaults(defineProps<Props>(), {
 });
 
 const routeStore = useRouteStore();
-
-const routeHomePath = computed(() => routeStore.routeHome);
 </script>
 
 <template>

@@ -1,6 +1,7 @@
 package system
 
 import (
+	msgPkg "NetyAdmin/internal/pkg/message"
 	systemService "NetyAdmin/internal/service/system"
 )
 
@@ -21,6 +22,7 @@ func NewSystemHandler(
 	buttonService systemService.ButtonService,
 	adminService systemService.AdminService,
 	configSvc systemService.ConfigService,
+	emailDriver msgPkg.Driver,
 ) *SystemHandler {
 	return &SystemHandler{
 		roleService:   roleService,
@@ -28,6 +30,6 @@ func NewSystemHandler(
 		apiService:    apiService,
 		buttonService: buttonService,
 		adminService:  adminService,
-		Config:        NewConfigHandler(configSvc),
+		Config:        NewConfigHandler(configSvc, emailDriver),
 	}
 }

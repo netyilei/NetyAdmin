@@ -21,12 +21,17 @@ type Config struct {
 }
 
 type EmailConfig struct {
-	Enabled  bool   `toml:"enabled"`
-	Host     string `toml:"host"`
-	Port     int    `toml:"port"`
-	User     string `toml:"user"`
-	Password string `toml:"password"`
-	From     string `toml:"from"`
+	Enabled        bool   `toml:"enabled"`
+	Host           string `toml:"host"`
+	Port           int    `toml:"port"`
+	User           string `toml:"user"`
+	Password       string `toml:"password"`
+	From           string `toml:"from"`
+	SSL            bool   `toml:"ssl"`
+	StartTLS       bool   `toml:"starttls"`
+	AuthType       string `toml:"auth_type"`
+	ConnectTimeout int    `toml:"connect_timeout"`
+	SendTimeout    int    `toml:"send_timeout"`
 }
 
 type SmsConfig struct {
