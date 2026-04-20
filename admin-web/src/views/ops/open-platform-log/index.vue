@@ -1,6 +1,7 @@
 <script setup lang="tsx">
 import { ref } from 'vue';
 import { NButton, NSpace, NTag } from 'naive-ui';
+import dayjs from 'dayjs';
 import { fetchOpenLogList } from '@/service/api/v1/open-log';
 import { useAppStore } from '@/store/modules/app';
 import { useTable } from '@/hooks/common/table';
@@ -84,7 +85,8 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
       key: 'createdAt',
       title: '调用时间',
       align: 'center',
-      width: 160
+      width: 170,
+      render: (row: any) => <span>{dayjs(row.createdAt).format('YYYY-MM-DD HH:mm:ss')}</span>
     } as any,
     {
       key: 'operate',

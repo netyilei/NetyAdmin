@@ -15,25 +15,27 @@ func NewUserRouter(h *handler.UserHandler) ClientModuleRouter {
 	return &userRouter{handler: h}
 }
 
-func (r *userRouter) RegisterPublic(publicGroup *gin.RouterGroup) {
-	group := publicGroup.Group("/user")
+func (r *userRouter) RegisterPublic(publicGroup *gin.RouterGroup) {}
+
+func (r *userRouter) RegisterAuth(authGroup *gin.RouterGroup) {
+	group := authGroup.Group("/user")
 	{
+		// 仅需要 App 签名的公开接口
 		group.POST("/register", r.handler.Register)
 		group.POST("/login", r.handler.Login)
 		group.POST("/refresh-token", r.handler.RefreshToken)
 		group.POST("/reset-password", r.handler.ResetPassword)
-	}
-}
 
-func (r *userRouter) RegisterAuth(authGroup *gin.RouterGroup) {
-	group := authGroup.Group("/user")
-	group.Use(middleware.UserJWTAuth())
-	{
-		group.GET("/profile", r.handler.GetProfile)
-		group.PUT("/profile", r.handler.UpdateProfile)
-		group.PUT("/password", r.handler.ChangePassword)
-		group.DELETE("/account", r.handler.DeleteAccount)
-		group.GET("/upload-token", r.handler.GetUploadToken)
-		group.POST("/logout", r.handler.Logout)
+		// 需要 App 签名 + User JWT 的授权接口
+		userAuth := group.Group("")
+		userAuth.Use(middleware.UserJWTAuth())
+		{
+			userAuth.GET("/profile", r.handler.GetProfile)
+			userAuth.PUT("/profile", r.handler.UpdateProfile)
+			userAuth.PUT("/password", r.handler.ChangePassword)
+			userAuth.DELETE("/account", r.handler.DeleteAccount)
+			userAuth.GET("/upload-token", r.handler.GetUploadToken)
+			userAuth.POST("/logout", r.handler.Logout)
+		}
 	}
 }

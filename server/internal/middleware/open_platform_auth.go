@@ -171,26 +171,32 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 			return
 		}
 
-		// 9. 验证 API 权限
+		// 9. 验证 API 权限 (Scope Check)
 		allowedApis, err := apiSvc.GetAppAllowedApis(c.Request.Context(), app.ID)
-		if err == nil && len(allowedApis) > 0 {
-			matchedPath := c.FullPath()
-			if matchedPath == "" {
-				matchedPath = c.Request.URL.Path
+		if err != nil {
+			response.FailWithCode(c, errorx.CodeInternalError, "鉴权服务异常")
+			c.Abort()
+			return
+		}
+
+		matchedPath := c.FullPath()
+		if matchedPath == "" {
+			matchedPath = c.Request.URL.Path
+		}
+		currentApi := strings.ToUpper(c.Request.Method) + ":" + matchedPath
+		
+		matched := false
+		for _, api := range allowedApis {
+			if api == currentApi {
+				matched = true
+				break
 			}
-			currentApi := strings.ToUpper(c.Request.Method) + ":" + matchedPath
-			matched := false
-			for _, api := range allowedApis {
-				if api == currentApi {
-					matched = true
-					break
-				}
-			}
-			if !matched {
-				response.FailWithCode(c, errorx.CodeScopeMismatch, "权限不足")
-				c.Abort()
-				return
-			}
+		}
+		
+		if !matched {
+			response.FailWithCode(c, errorx.CodeScopeMismatch, "权限不足 (Scope Mismatch)")
+			c.Abort()
+			return
 		}
 
 		// 将 appID 存入上下文供后续使用
