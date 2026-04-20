@@ -29,7 +29,7 @@ const (
 type App struct {
 	ID              string                `gorm:"primaryKey;size:26" json:"id"` // ULID
 	AppKey          string                `gorm:"size:26;not null;uniqueIndex:idx_apps_key,where:deleted_at = 0" json:"appKey"`
-	AppSecret       string                `gorm:"size:255;not null" json:"-"` // AES 加密存储
+	AppSecret       string                `gorm:"size:255;not null" json:"appSecret,omitempty"` // AES 加密存储
 	Name            string                `gorm:"size:100;not null" json:"name"`
 	Status          int                   `gorm:"default:1;index" json:"status"`        // 1: Enabled, 0: Disabled
 	IPStrategy      int                   `gorm:"default:1" json:"ipStrategy"`          // 1: Blacklist, 2: Whitelist
