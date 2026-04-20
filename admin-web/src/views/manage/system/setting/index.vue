@@ -39,7 +39,10 @@ const logConfigs = reactive<Record<string, ConfigItem | undefined>>({
   task_retention: undefined,
   ops_retention: undefined,
   err_retention: undefined,
-  msg_record_retention: undefined
+  msg_record_retention: undefined,
+  open_log_retention: undefined,
+  open_log_buffer_size: undefined,
+  open_log_buffer_interval: undefined
 });
 
 const emailConfigs = reactive<Record<string, ConfigItem | undefined>>({
@@ -135,7 +138,8 @@ async function init() {
     fetchGetAllEnabledStorageConfigs(),
     fetchGetSysConfigs('email_config'),
     fetchGetSysConfigs('sms_config'),
-    fetchGetSysConfigs('msg_record_config')
+    fetchGetSysConfigs('msg_record_config'),
+    fetchGetSysConfigs('open_platform_config')
   ]);
 
   if (!results[0].error) cacheConfigs.value = results[0].data;
@@ -225,6 +229,20 @@ async function init() {
     results[9].data.forEach(item => {
       if (item.configKey === 'retention_days') {
         logConfigs.msg_record_retention = { ...item, numValue: Number.parseInt(item.configValue, 10) || 0 };
+      }
+    });
+  }
+
+  if (!results[10].error) {
+    results[10].data.forEach(item => {
+      if (item.configKey === 'log_retention_days') {
+        logConfigs.open_log_retention = { ...item, numValue: Number.parseInt(item.configValue, 10) || 0 };
+      }
+      if (item.configKey === 'log_buffer_size') {
+        logConfigs.open_log_buffer_size = { ...item, numValue: Number.parseInt(item.configValue, 10) || 0 };
+      }
+      if (item.configKey === 'log_buffer_interval') {
+        logConfigs.open_log_buffer_interval = { ...item, numValue: Number.parseInt(item.configValue, 10) || 0 };
       }
     });
   }
@@ -682,6 +700,59 @@ onMounted(init);
                       <template #suffix>{{ $t('page.manage.setting.log.daysUnit') }}</template>
                     </NInputNumber>
                   </NFormItem>
+                </NCard>
+              </NGridItem>
+
+              <NGridItem span="1 m:2">
+                <!-- Open Platform Logs -->
+                <NCard :title="$t('page.manage.setting.log.openLog')" size="small">
+                  <NGrid :x-gap="24" :y-gap="16" cols="1 s:3" responsive="screen">
+                    <NGridItem>
+                      <NFormItem :label="$t('page.manage.setting.log.retentionDays')">
+                        <NInputNumber
+                          v-if="logConfigs.open_log_retention !== undefined"
+                          v-model:value="logConfigs.open_log_retention.numValue"
+                          :min="0"
+                          :max="3650"
+                          class="w-full"
+                          @blur="handleNumberUpdate(logConfigs.open_log_retention)"
+                        >
+                          <template #suffix>{{ $t('page.manage.setting.log.daysUnit') }}</template>
+                        </NInputNumber>
+                      </NFormItem>
+                    </NGridItem>
+                    <NGridItem>
+                      <NFormItem :label="$t('page.manage.setting.log.bufferSize')">
+                        <NInputNumber
+                          v-if="logConfigs.open_log_buffer_size !== undefined"
+                          v-model:value="logConfigs.open_log_buffer_size.numValue"
+                          :min="1"
+                          :max="10000"
+                          class="w-full"
+                          @blur="handleNumberUpdate(logConfigs.open_log_buffer_size)"
+                        >
+                          <template #suffix>{{ $t('page.manage.setting.log.recordsUnit') }}</template>
+                        </NInputNumber>
+                      </NFormItem>
+                    </NGridItem>
+                    <NGridItem>
+                      <NFormItem :label="$t('page.manage.setting.log.bufferInterval')">
+                        <NInputNumber
+                          v-if="logConfigs.open_log_buffer_interval !== undefined"
+                          v-model:value="logConfigs.open_log_buffer_interval.numValue"
+                          :min="1"
+                          :max="3600"
+                          class="w-full"
+                          @blur="handleNumberUpdate(logConfigs.open_log_buffer_interval)"
+                        >
+                          <template #suffix>{{ $t('page.manage.setting.log.secondsUnit') }}</template>
+                        </NInputNumber>
+                      </NFormItem>
+                    </NGridItem>
+                  </NGrid>
+                  <NAlert type="info" size="small" class="mt-2">
+                    通过缓冲区合并写入，可显著降低高并发场景下对数据库的 IOPS 压力。
+                  </NAlert>
                 </NCard>
               </NGridItem>
             </NGrid>

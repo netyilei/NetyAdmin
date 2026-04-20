@@ -166,6 +166,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		repos.operationLog,
 		repos.errorLog,
 		repos.message,
+		repos.openLog,
 		configWatcher,
 	)...)
 	taskManager.Register(services.msgSendJob)
@@ -187,7 +188,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	cRouter.Register(engine)
 	gin.DefaultWriter = os.Stdout
 
-	return NewApp(cfg, db, engine, dbHealthChecker, taskManager), nil
+	return NewApp(cfg, db, engine, dbHealthChecker, taskManager, services.openLog), nil
 }
 
 type repositorySet struct {
@@ -285,7 +286,7 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	s.ipac = ipacServicePkg.NewIPACService(repos.ipac, lazyCacheMgr)
 	s.app = openServicePkg.NewAppService(repos.app, lazyCacheMgr, cfg.Security.AESKey, s.ipac, repos.ipac)
 	s.openApi = openServicePkg.NewOpenApiService(repos.openApi, repos.app, repos.app, lazyCacheMgr)
-	s.openLog = openServicePkg.NewOpenLogService(repos.openLog)
+	s.openLog = openServicePkg.NewOpenLogService(repos.openLog, configWatcher)
 
 	// Message Drivers
 	configProvider := msgPkg.NewDbConfigProvider(repos.systemConfig)

@@ -16,6 +16,7 @@ import (
 	"NetyAdmin/internal/config"
 	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/task"
+	openService "NetyAdmin/internal/service/open_platform"
 )
 
 type App struct {
@@ -24,15 +25,17 @@ type App struct {
 	engine          *gin.Engine
 	dbHealthChecker *database.HealthChecker
 	taskManager     *task.Manager
+	openLog         openService.OpenLogService
 }
 
-func NewApp(cfg *config.Config, db *gorm.DB, engine *gin.Engine, dbHealthChecker *database.HealthChecker, taskManager *task.Manager) *App {
+func NewApp(cfg *config.Config, db *gorm.DB, engine *gin.Engine, dbHealthChecker *database.HealthChecker, taskManager *task.Manager, openLog openService.OpenLogService) *App {
 	return &App{
 		cfg:             cfg,
 		db:              db,
 		engine:          engine,
 		dbHealthChecker: dbHealthChecker,
 		taskManager:     taskManager,
+		openLog:         openLog,
 	}
 }
 
@@ -80,6 +83,11 @@ func (a *App) Run() error {
 	// Stop task manager
 	if a.taskManager != nil {
 		a.taskManager.Stop()
+	}
+
+	// Stop open log service (Flush buffer)
+	if a.openLog != nil {
+		a.openLog.Stop()
 	}
 
 	log.Println("服务器已安全关闭")

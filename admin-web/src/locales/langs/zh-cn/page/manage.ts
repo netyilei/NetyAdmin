@@ -240,9 +240,14 @@ const manage = {
       operationLog: '管理员操作日志',
       errorLog: '系统错误日志',
       msgRecord: '发送记录',
+      openLog: '开放平台调用日志',
       enabled: '记录开关',
       retentionDays: '保留天数(0为永久)',
-      daysUnit: '天'
+      bufferSize: '缓冲区大小',
+      bufferInterval: '冲刷间隔',
+      daysUnit: '天',
+      recordsUnit: '条',
+      secondsUnit: '秒'
     },
     email: {
       description: '配置邮件服务参数。留空的字段将使用 config.toml 中的默认值作为兜底。',

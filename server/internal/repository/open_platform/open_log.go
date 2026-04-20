@@ -10,6 +10,7 @@ import (
 
 type OpenLogRepository interface {
 	Create(ctx context.Context, log *open_platform.OpenPlatformLog) error
+	BatchCreate(ctx context.Context, logs []*open_platform.OpenPlatformLog) error
 	List(ctx context.Context, query *OpenLogRepoQuery) ([]*open_platform.OpenPlatformLog, int64, error)
 	GetByID(ctx context.Context, id uint64) (*open_platform.OpenPlatformLog, error)
 	DeleteBatch(ctx context.Context, ids []uint64) error
@@ -37,6 +38,13 @@ func NewOpenLogRepository(db *gorm.DB) OpenLogRepository {
 
 func (r *openLogRepository) Create(ctx context.Context, log *open_platform.OpenPlatformLog) error {
 	return r.db.WithContext(ctx).Create(log).Error
+}
+
+func (r *openLogRepository) BatchCreate(ctx context.Context, logs []*open_platform.OpenPlatformLog) error {
+	if len(logs) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).Create(&logs).Error
 }
 
 func (r *openLogRepository) List(ctx context.Context, query *OpenLogRepoQuery) ([]*open_platform.OpenPlatformLog, int64, error) {

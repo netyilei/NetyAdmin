@@ -241,10 +241,15 @@ const manage = {
       taskLog: 'Task Scheduling Log',
       operationLog: 'Admin Operation Log',
       errorLog: 'System Error Log',
-      msgRecord: 'Message Send Records',
+      msgRecord: 'Message Records',
+      openLog: 'Open Platform Logs',
       enabled: 'Logging Enabled',
-      retentionDays: 'Retention Days (0 for Permanent)',
-      daysUnit: 'Days'
+      retentionDays: 'Retention Days (0 for permanent)',
+      bufferSize: 'Buffer Size',
+      bufferInterval: 'Flush Interval',
+      daysUnit: 'Days',
+      recordsUnit: 'Records',
+      secondsUnit: 'Seconds'
     },
     email: {
       description: 'Configure email service parameters. Empty fields will fall back to config.toml defaults.',

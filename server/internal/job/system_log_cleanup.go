@@ -11,6 +11,7 @@ import (
 	"NetyAdmin/internal/pkg/task"
 	logRepo "NetyAdmin/internal/repository/log"
 	msgRepo "NetyAdmin/internal/repository/message"
+	openRepo "NetyAdmin/internal/repository/open_platform"
 	taskRepoPkg "NetyAdmin/internal/repository/task"
 )
 
@@ -20,6 +21,7 @@ type SystemLogCleanupJob struct {
 	opsLogRepo  *logRepo.OperationRepository
 	errLogRepo  *logRepo.ErrorRepository
 	msgRepo     msgRepo.MsgRepository
+	openLogRepo openRepo.OpenLogRepository
 	watcher     configsync.ConfigWatcher
 }
 
@@ -28,6 +30,7 @@ func NewSystemLogCleanupJob(
 	opsLogRepo *logRepo.OperationRepository,
 	errLogRepo *logRepo.ErrorRepository,
 	msgRepo msgRepo.MsgRepository,
+	openLogRepo openRepo.OpenLogRepository,
 	watcher configsync.ConfigWatcher,
 ) *SystemLogCleanupJob {
 	return &SystemLogCleanupJob{
@@ -35,6 +38,7 @@ func NewSystemLogCleanupJob(
 		opsLogRepo:  opsLogRepo,
 		errLogRepo:  errLogRepo,
 		msgRepo:     msgRepo,
+		openLogRepo: openLogRepo,
 		watcher:     watcher,
 	}
 }
@@ -87,6 +91,15 @@ func (j *SystemLogCleanupJob) Run(ctx context.Context) error {
 			log.Printf("[Cleaner] Clean message records failed: %v", err)
 		} else {
 			log.Printf("[Cleaner] Clean message records older than %d days success", days)
+		}
+	}
+
+	// 5. Open Platform Logs
+	if days, ok := j.getRetentionDays("open_platform_config", "log_retention_days"); ok && days > 0 {
+		if err := j.openLogRepo.Clear(ctx, days); err != nil {
+			log.Printf("[Cleaner] Clean open platform logs failed: %v", err)
+		} else {
+			log.Printf("[Cleaner] Clean open platform logs older than %d days success", days)
 		}
 	}
 

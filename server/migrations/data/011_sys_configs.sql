@@ -52,7 +52,10 @@ VALUES
 ('user_config', 'user_register_verify', 'false', 'boolean', '用户注册是否需要验证', FALSE, 1, 1),
 ('user_config', 'user_register_verify_type', 'email', 'string', '用户注册验证方式 (email/sms)', FALSE, 1, 1),
 ('user_config', 'user_reset_pwd_verify', 'true', 'boolean', '用户找回密码是否需要验证', FALSE, 1, 1),
-('user_config', 'user_reset_pwd_verify_type', 'email', 'string', '用户找回密码验证方式 (email/sms)', FALSE, 1, 1)
+('user_config', 'user_reset_pwd_verify_type', 'email', 'string', '用户找回密码验证方式 (email/sms)', FALSE, 1, 1),
+('open_platform_config', 'log_retention_days', '30', 'number', '开放平台日志保留天数', FALSE, 1, 1),
+('open_platform_config', 'log_buffer_size', '100', 'number', '日志缓冲区大小 (条)', FALSE, 1, 1),
+('open_platform_config', 'log_buffer_interval', '5', 'number', '日志冲刷间隔 (秒)', FALSE, 1, 1)
 ON CONFLICT (group_name, config_key) WHERE deleted_at = 0 DO UPDATE SET
     description = EXCLUDED.description,
     is_system = EXCLUDED.is_system;
