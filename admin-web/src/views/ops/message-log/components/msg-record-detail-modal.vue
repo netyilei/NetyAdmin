@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { watch } from 'vue';
 import dayjs from 'dayjs';
 import { useDict } from '@/hooks/common/dict';
 import type { MessageHub } from '@/typings/api/v1/message-hub';
@@ -18,11 +19,22 @@ const visible = defineModel<boolean>('visible', {
   default: false
 });
 
-const { renderDictTag } = useDict();
+const { loadDicts, renderDictTag } = useDict();
+
+loadDicts(['sys_msg_channel', 'sys_msg_status', 'sys_msg_priority']);
 
 function closeModal() {
   visible.value = false;
 }
+
+watch(
+  () => visible.value,
+  val => {
+    if (val) {
+      loadDicts(['sys_msg_channel', 'sys_msg_status', 'sys_msg_priority']);
+    }
+  }
+);
 </script>
 
 <template>

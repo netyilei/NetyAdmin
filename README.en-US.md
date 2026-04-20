@@ -32,6 +32,7 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 - **Hot Config Sync**: Redis Pub/Sub for real-time configuration synchronization across the network
 - **Task Scheduling**: Built-in task engine, supporting scheduled tasks, backend management, and log persistence
 - **Database Migration**: Automatically executes SQL migration scripts during startup
+- **Email Driver**: Based on go-simple-mail, supporting SSL/TLS, STARTTLS, and multiple SMTP authentication methods
 
 ### 📦 Rich Feature Modules
 
@@ -39,7 +40,7 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 |--------|----------|
 | **RBAC** | Admin, Role, Menu, Button, API management |
 | **User Module** | Client-side user system, multi-terminal login, Token hashing, secure encryption |
-| **Message Hub** | Unified sending entry (SMS/Email/Internal), template rendering, async retry |
+| **Message Hub** | Unified sending entry (SMS/Email/Internal), template rendering, async retry, STARTTLS support |
 | **Open Platform** | AppKey authentication, secure signature, distributed rate limiting, Scope permissions |
 | **IP Access Control** | Global/App-level IP governance, CIDR matching, high-performance memory filtering |
 | **Content Management** | Categories, Articles, Banner, supporting rich text and scheduled publishing |

@@ -12,7 +12,9 @@ import MsgRecordDetailModal from './components/msg-record-detail-modal.vue';
 
 const appStore = useAppStore();
 const { hasAuth } = useAuth();
-const { renderDictTag } = useDict();
+const { loadDicts, renderDictTag } = useDict();
+
+loadDicts(['sys_msg_channel', 'sys_msg_status', 'sys_msg_priority']);
 
 let handleViewDetailFn: (row: any) => void;
 
