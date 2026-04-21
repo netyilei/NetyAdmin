@@ -11,7 +11,7 @@
 ### 1.1 核心特性
 
 - **L1/L2 二级缓存**：本地 BigCache (L1) + Redis (L2) 分层架构，兼顾性能与一致性
-- **多机缓存一致性**：基于 Redis Pub/Sub 的分布式缓存失效广播，确保集群环境缓存同步
+- **多机缓存一致性**：基于 PubSubBus 的分布式缓存失效广播，确保集群环境缓存同步
 - **透明缓存**：业务层无感知切换，自动处理缓存穿透、回源逻辑
 - **Tags批量失效**：支持按标签批量清除缓存，跨机器自动同步
 - **动态开关**：支持运行时开启/关闭缓存，无需重启服务
@@ -44,7 +44,12 @@ type LazyCacheManager interface {
     Fetch(ctx context.Context, key string, module string, tags []string, ttl time.Duration, v interface{}, loader func() (interface{}, error)) error
 
     // InvalidateByTags 根据标签批量失效所有关联 Key (支持分布式同步)
+    // 内部通过 PubSubBus 广播失效信号到集群其他节点
     InvalidateByTags(ctx context.Context, tags ...string) error
+
+    // InvalidateL1ByTags 仅失效本地 L1 缓存
+    // 由 PubSubBus 订阅者调用，避免递归广播
+    InvalidateL1ByTags(ctx context.Context, tags ...string) error
 
     // --- 基础原子操作 ---
     
@@ -66,8 +71,9 @@ type LazyCacheManager interface {
     // 机制：Redis 模式下执行 Lua 滑动窗口脚本；本地模式降级为令牌桶算法
     RateLimit(ctx context.Context, key string, rate int, capacity int) (bool, error)
 
-    // GetRedisClient 获取原生客户端（仅用于 Pub/Sub 等特殊扩展）
-    GetRedisClient() *redis.Client
+    // SetEventBus 注入 PubSubBus 实例
+    // 由 wire.go 在启动时调用，用于缓存失效广播
+    SetEventBus(bus pubsub.EventBus)
 }
 ```
 
@@ -82,7 +88,7 @@ type LazyCacheManager interface {
 │           Application               │
 │  ┌─────────────────────────────┐    │
 │  │      L1: BigCache           │    │
-│  │   (本地内存， ultra-fast)    │    │
+│  │   (本地内存， ultra-fast)   │    │
 │  └─────────────────────────────┘    │
 └─────────────────────────────────────┘
 ```
@@ -91,10 +97,10 @@ type LazyCacheManager interface {
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      多机部署环境                              │
+│                      多机部署环境                           │
 │  ┌──────────────┐        Redis Cluster        ┌──────────┐  │
-│  │   Machine A  │◄───────────────────────────►│  L2存储   │  │
-│  │ ┌──────────┐ │        (共享缓存层)          │ (Redis)  │  │
+│  │   Machine A  │◄───────────────────────────►│  L2存储  │  │
+│  │ ┌──────────┐ │        (共享缓存层)         │ (Redis)  │  │
 │  │ │ L1: Big  │ │                             └──────────┘  │
 │  │ │  Cache   │ │                                   ▲       │
 │  │ └──────────┘ │         Pub/Sub 广播              │       │
@@ -102,8 +108,8 @@ type LazyCacheManager interface {
 │         ▲                                                   │
 │         │         ┌──────────────┐                          │
 │         └────────►│   Machine B  │                          │
-│   缓存失效广播     │ ┌──────────┐ │                          │
-│                   │ │ L1: Big  │ │                          │
+│   PubSubBus       │ ┌──────────┐ │                          │
+│   缓存失效广播    │ │ L1: Big  │ │                          │
 │                   │ │  Cache   │ │                          │
 │                   │ └──────────┘ │                          │
 │                   └──────────────┘                          │
@@ -139,10 +145,11 @@ host = "localhost"
 port = 6379
 prefix = "netyadmin"    # 全局 Key 前缀
 
-[cache]
-local_ttl = 10          # L1 本地缓存 TTL（分钟）
-local_max_size_mb = 256 # L1 最大内存占用（MB）
+# L1 缓存配置
 l1_enabled = true       # 是否启用 L1 缓存（多机模式下）
+local_max_size_mb = 256 # L1 最大内存占用（MB）
+local_max_entry_kb = 256 # L1 单条记录最大大小（KB）
+local_ttl_min = 10      # L1 本地缓存 TTL（分钟）
 ```
 
 ---
@@ -160,11 +167,11 @@ password = ""
 db = 0
 prefix = "netyadmin"
 
-[cache]
-# 本地缓存过期时间（分钟）
-local_ttl = 10
-# 最大本地缓存条目数
-local_max_entries = 10000
+# L1 缓存配置（嵌套在 [redis] 下）
+l1_enabled = true
+local_max_size_mb = 256
+local_max_entry_kb = 256
+local_ttl_min = 10
 ```
 
 ### 4.2 动态配置（sys_configs）
@@ -181,11 +188,11 @@ local_max_entries = 10000
 
 ### 5.1 架构概述
 
-在多机部署环境下，NetyAdmin 采用 **L1/L2 + Pub/Sub** 方案保证缓存一致性：
+在多机部署环境下，NetyAdmin 采用 **L1/L2 + PubSubBus** 方案保证缓存一致性：
 
 - **L1 (BigCache)**: 每台机器的本地内存缓存，访问速度极快（微秒级）
 - **L2 (Redis)**: 共享的分布式缓存层，所有机器共享
-- **Pub/Sub 广播**: 基于 Redis 发布订阅的缓存失效同步机制
+- **PubSubBus 广播**: 基于 PubSubBus 统一消息总线的缓存失效同步机制
 
 ### 5.2 缓存失效广播机制
 
@@ -193,22 +200,24 @@ local_max_entries = 10000
 
 ```
 ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│  Machine A   │     │    Redis     │     │  Machine B   │
-│              │     │   Pub/Sub    │     │              │
-│ Invalidate   │────►│  Channel:    │────►│  收到广播     │
+│  Machine A   │     │  PubSubBus   │     │  Machine B   │
+│              │     │  (Redis/Mem) │     │              │
+│ Invalidate   │────►│  Topic:      │────►│  收到广播    │
 │ ByTags(tags) │     │ cache_inval  │     │              │
-│              │     │ idation      │     │ 仅失效本地L1  │
+│              │     │ idation      │     │ 仅失效本地L1 │
 │ L1+L2失效    │     │              │     │ (不碰L2)     │
 └──────────────┘     └──────────────┘     └──────────────┘
 ```
 
 **关键设计决策**：
 
-1. **独立频道**: 缓存失效使用独立频道 `{prefix}:channel:cache_invalidation`，与配置热更频道 `{prefix}:channel:config_sync` 解耦，避免互相干扰
+1. **统一频道**: 缓存失效通过 PubSubBus 的统一频道 `{prefix}:channel:system_bus` 广播，消息体中 `topic` 字段为 `cache_invalidation`，与配置热更等 Topic 共享频道，由 PubSubBus 根据 Topic 路由分发
 
 2. **仅失效 L1**: 收到广播的机器只失效本地 L1 (BigCache)，不操作 L2 (Redis)。因为 L2 在发起失效的机器上已经被清除，其他机器直接回源 L2 即可拿到最新数据
 
-3. **幂等性**: 缓存失效是幂等操作，多次执行无副作用
+3. **避免递归**: 订阅者调用 `InvalidateL1ByTags` 而非 `InvalidateByTags`，因为后者内部会再次 Publish，会导致无限递归
+
+4. **幂等性**: 缓存失效是幂等操作，多次执行无副作用
 
 ### 5.3 核心代码实现
 
@@ -218,38 +227,38 @@ local_max_entries = 10000
 func (m *lazyCacheManager) InvalidateByTags(ctx context.Context, tags ...string) error {
     // 1. 本地失效 L1 + L2
     err := m.cacheManager.Invalidate(ctx, store.WithInvalidateTags(tags))
-    
-    // 2. 向集群广播（如果启用了 Redis）
-    if m.redisClient != nil && len(tags) > 0 {
-        channel := internalRedis.ChannelCacheInvalidation(m.prefix)
+
+    // 2. 通过 PubSubBus 向集群广播
+    if m.eventBus != nil && len(tags) > 0 {
         payload, _ := json.Marshal(tags)
-        _ = m.redisClient.Publish(ctx, channel, payload).Err()
+        _ = m.eventBus.Publish(ctx, pubsub.TopicCacheInvalidation, payload)
     }
+
     return err
 }
 ```
 
-**监听广播**（`ListenInvalidation`）：
+**仅失效本地 L1**（`InvalidateL1ByTags`，由 PubSubBus 订阅者调用）：
 
 ```go
-func (m *lazyCacheManager) ListenInvalidation(ctx context.Context) {
-    channel := internalRedis.ChannelCacheInvalidation(m.prefix)
-    sub := m.redisClient.Subscribe(ctx, channel)
-    
-    go func() {
-        defer sub.Close()
-        ch := sub.Channel()
-        for msg := range ch {
-            var tags []string
-            if err := json.Unmarshal([]byte(msg.Payload), &tags); err == nil {
-                // 仅失效 L1，避免重复失效 L2
-                if m.l1Cache != nil {
-                    _ = m.l1Cache.Invalidate(ctx, store.WithInvalidateTags(tags))
-                }
-            }
-        }
-    }()
+func (m *lazyCacheManager) InvalidateL1ByTags(ctx context.Context, tags ...string) error {
+    if m.l1Cache != nil {
+        return m.l1Cache.Invalidate(ctx, store.WithInvalidateTags(tags))
+    }
+    return nil
 }
+```
+
+**订阅注册**（在 `wire.go` 中）：
+
+```go
+_ = eventBus.Subscribe(pubsub.TopicCacheInvalidation, func(msg []byte) {
+    var tags []string
+    if err := json.Unmarshal(msg, &tags); err == nil {
+        // 仅失效本地 L1，避免递归广播
+        _ = lazyCacheMgr.InvalidateL1ByTags(context.Background(), tags...)
+    }
+})
 ```
 
 ### 5.4 部署建议
@@ -444,4 +453,5 @@ keys := h.cacheManager.GetKeysByTag(ctx, cache.TagRBAC)
 ## 十、相关文档
 
 - [Server架构设计](./server-architecture.md)
+- [统一消息总线详解](./server-module-pubsub.md)
 - [配置热同步](./server-module-config.md)

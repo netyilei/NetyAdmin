@@ -3,15 +3,12 @@ package system
 import (
 	"context"
 
-	"NetyAdmin/internal/config"
-	systemDto "NetyAdmin/internal/interface/admin/dto/system"
 	systemEntity "NetyAdmin/internal/domain/entity/system"
 	systemVO "NetyAdmin/internal/domain/vo/system"
+	systemDto "NetyAdmin/internal/interface/admin/dto/system"
 	"NetyAdmin/internal/pkg/configsync"
-	"NetyAdmin/internal/pkg/redis"
+	"NetyAdmin/internal/pkg/pubsub"
 	systemRepo "NetyAdmin/internal/repository/system"
-
-	goRedis "github.com/redis/go-redis/v9"
 )
 
 type ConfigService interface {
@@ -21,18 +18,16 @@ type ConfigService interface {
 }
 
 type configService struct {
-	repo        systemRepo.ConfigRepository
-	redisClient *goRedis.Client
-	redisCfg    *config.RedisConfig
-	watcher     configsync.ConfigWatcher
+	repo     systemRepo.ConfigRepository
+	watcher  configsync.ConfigWatcher
+	eventBus pubsub.EventBus
 }
 
-func NewConfigService(repo systemRepo.ConfigRepository, redisClient *goRedis.Client, redisCfg *config.RedisConfig, watcher configsync.ConfigWatcher) ConfigService {
+func NewConfigService(repo systemRepo.ConfigRepository, watcher configsync.ConfigWatcher, eventBus pubsub.EventBus) ConfigService {
 	return &configService{
-		repo:        repo,
-		redisClient: redisClient,
-		redisCfg:    redisCfg,
-		watcher:     watcher,
+		repo:     repo,
+		watcher:  watcher,
+		eventBus: eventBus,
 	}
 }
 
@@ -70,18 +65,14 @@ func (s *configService) Upsert(ctx context.Context, req *systemDto.UpdateConfigR
 		return err
 	}
 
-	// 更新成功后广播并强制自身热重载
-	// 针对无需 Redis 的本机环境，我们起码强制让当前的 Watcher 重载内存
 	_ = s.watcher.ForceReload(ctx)
 
-	// 如果 Redis Client 存在，触发全网广播告知其他节点更新内存
 	return s.BroadcastUpdate(ctx)
 }
 
 func (s *configService) BroadcastUpdate(ctx context.Context) error {
-	if s.redisClient != nil && s.redisCfg != nil {
-		channel := redis.ChannelConfigSync(s.redisCfg.Prefix)
-		return s.redisClient.Publish(ctx, channel, "config_updated").Err()
+	if s.eventBus != nil {
+		return s.eventBus.Publish(ctx, pubsub.TopicConfigSync, "config_updated")
 	}
 	return nil
 }

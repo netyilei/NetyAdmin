@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mojocn/base64Captcha"
-	goRedis "github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
 	"NetyAdmin/internal/config"
@@ -37,6 +37,7 @@ import (
 	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/jwt"
 	msgPkg "NetyAdmin/internal/pkg/message"
+	"NetyAdmin/internal/pkg/pubsub"
 	pkgredis "NetyAdmin/internal/pkg/redis"
 	storagePkg "NetyAdmin/internal/pkg/storage"
 	"NetyAdmin/internal/pkg/task"
@@ -101,14 +102,33 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	// 3. Repositories
 	repos := initRepositories(db)
 
-	// 4. Config Sync & Cache Manager
-	configWatcher := configsync.NewConfigWatcher(repos.systemConfig, redisClient, &cfg.Redis)
-	go configWatcher.WatchBlocking(context.Background())
+	// 4. PubSubBus
+	var eventBus pubsub.EventBus
+	switch cfg.Bus.Driver {
+	case "memory":
+		eventBus = pubsub.NewMemoryDriver()
+	case "redis":
+		if redisClient == nil {
+			return nil, fmt.Errorf("bus driver 设置为 redis 但 Redis 未启用")
+		}
+		eventBus = pubsub.NewRedisDriver(redisClient, cfg.Redis.Prefix)
+	default:
+		if cfg.Redis.Enabled && redisClient != nil {
+			eventBus = pubsub.NewRedisDriver(redisClient, cfg.Redis.Prefix)
+		} else {
+			eventBus = pubsub.NewMemoryDriver()
+		}
+	}
+
+	// 5. Config Sync & Cache Manager
+	configWatcher := configsync.NewConfigWatcher(repos.systemConfig)
 
 	lazyCacheMgr, err := cache.NewLazyCacheManager(&cfg.Redis, redisClient, configWatcher)
 	if err != nil {
 		return nil, err
 	}
+
+	lazyCacheMgr.SetEventBus(eventBus)
 
 	// 5. Task Manager
 	taskManager := task.NewManager(&cfg.Task, &cfg.Redis, redisClient)
@@ -118,10 +138,34 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	captchaMgr := captcha.NewManager(captchaStore)
 
 	// 6. Services & Handlers
-	services := initServices(repos, jwtInstance, lazyCacheMgr, taskManager, configWatcher, cfg, captchaStore, redisClient)
+	services := initServices(repos, jwtInstance, lazyCacheMgr, taskManager, configWatcher, cfg, captchaStore, eventBus)
 	handlers := initHandlers(services, captchaMgr, configWatcher)
 
-	// 7. Router
+	// 7. Register PubSubBus subscribers
+	// ConfigSync
+	_ = eventBus.Subscribe(pubsub.TopicConfigSync, func(msg []byte) {
+		_ = configWatcher.ForceReload(context.Background())
+	})
+
+	// StorageSync
+	_ = eventBus.Subscribe(pubsub.TopicStorageSync, func(msg []byte) {
+		_ = services.storageConfig.LoadAllConfigs(context.Background())
+	})
+
+	// CacheInvalidation
+	_ = eventBus.Subscribe(pubsub.TopicCacheInvalidation, func(msg []byte) {
+		var tags []string
+		if err := json.Unmarshal(msg, &tags); err == nil {
+			_ = lazyCacheMgr.InvalidateL1ByTags(context.Background(), tags...)
+		}
+	})
+
+	// IPACReload
+	_ = eventBus.Subscribe(pubsub.TopicIPACReload, func(msg []byte) {
+		_ = services.ipac.ReloadCache(context.Background())
+	})
+
+	// 8. Router
 	router := router.NewRouter(
 		handlers.auth,
 		handlers.common,
@@ -147,18 +191,6 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		services.role,
 	)
 
-	cRouter := clientRouter.NewClientRouter(
-		handlers.client.echo,
-		handlers.client.user,
-		handlers.client.auth,
-		handlers.client.message,
-		handlers.client.content,
-		services.app,
-		services.openApi,
-		services.openLog,
-		services.ipac,
-	)
-
 	// 9. Task Registration
 	taskManager.Register(job.AllJobs(
 		repos.contentArticle,
@@ -171,7 +203,19 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	)...)
 	taskManager.Register(services.msgSendJob)
 
-	// 9. Engine Setup
+	cRouter := clientRouter.NewClientRouter(
+		handlers.client.echo,
+		handlers.client.user,
+		handlers.client.auth,
+		handlers.client.message,
+		handlers.client.content,
+		services.app,
+		services.openApi,
+		services.openLog,
+		services.ipac,
+	)
+
+	// 10. Engine Setup
 	gin.SetMode(cfg.Server.Mode)
 	engine := gin.New()
 
@@ -188,7 +232,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	cRouter.Register(engine)
 	gin.DefaultWriter = os.Stdout
 
-	return NewApp(cfg, db, engine, dbHealthChecker, taskManager, services.openLog), nil
+	return NewApp(cfg, db, engine, dbHealthChecker, taskManager, services.openLog, eventBus), nil
 }
 
 type repositorySet struct {
@@ -271,7 +315,7 @@ type serviceSet struct {
 	emailDriver        msgPkg.Driver
 }
 
-func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache.LazyCacheManager, taskManager *task.Manager, configWatcher configsync.ConfigWatcher, cfg *config.Config, captchaStore base64Captcha.Store, redisClient *goRedis.Client) *serviceSet {
+func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache.LazyCacheManager, taskManager *task.Manager, configWatcher configsync.ConfigWatcher, cfg *config.Config, captchaStore base64Captcha.Store, eventBus pubsub.EventBus) *serviceSet {
 	storageMgr := storagePkg.NewManager(storagePkg.NewS3DriverFactory())
 
 	s := &serviceSet{}
@@ -281,9 +325,9 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	s.api = systemService.NewAPIService(repos.api, lazyCacheMgr)
 	s.button = systemService.NewButtonService(repos.button, lazyCacheMgr)
 	s.task = taskServicePkg.NewTaskService(taskManager, repos.taskLog, repos.systemConfig, configWatcher)
-	s.sysConfig = systemService.NewConfigService(repos.systemConfig, nil, &cfg.Redis, configWatcher) // Redis client passed later if needed
+	s.sysConfig = systemService.NewConfigService(repos.systemConfig, configWatcher, eventBus)
 	s.dict = dictServicePkg.NewDictService(repos.dict, lazyCacheMgr)
-	s.ipac = ipacServicePkg.NewIPACService(repos.ipac, lazyCacheMgr)
+	s.ipac = ipacServicePkg.NewIPACService(repos.ipac, eventBus)
 	s.app = openServicePkg.NewAppService(repos.app, lazyCacheMgr, cfg.Security.AESKey, s.ipac, repos.ipac)
 	s.openApi = openServicePkg.NewOpenApiService(repos.openApi, repos.app, repos.app, lazyCacheMgr)
 	s.openLog = openServicePkg.NewOpenLogService(repos.openLog, configWatcher)
@@ -315,7 +359,7 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 
 	s.operationLog = logService.NewOperationService(repos.operationLog)
 	s.errorLog = logService.NewErrorService(repos.errorLog, configWatcher, nil)
-	s.storageConfig = storageService.NewConfigService(repos.storageConfig, repos.uploadRecord, storageMgr, lazyCacheMgr, redisClient, &cfg.Redis)
+	s.storageConfig = storageService.NewConfigService(repos.storageConfig, repos.uploadRecord, storageMgr, lazyCacheMgr, eventBus)
 	s.uploadRecord = storageService.NewRecordService(repos.uploadRecord, repos.storageConfig, storageMgr)
 	s.contentCategory = contentService.NewCategoryService(repos.contentCategory, s.storageConfig, lazyCacheMgr, configWatcher)
 	s.contentArticle = contentService.NewArticleService(repos.contentArticle, repos.contentCategory)
@@ -323,10 +367,6 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	s.contentBannerItem = contentService.NewBannerItemService(repos.contentBannerItem, repos.contentBannerGroup, repos.contentArticle)
 
 	_ = s.storageConfig.LoadAllConfigs(context.Background())
-
-	go storageMgr.WatchConfigChanges(context.Background(), redisClient, pkgredis.ChannelStorageSync(cfg.Redis.Prefix), func(ctx context.Context) error {
-		return s.storageConfig.LoadAllConfigs(ctx)
-	})
 
 	return s
 }

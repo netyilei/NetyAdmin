@@ -179,11 +179,6 @@ func KeyMsgTemplate(code string) string {
 	return fmt.Sprintf("msg:template:%s", code)
 }
 
-// KeyIPACReload IPAC 重载通知 Channel
-func KeyIPACReload() string {
-	return "netyadmin:ipac:reload"
-}
-
 // KeyAppRateLimit 开放平台限流 Key
 func KeyAppRateLimit(appKey string) string {
 	return fmt.Sprintf("open:ratelimit:%s", appKey)

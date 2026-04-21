@@ -158,8 +158,10 @@ func (m *Manager) Dispatch(ctx context.Context, taskName string, payload interfa
 }
 
 func (m *Manager) startWorkers(ctx context.Context) {
-	// 默认启动 5 个 Worker，未来可改为配置化
-	workerCount := 5
+	workerCount := m.cfg.Workers
+	if workerCount <= 0 {
+		workerCount = 5
+	}
 	log.Printf("[任务引擎] 启动 %d 个后台 Worker 处理队列任务", workerCount)
 
 	for i := 0; i < workerCount; i++ {

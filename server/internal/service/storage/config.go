@@ -4,17 +4,14 @@ import (
 	"context"
 	"strings"
 
-	"NetyAdmin/internal/config"
 	"NetyAdmin/internal/domain/entity"
 	storageEntity "NetyAdmin/internal/domain/entity/storage"
 	storageDto "NetyAdmin/internal/interface/admin/dto/storage"
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/errorx"
-	pkgRedis "NetyAdmin/internal/pkg/redis"
+	"NetyAdmin/internal/pkg/pubsub"
 	"NetyAdmin/internal/pkg/storage"
 	storageRepo "NetyAdmin/internal/repository/storage"
-
-	"github.com/redis/go-redis/v9"
 )
 
 type ConfigService interface {
@@ -32,12 +29,11 @@ type ConfigService interface {
 }
 
 type configService struct {
-	configRepo  storageRepo.ConfigRepository
-	recordRepo  storageRepo.RecordRepository
-	storageMgr  *storage.Manager
-	cache       cache.LazyCacheManager
-	redisClient *redis.Client
-	redisCfg    *config.RedisConfig
+	configRepo storageRepo.ConfigRepository
+	recordRepo storageRepo.RecordRepository
+	storageMgr *storage.Manager
+	cache      cache.LazyCacheManager
+	eventBus   pubsub.EventBus
 }
 
 func NewConfigService(
@@ -45,25 +41,20 @@ func NewConfigService(
 	recordRepo storageRepo.RecordRepository,
 	storageMgr *storage.Manager,
 	cache cache.LazyCacheManager,
-	redisClient *redis.Client,
-	redisCfg *config.RedisConfig,
+	eventBus pubsub.EventBus,
 ) ConfigService {
 	return &configService{
-		configRepo:  configRepo,
-		recordRepo:  recordRepo,
-		storageMgr:  storageMgr,
-		cache:       cache,
-		redisClient: redisClient,
-		redisCfg:    redisCfg,
+		configRepo: configRepo,
+		recordRepo: recordRepo,
+		storageMgr: storageMgr,
+		cache:      cache,
+		eventBus:   eventBus,
 	}
 }
 
 func (s *configService) broadcastStorageUpdate(ctx context.Context) {
-	if s.redisClient != nil && s.redisCfg != nil && s.redisCfg.Enabled {
-		channel := pkgRedis.ChannelStorageSync(s.redisCfg.Prefix)
-		if err := s.redisClient.Publish(ctx, channel, "storage_updated").Err(); err != nil {
-			_ = err
-		}
+	if s.eventBus != nil {
+		_ = s.eventBus.Publish(ctx, pubsub.TopicStorageSync, "storage_updated")
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 
 	"NetyAdmin/internal/config"
 	"NetyAdmin/internal/pkg/database"
+	"NetyAdmin/internal/pkg/pubsub"
 	"NetyAdmin/internal/pkg/task"
 	openService "NetyAdmin/internal/service/open_platform"
 )
@@ -26,9 +27,10 @@ type App struct {
 	dbHealthChecker *database.HealthChecker
 	taskManager     *task.Manager
 	openLog         openService.OpenLogService
+	eventBus        pubsub.EventBus
 }
 
-func NewApp(cfg *config.Config, db *gorm.DB, engine *gin.Engine, dbHealthChecker *database.HealthChecker, taskManager *task.Manager, openLog openService.OpenLogService) *App {
+func NewApp(cfg *config.Config, db *gorm.DB, engine *gin.Engine, dbHealthChecker *database.HealthChecker, taskManager *task.Manager, openLog openService.OpenLogService, eventBus pubsub.EventBus) *App {
 	return &App{
 		cfg:             cfg,
 		db:              db,
@@ -36,6 +38,7 @@ func NewApp(cfg *config.Config, db *gorm.DB, engine *gin.Engine, dbHealthChecker
 		dbHealthChecker: dbHealthChecker,
 		taskManager:     taskManager,
 		openLog:         openLog,
+		eventBus:        eventBus,
 	}
 }
 
@@ -88,6 +91,11 @@ func (a *App) Run() error {
 	// Stop open log service (Flush buffer)
 	if a.openLog != nil {
 		a.openLog.Stop()
+	}
+
+	// Stop PubSubBus (close Redis subscription goroutine)
+	if a.eventBus != nil {
+		_ = a.eventBus.Close()
 	}
 
 	log.Println("服务器已安全关闭")

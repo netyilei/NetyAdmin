@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"NetyAdmin/internal/domain/entity/ipac"
-	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/pubsub"
 	ipacRepo "NetyAdmin/internal/repository/ipac"
 )
 
@@ -24,13 +24,12 @@ type IPACService interface {
 
 type ipacService struct {
 	repo     ipacRepo.IPACRepository
-	cacheMgr cache.LazyCacheManager
+	eventBus pubsub.EventBus
 
-	// In-memory cache for fast matching
 	mu          sync.RWMutex
 	globalDeny  []*net.IPNet
 	globalAllow []*net.IPNet
-	appRules    map[string]appIPRules // appID (ULID) -> rules
+	appRules    map[string]appIPRules
 }
 
 type appIPRules struct {
@@ -39,41 +38,16 @@ type appIPRules struct {
 	IPFilterEnabled bool
 }
 
-func NewIPACService(repo ipacRepo.IPACRepository, cacheMgr cache.LazyCacheManager) IPACService {
+func NewIPACService(repo ipacRepo.IPACRepository, eventBus pubsub.EventBus) IPACService {
 	s := &ipacService{
 		repo:     repo,
-		cacheMgr: cacheMgr,
+		eventBus: eventBus,
 		appRules: make(map[string]appIPRules),
 	}
 	// Initial load
 	_ = s.ReloadCache(context.Background())
 
-	// Subscribe to reload channel
-	go s.subscribeReload()
-
 	return s
-}
-
-func (s *ipacService) subscribeReload() {
-	redisClient := s.cacheMgr.GetRedisClient()
-	if redisClient == nil {
-		return
-	}
-
-	pubsub := redisClient.Subscribe(context.Background(), cache.KeyIPACReload())
-	defer pubsub.Close()
-
-	ch := pubsub.Channel()
-	for range ch {
-		_ = s.ReloadCache(context.Background())
-	}
-}
-
-func (s *ipacService) notifyReload(ctx context.Context) {
-	redisClient := s.cacheMgr.GetRedisClient()
-	if redisClient != nil {
-		_ = redisClient.Publish(ctx, cache.KeyIPACReload(), "reload").Err()
-	}
 }
 
 func (s *ipacService) ReloadCache(ctx context.Context) error {
@@ -188,6 +162,12 @@ func (s *ipacService) CheckIP(ctx context.Context, ipStr string, appID *string) 
 
 func (s *ipacService) List(ctx context.Context, query *ipacRepo.IPACQuery) ([]*ipac.IPAccessControl, int64, error) {
 	return s.repo.List(ctx, query)
+}
+
+func (s *ipacService) notifyReload(ctx context.Context) {
+	if s.eventBus != nil {
+		_ = s.eventBus.Publish(ctx, pubsub.TopicIPACReload, "reload")
+	}
 }
 
 func (s *ipacService) Create(ctx context.Context, item *ipac.IPAccessControl) error {

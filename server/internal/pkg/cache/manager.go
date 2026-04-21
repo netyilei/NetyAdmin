@@ -18,7 +18,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"NetyAdmin/internal/config"
-	internalRedis "NetyAdmin/internal/pkg/redis"
+	"NetyAdmin/internal/pkg/pubsub"
 )
 
 var (
@@ -45,14 +45,14 @@ type LazyCacheManager interface {
 	// Exists 判断一个缓存项是否存在
 	Exists(ctx context.Context, key string) (bool, error)
 
-	// GetRedisClient 获取底层的 Redis 客户端
-	GetRedisClient() *redis.Client
+	// InvalidateL1ByTags 仅失效本地 L1 缓存（由 PubSubBus 订阅者调用，避免递归）
+	InvalidateL1ByTags(ctx context.Context, tags ...string) error
+
+	// SetEventBus 注入 PubSubBus 实例（解决循环依赖：CacheManager 先于 EventBus 创建）
+	SetEventBus(bus pubsub.EventBus)
 
 	// RateLimit 限流校验
 	RateLimit(ctx context.Context, key string, rate int, capacity int) (bool, error)
-
-	// ListenInvalidation 启动监听分布式失效信号 (内部使用)
-	ListenInvalidation(ctx context.Context)
 }
 
 type SwitchChecker interface {
@@ -65,6 +65,7 @@ type lazyCacheManager struct {
 	switches     SwitchChecker
 	prefix       string
 	redisClient  *redis.Client
+	eventBus     pubsub.EventBus
 
 	localLimiters sync.Map
 }
@@ -131,11 +132,6 @@ func NewLazyCacheManager(cfg *config.RedisConfig, redisClient *redis.Client, che
 		prefix:        cfg.Prefix,
 		redisClient:   redisClient,
 		localLimiters: sync.Map{},
-	}
-
-	// 启动监听
-	if cfg.Enabled && redisClient != nil {
-		mgr.ListenInvalidation(context.Background())
 	}
 
 	return mgr, nil
@@ -276,10 +272,6 @@ func (m *lazyCacheManager) Exists(ctx context.Context, key string) (bool, error)
 	return false, err
 }
 
-func (m *lazyCacheManager) GetRedisClient() *redis.Client {
-	return m.redisClient
-}
-
 func (m *lazyCacheManager) buildKey(key string) string {
 	if m.prefix != "" {
 		return fmt.Sprintf("%s:%s", m.prefix, key)
@@ -353,40 +345,23 @@ func (m *lazyCacheManager) isNil(i interface{}) bool {
 func (m *lazyCacheManager) InvalidateByTags(ctx context.Context, tags ...string) error {
 	err := m.cacheManager.Invalidate(ctx, store.WithInvalidateTags(tags))
 
-	if m.redisClient != nil && len(tags) > 0 {
-		channel := internalRedis.ChannelCacheInvalidation(m.prefix)
+	if m.eventBus != nil && len(tags) > 0 {
 		payload, _ := json.Marshal(tags)
-		_ = m.redisClient.Publish(ctx, channel, payload).Err()
+		_ = m.eventBus.Publish(ctx, pubsub.TopicCacheInvalidation, payload)
 	}
 
 	return err
 }
 
-func (m *lazyCacheManager) ListenInvalidation(ctx context.Context) {
-	if m.redisClient == nil {
-		return
+func (m *lazyCacheManager) InvalidateL1ByTags(ctx context.Context, tags ...string) error {
+	if m.l1Cache != nil {
+		return m.l1Cache.Invalidate(ctx, store.WithInvalidateTags(tags))
 	}
+	return nil
+}
 
-	channel := internalRedis.ChannelCacheInvalidation(m.prefix)
-	sub := m.redisClient.Subscribe(ctx, channel)
-
-	go func() {
-		defer sub.Close()
-		ch := sub.Channel()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case msg := <-ch:
-				var tags []string
-				if err := json.Unmarshal([]byte(msg.Payload), &tags); err == nil {
-					if m.l1Cache != nil {
-						_ = m.l1Cache.Invalidate(ctx, store.WithInvalidateTags(tags))
-					}
-				}
-			}
-		}
-	}()
+func (m *lazyCacheManager) SetEventBus(bus pubsub.EventBus) {
+	m.eventBus = bus
 }
 
 func (m *lazyCacheManager) marshal(val interface{}) ([]byte, error) {

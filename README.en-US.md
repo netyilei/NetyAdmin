@@ -29,7 +29,8 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 ### ⚡ High Performance & High Availability
 
 - **Transparent Caching**: Redis + BigCache dual engines, supporting dynamic switches and batch invalidation
-- **Hot Config Sync**: Redis Pub/Sub for real-time configuration synchronization across the network
+- **Unified Event Bus**: PubSubBus consolidates Redis Pub/Sub, driver-based design supports standalone/cluster switching
+- **Hot Config Sync**: Real-time configuration synchronization across the network via PubSubBus
 - **Task Scheduling**: Built-in task engine, supporting scheduled tasks, backend management, and log persistence
 - **Database Migration**: Automatically executes SQL migration scripts during startup
 - **Email Driver**: Based on go-simple-mail, supporting SSL/TLS, STARTTLS, and multiple SMTP authentication methods
@@ -47,6 +48,7 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 | **Storage Management** | Multi-storage source configuration, upload credentials, upload records |
 | **Log Audit** | Operation logs, error logs, supporting sensitive field desensitization |
 | **System Config** | Dynamic dictionaries, system parameters, task scheduling |
+| **Unified Event Bus** | PubSubBus, driver-based design, Topic registry, distributed cache sync |
 | **Captcha** | Graphic captcha, supporting multiple types and storage schemes |
 
 ---
@@ -74,6 +76,7 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 | [IP Access Control Details](docs/server-module-ipac.md) | High-performance memory matching, CIDR network, hierarchical governance |
 | [Captcha Module Details](docs/server-module-captcha.md) | Captcha types, storage schemes, dynamic configuration |
 | [Cache Module Details](docs/server-module-cache.md) | Dual-engine caching, Tags batch invalidation, dynamic switches |
+| [Unified Event Bus Details](docs/server-module-pubsub.md) | PubSubBus architecture, driver mechanism, Topic registry, secondary development |
 | [Task System Details](docs/server-module-task.md) | Task scheduling, queue mechanism, backend management |
 | [Dictionary Module Details](docs/server-module-dict.md) | Dynamic dictionaries, caching strategies, usage examples |
 | [Content Management Module Details](docs/server-module-content.md) | Articles, categories, Banner, scheduled publishing |

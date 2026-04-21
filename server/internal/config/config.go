@@ -18,6 +18,7 @@ type Config struct {
 	Security  SecurityConfig  `toml:"security"`
 	Email     EmailConfig     `toml:"email"`
 	Sms       SmsConfig       `toml:"sms"`
+	Bus       BusConfig       `toml:"bus"`
 }
 
 type EmailConfig struct {
@@ -47,9 +48,9 @@ type SecurityConfig struct {
 	AESKey string `toml:"aes_key"` // 系统加解密 Key (16, 24 或 32 字节)
 }
 
-
 type TaskConfig struct {
 	Enabled bool                 `toml:"enabled"`
+	Workers int                  `toml:"workers"`
 	Jobs    map[string]JobConfig `toml:"jobs"`
 }
 
@@ -91,11 +92,14 @@ type RedisConfig struct {
 	Password string `toml:"password"`
 	DB       int    `toml:"db"`
 
-	// L1 缓存配置
 	L1Enabled       bool `toml:"l1_enabled"`
-	LocalMaxSizeMB  int  `toml:"local_max_size_mb"`  // 最大本地缓存大小 (MB)
-	LocalMaxEntryKB int  `toml:"local_max_entry_kb"` // 单条记录最大大小 (KB)
-	LocalTTLMin     int  `toml:"local_ttl_min"`      // 本地缓存过期时间 (分钟)
+	LocalMaxSizeMB  int  `toml:"local_max_size_mb"`
+	LocalMaxEntryKB int  `toml:"local_max_entry_kb"`
+	LocalTTLMin     int  `toml:"local_ttl_min"`
+}
+
+type BusConfig struct {
+	Driver string `toml:"driver"` // "redis" | "memory"，默认根据 Redis.Enabled 自动选择
 }
 
 type JWTConfig struct {
