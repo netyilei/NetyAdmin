@@ -11,8 +11,6 @@ import (
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/configsync"
 	logRepo "NetyAdmin/internal/repository/log"
-
-	"github.com/redis/go-redis/v9"
 )
 
 type ErrorService interface {
@@ -28,45 +26,32 @@ type ErrorService interface {
 type errorService struct {
 	logRepo       *logRepo.ErrorRepository
 	configWatcher configsync.ConfigWatcher
-	redis         *redis.Client
+	cache         cache.LazyCacheManager
 }
 
-func NewErrorService(logRepo *logRepo.ErrorRepository, configWatcher configsync.ConfigWatcher, redis *redis.Client) ErrorService {
+func NewErrorService(logRepo *logRepo.ErrorRepository, configWatcher configsync.ConfigWatcher, cacheMgr cache.LazyCacheManager) ErrorService {
 	return &errorService{
 		logRepo:       logRepo,
 		configWatcher: configWatcher,
-		redis:         redis,
+		cache:         cacheMgr,
 	}
 }
 
 func (s *errorService) Log(ctx context.Context, logRecord *logEntity.Error) error {
-	// 1. 生成指纹
 	logRecord.Hash = s.generateHash(logRecord)
 	logRecord.LastOccurredAt = time.Now()
 
-	// 2. 检查是否开启了「聚合分析缓存」
 	useCache := s.configWatcher.IsCacheEnabled("err_log_cache")
 
-	if useCache && s.redis != nil {
-		// Redis 策略：60秒内相同的指纹只准写入一次数据库
+	if useCache && s.cache != nil {
 		cacheKey := cache.KeyErrorLogSuppress(logRecord.Hash)
 
-		// 尝试抢占写入权 (使用 Set + NX)
-		// 在 go-redis v9 中，推荐使用 SetNX，但如果 lint 报错说用 Set with NX option：
-		// 我们可以使用 SetArgs
-		err := s.redis.SetArgs(ctx, cacheKey, "1", redis.SetArgs{
-			Mode: "NX",
-			TTL:  60 * time.Second,
-		}).Err()
-
-		if err == redis.Nil {
-			// err == redis.Nil 表示 Key 已经存在（因为 NX 模式下如果存在就不会设置，返回 nil）
-			// 说明处于聚合静默期，增加 Redis 计数（可选）并直接返回，不再刷库
+		set, err := s.cache.SetNX(ctx, cacheKey, "1", 60*time.Second)
+		if err == nil && !set {
 			return nil
 		}
 	}
 
-	// 3. 执行数据库 UPSERT (聚合更新)
 	return s.logRepo.UpsertByHash(ctx, logRecord)
 }
 

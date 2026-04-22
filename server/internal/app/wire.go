@@ -358,7 +358,7 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	middleware.InitJWT(jwtInstance, repos.user)
 
 	s.operationLog = logService.NewOperationService(repos.operationLog)
-	s.errorLog = logService.NewErrorService(repos.errorLog, configWatcher, nil)
+	s.errorLog = logService.NewErrorService(repos.errorLog, configWatcher, lazyCacheMgr)
 	s.storageConfig = storageService.NewConfigService(repos.storageConfig, repos.uploadRecord, storageMgr, lazyCacheMgr, eventBus)
 	s.uploadRecord = storageService.NewRecordService(repos.uploadRecord, repos.storageConfig, storageMgr)
 	s.contentCategory = contentService.NewCategoryService(repos.contentCategory, s.storageConfig, lazyCacheMgr, configWatcher)
