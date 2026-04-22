@@ -72,10 +72,9 @@ BEGIN
         (ops_menu_id, '操作日志', 'ops_operation-log', '/ops/operation-log', 'view.ops_operation-log', 'ic:outline-history', 1, false, '1', '2', 'route.ops_operation-log', NOW(), NOW()), 
         (ops_menu_id, '错误日志', 'ops_error-log', '/ops/error-log', 'view.ops_error-log', 'ic:outline-error-outline', 2, false, '1', '2', 'route.ops_error-log', NOW(), NOW()), 
         (ops_menu_id, '任务调度', 'ops_task', '/ops/task', 'view.ops_task', 'ic:outline-schedule', 3, false, '1', '2', 'route.ops_task', NOW(), NOW()),
-        (ops_menu_id, 'IP 访问控制', 'ops_ip-access', '/ops/ip-access', 'view.ops_ip-access', 'ic:baseline-security', 4, false, '1', '2', 'route.ops_ip-access', NOW(), NOW()),
-        (ops_menu_id, '上传记录', 'ops_upload-record', '/ops/upload-record', 'view.ops_upload-record', 'ic:outline-cloud-upload', 5, false, '1', '2', 'route.ops_upload-record', NOW(), NOW()),
-        (ops_menu_id, '调用日志', 'ops_open-platform-log', '/ops/open-platform-log', 'view.ops_open-platform-log', 'ic:outline-history', 6, false, '1', '2', 'route.ops_open-platform-log', NOW(), NOW()),
-        (ops_menu_id, '消息记录', 'ops_message-log', '/ops/message-log', 'view.ops_message-log', 'ic:baseline-history', 7, false, '1', '2', 'route.ops_message-log', NOW(), NOW())
+        (ops_menu_id, '上传记录', 'ops_upload-record', '/ops/upload-record', 'view.ops_upload-record', 'ic:outline-cloud-upload', 4, false, '1', '2', 'route.ops_upload-record', NOW(), NOW()),
+        (ops_menu_id, '调用日志', 'ops_open-platform-log', '/ops/open-platform-log', 'view.ops_open-platform-log', 'ic:outline-history', 5, false, '1', '2', 'route.ops_open-platform-log', NOW(), NOW()),
+        (ops_menu_id, '消息记录', 'ops_message-log', '/ops/message-log', 'view.ops_message-log', 'ic:baseline-history', 6, false, '1', '2', 'route.ops_message-log', NOW(), NOW())
         ON CONFLICT (route_name) WHERE deleted_at = 0 DO UPDATE SET i18_n_key = EXCLUDED.i18_n_key, component = EXCLUDED.component, parent_id = EXCLUDED.parent_id, route_path = EXCLUDED.route_path; 
     END IF; 
  
@@ -107,7 +106,8 @@ BEGIN
         VALUES 
         (open_menu_id, '应用管理', 'open-platform_apps', '/open-platform/apps', 'view.open-platform_apps', 'ic:baseline-apps', 1, false, '1', '2', 'route.open-platform_apps', NOW(), NOW()),
         (open_menu_id, 'API管理', 'open-platform_apis', '/open-platform/apis', 'view.open-platform_apis', 'ic:baseline-api', 2, false, '1', '2', 'route.open-platform_apis', NOW(), NOW()),
-        (open_menu_id, '接口权限', 'open-platform_scopes', '/open-platform/scopes', 'view.open-platform_scopes', 'ic:baseline-security', 3, false, '1', '2', 'route.open-platform_scopes', NOW(), NOW())
+        (open_menu_id, '接口权限', 'open-platform_scopes', '/open-platform/scopes', 'view.open-platform_scopes', 'ic:baseline-security', 3, false, '1', '2', 'route.open-platform_scopes', NOW(), NOW()),
+        (open_menu_id, 'IP 访问控制', 'open-platform_ip-access', '/open-platform/ip-access', 'view.open-platform_ip-access', 'ic:baseline-security', 4, false, '1', '2', 'route.open-platform_ip-access', NOW(), NOW())
         ON CONFLICT (route_name) WHERE deleted_at = 0 DO UPDATE SET i18_n_key = EXCLUDED.i18_n_key, component = EXCLUDED.component, parent_id = EXCLUDED.parent_id, route_path = EXCLUDED.route_path; 
     END IF; 
  END $$;

@@ -1,8 +1,10 @@
 package task
 
 import (
-	"NetyAdmin/internal/domain/entity"
 	"time"
+
+	"NetyAdmin/internal/domain/entity"
+	logEntity "NetyAdmin/internal/domain/entity/log"
 )
 
 type TaskLog struct {
@@ -10,11 +12,19 @@ type TaskLog struct {
 	Name      string    `gorm:"column:name;size:100;not null;index" json:"name"`
 	StartTime time.Time `gorm:"column:start_time;not null" json:"startTime"`
 	EndTime   time.Time `gorm:"column:end_time;not null" json:"endTime"`
-	Duration  float64   `gorm:"column:duration;not null" json:"duration"` // 秒
+	Duration  float64   `gorm:"column:duration;not null" json:"duration"`
 	Status    string    `gorm:"column:status;size:20;not null;index" json:"status"`
 	Message   string    `gorm:"column:message;type:text" json:"message"`
 }
 
 func (TaskLog) TableName() string {
 	return "sys_task_logs"
+}
+
+func (l *TaskLog) GetLogType() logEntity.LogType {
+	return logEntity.LogTypeTask
+}
+
+func (l *TaskLog) GetCreatedAt() time.Time {
+	return l.CreatedAt
 }

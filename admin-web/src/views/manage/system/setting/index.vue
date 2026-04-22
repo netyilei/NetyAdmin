@@ -40,9 +40,23 @@ const logConfigs = reactive<Record<string, ConfigItem | undefined>>({
   ops_retention: undefined,
   err_retention: undefined,
   msg_record_retention: undefined,
-  open_log_retention: undefined,
-  open_log_buffer_size: undefined,
-  open_log_buffer_interval: undefined
+  open_log_retention: undefined
+});
+
+const logbusConfigs = reactive<Record<string, ConfigItem | undefined>>({
+  global_max_entries: undefined,
+  global_max_bytes_mb: undefined,
+  default_batch_size: undefined,
+  default_time_threshold: undefined,
+  operation_batch_size: undefined,
+  operation_time_threshold: undefined,
+  error_batch_size: undefined,
+  error_time_threshold: undefined,
+  open_batch_size: undefined,
+  open_time_threshold: undefined,
+  task_batch_size: undefined,
+  task_time_threshold: undefined,
+  force_sync: undefined
 });
 
 const emailConfigs = reactive<Record<string, ConfigItem | undefined>>({
@@ -139,7 +153,8 @@ async function init() {
     fetchGetSysConfigs('email_config'),
     fetchGetSysConfigs('sms_config'),
     fetchGetSysConfigs('msg_record_config'),
-    fetchGetSysConfigs('open_platform_config')
+    fetchGetSysConfigs('open_platform_config'),
+    fetchGetSysConfigs('logbus_config')
   ]);
 
   if (!results[0].error) cacheConfigs.value = results[0].data;
@@ -238,11 +253,13 @@ async function init() {
       if (item.configKey === 'log_retention_days') {
         logConfigs.open_log_retention = { ...item, numValue: Number.parseInt(item.configValue, 10) || 0 };
       }
-      if (item.configKey === 'log_buffer_size') {
-        logConfigs.open_log_buffer_size = { ...item, numValue: Number.parseInt(item.configValue, 10) || 0 };
-      }
-      if (item.configKey === 'log_buffer_interval') {
-        logConfigs.open_log_buffer_interval = { ...item, numValue: Number.parseInt(item.configValue, 10) || 0 };
+    });
+  }
+
+  if (!results[11].error) {
+    results[11].data.forEach(item => {
+      if (Object.keys(logbusConfigs).includes(item.configKey)) {
+        logbusConfigs[item.configKey] = { ...item, numValue: Number.parseInt(item.configValue, 10) || 0 };
       }
     });
   }
@@ -284,8 +301,8 @@ onMounted(init);
 
 <template>
   <div class="h-full">
-    <NCard :bordered="false" class="h-full rounded-8px shadow-sm">
-      <NTabs type="line" animated>
+    <NCard :bordered="false" class="h-full rounded-8px shadow-sm overflow-hidden">
+      <NTabs type="line" animated class="h-full-setting">
         <!-- Tab 1: Cache Management -->
         <NTabPane name="cache" :tab="$t('page.manage.setting.tabs.cache')">
           <div class="pt-4">
@@ -703,59 +720,225 @@ onMounted(init);
                 </NCard>
               </NGridItem>
 
-              <NGridItem span="1 m:2">
+              <NGridItem>
                 <!-- Open Platform Logs -->
                 <NCard :title="$t('page.manage.setting.log.openLog')" size="small">
-                  <NGrid :x-gap="24" :y-gap="16" cols="1 s:3" responsive="screen">
-                    <NGridItem>
-                      <NFormItem :label="$t('page.manage.setting.log.retentionDays')">
-                        <NInputNumber
-                          v-if="logConfigs.open_log_retention !== undefined"
-                          v-model:value="logConfigs.open_log_retention.numValue"
-                          :min="0"
-                          :max="3650"
-                          class="w-full"
-                          @blur="handleNumberUpdate(logConfigs.open_log_retention)"
-                        >
-                          <template #suffix>{{ $t('page.manage.setting.log.daysUnit') }}</template>
-                        </NInputNumber>
-                      </NFormItem>
-                    </NGridItem>
-                    <NGridItem>
-                      <NFormItem :label="$t('page.manage.setting.log.bufferSize')">
-                        <NInputNumber
-                          v-if="logConfigs.open_log_buffer_size !== undefined"
-                          v-model:value="logConfigs.open_log_buffer_size.numValue"
-                          :min="1"
-                          :max="10000"
-                          class="w-full"
-                          @blur="handleNumberUpdate(logConfigs.open_log_buffer_size)"
-                        >
-                          <template #suffix>{{ $t('page.manage.setting.log.recordsUnit') }}</template>
-                        </NInputNumber>
-                      </NFormItem>
-                    </NGridItem>
-                    <NGridItem>
-                      <NFormItem :label="$t('page.manage.setting.log.bufferInterval')">
-                        <NInputNumber
-                          v-if="logConfigs.open_log_buffer_interval !== undefined"
-                          v-model:value="logConfigs.open_log_buffer_interval.numValue"
-                          :min="1"
-                          :max="3600"
-                          class="w-full"
-                          @blur="handleNumberUpdate(logConfigs.open_log_buffer_interval)"
-                        >
-                          <template #suffix>{{ $t('page.manage.setting.log.secondsUnit') }}</template>
-                        </NInputNumber>
-                      </NFormItem>
-                    </NGridItem>
-                  </NGrid>
-                  <NAlert type="info" size="small" class="mt-2">
-                    通过缓冲区合并写入，可显著降低高并发场景下对数据库的 IOPS 压力。
-                  </NAlert>
+                  <NFormItem :label="$t('page.manage.setting.log.retentionDays')">
+                    <NInputNumber
+                      v-if="logConfigs.open_log_retention !== undefined"
+                      v-model:value="logConfigs.open_log_retention.numValue"
+                      :min="0"
+                      :max="3650"
+                      class="w-full"
+                      @blur="handleNumberUpdate(logConfigs.open_log_retention)"
+                    >
+                      <template #suffix>{{ $t('page.manage.setting.log.daysUnit') }}</template>
+                    </NInputNumber>
+                  </NFormItem>
                 </NCard>
               </NGridItem>
             </NGrid>
+
+            <!-- LogBus Configuration -->
+            <NCard :title="$t('page.manage.setting.logbus.title')" size="small" class="mt-6">
+              <template #header-extra>
+                <NAlert type="info" :show-icon="false" size="small" class="max-w-500px">
+                  {{ $t('page.manage.setting.logbus.description') }}
+                </NAlert>
+              </template>
+              <NSpin :show="loading">
+                <NGrid :x-gap="24" :y-gap="16" cols="1 s:2 m:4" responsive="screen">
+                  <NGridItem>
+                    <NFormItem :label="$t('page.manage.setting.logbus.globalMaxEntries')" label-placement="top">
+                      <NInputNumber
+                        v-if="logbusConfigs.global_max_entries !== undefined"
+                        v-model:value="logbusConfigs.global_max_entries.numValue"
+                        :min="100"
+                        :max="100000"
+                        class="w-full"
+                        @blur="handleNumberUpdate(logbusConfigs.global_max_entries)"
+                      >
+                        <template #suffix>{{ $t('page.manage.setting.log.recordsUnit') }}</template>
+                      </NInputNumber>
+                    </NFormItem>
+                  </NGridItem>
+                  <NGridItem>
+                    <NFormItem :label="$t('page.manage.setting.logbus.globalMaxBytes')" label-placement="top">
+                      <NInputNumber
+                        v-if="logbusConfigs.global_max_bytes_mb !== undefined"
+                        v-model:value="logbusConfigs.global_max_bytes_mb.numValue"
+                        :min="1"
+                        :max="1024"
+                        class="w-full"
+                        @blur="handleNumberUpdate(logbusConfigs.global_max_bytes_mb)"
+                      >
+                        <template #suffix>MB</template>
+                      </NInputNumber>
+                    </NFormItem>
+                  </NGridItem>
+                  <NGridItem>
+                    <NFormItem :label="$t('page.manage.setting.logbus.defaultBatchSize')" label-placement="top">
+                      <NInputNumber
+                        v-if="logbusConfigs.default_batch_size !== undefined"
+                        v-model:value="logbusConfigs.default_batch_size.numValue"
+                        :min="10"
+                        :max="10000"
+                        class="w-full"
+                        @blur="handleNumberUpdate(logbusConfigs.default_batch_size)"
+                      >
+                        <template #suffix>{{ $t('page.manage.setting.log.recordsUnit') }}</template>
+                      </NInputNumber>
+                    </NFormItem>
+                  </NGridItem>
+                  <NGridItem>
+                    <NFormItem :label="$t('page.manage.setting.logbus.defaultTimeThreshold')" label-placement="top">
+                      <NInputNumber
+                        v-if="logbusConfigs.default_time_threshold !== undefined"
+                        v-model:value="logbusConfigs.default_time_threshold.numValue"
+                        :min="1"
+                        :max="3600"
+                        class="w-full"
+                        @blur="handleNumberUpdate(logbusConfigs.default_time_threshold)"
+                      >
+                        <template #suffix>{{ $t('page.manage.setting.log.secondsUnit') }}</template>
+                      </NInputNumber>
+                    </NFormItem>
+                  </NGridItem>
+                  <NGridItem>
+                    <NFormItem :label="$t('page.manage.setting.logbus.forceSync')" label-placement="left">
+                      <NSwitch
+                        v-if="logbusConfigs.force_sync !== undefined"
+                        v-model:value="logbusConfigs.force_sync.configValue"
+                        checked-value="true"
+                        unchecked-value="false"
+                        :loading="updating === logbusConfigs.force_sync?.configKey"
+                        @update:value="handleUpdate(logbusConfigs.force_sync)"
+                      />
+                    </NFormItem>
+                  </NGridItem>
+                </NGrid>
+
+                <NDivider title-placement="left" class="mt-2">
+                  <span class="text-13px text-gray-500 font-bold tracking-wider uppercase">
+                    {{ $t('page.manage.setting.logbus.bucketConfig') }}
+                  </span>
+                </NDivider>
+                <NGrid :x-gap="24" :y-gap="16" cols="1 s:2 m:4" responsive="screen">
+                  <NGridItem>
+                    <NCard size="small" :title="$t('page.manage.setting.logbus.operationBucket')" class="h-full">
+                      <NSpace vertical :size="12">
+                        <NFormItem :label="$t('page.manage.setting.logbus.batchSize')" label-placement="left">
+                          <NInputNumber
+                            v-if="logbusConfigs.operation_batch_size !== undefined"
+                            v-model:value="logbusConfigs.operation_batch_size.numValue"
+                            :min="10"
+                            :max="10000"
+                            class="w-full"
+                            @blur="handleNumberUpdate(logbusConfigs.operation_batch_size)"
+                          />
+                        </NFormItem>
+                        <NFormItem :label="$t('page.manage.setting.logbus.timeThreshold')" label-placement="left">
+                          <NInputNumber
+                            v-if="logbusConfigs.operation_time_threshold !== undefined"
+                            v-model:value="logbusConfigs.operation_time_threshold.numValue"
+                            :min="1"
+                            :max="3600"
+                            class="w-full"
+                            @blur="handleNumberUpdate(logbusConfigs.operation_time_threshold)"
+                          >
+                            <template #suffix>{{ $t('page.manage.setting.log.secondsUnit') }}</template>
+                          </NInputNumber>
+                        </NFormItem>
+                      </NSpace>
+                    </NCard>
+                  </NGridItem>
+                  <NGridItem>
+                    <NCard size="small" :title="$t('page.manage.setting.logbus.errorBucket')" class="h-full">
+                      <NSpace vertical :size="12">
+                        <NFormItem :label="$t('page.manage.setting.logbus.batchSize')" label-placement="left">
+                          <NInputNumber
+                            v-if="logbusConfigs.error_batch_size !== undefined"
+                            v-model:value="logbusConfigs.error_batch_size.numValue"
+                            :min="10"
+                            :max="10000"
+                            class="w-full"
+                            @blur="handleNumberUpdate(logbusConfigs.error_batch_size)"
+                          />
+                        </NFormItem>
+                        <NFormItem :label="$t('page.manage.setting.logbus.timeThreshold')" label-placement="left">
+                          <NInputNumber
+                            v-if="logbusConfigs.error_time_threshold !== undefined"
+                            v-model:value="logbusConfigs.error_time_threshold.numValue"
+                            :min="1"
+                            :max="3600"
+                            class="w-full"
+                            @blur="handleNumberUpdate(logbusConfigs.error_time_threshold)"
+                          >
+                            <template #suffix>{{ $t('page.manage.setting.log.secondsUnit') }}</template>
+                          </NInputNumber>
+                        </NFormItem>
+                      </NSpace>
+                    </NCard>
+                  </NGridItem>
+                  <NGridItem>
+                    <NCard size="small" :title="$t('page.manage.setting.logbus.openBucket')" class="h-full">
+                      <NSpace vertical :size="12">
+                        <NFormItem :label="$t('page.manage.setting.logbus.batchSize')" label-placement="left">
+                          <NInputNumber
+                            v-if="logbusConfigs.open_batch_size !== undefined"
+                            v-model:value="logbusConfigs.open_batch_size.numValue"
+                            :min="10"
+                            :max="10000"
+                            class="w-full"
+                            @blur="handleNumberUpdate(logbusConfigs.open_batch_size)"
+                          />
+                        </NFormItem>
+                        <NFormItem :label="$t('page.manage.setting.logbus.timeThreshold')" label-placement="left">
+                          <NInputNumber
+                            v-if="logbusConfigs.open_time_threshold !== undefined"
+                            v-model:value="logbusConfigs.open_time_threshold.numValue"
+                            :min="1"
+                            :max="3600"
+                            class="w-full"
+                            @blur="handleNumberUpdate(logbusConfigs.open_time_threshold)"
+                          >
+                            <template #suffix>{{ $t('page.manage.setting.log.secondsUnit') }}</template>
+                          </NInputNumber>
+                        </NFormItem>
+                      </NSpace>
+                    </NCard>
+                  </NGridItem>
+                  <NGridItem>
+                    <NCard size="small" :title="$t('page.manage.setting.logbus.taskBucket')" class="h-full">
+                      <NSpace vertical :size="12">
+                        <NFormItem :label="$t('page.manage.setting.logbus.batchSize')" label-placement="left">
+                          <NInputNumber
+                            v-if="logbusConfigs.task_batch_size !== undefined"
+                            v-model:value="logbusConfigs.task_batch_size.numValue"
+                            :min="10"
+                            :max="10000"
+                            class="w-full"
+                            @blur="handleNumberUpdate(logbusConfigs.task_batch_size)"
+                          />
+                        </NFormItem>
+                        <NFormItem :label="$t('page.manage.setting.logbus.timeThreshold')" label-placement="left">
+                          <NInputNumber
+                            v-if="logbusConfigs.task_time_threshold !== undefined"
+                            v-model:value="logbusConfigs.task_time_threshold.numValue"
+                            :min="1"
+                            :max="3600"
+                            class="w-full"
+                            @blur="handleNumberUpdate(logbusConfigs.task_time_threshold)"
+                          >
+                            <template #suffix>{{ $t('page.manage.setting.log.secondsUnit') }}</template>
+                          </NInputNumber>
+                        </NFormItem>
+                      </NSpace>
+                    </NCard>
+                  </NGridItem>
+                </NGrid>
+              </NSpin>
+            </NCard>
           </div>
         </NTabPane>
 
@@ -977,5 +1160,28 @@ onMounted(init);
 .flex-y-center {
   display: flex;
   align-items: center;
+}
+
+.h-full-setting {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.h-full-setting :deep(.n-tabs-pane-wrapper) {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.h-full-setting :deep(.n-tab-pane) {
+  height: auto;
+}
+
+.overflow-hidden :deep(.n-card__content) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 </style>

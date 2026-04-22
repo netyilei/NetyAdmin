@@ -245,11 +245,26 @@ const manage = {
       openLog: 'Open Platform Logs',
       enabled: 'Logging Enabled',
       retentionDays: 'Retention Days (0 for permanent)',
-      bufferSize: 'Buffer Size',
-      bufferInterval: 'Flush Interval',
       daysUnit: 'Days',
       recordsUnit: 'Records',
       secondsUnit: 'Seconds'
+    },
+    logbus: {
+      title: 'LogBus Unified Log Buffer',
+      description:
+        'LogBus buffers all system logs and writes in batches, significantly reducing database IOPS pressure. Changes take effect immediately without restart.',
+      globalMaxEntries: 'Global Buffer Limit',
+      globalMaxBytes: 'Global Memory Limit',
+      defaultBatchSize: 'Default Batch Size',
+      defaultTimeThreshold: 'Default Time Threshold',
+      bucketConfig: 'Bucket Configuration',
+      operationBucket: 'Operation Log (P1)',
+      errorBucket: 'Error Log (P0)',
+      openBucket: 'Open Platform Log (P2)',
+      taskBucket: 'Task Log (P2)',
+      batchSize: 'Batch Size',
+      timeThreshold: 'Time Threshold',
+      forceSync: 'Force Sync Write'
     },
     email: {
       description: 'Configure email service parameters. Empty fields will fall back to config.toml defaults.',

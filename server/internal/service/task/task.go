@@ -14,6 +14,8 @@ import (
 	taskRepo "NetyAdmin/internal/repository/task"
 )
 
+type TaskLogRecordFunc func(ctx context.Context, log *taskEntity.TaskLog) error
+
 type TaskService interface {
 	ListTasks(ctx context.Context) ([]map[string]interface{}, error)
 	RunTask(ctx context.Context, name string) error
@@ -25,23 +27,24 @@ type TaskService interface {
 }
 
 type taskService struct {
-	manager *task.Manager
-	logRepo taskRepo.TaskLogRepository
-	cfgRepo systemRepo.ConfigRepository
-	watcher configsync.ConfigWatcher
+	manager       *task.Manager
+	logRepo       taskRepo.TaskLogRepository
+	cfgRepo       systemRepo.ConfigRepository
+	watcher       configsync.ConfigWatcher
+	logRecordFunc TaskLogRecordFunc
 }
 
-func NewTaskService(manager *task.Manager, logRepo taskRepo.TaskLogRepository, cfgRepo systemRepo.ConfigRepository, watcher configsync.ConfigWatcher) TaskService {
+func NewTaskService(manager *task.Manager, logRepo taskRepo.TaskLogRepository, cfgRepo systemRepo.ConfigRepository, watcher configsync.ConfigWatcher, logRecordFunc TaskLogRecordFunc) TaskService {
 	s := &taskService{
-		manager: manager,
-		logRepo: logRepo,
-		cfgRepo: cfgRepo,
-		watcher: watcher,
+		manager:       manager,
+		logRepo:       logRepo,
+		cfgRepo:       cfgRepo,
+		watcher:       watcher,
+		logRecordFunc: logRecordFunc,
 	}
 
-	// 注册回调：执行完成后保存日志
 	manager.SetOnFinish(func(name string, info task.ExecutionInfo) {
-		log := &taskEntity.TaskLog{
+		logRecord := &taskEntity.TaskLog{
 			Name:      name,
 			StartTime: info.StartTime,
 			EndTime:   info.EndTime,
@@ -49,13 +52,12 @@ func NewTaskService(manager *task.Manager, logRepo taskRepo.TaskLogRepository, c
 			Status:    info.Status,
 			Message:   info.Message,
 		}
-		// 穿透配置检查：如果任务日志开关关闭，则跳过持久化
+
 		if val, exists := s.watcher.GetConfig("task_config", "log_enabled"); exists && (val == "false" || val == "0") {
 			return
 		}
 
-		// 使用 Background Context 因为这是异步回调，不应受原始请求控制
-		_ = s.logRepo.Create(context.Background(), log)
+		_ = s.logRecordFunc(context.Background(), logRecord)
 	})
 
 	return s

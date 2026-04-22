@@ -17,10 +17,6 @@ func NewErrorRepository(db *gorm.DB) *ErrorRepository {
 	return &ErrorRepository{db: db}
 }
 
-func (r *ErrorRepository) Create(ctx context.Context, log *logEntity.Error) error {
-	return r.db.WithContext(ctx).Create(log).Error
-}
-
 func (r *ErrorRepository) UpsertByHash(ctx context.Context, logRecord *logEntity.Error) error {
 	var existing logEntity.Error
 	err := r.db.WithContext(ctx).
@@ -40,6 +36,18 @@ func (r *ErrorRepository) UpsertByHash(ctx context.Context, logRecord *logEntity
 		"request_id":       logRecord.RequestID,
 		"ip":               logRecord.IP,
 	}).Error
+}
+
+func (r *ErrorRepository) BatchUpsertByHash(ctx context.Context, logs []*logEntity.Error) error {
+	if len(logs) == 0 {
+		return nil
+	}
+	for _, l := range logs {
+		if err := r.UpsertByHash(ctx, l); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *ErrorRepository) List(ctx context.Context, level string, resolved *bool, page, pageSize int) ([]logEntity.Error, int64, error) {

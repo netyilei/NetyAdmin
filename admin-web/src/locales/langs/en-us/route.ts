@@ -23,7 +23,7 @@ const route = {
   'settings_message-template': 'Msg Template',
   user: 'User',
   ops: 'Operations',
-  'ops_ip-access': 'IP Access Control',
+  'open-platform_ip-access': 'IP Access Control',
   'ops_operation-log': 'Operation Log',
   'ops_error-log': 'Error Log',
   'ops_upload-record': 'Upload Record',

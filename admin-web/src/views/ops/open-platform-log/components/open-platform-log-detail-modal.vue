@@ -1,11 +1,12 @@
 <script setup lang="ts">
+import type { Log } from '@/typings/api/v1/log';
 import { $t } from '@/locales';
 
 defineOptions({ name: 'OpenPlatformLogDetailModal' });
 
 const visible = defineModel<boolean>('visible', { default: false });
 
-const rowData = defineModel<any>('rowData', { default: null });
+const rowData = defineModel<Log.OpenLog | null>('rowData', { default: null });
 
 function formatLatency(ns: number) {
   return `${(ns / 1000000).toFixed(2)}ms`;

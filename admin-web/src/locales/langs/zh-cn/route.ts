@@ -22,7 +22,7 @@ const route = {
   'settings_message-template': '消息模板',
   user: '用户',
   ops: '运维',
-  'ops_ip-access': 'IP 访问控制',
+  'open-platform_ip-access': 'IP 访问控制',
   'ops_operation-log': '操作日志',
   'ops_error-log': '错误日志',
   'ops_open-platform-log': '调用日志',

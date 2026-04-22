@@ -25,7 +25,7 @@ func (w *responseWriter) Write(b []byte) (int, error) {
 	return w.ResponseWriter.Write(b)
 }
 
-func OperationLogger(opLogSvc logService.OperationService) gin.HandlerFunc {
+func OperationLogger(logBus logService.LogBusService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		method := c.Request.Method
 		path := c.Request.URL.Path
@@ -120,8 +120,8 @@ func OperationLogger(opLogSvc logService.OperationService) gin.HandlerFunc {
 			UserAgent: c.Request.UserAgent(),
 		}
 
-		if err := opLogSvc.Create(c.Request.Context(), log); err != nil {
-			slog.Error("创建操作日志失败", "err", err, "path", c.Request.URL.Path)
+		if err := logBus.Record(c.Request.Context(), log); err != nil {
+			slog.Error("记录操作日志失败", "err", err, "path", c.Request.URL.Path)
 		}
 	}
 }

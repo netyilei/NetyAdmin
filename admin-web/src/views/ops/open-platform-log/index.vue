@@ -2,19 +2,20 @@
 import { ref } from 'vue';
 import { NButton, NSpace, NTag } from 'naive-ui';
 import dayjs from 'dayjs';
-import { fetchOpenLogList } from '@/service/api/v1/open-log';
+import { fetchGetOpenLogList } from '@/service/api/v1/log';
 import { useAppStore } from '@/store/modules/app';
 import { useTable } from '@/hooks/common/table';
+import type { Log } from '@/typings/api/v1/log';
 import { $t } from '@/locales';
 import OpenPlatformLogDetailModal from './components/open-platform-log-detail-modal.vue';
 
 const appStore = useAppStore();
 
 const detailVisible = ref(false);
-const detailRow = ref<any>(null);
+const detailRow = ref<Log.OpenLog | null>(null);
 
 const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagination } = useTable({
-  apiFn: fetchOpenLogList,
+  apiFn: fetchGetOpenLogList,
   showTotal: true,
   apiParams: {
     current: 1,
@@ -45,7 +46,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
       title: '方法',
       align: 'center',
       width: 80,
-      render: (row: any) => {
+      render: (row: Log.OpenLog) => {
         const methodMap: Record<string, NaiveUI.ThemeColor> = {
           GET: 'success',
           POST: 'primary',
@@ -60,7 +61,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
       title: '状态码',
       align: 'center',
       width: 100,
-      render: (row: any) => {
+      render: (row: Log.OpenLog) => {
         const type = row.statusCode >= 200 && row.statusCode < 300 ? 'success' : 'error';
         return <NTag type={type}>{row.statusCode}</NTag>;
       }
@@ -70,7 +71,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
       title: '耗时',
       align: 'center',
       width: 100,
-      render: (row: any) => {
+      render: (row: Log.OpenLog) => {
         const ms = (row.latency / 1000000).toFixed(2);
         return <span>{ms}ms</span>;
       }
@@ -86,14 +87,14 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
       title: '调用时间',
       align: 'center',
       width: 170,
-      render: (row: any) => <span>{dayjs(row.createdAt).format('YYYY-MM-DD HH:mm:ss')}</span>
+      render: (row: Log.OpenLog) => <span>{dayjs(row.createdAt).format('YYYY-MM-DD HH:mm:ss')}</span>
     } as any,
     {
       key: 'operate',
       title: $t('common.operate'),
       align: 'center',
       width: 100,
-      render: (row: any) => (
+      render: (row: Log.OpenLog) => (
         <NSpace justify="center">
           <NButton type="primary" ghost size="small" onClick={() => viewDetail(row)}>
             {$t('common.detail')}
@@ -104,7 +105,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
   ]
 });
 
-function viewDetail(row: any) {
+function viewDetail(row: Log.OpenLog) {
   detailRow.value = row;
   detailVisible.value = true;
 }

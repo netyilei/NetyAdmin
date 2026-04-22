@@ -4,13 +4,11 @@ import (
 	"context"
 
 	logDto "NetyAdmin/internal/interface/admin/dto/log"
-	logEntity "NetyAdmin/internal/domain/entity/log"
 	logVO "NetyAdmin/internal/domain/vo/log"
 	logRepo "NetyAdmin/internal/repository/log"
 )
 
 type OperationService interface {
-	Create(ctx context.Context, log *logEntity.Operation) error
 	List(ctx context.Context, req *logDto.OperationQueryReq) (*logVO.OperationListVO, error)
 	Delete(ctx context.Context, id uint) error
 	DeleteBatch(ctx context.Context, ids []uint) error
@@ -22,10 +20,6 @@ type operationService struct {
 
 func NewOperationService(logRepo *logRepo.OperationRepository) OperationService {
 	return &operationService{logRepo: logRepo}
-}
-
-func (s *operationService) Create(ctx context.Context, log *logEntity.Operation) error {
-	return s.logRepo.Create(ctx, log)
 }
 
 func (s *operationService) List(ctx context.Context, req *logDto.OperationQueryReq) (*logVO.OperationListVO, error) {

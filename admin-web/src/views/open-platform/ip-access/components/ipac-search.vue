@@ -35,23 +35,23 @@ async function search() {
       <NCollapseItem :title="$t('common.search')" name="search">
         <NForm ref="formRef" :model="model" label-placement="left" :label-width="80">
           <NGrid responsive="screen" item-responsive>
-            <NFormItemGi span="24 s:12 m:6" :label="$t('page.ops.ipac.ipAddr')" path="ipAddr" class="pr-24px">
-              <NInput v-model:value="model.ipAddr" :placeholder="$t('page.ops.ipac.form.ipAddrPlaceholder')" />
+            <NFormItemGi span="24 s:12 m:6" :label="$t('page.openPlatform.ipac.ipAddr')" path="ipAddr" class="pr-24px">
+              <NInput v-model:value="model.ipAddr" :placeholder="$t('page.openPlatform.ipac.form.ipAddrPlaceholder')" />
             </NFormItemGi>
-            <NFormItemGi span="24 s:12 m:6" :label="$t('page.ops.ipac.type')" path="type" class="pr-24px">
+            <NFormItemGi span="24 s:12 m:6" :label="$t('page.openPlatform.ipac.type')" path="type" class="pr-24px">
               <AppDictSelect
                 v-model:value="model.type"
                 dict-code="sys_ip_action_type"
-                :placeholder="$t('page.ops.ipac.form.typePlaceholder')"
+                :placeholder="$t('page.openPlatform.ipac.form.typePlaceholder')"
                 clearable
               />
             </NFormItemGi>
-            <NFormItemGi span="24 s:12 m:6" :label="$t('page.ops.ipac.status')" path="status" class="pr-24px">
+            <NFormItemGi span="24 s:12 m:6" :label="$t('page.openPlatform.ipac.status')" path="status" class="pr-24px">
               <AppDictSelect
                 v-model:value="model.status"
                 dict-code="sys_status"
                 value-type="number"
-                :placeholder="$t('page.ops.ipac.form.statusPlaceholder')"
+                :placeholder="$t('page.openPlatform.ipac.form.statusPlaceholder')"
                 clearable
               />
             </NFormItemGi>

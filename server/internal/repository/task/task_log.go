@@ -10,6 +10,7 @@ import (
 
 type TaskLogRepository interface {
 	Create(ctx context.Context, log *taskEntity.TaskLog) error
+	BatchCreate(ctx context.Context, logs []*taskEntity.TaskLog) error
 	List(ctx context.Context, name string, page, size int) ([]*taskEntity.TaskLog, int64, error)
 	GetLatest(ctx context.Context, name string) (*taskEntity.TaskLog, error)
 	DeleteBefore(ctx context.Context, before time.Time) error
@@ -25,6 +26,13 @@ func NewTaskLogRepository(db *gorm.DB) TaskLogRepository {
 
 func (r *taskLogRepository) Create(ctx context.Context, log *taskEntity.TaskLog) error {
 	return r.db.WithContext(ctx).Create(log).Error
+}
+
+func (r *taskLogRepository) BatchCreate(ctx context.Context, logs []*taskEntity.TaskLog) error {
+	if len(logs) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).Create(&logs).Error
 }
 
 func (r *taskLogRepository) List(ctx context.Context, name string, page, size int) ([]*taskEntity.TaskLog, int64, error) {

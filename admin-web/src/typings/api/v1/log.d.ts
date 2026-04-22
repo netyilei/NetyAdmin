@@ -50,4 +50,52 @@ export namespace Log {
   };
 
   type ErrorLogList = import('@/typings/api/v1/common').Common.PaginatingQueryRecord<ErrorLog>;
+
+  type OpenLog = {
+    id: number;
+    appId: string;
+    appKey: string;
+    apiPath: string;
+    apiMethod: string;
+    statusCode: number;
+    latency: number;
+    clientIp: string;
+    requestHeader: string;
+    requestBody: string;
+    responseBody: string;
+    errorMsg: string;
+    createdAt: string;
+  };
+
+  type OpenLogSearchParams = CommonSearchParams & {
+    appId?: string;
+    appKey?: string;
+    apiPath?: string;
+    statusCode?: number;
+    startTime?: string;
+    endTime?: string;
+  };
+
+  type OpenLogList = import('@/typings/api/v1/common').Common.PaginatingQueryRecord<OpenLog>;
+
+  type TaskLog = {
+    id: number;
+    name: string;
+    startTime: string;
+    endTime: string;
+    duration: number;
+    status: 'success' | 'error';
+    message: string;
+  };
+
+  type TaskLogSearchParams = {
+    name: string;
+    page: number;
+    size: number;
+  };
+
+  type TaskLogList = {
+    list: TaskLog[];
+    total: number;
+  };
 }

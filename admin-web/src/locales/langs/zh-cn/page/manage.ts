@@ -243,11 +243,25 @@ const manage = {
       openLog: '开放平台调用日志',
       enabled: '记录开关',
       retentionDays: '保留天数(0为永久)',
-      bufferSize: '缓冲区大小',
-      bufferInterval: '冲刷间隔',
       daysUnit: '天',
       recordsUnit: '条',
       secondsUnit: '秒'
+    },
+    logbus: {
+      title: 'LogBus 统一日志缓冲',
+      description: 'LogBus 将全系统日志统一缓冲后批量写入，显著降低数据库 IOPS 压力。修改后实时生效，无需重启服务。',
+      globalMaxEntries: '全局缓冲上限',
+      globalMaxBytes: '全局内存上限',
+      defaultBatchSize: '默认批量大小',
+      defaultTimeThreshold: '默认时间阈值',
+      bucketConfig: '分桶配置',
+      operationBucket: '操作日志 (P1)',
+      errorBucket: '错误日志 (P0)',
+      openBucket: '开放平台日志 (P2)',
+      taskBucket: '任务日志 (P2)',
+      batchSize: '批量大小',
+      timeThreshold: '时间阈值',
+      forceSync: '强制同步写入'
     },
     email: {
       description: '配置邮件服务参数。留空的字段将使用 config.toml 中的默认值作为兜底。',

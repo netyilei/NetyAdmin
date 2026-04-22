@@ -53,3 +53,19 @@ export function fetchBatchDeleteErrorLog(ids: number[]) {
     data: { ids }
   });
 }
+
+export function fetchGetOpenLogList(params?: Log.OpenLogSearchParams) {
+  return request<Log.OpenLogList>({
+    url: '/admin/v1/ops/open-platform-log',
+    method: 'get',
+    params
+  });
+}
+
+export function fetchGetTaskLogs(params: Log.TaskLogSearchParams) {
+  return request<Log.TaskLogList>({
+    url: '/admin/v1/system/tasks/logs',
+    method: 'get',
+    params
+  });
+}

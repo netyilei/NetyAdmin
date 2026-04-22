@@ -4,7 +4,7 @@ import { request } from '../../request';
 /** 获取 IP 规则列表 */
 export function fetchIPACList(params: SystemIPAC.IPACQueryParams) {
   return request<SystemIPAC.IPACPageResult>({
-    url: '/admin/v1/ops/ip-access',
+    url: '/admin/v1/open-platform/ip-access',
     method: 'get',
     params
   });
@@ -13,7 +13,7 @@ export function fetchIPACList(params: SystemIPAC.IPACQueryParams) {
 /** 新增 IP 规则 */
 export function addIPAC(data: SystemIPAC.CreateIPACReq) {
   return request({
-    url: '/admin/v1/ops/ip-access',
+    url: '/admin/v1/open-platform/ip-access',
     method: 'post',
     data
   });
@@ -22,7 +22,7 @@ export function addIPAC(data: SystemIPAC.CreateIPACReq) {
 /** 修改 IP 规则 */
 export function updateIPAC(data: SystemIPAC.UpdateIPACReq) {
   return request({
-    url: '/admin/v1/ops/ip-access',
+    url: '/admin/v1/open-platform/ip-access',
     method: 'put',
     data
   });
@@ -31,7 +31,7 @@ export function updateIPAC(data: SystemIPAC.UpdateIPACReq) {
 /** 删除单个 IP 规则 */
 export function deleteIPAC(id: number) {
   return request({
-    url: `/admin/v1/ops/ip-access/${id}`,
+    url: `/admin/v1/open-platform/ip-access/${id}`,
     method: 'delete'
   });
 }
@@ -39,7 +39,7 @@ export function deleteIPAC(id: number) {
 /** 批量删除 IP 规则 */
 export function batchDeleteIPAC(ids: number[]) {
   return request({
-    url: '/admin/v1/ops/ip-access/batch',
+    url: '/admin/v1/open-platform/ip-access/batch',
     method: 'delete',
     data: { ids }
   });

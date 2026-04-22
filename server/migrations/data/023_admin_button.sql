@@ -26,6 +26,8 @@ DECLARE
     msg_email_menu_id BIGINT;
     msg_internal_menu_id BIGINT;
     msg_log_menu_id BIGINT;
+    op_log_menu_id BIGINT;
+    err_log_menu_id BIGINT;
 BEGIN
     SELECT id INTO admin_menu_id FROM admin_menu WHERE route_name = 'manage_admin' AND deleted_at = 0;
     SELECT id INTO user_menu_id FROM admin_menu WHERE route_name = 'manage_user' AND deleted_at = 0;
@@ -34,7 +36,7 @@ BEGIN
     SELECT id INTO button_menu_id FROM admin_menu WHERE route_name = 'manage_button' AND deleted_at = 0;
     SELECT id INTO api_menu_id FROM admin_menu WHERE route_name = 'manage_api' AND deleted_at = 0;
     SELECT id INTO dict_menu_id FROM admin_menu WHERE route_name = 'manage_dict' AND deleted_at = 0;
-    SELECT id INTO ipac_menu_id FROM admin_menu WHERE route_name = 'ops_ip-access' AND deleted_at = 0;
+    SELECT id INTO ipac_menu_id FROM admin_menu WHERE route_name = 'open-platform_ip-access' AND deleted_at = 0;
     SELECT id INTO category_menu_id FROM admin_menu WHERE route_name = 'content_category' AND deleted_at = 0;
     SELECT id INTO article_menu_id FROM admin_menu WHERE route_name = 'content_article' AND deleted_at = 0;
     SELECT id INTO banner_group_menu_id FROM admin_menu WHERE route_name = 'content_banner-group' AND deleted_at = 0;
@@ -50,6 +52,8 @@ BEGIN
     SELECT id INTO msg_email_menu_id FROM admin_menu WHERE route_name = 'message_send-email' AND deleted_at = 0;
     SELECT id INTO msg_internal_menu_id FROM admin_menu WHERE route_name = 'message_send-internal' AND deleted_at = 0;
     SELECT id INTO msg_log_menu_id FROM admin_menu WHERE route_name = 'ops_message-log' AND deleted_at = 0;
+    SELECT id INTO op_log_menu_id FROM admin_menu WHERE route_name = 'ops_operation-log' AND deleted_at = 0;
+    SELECT id INTO err_log_menu_id FROM admin_menu WHERE route_name = 'ops_error-log' AND deleted_at = 0;
 
     -- 管理员管理按钮
     IF admin_menu_id IS NOT NULL THEN
@@ -284,6 +288,25 @@ BEGIN
         (msg_log_menu_id, 'message:record:retry', '重发', NOW(), NOW()),
         (msg_log_menu_id, 'message:record:delete', '删除', NOW(), NOW())
         ON CONFLICT (code) WHERE deleted_at = 0 DO UPDATE SET label = EXCLUDED.label;
+    END IF;
+
+    IF op_log_menu_id IS NOT NULL THEN
+        INSERT INTO admin_button (menu_id, code, label, created_at, updated_at)
+        VALUES
+        (op_log_menu_id, 'ops:operation-log:query', '查询', NOW(), NOW()),
+        (op_log_menu_id, 'ops:operation-log:delete', '删除', NOW(), NOW()),
+        (op_log_menu_id, 'ops:operation-log:batch-delete', '批量删除', NOW(), NOW())
+        ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
+    END IF;
+
+    IF err_log_menu_id IS NOT NULL THEN
+        INSERT INTO admin_button (menu_id, code, label, created_at, updated_at)
+        VALUES
+        (err_log_menu_id, 'ops:error-log:query', '查询', NOW(), NOW()),
+        (err_log_menu_id, 'ops:error-log:resolve', '解决', NOW(), NOW()),
+        (err_log_menu_id, 'ops:error-log:delete', '删除', NOW(), NOW()),
+        (err_log_menu_id, 'ops:error-log:batch-delete', '批量删除', NOW(), NOW())
+        ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
 END $$;

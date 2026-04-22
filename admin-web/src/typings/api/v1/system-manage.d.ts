@@ -241,28 +241,4 @@ export namespace SystemManage {
     lastMessage: string;
     executionCount: number;
   }
-
-  /** Task Execution Log */
-  interface TaskLog {
-    id: number;
-    name: string;
-    startTime: string;
-    endTime: string;
-    duration: number;
-    status: 'success' | 'error';
-    message: string;
-  }
-
-  /** Task Execution Log List */
-  type TaskLogList = {
-    list: TaskLog[];
-    total: number;
-  };
-
-  /** Task Log Search Params */
-  type TaskLogSearchParams = {
-    name: string;
-    page: number;
-    size: number;
-  };
 }

@@ -98,36 +98,36 @@ watch(visible, () => {
 <template>
   <NModal v-model:show="visible" :title="title" preset="card" class="w-600px">
     <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="100">
-      <NFormItem :label="$t('page.ops.ipac.ipAddr')" path="ipAddr">
-        <NInput v-model:value="model.ipAddr" :placeholder="$t('page.ops.ipac.form.ipAddrPlaceholder')" />
+      <NFormItem :label="$t('page.openPlatform.ipac.ipAddr')" path="ipAddr">
+        <NInput v-model:value="model.ipAddr" :placeholder="$t('page.openPlatform.ipac.form.ipAddrPlaceholder')" />
       </NFormItem>
-      <NFormItem :label="$t('page.ops.ipac.type')" path="type">
+      <NFormItem :label="$t('page.openPlatform.ipac.type')" path="type">
         <AppDictSelect
           v-model:value="model.type"
           dict-code="sys_ip_action_type"
-          :placeholder="$t('page.ops.ipac.form.typePlaceholder')"
+          :placeholder="$t('page.openPlatform.ipac.form.typePlaceholder')"
         />
       </NFormItem>
-      <NFormItem :label="$t('page.ops.ipac.status')" path="status">
+      <NFormItem :label="$t('page.openPlatform.ipac.status')" path="status">
         <AppDictSelect
           v-model:value="model.status"
           dict-code="sys_status"
-          :placeholder="$t('page.ops.ipac.form.statusPlaceholder')"
+          :placeholder="$t('page.openPlatform.ipac.form.statusPlaceholder')"
         />
       </NFormItem>
-      <NFormItem :label="$t('page.ops.ipac.reason')" path="reason">
+      <NFormItem :label="$t('page.openPlatform.ipac.reason')" path="reason">
         <NInput
           v-model:value="model.reason"
           type="textarea"
-          :placeholder="$t('page.ops.ipac.form.reasonPlaceholder')"
+          :placeholder="$t('page.openPlatform.ipac.form.reasonPlaceholder')"
         />
       </NFormItem>
-      <NFormItem :label="$t('page.ops.ipac.expiredAt')" path="expiredAt">
+      <NFormItem :label="$t('page.openPlatform.ipac.expiredAt')" path="expiredAt">
         <NDatePicker
           v-model:formatted-value="model.expiredAt"
           type="datetime"
           value-format="yyyy-MM-dd HH:mm:ss"
-          :placeholder="$t('page.ops.ipac.form.expiredAtPlaceholder')"
+          :placeholder="$t('page.openPlatform.ipac.form.expiredAtPlaceholder')"
           clearable
           class="w-full"
         />

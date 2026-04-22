@@ -30,6 +30,14 @@ func (Error) TableName() string {
 	return "admin_error_log"
 }
 
+func (e *Error) GetLogType() LogType {
+	return LogTypeError
+}
+
+func (e *Error) GetCreatedAt() time.Time {
+	return e.CreatedAt
+}
+
 const (
 	LogLevelPanic = "PANIC"
 	LogLevelError = "ERROR"

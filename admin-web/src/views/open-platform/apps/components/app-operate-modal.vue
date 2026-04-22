@@ -54,7 +54,7 @@ async function loadIPRules() {
   const { data } = await fetchIPACList({ current: 1, size: 500 });
   if (data) {
     ipRuleOptions.value = data.records.map(item => ({
-      label: `${item.ipAddr} (${item.type === 1 ? $t('page.ops.ipac.typeAllow') : $t('page.ops.ipac.typeDeny')})`,
+      label: `${item.ipAddr} (${item.type === 1 ? $t('page.openPlatform.ipac.typeAllow') : $t('page.openPlatform.ipac.typeDeny')})`,
       value: item.id
     }));
   }

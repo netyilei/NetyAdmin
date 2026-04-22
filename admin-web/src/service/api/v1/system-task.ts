@@ -1,7 +1,6 @@
 import type { SystemManage } from '@/typings/api/v1/system-manage';
 import { request } from '../../request';
 
-/** get task list */
 export function fetchGetTaskList() {
   return request<SystemManage.TaskInfo[]>({
     url: '/admin/v1/system/tasks',
@@ -9,7 +8,6 @@ export function fetchGetTaskList() {
   });
 }
 
-/** run task manually */
 export function fetchRunTask(name: string) {
   return request({
     url: `/admin/v1/system/tasks/${name}/run`,
@@ -17,7 +15,6 @@ export function fetchRunTask(name: string) {
   });
 }
 
-/** start task */
 export function fetchStartTask(name: string) {
   return request({
     url: `/admin/v1/system/tasks/${name}/start`,
@@ -25,7 +22,6 @@ export function fetchStartTask(name: string) {
   });
 }
 
-/** stop task */
 export function fetchStopTask(name: string) {
   return request({
     url: `/admin/v1/system/tasks/${name}/stop`,
@@ -33,7 +29,6 @@ export function fetchStopTask(name: string) {
   });
 }
 
-/** reload task */
 export function fetchReloadTask(name: string) {
   return request({
     url: `/admin/v1/system/tasks/${name}/reload`,
@@ -41,20 +36,10 @@ export function fetchReloadTask(name: string) {
   });
 }
 
-/** update task config */
 export function fetchUpdateTask(data: { name: string; enabled: boolean; spec: string }) {
   return request({
     url: '/admin/v1/system/tasks/update',
     method: 'put',
     data
-  });
-}
-
-/** get task logs */
-export function fetchGetTaskLogs(params: SystemManage.TaskLogSearchParams) {
-  return request<SystemManage.TaskLogList>({
-    url: '/admin/v1/system/tasks/logs',
-    method: 'get',
-    params
   });
 }

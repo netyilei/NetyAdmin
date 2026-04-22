@@ -30,6 +30,7 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 
 - **Transparent Caching**: Redis + BigCache dual engines, supporting dynamic switches and batch invalidation
 - **Unified Event Bus**: PubSubBus consolidates Redis Pub/Sub, driver-based design supports standalone/cluster switching
+- **Unified Log Buffer**: LogBus asynchronously aggregates all system logs, tiered backpressure (P0/P1/P2), dual-trigger batch writing
 - **Hot Config Sync**: Real-time configuration synchronization across the network via PubSubBus
 - **Task Scheduling**: Built-in task engine, supporting scheduled tasks, backend management, and log persistence
 - **Database Migration**: Automatically executes SQL migration scripts during startup
@@ -46,7 +47,7 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 | **IP Access Control** | Global/App-level IP governance, CIDR matching, high-performance memory filtering |
 | **Content Management** | Categories, Articles, Banner, supporting rich text and scheduled publishing |
 | **Storage Management** | Multi-storage source configuration, upload credentials, upload records |
-| **Log Audit** | Operation logs, error logs, supporting sensitive field desensitization |
+| **Log Audit** | Operation logs, error logs, open platform logs, task logs, LogBus unified buffer, sensitive field desensitization |
 | **System Config** | Dynamic dictionaries, system parameters, task scheduling |
 | **Unified Event Bus** | PubSubBus, driver-based design, Topic registry, distributed cache sync |
 | **Captcha** | Graphic captcha, supporting multiple types and storage schemes |
@@ -81,7 +82,7 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 | [Dictionary Module Details](docs/server-module-dict.md) | Dynamic dictionaries, caching strategies, usage examples |
 | [Content Management Module Details](docs/server-module-content.md) | Articles, categories, Banner, scheduled publishing |
 | [Storage Module Details](docs/server-module-storage.md) | Object storage, upload credentials, driver extension |
-| [Log Module Details](docs/server-module-log.md) | Operation logs, error logs, sensitive desensitization |
+| [Log Module Details](docs/server-module-log.md) | Operation logs, error logs, LogBus unified buffer, sensitive desensitization |
 | [Data Migration Details](docs/server-module-migration.md) | Migration scripts, version control, idempotent execution |
 
 ### Development Standard Documents

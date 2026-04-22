@@ -1,8 +1,11 @@
 package open_platform
 
-import "time"
+import (
+	"time"
 
-// OpenPlatformLog 开放平台调用日志实体
+	logEntity "NetyAdmin/internal/domain/entity/log"
+)
+
 type OpenPlatformLog struct {
 	ID            uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
 	AppID         string    `gorm:"size:26;not null;index" json:"appId"`
@@ -11,7 +14,7 @@ type OpenPlatformLog struct {
 	ApiMethod     string    `gorm:"size:20;not null" json:"apiMethod"`
 	ClientIP      string    `gorm:"size:50;not null" json:"clientIp"`
 	StatusCode    int       `gorm:"not null" json:"statusCode"`
-	Latency       int64     `gorm:"not null" json:"latency"` // 纳秒
+	Latency       int64     `gorm:"not null" json:"latency"`
 	RequestHeader string    `gorm:"type:text" json:"requestHeader"`
 	RequestBody   string    `gorm:"type:text" json:"requestBody"`
 	ResponseBody  string    `gorm:"type:text" json:"responseBody"`
@@ -21,4 +24,12 @@ type OpenPlatformLog struct {
 
 func (OpenPlatformLog) TableName() string {
 	return "sys_open_platform_logs"
+}
+
+func (l *OpenPlatformLog) GetLogType() logEntity.LogType {
+	return logEntity.LogTypeOpen
+}
+
+func (l *OpenPlatformLog) GetCreatedAt() time.Time {
+	return l.CreatedAt
 }

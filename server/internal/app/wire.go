@@ -42,6 +42,9 @@ import (
 	storagePkg "NetyAdmin/internal/pkg/storage"
 	"NetyAdmin/internal/pkg/task"
 
+	logEntity "NetyAdmin/internal/domain/entity/log"
+	openEntity "NetyAdmin/internal/domain/entity/open_platform"
+	taskEntity "NetyAdmin/internal/domain/entity/task"
 	"NetyAdmin/internal/interface/admin/http/router"
 	clientRouter "NetyAdmin/internal/interface/client/http/router"
 	"NetyAdmin/internal/job"
@@ -224,7 +227,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	engine.Use(middleware.ErrorLogger(services.errorLog))
 	engine.Use(middleware.Timeout(120 * time.Second))
 	engine.Use(middleware.Logger())
-	engine.Use(middleware.OperationLogger(services.operationLog))
+	engine.Use(middleware.OperationLogger(services.logBus))
 
 	// 临时关闭标准输出以屏蔽路由注册时的 [GIN-debug] 日志
 	gin.DefaultWriter = io.Discard
@@ -232,7 +235,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	cRouter.Register(engine)
 	gin.DefaultWriter = os.Stdout
 
-	return NewApp(cfg, db, engine, dbHealthChecker, taskManager, services.openLog, eventBus), nil
+	return NewApp(cfg, db, engine, dbHealthChecker, taskManager, services.logBus, eventBus), nil
 }
 
 type repositorySet struct {
@@ -313,6 +316,7 @@ type serviceSet struct {
 	contentBannerGroup contentService.BannerGroupService
 	contentBannerItem  contentService.BannerItemService
 	emailDriver        msgPkg.Driver
+	logBus             logService.LogBusService
 }
 
 func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache.LazyCacheManager, taskManager *task.Manager, configWatcher configsync.ConfigWatcher, cfg *config.Config, captchaStore base64Captcha.Store, eventBus pubsub.EventBus) *serviceSet {
@@ -324,13 +328,17 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	s.menu = systemService.NewMenuService(repos.menu, repos.button, lazyCacheMgr)
 	s.api = systemService.NewAPIService(repos.api, lazyCacheMgr)
 	s.button = systemService.NewButtonService(repos.button, lazyCacheMgr)
-	s.task = taskServicePkg.NewTaskService(taskManager, repos.taskLog, repos.systemConfig, configWatcher)
+	s.task = taskServicePkg.NewTaskService(taskManager, repos.taskLog, repos.systemConfig, configWatcher, func(ctx context.Context, logRecord *taskEntity.TaskLog) error {
+		return s.logBus.Record(ctx, logRecord)
+	})
 	s.sysConfig = systemService.NewConfigService(repos.systemConfig, configWatcher, eventBus)
 	s.dict = dictServicePkg.NewDictService(repos.dict, lazyCacheMgr)
 	s.ipac = ipacServicePkg.NewIPACService(repos.ipac, eventBus)
 	s.app = openServicePkg.NewAppService(repos.app, lazyCacheMgr, cfg.Security.AESKey, s.ipac, repos.ipac)
 	s.openApi = openServicePkg.NewOpenApiService(repos.openApi, repos.app, repos.app, lazyCacheMgr)
-	s.openLog = openServicePkg.NewOpenLogService(repos.openLog, configWatcher)
+	s.openLog = openServicePkg.NewOpenLogService(repos.openLog, func(ctx context.Context, logRecord *openEntity.OpenPlatformLog) error {
+		return s.logBus.Record(ctx, logRecord)
+	})
 
 	// Message Drivers
 	configProvider := msgPkg.NewDbConfigProvider(repos.systemConfig)
@@ -357,8 +365,24 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 
 	middleware.InitJWT(jwtInstance, repos.user)
 
+	writers := map[logEntity.LogType]logService.LogBatchWriter{
+		logEntity.LogTypeOperation: logService.NewOperationLogWriter(repos.operationLog),
+		logEntity.LogTypeError:     logService.NewErrorLogWriter(repos.errorLog),
+		logEntity.LogTypeOpen:      logService.NewOpenLogWriter(repos.openLog),
+		logEntity.LogTypeTask:      logService.NewTaskLogWriter(repos.taskLog),
+	}
+
+	configs := map[logEntity.LogType]logService.BucketConfig{
+		logEntity.LogTypeOperation: {Priority: logEntity.PriorityP1},
+		logEntity.LogTypeError:     {Priority: logEntity.PriorityP0},
+		logEntity.LogTypeOpen:      {Priority: logEntity.PriorityP2},
+		logEntity.LogTypeTask:      {Priority: logEntity.PriorityP2},
+	}
+
+	s.logBus = logService.NewLogBusService(writers, configs, configWatcher)
+
 	s.operationLog = logService.NewOperationService(repos.operationLog)
-	s.errorLog = logService.NewErrorService(repos.errorLog, configWatcher, lazyCacheMgr)
+	s.errorLog = logService.NewErrorService(repos.errorLog, configWatcher, lazyCacheMgr, s.logBus)
 	s.storageConfig = storageService.NewConfigService(repos.storageConfig, repos.uploadRecord, storageMgr, lazyCacheMgr, eventBus)
 	s.uploadRecord = storageService.NewRecordService(repos.uploadRecord, repos.storageConfig, storageMgr)
 	s.contentCategory = contentService.NewCategoryService(repos.contentCategory, s.storageConfig, lazyCacheMgr, configWatcher)

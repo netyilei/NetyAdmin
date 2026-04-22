@@ -17,7 +17,7 @@ import (
 	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/pubsub"
 	"NetyAdmin/internal/pkg/task"
-	openService "NetyAdmin/internal/service/open_platform"
+	logService "NetyAdmin/internal/service/log"
 )
 
 type App struct {
@@ -26,18 +26,18 @@ type App struct {
 	engine          *gin.Engine
 	dbHealthChecker *database.HealthChecker
 	taskManager     *task.Manager
-	openLog         openService.OpenLogService
+	logBus          logService.LogBusService
 	eventBus        pubsub.EventBus
 }
 
-func NewApp(cfg *config.Config, db *gorm.DB, engine *gin.Engine, dbHealthChecker *database.HealthChecker, taskManager *task.Manager, openLog openService.OpenLogService, eventBus pubsub.EventBus) *App {
+func NewApp(cfg *config.Config, db *gorm.DB, engine *gin.Engine, dbHealthChecker *database.HealthChecker, taskManager *task.Manager, logBus logService.LogBusService, eventBus pubsub.EventBus) *App {
 	return &App{
 		cfg:             cfg,
 		db:              db,
 		engine:          engine,
 		dbHealthChecker: dbHealthChecker,
 		taskManager:     taskManager,
-		openLog:         openLog,
+		logBus:          logBus,
 		eventBus:        eventBus,
 	}
 }
@@ -88,9 +88,9 @@ func (a *App) Run() error {
 		a.taskManager.Stop()
 	}
 
-	// Stop open log service (Flush buffer)
-	if a.openLog != nil {
-		a.openLog.Stop()
+	// Stop LogBus (flush all buckets)
+	if a.logBus != nil {
+		a.logBus.Stop()
 	}
 
 	// Stop PubSubBus (close Redis subscription goroutine)

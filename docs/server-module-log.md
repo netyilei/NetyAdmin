@@ -6,12 +6,16 @@
 
 ## 一、模块概述
 
-日志模块提供操作日志和错误日志的完整管理能力，支持自动记录、查询、清理，以及敏感信息脱敏。
+日志模块提供操作日志、错误日志、开放平台日志和任务日志的完整管理能力，支持自动记录、查询、清理、敏感信息脱敏，以及通过 LogBus 统一异步缓冲写入。
 
 ### 1.1 核心特性
 
+- **统一日志缓冲 (LogBus)**：全系统日志通过 LogBus 异步聚合，按类型分桶、双触发批量写入，显著降低数据库 IOPS 压力
+- **分级背压**：P0（错误日志，绝不丢失）→ P1（操作日志，同步回退）→ P2（开放平台/任务日志，可丢弃最旧）
 - **操作日志**：自动记录所有管理操作
-- **错误日志**：捕获并记录系统异常
+- **错误日志**：捕获并记录系统异常，支持指纹压制去重
+- **开放平台日志**：记录开放 API 调用流水
+- **任务日志**：记录任务执行结果
 - **敏感脱敏**：自动脱敏密码、Token等敏感字段
 - **批量清理**：支持按保留策略自动清理
 - **状态追踪**：错误日志支持标记解决状态
@@ -23,23 +27,28 @@
 ```
 server/internal/domain/entity/log/
 ├── operation.go        # 操作日志实体
-└── error.go            # 错误日志实体
+├── error.go            # 错误日志实体
+└── types.go            # LogEntry 接口、LogType 枚举、LogPriority 枚举
 
 server/internal/repository/log/
 ├── operation.go        # 操作日志仓储
 └── error.go            # 错误日志仓储
 
 server/internal/service/log/
-├── operation.go        # 操作日志服务
-└── error.go            # 错误日志服务
+├── operation.go        # 操作日志服务（实现 LogBatchWriter）
+├── error.go            # 错误日志服务（保留指纹压制，实现 LogBatchWriter）
+└── logbus.go           # LogBus 统一日志缓冲核心
 
 server/internal/middleware/
-├── operation_log.go    # 操作日志中间件
+├── operation_log.go    # 操作日志中间件（通过 LogBus 异步写入）
 └── recovery.go         # 异常恢复中间件
 
 server/internal/interface/admin/http/handler/v1/
 ├── operation_log/      # 操作日志Handler
 └── error_log/          # 错误日志Handler
+
+server/internal/interface/admin/http/router/v1/
+└── log.go              # 日志路由（操作日志 + 错误日志）
 ```
 
 ---
@@ -92,12 +101,41 @@ type ErrorLog struct {
 
 ## 四、自动记录机制
 
-### 4.1 操作日志中间件
+### 4.1 LogBus 统一日志缓冲
+
+所有日志写入均通过 LogBus 异步聚合，按类型分桶缓冲后批量写入数据库。
+
+```go
+// service/log/logbus.go
+
+type LogBusService interface {
+    Record(ctx context.Context, entry logEntity.LogEntry) error
+    RecordSync(ctx context.Context, entry logEntity.LogEntry) error
+    Stop()
+}
+```
+
+**分级背压策略**：
+
+| 优先级 | 日志类型 | 缓冲满载策略 |
+|--------|---------|------------|
+| P0 (Critical) | 错误日志 | 同步写库，绝不丢失 |
+| P1 (Audit) | 操作日志 | 阻塞等待 50ms，仍满则同步写库 |
+| P2 (Flow) | 开放平台日志、任务日志 | 丢弃最旧条目 |
+
+**接入方式**：
+
+- 操作日志：中间件中调用 `logBus.Record()`
+- 错误日志：保留指纹压制逻辑，通过压制后调用 LogBus 回调
+- 开放平台日志：通过回调函数接入 LogBus，移除内部 processLogs
+- 任务日志：SetOnFinish 回调中通过回调函数接入 LogBus
+
+### 4.2 操作日志中间件
 
 ```go
 // internal/middleware/operation_log.go
 
-func OperationLogMiddleware(logService log.OperationLogService) gin.HandlerFunc {
+func OperationLogMiddleware(logBus log.LogBusService) gin.HandlerFunc {
     return func(c *gin.Context) {
         start := time.Now()
         
@@ -114,10 +152,10 @@ func OperationLogMiddleware(logService log.OperationLogService) gin.HandlerFunc 
         
         c.Next()
         
-        // 记录日志
+        // 通过 LogBus 异步记录日志
         duration := time.Since(start).Milliseconds()
         
-        log := &entity.OperationLog{
+        opLog := &entity.OperationLog{
             AdminID:      getAdminID(c),
             AdminName:    getAdminName(c),
             Module:       parseModule(c.Request.URL.Path),
@@ -132,7 +170,7 @@ func OperationLogMiddleware(logService log.OperationLogService) gin.HandlerFunc 
             Duration:     int(duration),
         }
         
-        logService.Create(c.Request.Context(), log)
+        logBus.Record(c.Request.Context(), opLog)
     }
 }
 ```
@@ -178,7 +216,7 @@ func RecoveryMiddleware(errorLogService log.ErrorLogService) gin.HandlerFunc {
     return func(c *gin.Context) {
         defer func() {
             if err := recover(); err != nil {
-                // 记录错误日志
+                // 记录错误日志（ErrorService 内部通过 LogBus 异步写入）
                 errorLog := &entity.ErrorLog{
                     Module:    "system",
                     Level:     "error",
@@ -190,7 +228,7 @@ func RecoveryMiddleware(errorLogService log.ErrorLogService) gin.HandlerFunc {
                     IP:        c.ClientIP(),
                     UserAgent: c.Request.UserAgent(),
                 }
-                errorLogService.Create(c.Request.Context(), errorLog)
+                errorLogService.Log(c.Request.Context(), errorLog)
                 
                 // 返回错误响应
                 response.Error(c, errorx.CodeInternalError)
@@ -202,6 +240,8 @@ func RecoveryMiddleware(errorLogService log.ErrorLogService) gin.HandlerFunc {
     }
 }
 ```
+
+> **注意**：错误日志的 `Log` 方法内部先执行指纹压制（`LazyCacheManager.SetNX`），通过压制后才通过 LogBus 回调异步写入。
 
 ---
 
@@ -385,15 +425,33 @@ CREATE TABLE operation_logs_2024_01 PARTITION OF operation_logs
 
 ## 九、最佳实践
 
-1. **异步记录**：日志写入使用异步方式，避免阻塞请求
-2. **采样记录**：高频接口可配置采样率，减少日志量
-3. **分级存储**：热数据存SSD，冷数据归档到对象存储
-4. **定期归档**：历史日志定期导出到对象存储后删除
-5. **敏感保护**：严格脱敏所有敏感信息
+1. **异步记录**：所有日志通过 LogBus 异步写入，避免阻塞请求
+2. **分级保护**：P0 日志绝不丢失，P1 同步回退，P2 可丢弃最旧
+3. **指纹压制**：错误日志使用 `LazyCacheManager.SetNX` 做 60s 去重，避免重复写入
+4. **采样记录**：高频接口可配置采样率，减少日志量
+5. **分级存储**：热数据存SSD，冷数据归档到对象存储
+6. **定期归档**：历史日志定期导出到对象存储后删除
+7. **敏感保护**：严格脱敏所有敏感信息
 
 ---
 
-## 十、相关文档
+## 十、RBAC 权限
+
+### 10.1 按钮权限
+
+| 菜单 | 按钮名称 | 权限 Code |
+|------|---------|-----------|
+| 操作日志 | 查询 | `ops:operation-log:query` |
+| 操作日志 | 删除 | `ops:operation-log:delete` |
+| 操作日志 | 批量删除 | `ops:operation-log:batch-delete` |
+| 错误日志 | 查询 | `ops:error-log:query` |
+| 错误日志 | 解决 | `ops:error-log:resolve` |
+| 错误日志 | 删除 | `ops:error-log:delete` |
+| 错误日志 | 批量删除 | `ops:error-log:batch-delete` |
+
+---
+
+## 十一、相关文档
 
 - [Server架构设计](./server-architecture.md)
 - [任务系统详解](./server-module-task.md)

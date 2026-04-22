@@ -22,14 +22,15 @@ import type { DataTableColumns } from 'naive-ui';
 import dayjs from 'dayjs';
 import {
   fetchGetTaskList,
-  fetchGetTaskLogs,
   fetchReloadTask,
   fetchRunTask,
   fetchStartTask,
   fetchStopTask,
   fetchUpdateTask
 } from '@/service/api/v1/system-task';
+import { fetchGetTaskLogs } from '@/service/api/v1/log';
 import { useAppStore } from '@/store/modules/app';
+import type { Log } from '@/typings/api/v1/log';
 import type { SystemManage } from '@/typings/api/v1/system-manage';
 import { $t } from '@/locales';
 
@@ -44,7 +45,7 @@ const editForm = reactive({
   enabled: true,
   spec: ''
 });
-const currentTaskLogs = ref<SystemManage.TaskLog[]>([]);
+const currentTaskLogs = ref<Log.TaskLog[]>([]);
 const currentTaskName = ref('');
 const logsLoading = ref(false);
 const logPagination = ref({

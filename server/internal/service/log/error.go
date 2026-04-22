@@ -27,13 +27,15 @@ type errorService struct {
 	logRepo       *logRepo.ErrorRepository
 	configWatcher configsync.ConfigWatcher
 	cache         cache.LazyCacheManager
+	logBus        LogBusService
 }
 
-func NewErrorService(logRepo *logRepo.ErrorRepository, configWatcher configsync.ConfigWatcher, cacheMgr cache.LazyCacheManager) ErrorService {
+func NewErrorService(logRepo *logRepo.ErrorRepository, configWatcher configsync.ConfigWatcher, cacheMgr cache.LazyCacheManager, logBus LogBusService) ErrorService {
 	return &errorService{
 		logRepo:       logRepo,
 		configWatcher: configWatcher,
 		cache:         cacheMgr,
+		logBus:        logBus,
 	}
 }
 
@@ -52,7 +54,7 @@ func (s *errorService) Log(ctx context.Context, logRecord *logEntity.Error) erro
 		}
 	}
 
-	return s.logRepo.UpsertByHash(ctx, logRecord)
+	return s.logBus.Record(ctx, logRecord)
 }
 
 func (s *errorService) LogPanic(ctx context.Context, err interface{}, requestID, path, method, ip, userAgent string, adminID uint) {

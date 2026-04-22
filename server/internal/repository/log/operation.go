@@ -18,8 +18,11 @@ func NewOperationRepository(db *gorm.DB) *OperationRepository {
 	return &OperationRepository{db: db}
 }
 
-func (r *OperationRepository) Create(ctx context.Context, log *logEntity.Operation) error {
-	return r.db.WithContext(ctx).Create(log).Error
+func (r *OperationRepository) BatchCreate(ctx context.Context, logs []*logEntity.Operation) error {
+	if len(logs) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).Create(&logs).Error
 }
 
 func (r *OperationRepository) List(ctx context.Context, req *logDto.OperationQueryReq) ([]logEntity.Operation, int64, error) {

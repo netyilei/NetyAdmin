@@ -35,7 +35,7 @@ func (r *OpsRouter) RegisterPermission(group *gin.RouterGroup) {
 }
 
 func (r *OpsRouter) registerIPAC(group *gin.RouterGroup) {
-	ipacGroup := group.Group("/ops/ip-access")
+	ipacGroup := group.Group("/open-platform/ip-access")
 	{
 		ipacGroup.GET("", r.ipac.List)
 		ipacGroup.POST("", r.ipac.Create)

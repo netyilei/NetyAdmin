@@ -1,6 +1,9 @@
 package log
 
-import "NetyAdmin/internal/domain/entity"
+import (
+	"NetyAdmin/internal/domain/entity"
+	"time"
+)
 
 type Operation struct {
 	entity.Model
@@ -15,4 +18,12 @@ type Operation struct {
 
 func (Operation) TableName() string {
 	return "admin_operation_log"
+}
+
+func (o *Operation) GetLogType() LogType {
+	return LogTypeOperation
+}
+
+func (o *Operation) GetCreatedAt() time.Time {
+	return o.CreatedAt
 }

@@ -39,48 +39,48 @@ const {
     { key: 'index', title: $t('common.index'), align: 'center', width: 64 },
     {
       key: 'ipAddr',
-      title: $t('page.ops.ipac.ipAddr'),
+      title: $t('page.openPlatform.ipac.ipAddr'),
       align: 'center',
       minWidth: 150
     } as any,
     {
       key: 'type',
-      title: $t('page.ops.ipac.type'),
+      title: $t('page.openPlatform.ipac.type'),
       align: 'center',
       width: 100,
       render: (row: any) => renderDictTag('sys_ip_action_type', String(row.type))
     } as any,
     {
       key: 'appId',
-      title: $t('page.ops.ipac.appId'),
+      title: $t('page.openPlatform.ipac.appId'),
       align: 'center',
       width: 120,
-      render: (row: any) => (row.appId ? row.appId : <NTag type="info">{$t('page.ops.ipac.global')}</NTag>)
+      render: (row: any) => (row.appId ? row.appId : <NTag type="info">{$t('page.openPlatform.ipac.global')}</NTag>)
     } as any,
     {
       key: 'reason',
-      title: $t('page.ops.ipac.reason'),
+      title: $t('page.openPlatform.ipac.reason'),
       align: 'center',
       minWidth: 150
     } as any,
     {
       key: 'expiredAt',
-      title: $t('page.ops.ipac.expiredAt'),
+      title: $t('page.openPlatform.ipac.expiredAt'),
       align: 'center',
       width: 160,
       render: (row: any) =>
-        row.expiredAt ? dayjs(row.expiredAt).format('YYYY-MM-DD HH:mm:ss') : $t('page.ops.ipac.permanent')
+        row.expiredAt ? dayjs(row.expiredAt).format('YYYY-MM-DD HH:mm:ss') : $t('page.openPlatform.ipac.permanent')
     } as any,
     {
       key: 'status',
-      title: $t('page.ops.ipac.status'),
+      title: $t('page.openPlatform.ipac.status'),
       align: 'center',
       width: 100,
       render: (row: any) => renderDictTag('sys_status', String(row.status))
     } as any,
     {
       key: 'createdAt',
-      title: $t('page.ops.ipac.time'),
+      title: $t('page.openPlatform.ipac.time'),
       align: 'center',
       width: 160,
       render: (row: any) => (row.createdAt ? dayjs(row.createdAt).format('YYYY-MM-DD HH:mm:ss') : '-')
@@ -145,7 +145,7 @@ function edit(id: number) {
 <template>
   <div class="min-h-500px flex-col-stretch gap-16px overflow-hidden lt-sm:overflow-auto">
     <IPACSearch v-model:model="searchParams" @reset="resetSearchParams" @search="getDataByPage" />
-    <NCard :title="$t('page.ops.ipac.title')" :bordered="false" size="small" class="card-wrapper sm:flex-1-hidden">
+    <NCard :title="$t('page.openPlatform.ipac.title')" :bordered="false" size="small" class="card-wrapper sm:flex-1-hidden">
       <template #header-extra>
         <TableHeaderOperation
           v-model:columns="columnChecks"
