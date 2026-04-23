@@ -126,6 +126,9 @@ async function handleResetSecret(id: string) {
   if (!error && res) {
     window.$dialog?.success({
       title: $t('page.openPlatform.app.resetSecret'),
+      style: {
+        width: '550px'
+      },
       content: () => (
         <NSpace vertical>
           <span>{$t('page.openPlatform.app.resetSecretSuccess')}</span>
