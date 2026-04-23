@@ -54,7 +54,8 @@ server/
     │   │   ├── base.go           # 基础实体（ID、时间戳等）
     │   │   ├── content/          # 内容管理实体
     │   │   ├── log/              # 日志实体
-    │   │   ├── storage/          # 存储实体
+    │   │   ├── open_platform/    # 开放平台实体（App、ScopeGroup、OpenLog）
+    │   │   ├── storage/          # 存储实体（Config、Record含AppID）
     │   │   └── system/           # 系统管理实体
     │   │
     │   └── vo/                   # 面向前端的View Object
@@ -63,30 +64,55 @@ server/
     │       └── system/
     │
     ├── interface/                 # 【接入层】按端隔离
-    │   └── admin/                # 面向Admin-Web的接口
-    │       ├── dto/              # Admin专用DTO
-    │       │   ├── content/      # 内容管理DTO
-    │       │   ├── log/          # 日志DTO
-    │       │   ├── storage/      # 存储DTO
-    │       │   └── system/       # 系统管理DTO
+    │   ├── admin/                # 面向Admin-Web的接口
+    │   │   ├── dto/              # Admin专用DTO
+    │   │   │   ├── content/      # 内容管理DTO
+    │   │   │   ├── log/          # 日志DTO
+    │   │   │   ├── open_platform/ # 开放平台DTO（含StorageID）
+    │   │   │   ├── storage/      # 存储DTO
+    │   │   │   └── system/       # 系统管理DTO
+    │   │   │
+    │   │   └── http/             # HTTP协议接入
+    │   │       ├── handler/v1/   # Handler实现
+    │   │       │   ├── admin/    # 管理员相关
+    │   │       │   ├── auth/     # 认证相关
+    │   │       │   ├── content/  # 内容管理
+    │   │       │   ├── log/      # 日志管理
+    │   │       │   ├── open_platform/ # 开放平台管理
+    │   │       │   ├── storage/  # 存储管理
+    │   │       │   └── system/   # 系统管理
+    │   │       │
+    │   │       └── router/v1/    # 路由注册
+    │   │           ├── admin.go
+    │   │           ├── auth.go
+    │   │           ├── content.go
+    │   │           ├── log.go
+    │   │           ├── open_platform.go
+    │   │           ├── router.go # 路由聚合入口
+    │   │           ├── storage.go
+    │   │           └── system.go
+    │   │
+    │   └── client/               # 面向Client端的接口
+    │       ├── dto/v1/           # Client专用DTO
+    │       │   └── storage.go    # 存储上传DTO
     │       │
     │       └── http/             # HTTP协议接入
     │           ├── handler/v1/   # Handler实现
-    │           │   ├── admin/    # 管理员相关
-    │           │   ├── auth/     # 认证相关
-    │           │   ├── content/  # 内容管理
-    │           │   ├── log/      # 日志管理
-    │           │   ├── storage/  # 存储管理
-    │           │   └── system/   # 系统管理
+    │           │   ├── auth_handler.go
+    │           │   ├── content_handler.go
+    │           │   ├── echo_handler.go
+    │           │   ├── message_handler.go
+    │           │   ├── storage_handler.go
+    │           │   └── user_handler.go
     │           │
     │           └── router/v1/    # 路由注册
-    │               ├── admin.go
-    │               ├── auth.go
-    │               ├── content.go
-    │               ├── log.go
-    │               ├── router.go # 路由聚合入口
-    │               ├── storage.go
-    │               └── system.go
+    │               ├── auth_router.go
+    │               ├── content_router.go
+    │               ├── echo_router.go
+    │               ├── message_router.go
+    │               ├── router.go
+    │               ├── storage_router.go
+    │               └── user_router.go
     │
     ├── job/                       # 内置任务
     │   ├── article_publish.go    # 文章定时发布
@@ -119,13 +145,15 @@ server/
     ├── repository/                # 数据访问层
     │   ├── content/              # 内容管理仓储
     │   ├── log/                  # 日志仓储
+    │   ├── open_platform/        # 开放平台仓储（App、OpenLog）
     │   ├── storage/              # 存储仓储
     │   └── system/               # 系统管理仓储
     │
     └── service/                   # 业务服务层
         ├── content/              # 内容管理服务
         ├── log/                  # 日志服务
-        ├── storage/              # 存储服务
+        ├── open_platform/        # 开放平台服务（AppService含GetAppStorageDriver）
+        ├── storage/              # 存储服务（RecordService含应用存储配置解析）
         └── system/               # 系统管理服务
 ```
 

@@ -196,12 +196,8 @@ const manage = {
       params: 'Parameter Configuration',
       admin_login_enabled: 'Admin Login',
       user_register_enabled: 'User Registration',
-      user_login_captcha_enabled: 'User Login',
+      user_login_enabled: 'User Login',
       user_reset_pwd_captcha_enabled: 'User Reset Password',
-      user_login_pc: 'PC Client Login',
-      user_login_web: 'Web Client Login',
-      user_login_app: 'APP Login',
-      user_login_mobile: 'Mobile Login',
       user_reset_password_enabled: 'User Reset Password',
       length: 'Captcha Length',
       width: 'Image Width(px)',
@@ -221,8 +217,8 @@ const manage = {
       storage_module: 'Dedicated Storage',
       storage_module_placeholder: 'Select storage source (Leave empty for default)',
       login_storage: 'Login Storage',
-      login_storage_memory: 'Local Memory (Recommended)',
-      login_storage_db: 'Database',
+      login_storage_cache: 'Cache Module (Recommended, supports Redis)',
+      login_storage_db: 'Database Only',
       token_expire: 'Token Expiration (s)',
       login_max_retry: 'Max Login Retries',
       login_lock_duration: 'Login Lock Duration (min)',
@@ -230,6 +226,8 @@ const manage = {
       password_require_types: 'Password Char Types',
       user_register_verify: 'Register Message Verification',
       user_register_verify_type: 'Register Verify Type',
+      user_login_verify: 'Login Message Verification',
+      user_login_verify_type: 'Login Verify Type',
       user_reset_pwd_verify: 'Reset Pwd Message Verification',
       user_reset_pwd_verify_type: 'Reset Pwd Verify Type',
       verify_type_email: 'Email',
@@ -343,7 +341,13 @@ const manage = {
     status: 'Status',
     lastLoginAt: 'Last Login',
     addUser: 'Add User',
-    editUser: 'Edit User'
+    editUser: 'Edit User',
+    locked: 'Locked',
+    lockedYes: 'Locked',
+    lockedNo: 'Normal',
+    unlock: 'Unlock',
+    confirmUnlock: 'Confirm unlock this user? The user will be able to login normally',
+    unlockSuccess: 'Unlock successful'
   }
 };
 

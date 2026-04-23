@@ -59,7 +59,7 @@ func (s *dualStore) Set(id string, value string) error {
 	ttl := s.getTTL()
 
 	if s.isCacheEnabled() {
-		return s.cache.Set(context.Background(), "captcha:"+id, value, ttl)
+		return s.cache.Set(context.Background(), cache.KeyCaptchaToken(id), value, ttl)
 	}
 
 	// 数据库模式
@@ -76,12 +76,12 @@ func (s *dualStore) Get(id string, clear bool) string {
 	var answer string
 
 	if s.isCacheEnabled() {
-		err := s.cache.Get(ctx, "captcha:"+id, &answer)
+		err := s.cache.Get(ctx, cache.KeyCaptchaToken(id), &answer)
 		if err != nil {
 			return ""
 		}
 		if clear {
-			_ = s.cache.Delete(ctx, "captcha:"+id)
+			_ = s.cache.Delete(ctx, cache.KeyCaptchaToken(id))
 		}
 		return answer
 	}

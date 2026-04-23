@@ -519,7 +519,86 @@ onMounted(loadOrders)
 | POST | /admin/v1/storage/upload-record | 记录上传 | JWT |
 | GET | /admin/v1/upload-records | 上传记录列表 | RBAC |
 
-### 4.6 日志模块
+### 4.6 开放平台模块
+
+| Method | Path | 说明 | 权限 |
+|--------|------|------|------|
+| GET | /admin/v1/open/apps | 应用列表 | RBAC |
+| POST | /admin/v1/open/apps | 创建应用 | RBAC |
+| PUT | /admin/v1/open/apps | 修改应用（含存储绑定） | RBAC |
+| DELETE | /admin/v1/open/apps/:id | 删除应用 | RBAC |
+| PUT | /admin/v1/open/apps/reset-secret | 重置密钥 | RBAC |
+| PUT | /admin/v1/open/apps/ip-rules | 关联IP规则 | RBAC |
+| GET | /admin/v1/open/apps/scopes | 获取应用权限 | RBAC |
+| GET | /admin/v1/open/apps/available-scopes | 获取可用权限 | RBAC |
+| GET | /admin/v1/open/logs | 开放平台日志 | RBAC |
+| GET | /admin/v1/open/scopes | 权限分组列表 | RBAC |
+| POST | /admin/v1/open/scopes | 创建权限分组 | RBAC |
+| PUT | /admin/v1/open/scopes | 修改权限分组 | RBAC |
+| DELETE | /admin/v1/open/scopes/:id | 删除权限分组 | RBAC |
+
+### 4.7 Client 端接口
+
+> Client 端接口需通过开放平台签名验证（`X-App-Key` + `X-Signature`），并在 `sys_open_apis` 表中注册。详细参数说明请参考 [客户端API文档](./client-api/00-authentication.md)。
+
+#### 4.7.1 认证模块
+
+| Method | Path | 说明 | 权限 |
+|--------|------|------|------|
+| GET | /client/v1/auth/scene-config | 获取场景验证配置 | 签名 |
+| GET | /client/v1/auth/captcha | 获取图形验证码 | 签名 |
+| POST | /client/v1/auth/send-code | 发送验证码 | 签名 |
+| POST | /client/v1/user/register | 用户注册 | 签名 |
+| POST | /client/v1/user/login | 用户登录 | 签名 |
+| POST | /client/v1/user/refresh-token | 刷新令牌 | 签名 |
+| POST | /client/v1/user/reset-password | 找回密码 | 签名 |
+
+#### 4.7.2 用户模块
+
+| Method | Path | 说明 | 权限 |
+|--------|------|------|------|
+| GET | /client/v1/user/profile | 获取个人资料 | 签名 + JWT |
+| PUT | /client/v1/user/profile | 更新个人资料 | 签名 + JWT |
+| PUT | /client/v1/user/password | 修改密码 | 签名 + JWT |
+| DELETE | /client/v1/user/account | 注销账号 | 签名 + JWT |
+| GET | /client/v1/user/upload-token | 获取上传凭证 | 签名 + JWT |
+| POST | /client/v1/user/logout | 退出登录 | 签名 + JWT |
+
+#### 4.7.3 内容模块
+
+| Method | Path | 说明 | 权限 |
+|--------|------|------|------|
+| GET | /client/v1/content/categories/tree | 获取分类树 | 签名 |
+| GET | /client/v1/content/articles | 文章列表 | 签名 |
+| GET | /client/v1/content/article/:id | 文章详情 | 签名 |
+| POST | /client/v1/content/article/:id/like | 点赞文章 | 签名 |
+| GET | /client/v1/content/banners/:code | 获取 Banner 组 | 签名 |
+| POST | /client/v1/content/banners/:id/click | 记录 Banner 点击 | 签名 |
+
+#### 4.7.4 存储模块
+
+| Method | Path | 说明 | 权限 |
+|--------|------|------|------|
+| POST | /client/v1/storage/credentials | 获取上传凭证 | 签名 |
+| POST | /client/v1/storage/records | 创建上传记录 | 签名 |
+
+#### 4.7.5 消息模块
+
+| Method | Path | 说明 | 权限 |
+|--------|------|------|------|
+| GET | /client/v1/message/internal | 站内信列表 | 签名 + JWT |
+| GET | /client/v1/message/internal/:id | 站内信详情 | 签名 + JWT |
+| PUT | /client/v1/message/internal/read | 标记已读 | 签名 + JWT |
+| PUT | /client/v1/message/internal/read-all | 全部标记已读 | 签名 + JWT |
+| GET | /client/v1/message/internal/unread-count | 未读消息数 | 签名 + JWT |
+
+#### 4.7.6 Echo 测试
+
+| Method | Path | 说明 | 权限 |
+|--------|------|------|------|
+| POST | /client/v1/echo | Echo 测试 | 签名 |
+
+### 4.8 日志模块
 
 | Method | Path | 说明 | 权限 |
 |--------|------|------|------|
@@ -529,7 +608,7 @@ onMounted(loadOrders)
 | PUT | /admin/v1/error-logs/:id/resolve | 标记错误已解决 | RBAC |
 | DELETE | /admin/v1/error-logs/:id | 删除错误日志 | RBAC |
 
-### 4.7 系统配置模块
+### 4.9 系统配置模块
 
 | Method | Path | 说明 | 权限 |
 |--------|------|------|------|

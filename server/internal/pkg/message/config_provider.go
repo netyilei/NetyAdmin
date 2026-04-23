@@ -3,25 +3,17 @@ package message
 import (
 	"context"
 
-	systemRepo "NetyAdmin/internal/repository/system"
+	"NetyAdmin/internal/pkg/configsync"
 )
 
-type dbConfigProvider struct {
-	repo systemRepo.ConfigRepository
+type watcherConfigProvider struct {
+	watcher configsync.ConfigWatcher
 }
 
-func NewDbConfigProvider(repo systemRepo.ConfigRepository) ConfigProvider {
-	return &dbConfigProvider{repo: repo}
+func NewWatcherConfigProvider(watcher configsync.ConfigWatcher) ConfigProvider {
+	return &watcherConfigProvider{watcher: watcher}
 }
 
-func (p *dbConfigProvider) GetByGroup(ctx context.Context, groupName string) (map[string]string, error) {
-	configs, err := p.repo.GetByGroup(ctx, groupName)
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[string]string, len(configs))
-	for _, c := range configs {
-		result[c.ConfigKey] = c.ConfigValue
-	}
-	return result, nil
+func (p *watcherConfigProvider) GetByGroup(ctx context.Context, groupName string) (map[string]string, error) {
+	return p.watcher.GetGroupConfigs(groupName), nil
 }

@@ -24,7 +24,8 @@ const (
 	CodeUserAlreadyExists Code = 101004
 	CodeTokenExpired      Code = 101005
 	CodeTokenInvalid      Code = 101006
-	CodeOldPasswordWrong  Code = 101007
+	CodeUserLocked        Code = 101007
+	CodeOldPasswordWrong  Code = 101008
 
 	CodeRoleNotFound      Code = 102001
 	CodeRoleInUse         Code = 102002
@@ -103,6 +104,7 @@ var codeMessages = map[Code]string{
 	CodeUserAlreadyExists: "用户名已存在",
 	CodeTokenExpired:      "令牌已过期",
 	CodeTokenInvalid:      "令牌无效",
+	CodeUserLocked:        "账户已锁定",
 	CodeOldPasswordWrong:  "原密码错误",
 
 	CodeRoleNotFound:      "角色不存在",

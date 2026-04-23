@@ -228,3 +228,28 @@ func KeyOpenApiGrouped() string {
 func KeyAppApis(appID string) string {
 	return fmt.Sprintf("open:app:%s:apis", appID)
 }
+
+// KeyUserTokenHash 用户登录态 Token 哈希缓存 Key
+func KeyUserTokenHash(userID, tokenHash string) string {
+	return fmt.Sprintf("user:token:%s:%s", userID, tokenHash)
+}
+
+// KeyCaptchaToken 图形验证码缓存 Key
+func KeyCaptchaToken(captchaID string) string {
+	return fmt.Sprintf("captcha:%s", captchaID)
+}
+
+// KeyVerifyCodeLimit 验证码发送频率限制 Key
+func KeyVerifyCodeLimit(scene, target string) string {
+	return fmt.Sprintf("auth:limit:%s:%s", scene, target)
+}
+
+// KeyLoginLock 用户登录锁定 Key
+func KeyLoginLock(userID string) string {
+	return fmt.Sprintf("auth:lock:%s", userID)
+}
+
+// KeyLoginRetryCount 用户登录重试次数 Key
+func KeyLoginRetryCount(userID string) string {
+	return fmt.Sprintf("auth:retry:%s", userID)
+}

@@ -7,18 +7,19 @@ export namespace ClientAuth {
 
   /** send code request */
   interface SendCodeReq {
-    /** register, reset_password */
+    /** register, reset_password, login */
     scene: string;
     /** phone or email */
     target: string;
-    captchaId: string;
-    captcha: string;
+    captchaKey: string;
+    captchaCode: string;
   }
 
-  /** verify config */
-  interface VerifyConfig {
-    enabled: boolean;
-    verifyType: 'email' | 'sms';
+  /** scene config (merged captcha-status + verify-config) */
+  interface SceneConfig {
     scene: string;
+    captchaEnabled: boolean;
+    verifyEnabled: boolean;
+    verifyType: 'email' | 'sms' | '';
   }
 }

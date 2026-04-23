@@ -196,12 +196,8 @@ const manage = {
       params: '参数配置',
       admin_login_enabled: '管理员登录',
       user_register_enabled: '用户注册',
-      user_login_captcha_enabled: '用户登录',
+      user_login_enabled: '用户登录',
       user_reset_pwd_captcha_enabled: '用户重置密码',
-      user_login_pc: 'PC客户端登录',
-      user_login_web: 'Web端登录',
-      user_login_app: 'APP登录',
-      user_login_mobile: '移动端登录',
       user_reset_password_enabled: '用户找回密码',
       length: '验证码长度',
       width: '图片宽度(px)',
@@ -220,8 +216,8 @@ const manage = {
       storage_module: '专属存储源',
       storage_module_placeholder: '请选择存储源 (留空则使用系统默认)',
       login_storage: '登录存储介质',
-      login_storage_memory: '本地内存 (推荐)',
-      login_storage_db: '数据库',
+      login_storage_cache: '缓存模块 (推荐，支持Redis)',
+      login_storage_db: '仅数据库',
       token_expire: 'Token 有效期 (秒)',
       login_max_retry: '登录最大失败次数',
       login_lock_duration: '登录锁定时间 (分钟)',
@@ -229,6 +225,8 @@ const manage = {
       password_require_types: '密码字符类型数',
       user_register_verify: '用户注册消息验证',
       user_register_verify_type: '注册验证方式',
+      user_login_verify: '用户登录消息验证',
+      user_login_verify_type: '登录验证方式',
       user_reset_pwd_verify: '找回密码消息验证',
       user_reset_pwd_verify_type: '找回密码验证方式',
       verify_type_email: '电子邮件',
@@ -340,7 +338,13 @@ const manage = {
     status: '状态',
     lastLoginAt: '最后登录',
     addUser: '新增用户',
-    editUser: '编辑用户'
+    editUser: '编辑用户',
+    locked: '锁定',
+    lockedYes: '已锁定',
+    lockedNo: '正常',
+    unlock: '解锁',
+    confirmUnlock: '确认解锁该用户？解锁后用户可正常登录',
+    unlockSuccess: '解锁成功'
   }
 };
 

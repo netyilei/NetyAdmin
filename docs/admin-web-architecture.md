@@ -86,7 +86,7 @@ admin-web/
     │       ├── count-to.vue
     │       ├── custom-icon-select.vue
     │       ├── nety-admin-avatar.vue
-    │       ├── storage-config-select.vue
+    │       ├── storage-config-select.vue  # 存储配置选择器（应用绑定存储时复用）
     │       ├── svg-icon.vue
     │       └── toast-ui-editor.vue
     │
@@ -179,9 +179,13 @@ admin-web/
     │   │       ├── auth.ts       # 认证API
     │   │       ├── content.ts    # 内容API
     │   │       ├── log.ts        # 日志API
+    │   │       ├── open-app.ts   # 开放平台应用API（含存储绑定）
+    │   │       ├── open-api.ts   # 开放平台API管理
+    │   │       ├── open-log.ts   # 开放平台日志API
     │   │       ├── route.ts      # 路由API
     │   │       ├── storage.ts    # 存储API
     │   │       ├── system-dict.ts # 字典API
+    │   │       ├── system-ipac.ts # IP访问控制API
     │   │       ├── system-manage.ts # 系统管理API
     │   │       └── system-task.ts   # 任务API
     │   │
@@ -223,8 +227,10 @@ admin-web/
     │   │       ├── common.d.ts
     │   │       ├── content.d.ts
     │   │       ├── log.d.ts
+    │   │       ├── open-app.d.ts # 开放平台应用类型（含StorageID）
+    │   │       ├── open-api.d.ts # 开放平台API管理类型
     │   │       ├── route.d.ts
-    │   │       ├── storage.d.ts
+    │   │       ├── storage.d.ts  # 存储类型（UploadRecord含AppID）
     │   │       ├── system-dict.d.ts
     │   │       └── system-manage.d.ts
     │   ├── app/                  # 应用类型
@@ -266,6 +272,13 @@ admin-web/
     │   │   ├── error-log/
     │   │   ├── operation-log/
     │   │   └── upload-record/
+    │   │
+    │   ├── open-platform/        # 开放平台
+    │   │   ├── apps/             # 应用管理（含存储绑定）
+    │   │   │   └── components/
+    │   │   │       └── app-operate-modal.vue  # 应用操作弹窗（含存储配置选择）
+    │   │   ├── apis/             # API管理
+    │   │   └── logs/             # 调用日志
     │   │
     │   └── settings/             # 系统设置
     │       ├── config/

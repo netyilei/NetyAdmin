@@ -15,6 +15,8 @@
 - **上传凭证**：为前端直传提供临时凭证
 - **上传记录**：记录所有上传操作
 - **驱动扩展**：支持自定义存储驱动
+- **应用级存储绑定**：开放平台应用可绑定独立存储配置，未绑定时自动回退到全局默认
+- **Client端上传**：开放平台应用可通过签名验证后获取上传凭证和创建上传记录
 
 ---
 
@@ -23,7 +25,7 @@
 ```
 server/internal/domain/entity/storage/
 ├── config.go           # 存储配置实体
-└── record.go           # 上传记录实体
+└── record.go           # 上传记录实体（含AppID字段）
 
 server/internal/repository/storage/
 ├── config.go           # 存储配置仓储
@@ -31,7 +33,7 @@ server/internal/repository/storage/
 
 server/internal/service/storage/
 ├── config.go           # 存储配置服务
-└── record.go           # 上传记录服务
+└── record.go           # 上传记录服务（含应用存储配置解析）
 
 server/internal/pkg/storage/
 ├── driver.go           # 存储驱动接口
@@ -39,7 +41,16 @@ server/internal/pkg/storage/
 └── s3_driver.go        # S3驱动实现
 
 server/internal/interface/admin/http/handler/v1/storage/
-└── storage_handler.go  # 存储Handler
+└── storage_handler.go  # Admin端存储Handler
+
+server/internal/interface/client/http/handler/v1/
+└── storage_handler.go  # Client端存储上传Handler
+
+server/internal/interface/client/http/router/v1/
+└── storage_router.go   # Client端存储路由
+
+server/internal/interface/client/dto/v1/
+└── storage.go          # Client端存储DTO
 ```
 
 ---
@@ -81,11 +92,14 @@ type UploadRecord struct {
     MimeType     string         `gorm:"size:128"`                      // MIME类型
     UploaderID   uint           `gorm:"index"`                         // 上传者ID
     UploaderType string         `gorm:"size:32"`                       // 上传者类型
+    AppID        string         `gorm:"size:26;index"`                 // 开放平台应用ID
     CreatedAt    int64          `gorm:"autoCreateTime"`
     UpdatedAt    int64          `gorm:"autoUpdateTime"`
     DeletedAt    gorm.DeletedAt `gorm:"index"`
 }
 ```
+
+> **AppID 字段**：当上传来自开放平台应用时，`AppID` 记录来源应用的 `AppKey`，便于按应用统计和审计上传记录。非应用上传时该字段为空字符串。
 
 ---
 
@@ -161,6 +175,19 @@ func init() {
 | GET | /admin/v1/upload-records/:id | 记录详情 |
 | DELETE | /admin/v1/upload-records/:id | 删除记录 |
 | POST | /admin/v1/upload-records/batch-delete | 批量删除 |
+
+### 5.3 Client 端上传接口（需开放平台签名）
+
+| Method | Path | 说明 |
+|--------|------|------|
+| POST | /client/v1/storage/credentials | 获取上传凭证（自动使用应用绑定的存储配置） |
+| POST | /client/v1/storage/records | 创建上传记录 |
+
+> **存储配置解析逻辑**：Client 端接口通过签名验证中间件获取应用身份，然后按以下优先级选择存储配置：
+>
+> 1. 应用绑定的 `StorageID`（若 > 0）
+> 2. 请求中指定的 `ConfigID`（若 > 0）
+> 3. 全局默认存储配置
 
 ---
 

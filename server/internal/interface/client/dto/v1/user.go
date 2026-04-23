@@ -2,9 +2,12 @@ package v1
 
 // UserLoginReq 用户登录请求
 type UserLoginReq struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
-	Platform string `json:"platform"` // 登录平台：web, app, etc.
+	Username    string `json:"username" binding:"required"`
+	Password    string `json:"password" binding:"required"`
+	Platform    string `json:"platform"`
+	CaptchaKey  string `json:"captchaKey"`
+	CaptchaCode string `json:"captchaCode"`
+	Code        string `json:"code"`
 }
 
 // UserRegisterReq 用户注册请求

@@ -7,21 +7,23 @@ import (
 	"time"
 
 	msgEntity "NetyAdmin/internal/domain/entity/message"
+	"NetyAdmin/internal/pkg/configsync"
 	msgPkg "NetyAdmin/internal/pkg/message"
 	"NetyAdmin/internal/pkg/task"
 	msgRepo "NetyAdmin/internal/repository/message"
 )
 
-// MsgSendJob 消息发送任务处理器
 type MsgSendJob struct {
 	repo    msgRepo.MsgRepository
 	drivers map[string]msgPkg.Driver
+	watcher configsync.ConfigWatcher
 }
 
-func NewMsgSendJob(repo msgRepo.MsgRepository, drivers map[string]msgPkg.Driver) *MsgSendJob {
+func NewMsgSendJob(repo msgRepo.MsgRepository, drivers map[string]msgPkg.Driver, watcher configsync.ConfigWatcher) *MsgSendJob {
 	return &MsgSendJob{
 		repo:    repo,
 		drivers: drivers,
+		watcher: watcher,
 	}
 }
 
@@ -37,16 +39,31 @@ func (j *MsgSendJob) DefaultMetadata() task.TaskMetadata {
 	return task.TaskMetadata{
 		Name:        j.Name(),
 		DisplayName: j.DisplayName(),
-		Type:        task.TypeOnce, // 仅作为消费者，不需要定时触发生产者逻辑
+		Type:        task.TypeOnce,
 		Enabled:     true,
 		Weight:      task.WeightEssential,
 	}
 }
 
 func (j *MsgSendJob) Run(ctx context.Context) error {
-	// 生产者逻辑：如果需要定期扫描库里漏掉的“等待”记录，可以在这里实现
-	// 目前通过 Dispatch 实时触发，所以这里可以留空或做扫描补偿
 	return nil
+}
+
+func (j *MsgSendJob) isChannelEnabled(channel string) bool {
+	var val string
+	var exists bool
+	switch channel {
+	case "email":
+		val, exists = j.watcher.GetConfig("email_config", "enabled")
+	case "sms":
+		val, exists = j.watcher.GetConfig("sms_config", "enabled")
+	default:
+		return true
+	}
+	if !exists {
+		return false
+	}
+	return val == "true" || val == "1"
 }
 
 func (j *MsgSendJob) Execute(ctx context.Context, payload json.RawMessage) error {
@@ -78,6 +95,12 @@ func (j *MsgSendJob) Execute(ctx context.Context, payload json.RawMessage) error
 			Type:        msgType,
 		}
 		return j.repo.CreateInternal(ctx, internalMsg)
+	}
+
+	if !j.isChannelEnabled(rec.Channel) {
+		rec.Status = msgEntity.MsgStatusFailed
+		rec.ErrorMsg = rec.Channel + " service is disabled"
+		return j.repo.UpdateRecord(ctx, rec)
 	}
 
 	driver, ok := j.drivers[rec.Channel]

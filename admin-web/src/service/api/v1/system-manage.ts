@@ -315,6 +315,14 @@ export function fetchDeleteUser(id: string) {
   });
 }
 
+/** 解锁终端用户 */
+export function fetchUnlockUser(id: string) {
+  return request({
+    url: `/admin/v1/systemManage/users/${id}/unlock`,
+    method: 'post'
+  });
+}
+
 /** 获取系统配置（缓存开关等） */
 export function fetchGetSysConfigs(groupName?: string) {
   return request<SystemManage.SysConfig[]>({

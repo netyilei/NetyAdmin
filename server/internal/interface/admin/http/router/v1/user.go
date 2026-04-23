@@ -19,7 +19,6 @@ func (r *UserRouter) RegisterPublic(group *gin.RouterGroup) {}
 func (r *UserRouter) RegisterAuth(group *gin.RouterGroup) {}
 
 func (r *UserRouter) RegisterPermission(group *gin.RouterGroup) {
-	// 用户管理归属系统管理组
 	userGroup := group.Group("/systemManage/users")
 	{
 		userGroup.GET("/autocomplete", r.user.Autocomplete)
@@ -27,6 +26,7 @@ func (r *UserRouter) RegisterPermission(group *gin.RouterGroup) {
 		userGroup.POST("", r.user.Create)
 		userGroup.PUT("/:id", r.user.Update)
 		userGroup.PATCH("/:id/status", r.user.UpdateStatus)
+		userGroup.POST("/:id/unlock", r.user.Unlock)
 		userGroup.DELETE("/:id", r.user.Delete)
 	}
 }

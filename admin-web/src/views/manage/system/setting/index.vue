@@ -122,6 +122,8 @@ const userConfigs = reactive<Record<string, ConfigItem | undefined>>({
   password_require_types: undefined,
   user_register_verify: undefined,
   user_register_verify_type: undefined,
+  user_login_verify: undefined,
+  user_login_verify_type: undefined,
   user_reset_pwd_verify: undefined,
   user_reset_pwd_verify_type: undefined
 });
@@ -129,7 +131,7 @@ const userConfigs = reactive<Record<string, ConfigItem | undefined>>({
 const storageOptions = ref<{ label: string; value: string }[]>([]);
 
 const loginStorageOptions = [
-  { label: $t('page.manage.setting.user.login_storage_memory'), value: 'memory' },
+  { label: $t('page.manage.setting.user.login_storage_cache'), value: 'cache' },
   { label: $t('page.manage.setting.user.login_storage_db'), value: 'db' }
 ];
 
@@ -186,7 +188,7 @@ async function init() {
 
   if (!results[4].error) {
     results[4].data.forEach(item => {
-      if (item.configKey.endsWith('_enabled') || item.configKey.startsWith('user_login_')) {
+      if (item.configKey.endsWith('_enabled') || item.configKey === 'user_login_enabled') {
         captchaConfigs.switches.push(item);
       } else {
         captchaConfigs.params[item.configKey] = {
@@ -584,6 +586,34 @@ onMounted(init);
                               :options="verifyTypeOptions"
                               class="w-240px"
                               @update:value="handleUpdate(userConfigs.user_register_verify_type)"
+                            />
+                          </NFormItem>
+                        </div>
+
+                        <!-- Login Verify -->
+                        <div class="border border-gray-100 rounded-8px bg-gray-50/30 p-4">
+                          <NFormItem :label="$t('page.manage.setting.user.user_login_verify')" label-placement="left">
+                            <NSwitch
+                              v-if="userConfigs.user_login_verify"
+                              v-model:value="userConfigs.user_login_verify.configValue"
+                              checked-value="true"
+                              unchecked-value="false"
+                              :loading="updating === userConfigs.user_login_verify.configKey"
+                              @update:value="handleUpdate(userConfigs.user_login_verify)"
+                            />
+                          </NFormItem>
+                          <NFormItem
+                            v-if="userConfigs.user_login_verify?.configValue === 'true'"
+                            :label="$t('page.manage.setting.user.user_login_verify_type')"
+                            label-placement="left"
+                            class="mt-2"
+                          >
+                            <NSelect
+                              v-if="userConfigs.user_login_verify_type"
+                              v-model:value="userConfigs.user_login_verify_type.configValue"
+                              :options="verifyTypeOptions"
+                              class="w-240px"
+                              @update:value="handleUpdate(userConfigs.user_login_verify_type)"
                             />
                           </NFormItem>
                         </div>

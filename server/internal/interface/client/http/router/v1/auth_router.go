@@ -20,8 +20,7 @@ func (r *authRouter) RegisterAuth(authGroup *gin.RouterGroup) {
 	group := authGroup.Group("/auth")
 	{
 		group.GET("/captcha", r.handler.Captcha)
-		group.GET("/captcha-status", r.handler.CaptchaStatus)
-		group.GET("/verify-config", r.handler.VerifyConfig)
+		group.GET("/scene-config", r.handler.SceneConfig)
 		group.POST("/send-code", r.handler.SendCode)
 	}
 }

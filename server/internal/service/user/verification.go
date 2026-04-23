@@ -8,7 +8,6 @@ import (
 	msgSvc "NetyAdmin/internal/service/message"
 	"context"
 	"crypto/rand"
-	"fmt"
 	"math/big"
 	"time"
 
@@ -68,6 +67,9 @@ func (s *verificationService) GetVerifyConfig(ctx context.Context, scene string)
 	case SceneResetPassword:
 		enabledKey = "user_reset_pwd_verify"
 		typeKey = "user_reset_pwd_verify_type"
+	case SceneLogin:
+		enabledKey = "user_login_verify"
+		typeKey = "user_login_verify_type"
 	default:
 		return nil, errorx.New(errorx.CodeInvalidParams, "不支持的业务场景")
 	}
@@ -94,7 +96,7 @@ func (s *verificationService) SendCode(ctx context.Context, scene, target, captc
 	}
 
 	// 1. 频率限制 (60秒内只能发送一次)
-	limitKey := fmt.Sprintf("auth:limit:%s:%s", scene, target)
+	limitKey := cache.KeyVerifyCodeLimit(scene, target)
 	exists, _ := s.cacheMgr.Exists(ctx, limitKey)
 	if exists {
 		return errorx.New(errorx.CodeCaptchaSendTooFrequent, "验证码发送过于频繁，请稍后再试")

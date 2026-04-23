@@ -8,6 +8,7 @@ import (
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
 	"NetyAdmin/internal/pkg/response"
+	userService "NetyAdmin/internal/service/user"
 	userRepoPkg "NetyAdmin/internal/repository/user"
 
 	"github.com/gin-gonic/gin"
@@ -16,11 +17,13 @@ import (
 var (
 	jwtInstance *jwt.JWT
 	userRepo    userRepoPkg.UserRepository
+	tokenStore  userService.TokenStore
 )
 
-func InitJWT(j *jwt.JWT, repo userRepoPkg.UserRepository) {
+func InitJWT(j *jwt.JWT, repo userRepoPkg.UserRepository, ts userService.TokenStore) {
 	jwtInstance = j
 	userRepo = repo
+	tokenStore = ts
 }
 
 func JWTAuth() gin.HandlerFunc {
@@ -84,20 +87,20 @@ func UserJWTAuth() gin.HandlerFunc {
 			return
 		}
 
-		// 增强安全性：校验 Token 哈希是否存在于数据库 (支持登出/拉黑)
-		if userRepo != nil {
+		if tokenStore != nil {
 			h := sha256.New()
 			h.Write([]byte(token))
 			tokenHash := hex.EncodeToString(h.Sum(nil))
 
-			hash, err := userRepo.GetTokenHash(c.Request.Context(), claims.UID, tokenHash)
-			if err != nil || hash == nil {
+			_, err := tokenStore.Get(c.Request.Context(), claims.UID, tokenHash)
+			if err != nil {
 				response.FailWithCode(c, errorx.CodeUnauthorized, "会话已过期或已在别处登录")
 				c.Abort()
 				return
 			}
+		}
 
-			// 校验用户状态 (防止禁用后 Token 依然有效)
+		if userRepo != nil {
 			user, err := userRepo.GetByID(c.Request.Context(), claims.UID)
 			if err != nil || user == nil || user.Status != "1" {
 				response.FailWithCode(c, errorx.CodeUserDisabled, "用户账户已被禁用或不存在")

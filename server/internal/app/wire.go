@@ -142,7 +142,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 
 	// 6. Services & Handlers
 	services := initServices(repos, jwtInstance, lazyCacheMgr, taskManager, configWatcher, cfg, captchaStore, eventBus)
-	handlers := initHandlers(services, captchaMgr, configWatcher)
+	handlers := initHandlers(services, captchaMgr, configWatcher, repos, lazyCacheMgr)
 
 	// 7. Register PubSubBus subscribers
 	// ConfigSync
@@ -342,7 +342,7 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	})
 
 	// Message Drivers
-	configProvider := msgPkg.NewDbConfigProvider(repos.systemConfig)
+	configProvider := msgPkg.NewWatcherConfigProvider(configWatcher)
 	drivers := make(map[string]msgPkg.Driver)
 	drivers["sms"] = msgPkg.NewMockSmsDriver()
 	drivers["email"] = msgPkg.NewEmailDriver(msgPkg.EmailConfig{
@@ -360,11 +360,12 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	s.emailDriver = drivers["email"]
 
 	s.message = msgServicePkg.NewMessageService(repos.message, taskManager, drivers, lazyCacheMgr)
-	s.msgSendJob = msgServicePkg.NewMsgSendJob(repos.message, drivers)
+	s.msgSendJob = msgServicePkg.NewMsgSendJob(repos.message, drivers, configWatcher)
 	s.verification = userServicePkg.NewVerificationService(lazyCacheMgr, s.message, configWatcher, captchaStore)
-	s.user = userServicePkg.NewUserService(repos.user, jwtInstance, s.verification, configWatcher, storageMgr)
+	tokenStore := userServicePkg.NewTokenStoreFromConfig(configWatcher, repos.user, lazyCacheMgr)
+	s.user = userServicePkg.NewUserService(repos.user, jwtInstance, s.verification, configWatcher, storageMgr, captchaStore, tokenStore, lazyCacheMgr)
 
-	middleware.InitJWT(jwtInstance, repos.user)
+	middleware.InitJWT(jwtInstance, repos.user, tokenStore)
 
 	writers := map[logEntity.LogType]logService.LogBatchWriter{
 		logEntity.LogTypeOperation: logService.NewOperationLogWriter(repos.operationLog),
@@ -429,7 +430,7 @@ type handlerSet struct {
 	}
 }
 
-func initHandlers(services *serviceSet, captchaMgr *captcha.Manager, configWatcher configsync.ConfigWatcher) *handlerSet {
+func initHandlers(services *serviceSet, captchaMgr *captcha.Manager, configWatcher configsync.ConfigWatcher, repos *repositorySet, lazyCacheMgr cache.LazyCacheManager) *handlerSet {
 	h := &handlerSet{}
 	h.auth = auth.NewAuthHandler(services.admin, captchaMgr, configWatcher)
 	h.common = common.NewCommonHandler(captchaMgr, configWatcher)
@@ -445,7 +446,7 @@ func initHandlers(services *serviceSet, captchaMgr *captcha.Manager, configWatch
 	h.message = msgHandler.NewMessageHandler(services.message)
 	h.dict = dictHandler.NewDictHandler(services.dict)
 	h.task = taskHandler.NewTaskHandler(services.task)
-	h.userAdmin = userHandler.NewUserHandler(services.user)
+	h.userAdmin = userHandler.NewUserHandler(services.user, lazyCacheMgr)
 	h.content.Category = content.NewContentCategoryHandler(services.contentCategory)
 	h.content.Article = content.NewContentArticleHandler(services.contentArticle)
 	h.content.BannerGroup = content.NewContentBannerGroupHandler(services.contentBannerGroup)
@@ -454,7 +455,7 @@ func initHandlers(services *serviceSet, captchaMgr *captcha.Manager, configWatch
 
 	h.client.echo = clientHandler.NewEchoHandler()
 	h.client.user = clientHandler.NewUserHandler(services.user)
-	h.client.auth = clientHandler.NewAuthHandler(services.verification, captchaMgr)
+	h.client.auth = clientHandler.NewAuthHandler(services.verification, captchaMgr, configWatcher, repos.user)
 	h.client.message = clientHandler.NewMessageHandler(services.message)
 	h.client.content = clientHandler.NewContentHandler(services.contentArticle, services.contentCategory, services.contentBannerGroup, services.contentBannerItem)
 	h.client.storage = clientHandler.NewClientStorageHandler(services.uploadRecord)

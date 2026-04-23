@@ -23,6 +23,7 @@ const request = {
     userAlreadyExists: 'Username already exists',
     tokenExpired: 'Token expired',
     tokenInvalid: 'Invalid token',
+    userLocked: 'Account locked, please try again later',
     oldPasswordWrong: 'Incorrect old password',
     roleNotFound: 'Role not found',
     roleInUse: 'Role is in use',

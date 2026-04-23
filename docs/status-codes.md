@@ -47,6 +47,7 @@
 | `70` | 存储 (Storage) | 对象存储、上传凭证、上传记录 | `107001` ~ `107099` |
 | `80` | 日志 (Log) | 操作日志、错误日志、开放平台日志、任务日志 | `108001` ~ `108099` |
 | `90` | 系统 (System) | 系统配置、字典、任务 | `109001` ~ `109099` |
+| `13` | 开放平台 (Open Platform) | AppKey认证、签名验证、限流、Scope权限 | `101301` ~ `101399` |
 
 ### Client 端 (20) 业务域分配表
 
@@ -107,7 +108,8 @@
 | `101004` | `CodeUserAlreadyExists` | `userAlreadyExists` | 用户名已存在 | Username already exists |
 | `101005` | `CodeTokenExpired` | `tokenExpired` | 令牌已过期 | Token expired |
 | `101006` | `CodeTokenInvalid` | `tokenInvalid` | 令牌无效 | Invalid token |
-| `101007` | `CodeOldPasswordWrong` | `oldPasswordWrong` | 原密码错误 | Incorrect old password |
+| `101007` | `CodeUserLocked` | `userLocked` | 账户已锁定 | Account locked |
+| `101008` | `CodeOldPasswordWrong` | `oldPasswordWrong` | 原密码错误 | Incorrect old password |
 
 ### 4.3 角色 (1020xx)
 
@@ -188,6 +190,16 @@
 | `109006` | `CodeTaskAlreadyRunning` | `taskAlreadyRunning` | 任务正在运行 | Task already running |
 | `109007` | `CodeTaskNotRunning` | `taskNotRunning` | 任务未运行 | Task not running |
 | `109008` | `CodeEmailTestFailed` | `emailTestFailed` | 邮件测试发送失败 | Email test failed |
+
+### 4.11 开放平台 (1013xx)
+
+| code | 后端常量 | 前端 key | 中文 | English |
+|---|---|---|---|---|
+| `101301` | `CodeAppKeyInvalid` | `appKeyInvalid` | AppKey无效 | Invalid AppKey |
+| `101302` | `CodeSignatureFailed` | `signatureFailed` | 签名验证失败 | Signature verification failed |
+| `101303` | `CodeRequestExpired` | `requestExpired` | 请求已过期 | Request expired |
+| `101304` | `CodeScopeMismatch` | `scopeMismatch` | 权限不足 (Scope 不匹配) | Insufficient permissions (Scope mismatch) |
+| `101305` | `CodeRateLimited` | `rateLimited` | 已触发流量限制 | Rate limit exceeded |
 
 ---
 

@@ -10,12 +10,14 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mojocn/base64Captcha"
 	"golang.org/x/crypto/bcrypt"
 
 	userEntity "NetyAdmin/internal/domain/entity/user"
 	clientDto "NetyAdmin/internal/interface/client/dto/v1"
 
 	userVO "NetyAdmin/internal/domain/vo/user"
+	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
@@ -56,15 +58,21 @@ type userService struct {
 	verifySvc     VerificationService
 	configWatcher configsync.ConfigWatcher
 	storageMgr    *storagePkg.Manager
+	captchaStore  base64Captcha.Store
+	tokenStore    TokenStore
+	cacheMgr      cache.LazyCacheManager
 }
 
-func NewUserService(repo userRepo.UserRepository, jwtInstance *jwt.JWT, verifySvc VerificationService, configWatcher configsync.ConfigWatcher, storageMgr *storagePkg.Manager) UserService {
+func NewUserService(repo userRepo.UserRepository, jwtInstance *jwt.JWT, verifySvc VerificationService, configWatcher configsync.ConfigWatcher, storageMgr *storagePkg.Manager, captchaStore base64Captcha.Store, tokenStore TokenStore, cacheMgr cache.LazyCacheManager) UserService {
 	return &userService{
 		repo:          repo,
 		jwt:           jwtInstance,
 		verifySvc:     verifySvc,
 		configWatcher: configWatcher,
 		storageMgr:    storageMgr,
+		captchaStore:  captchaStore,
+		tokenStore:    tokenStore,
+		cacheMgr:      cacheMgr,
 	}
 }
 
@@ -131,7 +139,19 @@ func (s *userService) Register(ctx context.Context, req *clientDto.UserRegisterR
 }
 
 func (s *userService) Login(ctx context.Context, req *clientDto.UserLoginReq, ip string) (*userVO.UserLoginVO, error) {
-	// 1. 查找用户
+	// 1. 图形验证码校验 (captcha_config → user_login_enabled)
+	captchaVal, _ := s.configWatcher.GetConfig("captcha_config", "user_login_enabled")
+	captchaEnabled := captchaVal == "true" || captchaVal == "1"
+	if captchaEnabled {
+		if req.CaptchaKey == "" || req.CaptchaCode == "" {
+			return nil, errorx.New(errorx.CodeCaptchaRequired, "验证码必填")
+		}
+		if !s.captchaStore.Verify(req.CaptchaKey, req.CaptchaCode, true) {
+			return nil, errorx.New(errorx.CodeCaptchaInvalid, "验证码错误")
+		}
+	}
+
+	// 2. 查找用户
 	user, err := s.repo.GetByUsername(ctx, req.Username)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeUserNotFound, "用户不存在")
@@ -141,18 +161,76 @@ func (s *userService) Login(ctx context.Context, req *clientDto.UserLoginReq, ip
 		return nil, errorx.New(errorx.CodeUserDisabled, "账户已禁用")
 	}
 
-	// 2. 验证密码
+	// 2.5 登录锁定检查
+	lockKey := cache.KeyLoginLock(user.ID)
+	var lockVal string
+	if err := s.cacheMgr.Get(ctx, lockKey, &lockVal); err == nil && lockVal != "" {
+		return nil, errorx.New(errorx.CodeUserLocked, "账户已锁定，请稍后再试")
+	}
+
+	// 3. 短信/邮箱验证码校验 (user_config → user_login_verify)
+	verifyConfig, _ := s.verifySvc.GetVerifyConfig(ctx, SceneLogin)
+	if verifyConfig != nil && verifyConfig.Enabled {
+		if req.Code == "" {
+			return nil, errorx.New(errorx.CodeCaptchaRequired, "验证码必填")
+		}
+		target := ""
+		if verifyConfig.VerifyType == "email" && user.Email != "" {
+			target = user.Email
+		} else if verifyConfig.VerifyType == "sms" && user.Phone != "" {
+			target = user.Phone
+		}
+		if target != "" {
+			ok, _ := s.verifySvc.VerifyAndClearCode(ctx, SceneLogin, target, req.Code)
+			if !ok {
+				return nil, errorx.New(errorx.CodeCaptchaInvalid, "验证码错误或已过期")
+			}
+		}
+	}
+
+	// 5. 验证密码
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+		maxRetryStr, _ := s.configWatcher.GetConfig("user_config", "login_max_retry")
+		lockDurationStr, _ := s.configWatcher.GetConfig("user_config", "login_lock_duration")
+		maxRetry, _ := strconv.Atoi(maxRetryStr)
+		lockDuration, _ := strconv.Atoi(lockDurationStr)
+		if maxRetry <= 0 {
+			maxRetry = 5
+		}
+		if lockDuration <= 0 {
+			lockDuration = 3600
+		}
+
+		retryKey := cache.KeyLoginRetryCount(user.ID)
+		var retryCount int
+		var retryVal string
+		if err := s.cacheMgr.Get(ctx, retryKey, &retryVal); err == nil && retryVal != "" {
+			retryCount, _ = strconv.Atoi(retryVal)
+		}
+		retryCount++
+
+		if retryCount >= maxRetry {
+			lockKey := cache.KeyLoginLock(user.ID)
+			_ = s.cacheMgr.Set(ctx, lockKey, "1", time.Duration(lockDuration)*time.Second)
+			_ = s.cacheMgr.Delete(ctx, retryKey)
+			return nil, errorx.New(errorx.CodeUserLocked, "密码错误次数过多，账户已锁定")
+		}
+
+		_ = s.cacheMgr.Set(ctx, retryKey, strconv.Itoa(retryCount), time.Duration(lockDuration)*time.Second)
+
 		return nil, errorx.New(errorx.CodePasswordWrong, "密码错误")
 	}
 
-	// 3. 更新登录信息
+	retryKey := cache.KeyLoginRetryCount(user.ID)
+	_ = s.cacheMgr.Delete(ctx, retryKey)
+
+	// 6. 更新登录信息
 	now := time.Now()
 	user.LastLoginAt = &now
 	user.LastLoginIP = ip
 	_ = s.repo.Update(ctx, user)
 
-	// 4. 生成令牌
+	// 7. 生成令牌
 	claims := s.jwt.NewUserClaims(user.ID, req.Platform, jwt.AccessToken)
 	token, err := s.jwt.GenerateToken(claims)
 	if err != nil {
@@ -165,9 +243,9 @@ func (s *userService) Login(ctx context.Context, req *clientDto.UserLoginReq, ip
 		return nil, errorx.New(errorx.CodeInternalError, "刷新令牌生成失败")
 	}
 
-	// 5. 存储 Token 哈希 (用于后续主动拉黑或单端登录控制)
+	// 8. 存储 Token 哈希 (用于后续主动拉黑或单端登录控制)
 	tokenHash := s.computeHash(token)
-	err = s.repo.CreateTokenHash(ctx, &userEntity.UserTokenHash{
+	err = s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
 		UserID:    user.ID,
 		TokenHash: tokenHash,
 		ExpiredAt: time.Unix(claims.ExpiresAt.Unix(), 0),
@@ -207,7 +285,7 @@ func (s *userService) RefreshToken(ctx context.Context, refreshToken string) (*u
 
 	// 记录新 Token 哈希
 	tokenHash := s.computeHash(token)
-	_ = s.repo.CreateTokenHash(ctx, &userEntity.UserTokenHash{
+	_ = s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
 		UserID:    user.ID,
 		TokenHash: tokenHash,
 		ExpiredAt: time.Unix(newClaims.ExpiresAt.Unix(), 0),
@@ -290,7 +368,7 @@ func (s *userService) ChangePassword(ctx context.Context, userID string, req *cl
 
 func (s *userService) Logout(ctx context.Context, userID string, token string) error {
 	tokenHash := s.computeHash(token)
-	return s.repo.DeleteTokenHash(ctx, userID, tokenHash)
+	return s.tokenStore.Delete(ctx, userID, tokenHash)
 }
 
 func (s *userService) ResetPassword(ctx context.Context, req *clientDto.UserResetPasswordReq) error {
@@ -317,12 +395,17 @@ func (s *userService) ResetPassword(ctx context.Context, req *clientDto.UserRese
 		return errorx.New(errorx.CodeUserNotFound, "用户不存在")
 	}
 
-	// 3. 修改密码
+	if user.Status == userEntity.UserStatusDisabled {
+		return errorx.New(errorx.CodeUserDisabled, "账户已禁用，无法找回密码")
+	}
+
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
 	user.Password = string(hashedPassword)
 
-	// 4. 清理所有 Token (强制下线)
-	_ = s.repo.DeleteAllTokenHashes(ctx, user.ID)
+	_ = s.tokenStore.DeleteAll(ctx, user.ID)
+
+	_ = s.cacheMgr.Delete(ctx, cache.KeyLoginLock(user.ID))
+	_ = s.cacheMgr.Delete(ctx, cache.KeyLoginRetryCount(user.ID))
 
 	return s.repo.Update(ctx, user)
 }
@@ -419,7 +502,7 @@ func (s *userService) Update(ctx context.Context, user *userEntity.User) error {
 		}
 		oldUser.Password = string(hashedPassword)
 		// 强制清理 Token
-		_ = s.repo.DeleteAllTokenHashes(ctx, user.ID)
+		_ = s.tokenStore.DeleteAll(ctx, user.ID)
 	}
 
 	// 3. 更新其他字段
@@ -446,19 +529,26 @@ func (s *userService) UpdateStatus(ctx context.Context, id string, status string
 	}
 	user.Status = status
 
-	// 如果是禁用用户，则强制清理其所有在线会话
 	if status == userEntity.UserStatusDisabled {
-		_ = s.repo.DeleteAllTokenHashes(ctx, id)
+		_ = s.tokenStore.DeleteAll(ctx, id)
+		_ = s.cacheMgr.Delete(ctx, cache.KeyLoginLock(id))
+		_ = s.cacheMgr.Delete(ctx, cache.KeyLoginRetryCount(id))
 	}
 
 	return s.repo.Update(ctx, user)
 }
 
 func (s *userService) Delete(ctx context.Context, id string) error {
+	_ = s.cacheMgr.Delete(ctx, cache.KeyLoginLock(id))
+	_ = s.cacheMgr.Delete(ctx, cache.KeyLoginRetryCount(id))
 	return s.repo.Delete(ctx, id)
 }
 
 func (s *userService) DeleteBatch(ctx context.Context, ids []string) error {
+	for _, id := range ids {
+		_ = s.cacheMgr.Delete(ctx, cache.KeyLoginLock(id))
+		_ = s.cacheMgr.Delete(ctx, cache.KeyLoginRetryCount(id))
+	}
 	return s.repo.DeleteBatch(ctx, ids)
 }
 
@@ -469,9 +559,9 @@ func (s *userService) UpdateLastReadID(ctx context.Context, userID string, lastR
 }
 
 func (s *userService) DeleteAccount(ctx context.Context, userID string) error {
-	// 1. 清理 Token
-	_ = s.repo.DeleteAllTokenHashes(ctx, userID)
-	// 2. 软删除用户
+	_ = s.tokenStore.DeleteAll(ctx, userID)
+	_ = s.cacheMgr.Delete(ctx, cache.KeyLoginLock(userID))
+	_ = s.cacheMgr.Delete(ctx, cache.KeyLoginRetryCount(userID))
 	return s.repo.Delete(ctx, userID)
 }
 

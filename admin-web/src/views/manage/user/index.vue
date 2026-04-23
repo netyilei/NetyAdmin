@@ -1,7 +1,12 @@
 <script setup lang="tsx">
-import { NAvatar, NButton, NPopconfirm, NSpace, NSwitch } from 'naive-ui';
+import { NAvatar, NButton, NPopconfirm, NSpace, NSwitch, NTag } from 'naive-ui';
 import dayjs from 'dayjs';
-import { fetchDeleteUser, fetchGetUserList, fetchUpdateUserStatus } from '@/service/api/v1/system-manage';
+import {
+  fetchDeleteUser,
+  fetchGetUserList,
+  fetchUnlockUser,
+  fetchUpdateUserStatus
+} from '@/service/api/v1/system-manage';
 import { useAppStore } from '@/store/modules/app';
 import { useTable, useTableOperate } from '@/hooks/common/table';
 import { useDict } from '@/hooks/common/dict';
@@ -87,6 +92,22 @@ const {
       minWidth: 150
     } as any,
     {
+      key: 'locked',
+      title: $t('page.manage.user.locked'),
+      align: 'center',
+      width: 90,
+      render: (row: any) =>
+        row.locked ? (
+          <NTag type="error" size="small">
+            {$t('page.manage.user.lockedYes')}
+          </NTag>
+        ) : (
+          <NTag type="success" size="small">
+            {$t('page.manage.user.lockedNo')}
+          </NTag>
+        )
+    } as any,
+    {
       key: 'status',
       title: $t('page.manage.user.status'),
       align: 'center',
@@ -112,12 +133,24 @@ const {
       key: 'operate',
       title: $t('common.operate'),
       align: 'center',
-      width: 180,
+      width: 220,
       render: (row: any) => (
         <NSpace justify="center">
           <NButton type="primary" ghost size="small" onClick={() => handleEditFn(row)}>
             {$t('common.edit')}
           </NButton>
+          {row.locked && (
+            <NPopconfirm onPositiveClick={() => handleUnlock(row.id)}>
+              {{
+                default: () => $t('page.manage.user.confirmUnlock'),
+                trigger: () => (
+                  <NButton type="warning" ghost size="small">
+                    {$t('page.manage.user.unlock')}
+                  </NButton>
+                )
+              }}
+            </NPopconfirm>
+          )}
           <NPopconfirm onPositiveClick={() => handleDelete(row.id)}>
             {{
               default: () => $t('common.confirmDelete'),
@@ -141,6 +174,14 @@ async function handleStatusChange(id: string, status: string) {
   const { error } = await fetchUpdateUserStatus(id, status);
   if (!error) {
     window.$message?.success($t('common.updateSuccess'));
+    await getData();
+  }
+}
+
+async function handleUnlock(id: string) {
+  const { error } = await fetchUnlockUser(id);
+  if (!error) {
+    window.$message?.success($t('page.manage.user.unlockSuccess'));
     await getData();
   }
 }

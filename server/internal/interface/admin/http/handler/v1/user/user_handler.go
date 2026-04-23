@@ -3,8 +3,9 @@ package user
 import (
 	"github.com/gin-gonic/gin"
 
+	userEntity "NetyAdmin/internal/domain/entity/user"
 	userDto "NetyAdmin/internal/interface/admin/dto/user"
-	"NetyAdmin/internal/domain/entity/user"
+	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
 	userRepo "NetyAdmin/internal/repository/user"
@@ -12,16 +13,17 @@ import (
 )
 
 type UserHandler struct {
-	svc userSvc.UserService
+	svc      userSvc.UserService
+	cacheMgr cache.LazyCacheManager
 }
 
-func NewUserHandler(svc userSvc.UserService) *UserHandler {
+func NewUserHandler(svc userSvc.UserService, cacheMgr cache.LazyCacheManager) *UserHandler {
 	return &UserHandler{
-		svc: svc,
+		svc:      svc,
+		cacheMgr: cacheMgr,
 	}
 }
 
-// List 获取用户列表
 func (h *UserHandler) List(c *gin.Context) {
 	var req userDto.UserQuery
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -44,10 +46,25 @@ func (h *UserHandler) List(c *gin.Context) {
 		return
 	}
 
-	response.SuccessWithPage(c, req.Current, req.Size, total, users)
+	type userWithLock struct {
+		userEntity.User
+		Locked bool `json:"locked"`
+	}
+
+	items := make([]userWithLock, 0, len(users))
+	for _, u := range users {
+		locked := false
+		var lockVal string
+		lockKey := cache.KeyLoginLock(u.ID)
+		if err := h.cacheMgr.Get(c.Request.Context(), lockKey, &lockVal); err == nil && lockVal != "" {
+			locked = true
+		}
+		items = append(items, userWithLock{User: u, Locked: locked})
+	}
+
+	response.SuccessWithPage(c, req.Current, req.Size, total, items)
 }
 
-// Autocomplete 查找用户自动补全
 func (h *UserHandler) Autocomplete(c *gin.Context) {
 	keyword := c.Query("keyword")
 	if keyword == "" {
@@ -62,7 +79,6 @@ func (h *UserHandler) Autocomplete(c *gin.Context) {
 	response.Success(c, users)
 }
 
-// Create 创建用户
 func (h *UserHandler) Create(c *gin.Context) {
 	var req userDto.CreateUserReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -70,7 +86,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 		return
 	}
 
-	u := &user.User{
+	u := &userEntity.User{
 		Username: req.Username,
 		Password: req.Password,
 		Nickname: req.Nickname,
@@ -89,7 +105,6 @@ func (h *UserHandler) Create(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// Update 更新用户
 func (h *UserHandler) Update(c *gin.Context) {
 	id := c.Param("id")
 	var req userDto.UpdateUserReq
@@ -98,7 +113,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 		return
 	}
 
-	u := &user.User{
+	u := &userEntity.User{
 		ID:       id,
 		Password: req.Password,
 		Nickname: req.Nickname,
@@ -117,7 +132,6 @@ func (h *UserHandler) Update(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// UpdateStatus 更新用户状态
 func (h *UserHandler) UpdateStatus(c *gin.Context) {
 	id := c.Param("id")
 	var req userDto.UpdateUserStatusReq
@@ -134,7 +148,15 @@ func (h *UserHandler) UpdateStatus(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// Delete 删除用户
+func (h *UserHandler) Unlock(c *gin.Context) {
+	id := c.Param("id")
+	lockKey := cache.KeyLoginLock(id)
+	_ = h.cacheMgr.Delete(c.Request.Context(), lockKey)
+	retryKey := cache.KeyLoginRetryCount(id)
+	_ = h.cacheMgr.Delete(c.Request.Context(), retryKey)
+	response.Success(c, nil)
+}
+
 func (h *UserHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
 	if err := h.svc.Delete(c.Request.Context(), id); err != nil {

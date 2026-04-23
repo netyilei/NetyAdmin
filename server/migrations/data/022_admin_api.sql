@@ -81,6 +81,7 @@ DECLARE
             (user_menu_id, '创建用户', 'POST', '/admin/v1/systemManage/users', '创建终端用户', '1', NOW(), NOW()),
             (user_menu_id, '更新用户', 'PUT', '/admin/v1/systemManage/users/:id', '更新终端用户', '1', NOW(), NOW()),
             (user_menu_id, '更新用户状态', 'PATCH', '/admin/v1/systemManage/users/:id/status', '更新终端用户状态', '1', NOW(), NOW()),
+            (user_menu_id, '解锁用户', 'POST', '/admin/v1/systemManage/users/:id/unlock', '解锁登录锁定的终端用户', '1', NOW(), NOW()),
             (user_menu_id, '删除用户', 'DELETE', '/admin/v1/systemManage/users/:id', '删除终端用户', '1', NOW(), NOW())
             ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
         END IF;

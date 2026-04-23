@@ -15,6 +15,7 @@
 - **权限管控**：细粒度的 `Scope` (权限范围) 校验，控制应用可调用的 API 集合。
 - **分布式限流**：自适应的令牌桶算法，支持 Redis Lua 实现的跨节点精准计数。
 - **防重放机制**：集成 `Nonce` 与时钟容差校验，确保请求不可重用。
+- **存储绑定**：每个应用可绑定独立的存储配置，未绑定时自动回退到全局默认存储源。
 
 ---
 
@@ -31,11 +32,19 @@ server/internal/repository/open_platform/
 └── open_log.go         # 日志仓储实现
 
 server/internal/service/open_platform/
-├── app.go              # 应用管理逻辑 (Verify/Limit)
+├── app.go              # 应用管理逻辑 (Verify/Limit/GetAppStorageDriver)
 └── open_log.go         # 审计日志记录
 
 server/internal/middleware/
 └── open_platform_auth.go # 【核心】签名验证中间件
+
+server/internal/interface/client/http/
+├── handler/v1/storage_handler.go  # Client端存储上传Handler
+├── router/v1/storage_router.go    # Client端存储路由注册
+└── dto/v1/storage.go              # Client端存储DTO
+
+server/internal/interface/admin/dto/open_platform/
+└── app.go              # Admin端应用DTO（含StorageID字段）
 ```
 
 ---
@@ -72,6 +81,7 @@ API 开发者在注册路由时可标记所属 Scope。应用必须被授予该 
 - `msg_send`: 消息下发。
 - `msg_read`: 站内信读取。
 - `content_view`: 内容查看（分类、文章、Banner）。
+- `storage_upload`: 文件上传（获取凭证、创建记录）。
 
 ---
 
@@ -88,8 +98,11 @@ type App struct {
     Status      int    `gorm:"default:1"`          // 1:启用, 0:禁用
     IPStrategy  int    `gorm:"default:1"`          // 1:黑名单, 2:白名单
     QuotaConfig string `gorm:"type:jsonb"`         // 限流配置 {"rate":10, "capacity":20}
+    StorageID   uint   `gorm:"default:0"`          // 绑定的存储配置ID，0表示使用全局默认
 }
 ```
+
+> **存储绑定机制**：当 `StorageID > 0` 时，该应用的所有上传操作使用指定的存储配置；当 `StorageID = 0` 时，自动回退到全局默认存储配置。
 
 ---
 
@@ -99,9 +112,11 @@ type App struct {
 |--------|------|------|
 | GET | /admin/v1/open-platform/apps | 应用列表查询 |
 | POST | /admin/v1/open-platform/apps | 创建新应用 (自动生成密钥) |
-| PUT | /admin/v1/open-platform/apps | 修改应用信息/权限范围 |
+| PUT | /admin/v1/open-platform/apps | 修改应用信息/权限范围/存储绑定 |
 | POST | /admin/v1/open-platform/apps/reset-secret | 重置 AppSecret |
 | GET | /admin/v1/open-platform/logs | API 调用审计日志查询 |
+
+> **存储绑定**：创建和修改应用时，可通过 `storageId` 字段指定绑定的存储配置。`storageId = 0` 表示使用全局默认存储。
 
 ## 六、二次开发示例
 
@@ -120,9 +135,8 @@ type App struct {
 
 | Method | Path | 说明 |
 |--------|------|------|
+| GET | /client/v1/auth/scene-config | 获取场景验证配置（图形验证码+消息验证码开关） |
 | GET | /client/v1/auth/captcha | 获取图形验证码 |
-| GET | /client/v1/auth/captcha-status | 获取验证码启用状态 |
-| GET | /client/v1/auth/verify-config | 获取验证码发送配置 |
 | POST | /client/v1/auth/send-code | 发送短信/邮件验证码 |
 
 ### 6.3 用户资料（需签名）
@@ -162,6 +176,15 @@ type App struct {
 | POST | /client/v1/content/article/:id/like | 点赞指定文章 |
 | POST | /client/v1/content/banners/:id/click | 记录Banner点击 |
 
+### 6.7 存储上传（需签名，Scope: `storage_upload`）
+
+| Method | Path | 说明 |
+|--------|------|------|
+| POST | /client/v1/storage/credentials | 获取上传凭证（自动使用应用绑定的存储配置） |
+| POST | /client/v1/storage/records | 创建上传记录 |
+
+> **存储绑定自动适配**：Client 端上传接口会根据请求中的应用身份自动选择存储配置。若应用绑定了 `storageId`，则使用该配置；否则回退到全局默认存储。
+
 ---
 
 ## 七、二次开发示例
@@ -187,7 +210,7 @@ func (r *orderRouter) RegisterAuth(group *gin.RouterGroup) {
 }
 ```
 
-### 6.2 客户端签名计算 (Node.js 示例)
+### 7.2 客户端签名计算 (Node.js 示例)
 
 ```javascript
 const crypto = require('crypto');
@@ -202,18 +225,20 @@ function computeSignature(secret, method, path, timestamp, nonce, payload) {
 
 ---
 
-## 七、最佳实践
+## 八、最佳实践
 
 1. **Secret 安全**：`AppSecret` 在数据库中必须 AES 加密存储，在 UI 界面默认不回显。
 2. **时钟同步**：客户端与服务器时间偏差不得超过 60s，否则请求失效。
 3. **日志清理**：开放平台日志增长较快，建议结合 `task_config` 设置 30 天自动清理。
 4. **IPAC 联动**：建议为合作伙伴应用开启白名单模式（`IPStrategy=2`），仅允许其固定服务器 IP 访问。
 5. **缓存同步**：应用创建、更新、删除时，系统会自动触发 IPAC 缓存重载，确保 IP 策略实时生效。
+6. **存储绑定**：为需要资源隔离的应用绑定独立存储配置，避免不同应用的文件混存于同一存储桶。未绑定的应用自动使用全局默认存储，无需额外配置。
 
 ---
 
-## 八、相关文档
+## 九、相关文档
 
 - [Server架构设计](./server-architecture.md)
 - [IP 访问控制](./server-module-ipac.md)
 - [缓存模块详解](./server-module-cache.md)
+- [客户端API文档](./client-api/00-authentication.md)

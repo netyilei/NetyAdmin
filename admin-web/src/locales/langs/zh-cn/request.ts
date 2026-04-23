@@ -23,6 +23,7 @@ const request = {
     userAlreadyExists: '用户名已存在',
     tokenExpired: '令牌已过期',
     tokenInvalid: '令牌无效',
+    userLocked: '账户已锁定，请稍后再试',
     oldPasswordWrong: '原密码错误',
     roleNotFound: '角色不存在',
     roleInUse: '角色正在使用中',

@@ -285,7 +285,7 @@ func (s *appService) CreateScopeGroup(ctx context.Context, group *open_platform.
 	if err := s.repo.CreateScopeGroup(ctx, group); err != nil {
 		return err
 	}
-	_ = s.cacheMgr.Delete(ctx, "app:available_scopes")
+	_ = s.cacheMgr.Delete(ctx, cache.KeyAppAvailableScopes())
 	return nil
 }
 
@@ -293,7 +293,7 @@ func (s *appService) UpdateScopeGroup(ctx context.Context, group *open_platform.
 	if err := s.repo.UpdateScopeGroup(ctx, group); err != nil {
 		return err
 	}
-	_ = s.cacheMgr.Delete(ctx, "app:available_scopes")
+	_ = s.cacheMgr.Delete(ctx, cache.KeyAppAvailableScopes())
 	return nil
 }
 
@@ -301,7 +301,7 @@ func (s *appService) DeleteScopeGroup(ctx context.Context, id uint64) error {
 	if err := s.repo.DeleteScopeGroup(ctx, id); err != nil {
 		return err
 	}
-	_ = s.cacheMgr.Delete(ctx, "app:available_scopes")
+	_ = s.cacheMgr.Delete(ctx, cache.KeyAppAvailableScopes())
 	return nil
 }
 
