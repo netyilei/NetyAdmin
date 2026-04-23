@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 
 	msgEntity "NetyAdmin/internal/domain/entity/message"
+	"NetyAdmin/internal/pkg/pagination"
 )
 
 type MsgRepository interface {
@@ -80,7 +81,7 @@ func (r *msgRepository) DeleteTemplate(ctx context.Context, id uint64) error {
 
 func (r *msgRepository) GetTemplateByCode(ctx context.Context, code string) (*msgEntity.MsgTemplate, error) {
 	var tpl msgEntity.MsgTemplate
-	err := r.db.WithContext(ctx).Where("code = ? AND status = 1", code).First(&tpl).Error
+	err := r.db.WithContext(ctx).Where("code = ? AND status = ?", code, msgEntity.MsgTplStatusEnabled).First(&tpl).Error
 	return &tpl, err
 }
 
@@ -107,7 +108,7 @@ func (r *msgRepository) ListTemplates(ctx context.Context, query *MsgRepoQuery) 
 	}
 
 	if query.Page > 0 && query.PageSize > 0 {
-		db = db.Offset((query.Page - 1) * query.PageSize).Limit(query.PageSize)
+		db = db.Scopes(pagination.Paginate(query.Page, query.PageSize))
 	}
 
 	err := db.Order("created_at DESC").Find(&list).Error
@@ -121,7 +122,7 @@ func (r *msgRepository) ListUserInternalMsgs(ctx context.Context, userID string,
 		Table("msg_internal mi").
 		Joins("JOIN msg_records mr ON mi.msg_record_id = mr.id").
 		Joins("LEFT JOIN msg_internal_reads mir ON mir.msg_internal_id = mi.id AND mir.user_id = ?", userID).
-		Where("mr.channel = ? AND mr.status = ? AND (mr.user_id = ? OR mi.type = 1)", "internal", msgEntity.MsgStatusSuccess, userID)
+		Where("mr.channel = ? AND mr.status = ? AND (mr.user_id = ? OR mi.type = ?)", msgEntity.MsgChannelInternal, msgEntity.MsgStatusSuccess, userID, msgEntity.MsgInternalTypeSystem)
 
 	if readFilter != nil {
 		if *readFilter == 1 {
@@ -141,7 +142,7 @@ func (r *msgRepository) ListUserInternalMsgs(ctx context.Context, userID string,
 		Select("mi.id as msg_internal_id, mi.msg_record_id, mi.type, mr.title, mr.content, CASE WHEN mir.id IS NOT NULL THEN true ELSE false END as is_read, mir.read_at, mr.created_at").
 		Joins("JOIN msg_records mr ON mi.msg_record_id = mr.id").
 		Joins("LEFT JOIN msg_internal_reads mir ON mir.msg_internal_id = mi.id AND mir.user_id = ?", userID).
-		Where("mr.channel = ? AND mr.status = ? AND (mr.user_id = ? OR mi.type = 1)", "internal", msgEntity.MsgStatusSuccess, userID)
+		Where("mr.channel = ? AND mr.status = ? AND (mr.user_id = ? OR mi.type = ?)", msgEntity.MsgChannelInternal, msgEntity.MsgStatusSuccess, userID, msgEntity.MsgInternalTypeSystem)
 
 	if readFilter != nil {
 		if *readFilter == 1 {
@@ -152,7 +153,7 @@ func (r *msgRepository) ListUserInternalMsgs(ctx context.Context, userID string,
 	}
 
 	if page > 0 && pageSize > 0 {
-		queryDB = queryDB.Offset((page - 1) * pageSize).Limit(pageSize)
+		queryDB = queryDB.Scopes(pagination.Paginate(page, pageSize))
 	}
 
 	if err := queryDB.Order("mr.created_at DESC").Scan(&results).Error; err != nil {
@@ -169,7 +170,7 @@ func (r *msgRepository) GetInternalMsgDetail(ctx context.Context, msgInternalID 
 		Select("mi.id as msg_internal_id, mi.msg_record_id, mi.type, mr.title, mr.content, CASE WHEN mir.id IS NOT NULL THEN true ELSE false END as is_read, mir.read_at, mr.created_at").
 		Joins("JOIN msg_records mr ON mi.msg_record_id = mr.id").
 		Joins("LEFT JOIN msg_internal_reads mir ON mir.msg_internal_id = mi.id AND mir.user_id = ?", userID).
-		Where("mi.id = ? AND mr.channel = ? AND mr.status = ? AND (mr.user_id = ? OR mi.type = 1)", msgInternalID, "internal", msgEntity.MsgStatusSuccess, userID).
+		Where("mi.id = ? AND mr.channel = ? AND mr.status = ? AND (mr.user_id = ? OR mi.type = ?)", msgInternalID, msgEntity.MsgChannelInternal, msgEntity.MsgStatusSuccess, userID, msgEntity.MsgInternalTypeSystem).
 		Take(&result).Error
 
 	if err != nil {
@@ -179,23 +180,12 @@ func (r *msgRepository) GetInternalMsgDetail(ctx context.Context, msgInternalID 
 }
 
 func (r *msgRepository) MarkInternalMsgRead(ctx context.Context, msgInternalID uint64, userID string) error {
-	var existing msgEntity.MsgInternalRead
-	err := r.db.WithContext(ctx).
-		Where("msg_internal_id = ? AND user_id = ?", msgInternalID, userID).
-		First(&existing).Error
-	if err == nil {
-		return nil
-	}
-	if err != gorm.ErrRecordNotFound {
-		return err
-	}
-
 	read := &msgEntity.MsgInternalRead{
 		MsgInternalID: msgInternalID,
 		UserID:        userID,
 		ReadAt:        time.Now(),
 	}
-	return r.db.WithContext(ctx).Create(read).Error
+	return r.db.WithContext(ctx).Where("msg_internal_id = ? AND user_id = ?", msgInternalID, userID).FirstOrCreate(read).Error
 }
 
 func (r *msgRepository) MarkAllInternalMsgRead(ctx context.Context, userID string) error {
@@ -205,7 +195,7 @@ func (r *msgRepository) MarkAllInternalMsgRead(ctx context.Context, userID strin
 		Select("mi.id").
 		Joins("JOIN msg_records mr ON mi.msg_record_id = mr.id").
 		Joins("LEFT JOIN msg_internal_reads mir ON mir.msg_internal_id = mi.id AND mir.user_id = ?", userID).
-		Where("mr.channel = ? AND mr.status = ? AND (mr.user_id = ? OR mi.type = 1) AND mir.id IS NULL", "internal", msgEntity.MsgStatusSuccess, userID).
+		Where("mr.channel = ? AND mr.status = ? AND (mr.user_id = ? OR mi.type = ?) AND mir.id IS NULL", msgEntity.MsgChannelInternal, msgEntity.MsgStatusSuccess, userID, msgEntity.MsgInternalTypeSystem).
 		Scan(&unreadIDs).Error
 
 	if err != nil {
@@ -235,7 +225,7 @@ func (r *msgRepository) CountUnreadInternalMsgs(ctx context.Context, userID stri
 		Table("msg_internal mi").
 		Joins("JOIN msg_records mr ON mi.msg_record_id = mr.id").
 		Joins("LEFT JOIN msg_internal_reads mir ON mir.msg_internal_id = mi.id AND mir.user_id = ?", userID).
-		Where("mr.channel = ? AND mr.status = ? AND (mr.user_id = ? OR mi.type = 1) AND mir.id IS NULL", "internal", msgEntity.MsgStatusSuccess, userID).
+		Where("mr.channel = ? AND mr.status = ? AND (mr.user_id = ? OR mi.type = ?) AND mir.id IS NULL", msgEntity.MsgChannelInternal, msgEntity.MsgStatusSuccess, userID, msgEntity.MsgInternalTypeSystem).
 		Count(&count).Error
 
 	return count, err
@@ -287,7 +277,7 @@ func (r *msgRepository) ListRecords(ctx context.Context, query *MsgRepoQuery) ([
 	}
 
 	if query.Page > 0 && query.PageSize > 0 {
-		db = db.Offset((query.Page - 1) * query.PageSize).Limit(query.PageSize)
+		db = db.Scopes(pagination.Paginate(query.Page, query.PageSize))
 	}
 
 	err := db.Order("created_at DESC").Find(&list).Error

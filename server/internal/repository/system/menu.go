@@ -5,7 +5,9 @@ import (
 
 	"gorm.io/gorm"
 
+	"NetyAdmin/internal/domain/entity"
 	systemEntity "NetyAdmin/internal/domain/entity/system"
+	"NetyAdmin/internal/pkg/pagination"
 )
 
 type MenuRepository interface {
@@ -97,8 +99,7 @@ func (r *menuRepository) List(ctx context.Context, query *MenuRepoQuery) ([]*sys
 		query.Size = 50
 	}
 
-	offset := (query.Current - 1) * query.Size
-	if err := db.Order("order_by ASC, id ASC").Offset(offset).Limit(query.Size).Find(&menus).Error; err != nil {
+	if err := db.Order("order_by ASC, id ASC").Scopes(pagination.Paginate(query.Current, query.Size)).Find(&menus).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -108,7 +109,7 @@ func (r *menuRepository) List(ctx context.Context, query *MenuRepoQuery) ([]*sys
 func (r *menuRepository) GetTree(ctx context.Context) ([]*systemEntity.Menu, error) {
 	var menus []*systemEntity.Menu
 	err := r.db.WithContext(ctx).
-		Where("status = ?", systemEntity.MenuStatusEnabled).
+		Where("status = ?", entity.StatusEnabled).
 		Order("order_by ASC, id ASC").
 		Find(&menus).Error
 	if err != nil {
@@ -178,7 +179,7 @@ func (r *menuRepository) GetByRoleCodes(ctx context.Context, roleCodes []string)
 		Joins("JOIN admin_role_menus ON admin_menu.id = admin_role_menus.admin_menu_id").
 		Joins("JOIN admin_role ON admin_role_menus.admin_role_id = admin_role.id").
 		Where("admin_role.code IN ?", roleCodes).
-		Where("admin_menu.status = ?", systemEntity.MenuStatusEnabled).
+		Where("admin_menu.status = ?", entity.StatusEnabled).
 		Order("admin_menu.order_by ASC, admin_menu.id ASC").
 		Find(&menus).Error
 

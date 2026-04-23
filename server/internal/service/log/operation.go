@@ -3,13 +3,12 @@ package log
 import (
 	"context"
 
-	logDto "NetyAdmin/internal/interface/admin/dto/log"
 	logVO "NetyAdmin/internal/domain/vo/log"
 	logRepo "NetyAdmin/internal/repository/log"
 )
 
 type OperationService interface {
-	List(ctx context.Context, req *logDto.OperationQueryReq) (*logVO.OperationListVO, error)
+	List(ctx context.Context, req *logRepo.OperationQuery) (*logVO.OperationListVO, error)
 	Delete(ctx context.Context, id uint) error
 	DeleteBatch(ctx context.Context, ids []uint) error
 }
@@ -22,9 +21,7 @@ func NewOperationService(logRepo *logRepo.OperationRepository) OperationService 
 	return &operationService{logRepo: logRepo}
 }
 
-func (s *operationService) List(ctx context.Context, req *logDto.OperationQueryReq) (*logVO.OperationListVO, error) {
-	req.Normalize()
-
+func (s *operationService) List(ctx context.Context, req *logRepo.OperationQuery) (*logVO.OperationListVO, error) {
 	logs, total, err := s.logRepo.List(ctx, req)
 	if err != nil {
 		return nil, err
@@ -47,8 +44,8 @@ func (s *operationService) List(ctx context.Context, req *logDto.OperationQueryR
 
 	return &logVO.OperationListVO{
 		Records: list,
-		Current: req.Current,
-		Size:    req.Size,
+		Current: req.Page,
+		Size:    req.PageSize,
 		Total:   total,
 	}, nil
 }

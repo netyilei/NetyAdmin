@@ -6,6 +6,7 @@ import (
 	"gorm.io/gorm"
 
 	userEntity "NetyAdmin/internal/domain/entity/user"
+	"NetyAdmin/internal/pkg/pagination"
 )
 
 type UserRepository interface {
@@ -146,7 +147,7 @@ func (r *userRepository) List(ctx context.Context, query *UserRepoQuery) ([]user
 	}
 
 	if query.Current > 0 && query.Size > 0 {
-		db = db.Offset((query.Current - 1) * query.Size).Limit(query.Size)
+		db = db.Scopes(pagination.Paginate(query.Current, query.Size))
 	}
 
 	if err := db.Order("created_at DESC").Find(&users).Error; err != nil {

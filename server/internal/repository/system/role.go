@@ -5,7 +5,9 @@ import (
 
 	"gorm.io/gorm"
 
+	"NetyAdmin/internal/domain/entity"
 	systemEntity "NetyAdmin/internal/domain/entity/system"
+	"NetyAdmin/internal/pkg/pagination"
 )
 
 type RoleRepository interface {
@@ -95,11 +97,10 @@ func (r *roleRepository) List(ctx context.Context, query *RoleRepoQuery) ([]*sys
 		query.Current = 1
 	}
 	if query.Size <= 0 {
-		query.Size = 10
+		query.Size = entity.DefaultPageSize
 	}
 
-	offset := (query.Current - 1) * query.Size
-	if err := db.Order("id DESC").Offset(offset).Limit(query.Size).Find(&roles).Error; err != nil {
+	if err := db.Order("id DESC").Scopes(pagination.Paginate(query.Current, query.Size)).Find(&roles).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -120,7 +121,7 @@ func (r *roleRepository) ExistsByCode(ctx context.Context, code string, excludeI
 
 func (r *roleRepository) GetAll(ctx context.Context) ([]*systemEntity.Role, error) {
 	var roles []*systemEntity.Role
-	err := r.db.WithContext(ctx).Where("status = ?", systemEntity.RoleStatusEnabled).Find(&roles).Error
+	err := r.db.WithContext(ctx).Where("status = ?", entity.StatusEnabled).Find(&roles).Error
 	return roles, err
 }
 

@@ -6,7 +6,9 @@ import (
 
 	"gorm.io/gorm"
 
+	"NetyAdmin/internal/domain/entity"
 	content "NetyAdmin/internal/domain/entity/content"
+	"NetyAdmin/internal/pkg/pagination"
 )
 
 type ContentArticleRepository interface {
@@ -124,18 +126,13 @@ func (r *contentArticleRepository) List(ctx context.Context, query *ContentArtic
 	}
 
 	var articles []*content.ContentArticle
-	offset := (query.Current - 1) * query.Size
-	if offset < 0 {
-		offset = 0
-	}
 	if query.Size <= 0 {
-		query.Size = 10
+		query.Size = entity.DefaultPageSize
 	}
 
 	err := db.Preload("Category").
 		Order("is_top DESC, top_sort ASC, created_at DESC").
-		Offset(offset).
-		Limit(query.Size).
+		Scopes(pagination.Paginate(query.Current, query.Size)).
 		Find(&articles).Error
 	if err != nil {
 		return nil, 0, err
@@ -206,7 +203,7 @@ func (r *contentArticleRepository) IncrementLikeCount(ctx context.Context, id ui
 
 func (r *contentArticleRepository) ListPublished(ctx context.Context, query *ContentArticlePublishedQuery) ([]*content.ContentArticle, int64, error) {
 	db := r.db.WithContext(ctx).Model(&content.ContentArticle{}).
-		Where("publish_status = ? AND status = ?", content.PublishStatusPublished, "1")
+		Where("publish_status = ? AND status = ?", content.PublishStatusPublished, entity.StatusEnabled)
 
 	if len(query.CategoryIDs) > 0 {
 		db = db.Where("category_id IN ?", query.CategoryIDs)
@@ -226,14 +223,13 @@ func (r *contentArticleRepository) ListPublished(ctx context.Context, query *Con
 		offset = 0
 	}
 	if query.Size <= 0 {
-		query.Size = 10
+		query.Size = entity.DefaultPageSize
 	}
 
 	var articles []*content.ContentArticle
 	err := db.Preload("Category").
 		Order("is_top DESC, top_sort ASC, published_at DESC").
-		Offset(offset).
-		Limit(query.Size).
+		Scopes(pagination.Paginate(query.Current, query.Size)).
 		Find(&articles).Error
 	if err != nil {
 		return nil, 0, err

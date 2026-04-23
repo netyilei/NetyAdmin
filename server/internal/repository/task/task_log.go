@@ -59,12 +59,12 @@ func (r *taskLogRepository) List(ctx context.Context, name string, page, size in
 }
 
 func (r *taskLogRepository) GetLatest(ctx context.Context, name string) (*taskEntity.TaskLog, error) {
-	var logs []taskEntity.TaskLog
-	err := r.db.WithContext(ctx).Where("name = ?", name).Order("id DESC").Limit(1).Find(&logs).Error
-	if err != nil || len(logs) == 0 {
+	var log taskEntity.TaskLog
+	err := r.db.WithContext(ctx).Where("name = ?", name).Order("id DESC").First(&log).Error
+	if err != nil {
 		return nil, err
 	}
-	return &logs[0], nil
+	return &log, nil
 }
 
 func (r *taskLogRepository) DeleteBefore(ctx context.Context, before time.Time) error {

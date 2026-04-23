@@ -5,7 +5,9 @@ import (
 
 	"gorm.io/gorm"
 
+	"NetyAdmin/internal/domain/entity"
 	systemEntity "NetyAdmin/internal/domain/entity/system"
+	"NetyAdmin/internal/pkg/pagination"
 )
 
 type ButtonRepository interface {
@@ -97,11 +99,10 @@ func (r *buttonRepository) List(ctx context.Context, query *ButtonRepoQuery) ([]
 		query.Current = 1
 	}
 	if query.Size <= 0 {
-		query.Size = 10
+		query.Size = entity.DefaultPageSize
 	}
 
-	offset := (query.Current - 1) * query.Size
-	if err := db.Order("id DESC").Offset(offset).Limit(query.Size).Find(&buttons).Error; err != nil {
+	if err := db.Order("id DESC").Scopes(pagination.Paginate(query.Current, query.Size)).Find(&buttons).Error; err != nil {
 		return nil, 0, err
 	}
 

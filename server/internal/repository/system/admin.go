@@ -6,6 +6,7 @@ import (
 	"gorm.io/gorm"
 
 	systemEntity "NetyAdmin/internal/domain/entity/system"
+	"NetyAdmin/internal/pkg/pagination"
 )
 
 type AdminRepository interface {
@@ -99,8 +100,7 @@ func (r *adminRepository) List(ctx context.Context, query *AdminRepoQuery) ([]sy
 		return nil, 0, err
 	}
 
-	offset := (query.Current - 1) * query.Size
-	if err := db.Order("id DESC").Offset(offset).Limit(query.Size).Find(&admins).Error; err != nil {
+	if err := db.Order("id DESC").Scopes(pagination.Paginate(query.Current, query.Size)).Find(&admins).Error; err != nil {
 		return nil, 0, err
 	}
 

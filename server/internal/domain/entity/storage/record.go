@@ -42,32 +42,29 @@ func (Record) TableName() string {
 	return "upload_record"
 }
 
-func (r *Record) IsImage() bool {
-	imageTypes := []string{"image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/svg+xml"}
-	for _, t := range imageTypes {
-		if r.MimeType == t {
-			return true
-		}
+var (
+	imageMimeTypes = map[string]bool{
+		"image/jpeg": true, "image/png": true, "image/gif": true,
+		"image/webp": true, "image/bmp": true, "image/svg+xml": true,
 	}
-	return false
+	videoMimeTypes = map[string]bool{
+		"video/mp4": true, "video/mpeg": true, "video/quicktime": true,
+		"video/x-msvideo": true, "video/webm": true,
+	}
+	audioMimeTypes = map[string]bool{
+		"audio/mpeg": true, "audio/wav": true, "audio/ogg": true,
+		"audio/aac": true, "audio/flac": true,
+	}
+)
+
+func (r *Record) IsImage() bool {
+	return imageMimeTypes[r.MimeType]
 }
 
 func (r *Record) IsVideo() bool {
-	videoTypes := []string{"video/mp4", "video/mpeg", "video/quicktime", "video/x-msvideo", "video/webm"}
-	for _, t := range videoTypes {
-		if r.MimeType == t {
-			return true
-		}
-	}
-	return false
+	return videoMimeTypes[r.MimeType]
 }
 
 func (r *Record) IsAudio() bool {
-	audioTypes := []string{"audio/mpeg", "audio/wav", "audio/ogg", "audio/aac", "audio/flac"}
-	for _, t := range audioTypes {
-		if r.MimeType == t {
-			return true
-		}
-	}
-	return false
+	return audioMimeTypes[r.MimeType]
 }

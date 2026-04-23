@@ -4,11 +4,20 @@ import (
 	"context"
 	"time"
 
-	logDto "NetyAdmin/internal/interface/admin/dto/log"
 	logEntity "NetyAdmin/internal/domain/entity/log"
+	"NetyAdmin/internal/pkg/pagination"
 
 	"gorm.io/gorm"
 )
+
+type OperationQuery struct {
+	AdminID   uint
+	Action    string
+	StartDate string
+	EndDate   string
+	Page      int
+	PageSize  int
+}
 
 type OperationRepository struct {
 	db *gorm.DB
@@ -25,7 +34,7 @@ func (r *OperationRepository) BatchCreate(ctx context.Context, logs []*logEntity
 	return r.db.WithContext(ctx).Create(&logs).Error
 }
 
-func (r *OperationRepository) List(ctx context.Context, req *logDto.OperationQueryReq) ([]logEntity.Operation, int64, error) {
+func (r *OperationRepository) List(ctx context.Context, req *OperationQuery) ([]logEntity.Operation, int64, error) {
 	var logs []logEntity.Operation
 	var total int64
 
@@ -55,7 +64,7 @@ func (r *OperationRepository) List(ctx context.Context, req *logDto.OperationQue
 		return nil, 0, err
 	}
 
-	if err := query.Order("created_at DESC").Offset(req.Offset()).Limit(req.Size).Find(&logs).Error; err != nil {
+	if err := query.Order("created_at DESC").Scopes(pagination.Paginate(req.Page, req.PageSize)).Find(&logs).Error; err != nil {
 		return nil, 0, err
 	}
 

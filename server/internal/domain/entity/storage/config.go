@@ -40,5 +40,5 @@ func (Config) TableName() string {
 }
 
 func (s *Config) IsEnabled() bool {
-	return s.Status == "1"
+	return s.Status == entity.StatusEnabled
 }

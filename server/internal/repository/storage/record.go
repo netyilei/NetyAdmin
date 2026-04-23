@@ -6,7 +6,9 @@ import (
 
 	"gorm.io/gorm"
 
+	"NetyAdmin/internal/domain/entity"
 	storageEntity "NetyAdmin/internal/domain/entity/storage"
+	"NetyAdmin/internal/pkg/pagination"
 )
 
 type RecordRepository interface {
@@ -127,17 +129,12 @@ func (r *recordRepository) List(ctx context.Context, query *RecordQuery) ([]*sto
 	}
 
 	var records []*storageEntity.Record
-	offset := (query.Current - 1) * query.Size
-	if offset < 0 {
-		offset = 0
-	}
 	if query.Size <= 0 {
-		query.Size = 10
+		query.Size = entity.DefaultPageSize
 	}
 
 	err := db.Order("uploaded_at DESC").
-		Offset(offset).
-		Limit(query.Size).
+		Scopes(pagination.Paginate(query.Current, query.Size)).
 		Find(&records).Error
 	if err != nil {
 		return nil, 0, err

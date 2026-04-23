@@ -5,7 +5,9 @@ import (
 
 	"gorm.io/gorm"
 
+	"NetyAdmin/internal/domain/entity"
 	storageEntity "NetyAdmin/internal/domain/entity/storage"
+	"NetyAdmin/internal/pkg/pagination"
 )
 
 type ConfigRepository interface {
@@ -63,17 +65,12 @@ func (r *configRepository) List(ctx context.Context, query *ConfigQuery) ([]*sto
 	}
 
 	var configs []*storageEntity.Config
-	offset := (query.Current - 1) * query.Size
-	if offset < 0 {
-		offset = 0
-	}
 	if query.Size <= 0 {
-		query.Size = 10
+		query.Size = entity.DefaultPageSize
 	}
 
 	err := db.Order("is_default DESC, created_at DESC").
-		Offset(offset).
-		Limit(query.Size).
+		Scopes(pagination.Paginate(query.Current, query.Size)).
 		Find(&configs).Error
 	if err != nil {
 		return nil, 0, err
@@ -85,7 +82,7 @@ func (r *configRepository) List(ctx context.Context, query *ConfigQuery) ([]*sto
 func (r *configRepository) GetAllEnabled(ctx context.Context) ([]*storageEntity.Config, error) {
 	var configs []*storageEntity.Config
 	err := r.db.WithContext(ctx).
-		Where("status = ?", "1").
+		Where("status = ?", entity.StatusEnabled).
 		Order("is_default DESC, created_at DESC").
 		Find(&configs).Error
 	if err != nil {
@@ -97,7 +94,7 @@ func (r *configRepository) GetAllEnabled(ctx context.Context) ([]*storageEntity.
 func (r *configRepository) GetDefault(ctx context.Context) (*storageEntity.Config, error) {
 	var config storageEntity.Config
 	err := r.db.WithContext(ctx).
-		Where("is_default = ? AND status = ?", true, "1").
+		Where("is_default = ? AND status = ?", true, entity.StatusEnabled).
 		First(&config).Error
 	if err != nil {
 		return nil, err

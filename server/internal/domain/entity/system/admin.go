@@ -23,7 +23,7 @@ func (Admin) TableName() string {
 }
 
 func (a *Admin) IsEnabled() bool {
-	return a.Status == AdminStatusEnabled
+	return a.Status == entity.StatusEnabled
 }
 
 func (a *Admin) IsSuperAdmin() bool {
@@ -66,8 +66,3 @@ func (a *Admin) UpdaterName() string {
 	}
 	return ""
 }
-
-const (
-	AdminStatusEnabled  = "1"
-	AdminStatusDisabled = "0"
-)

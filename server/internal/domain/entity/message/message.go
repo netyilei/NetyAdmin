@@ -29,6 +29,17 @@ const (
 	MsgStatusPending = 0
 	MsgStatusSuccess = 1
 	MsgStatusFailed  = 2
+
+	MsgTplStatusEnabled = 1
+	MsgTplStatusDisabled = 0
+
+	MsgChannelInternal = "internal"
+	MsgChannelSMS      = "sms"
+	MsgChannelEmail    = "email"
+	MsgChannelPush     = "push"
+
+	MsgInternalTypeSystem  = 1
+	MsgInternalTypePrivate = 2
 )
 
 // MsgRecord 消息记录实体

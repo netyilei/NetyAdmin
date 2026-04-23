@@ -6,6 +6,7 @@ import (
 	"gorm.io/gorm"
 
 	"NetyAdmin/internal/domain/entity/ipac"
+	"NetyAdmin/internal/pkg/pagination"
 )
 
 type IPACRepository interface {
@@ -84,7 +85,7 @@ func (r *ipacRepository) List(ctx context.Context, query *IPACQuery) ([]*ipac.IP
 	}
 
 	if query.Page > 0 && query.PageSize > 0 {
-		db = db.Offset((query.Page - 1) * query.PageSize).Limit(query.PageSize)
+		db = db.Scopes(pagination.Paginate(query.Page, query.PageSize))
 	}
 
 	err := db.Order("created_at DESC").Find(&list).Error

@@ -8,6 +8,7 @@ import (
 	logDto "NetyAdmin/internal/interface/admin/dto/log"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
+	logRepo "NetyAdmin/internal/repository/log"
 	logService "NetyAdmin/internal/service/log"
 )
 
@@ -25,8 +26,18 @@ func (h *OperationLogHandler) List(c *gin.Context) {
 		response.FailWithCode(c, errorx.CodeInvalidParams)
 		return
 	}
+	req.Normalize()
 
-	result, err := h.svc.List(c.Request.Context(), &req)
+	query := &logRepo.OperationQuery{
+		AdminID:   req.AdminID,
+		Action:    req.Action,
+		StartDate: req.StartDate,
+		EndDate:   req.EndDate,
+		Page:      req.Current,
+		PageSize:  req.Size,
+	}
+
+	result, err := h.svc.List(c.Request.Context(), query)
 	if err != nil {
 		response.Fail(c, err)
 		return

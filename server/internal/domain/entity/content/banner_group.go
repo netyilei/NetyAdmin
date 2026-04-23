@@ -27,5 +27,5 @@ func (ContentBannerGroup) TableName() string {
 }
 
 func (g *ContentBannerGroup) IsEnabled() bool {
-	return g.Status == "1"
+	return g.Status == entity.StatusEnabled
 }

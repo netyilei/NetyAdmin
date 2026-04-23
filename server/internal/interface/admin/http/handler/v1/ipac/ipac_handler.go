@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"NetyAdmin/internal/domain/entity"
 	ipacEntity "NetyAdmin/internal/domain/entity/ipac"
 	ipacDto "NetyAdmin/internal/interface/admin/dto/ipac"
 	"NetyAdmin/internal/pkg/errorx"
@@ -59,12 +60,14 @@ func (h *IPACHandler) Create(c *gin.Context) {
 	operatorID := c.GetUint("adminID")
 
 	item := &ipacEntity.IPAccessControl{
-		AppID:     req.AppID,
-		IPAddr:    req.IPAddr,
-		Type:      req.Type,
-		Reason:    req.Reason,
-		Status:    req.Status,
-		CreatedBy: operatorID,
+		AppID:  req.AppID,
+		IPAddr: req.IPAddr,
+		Type:   req.Type,
+		Reason: req.Reason,
+		Status: req.Status,
+		Operator: entity.Operator{
+			CreatedBy: operatorID,
+		},
 	}
 
 	if req.ExpiredAt != nil && *req.ExpiredAt != "" {
@@ -95,11 +98,15 @@ func (h *IPACHandler) Update(c *gin.Context) {
 	operatorID := c.GetUint("adminID")
 
 	item := &ipacEntity.IPAccessControl{
-		ID:        req.ID,
-		Type:      req.Type,
-		Reason:    req.Reason,
-		Status:    req.Status,
-		UpdatedBy: operatorID,
+		Model: entity.Model{
+			ID: req.ID,
+		},
+		Type:   req.Type,
+		Reason: req.Reason,
+		Status: req.Status,
+		Operator: entity.Operator{
+			UpdatedBy: operatorID,
+		},
 	}
 
 	if req.ExpiredAt != nil && *req.ExpiredAt != "" {

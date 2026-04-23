@@ -2,8 +2,12 @@ package dict
 
 import (
 	"context"
+
 	"gorm.io/gorm"
+
+	"NetyAdmin/internal/domain/entity"
 	dictEntity "NetyAdmin/internal/domain/entity/dict"
+	"NetyAdmin/internal/pkg/pagination"
 )
 
 type DictRepository interface {
@@ -73,7 +77,7 @@ func (r *dictRepository) ListType(ctx context.Context, name, code, status string
 	if err != nil {
 		return nil, 0, err
 	}
-	err = query.Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error
+	err = query.Scopes(pagination.Paginate(page, pageSize)).Find(&list).Error
 	return list, total, err
 }
 
@@ -97,7 +101,7 @@ func (r *dictRepository) GetDataById(ctx context.Context, id uint) (*dictEntity.
 
 func (r *dictRepository) ListData(ctx context.Context, dictCode string) ([]dictEntity.DictData, error) {
 	var list []dictEntity.DictData
-	err := r.db.WithContext(ctx).Where("dict_code = ? AND status = '1'", dictCode).Order("order_by ASC").Find(&list).Error
+	err := r.db.WithContext(ctx).Where("dict_code = ? AND status = ?", dictCode, entity.StatusEnabled).Order("order_by ASC").Find(&list).Error
 	return list, err
 }
 
@@ -118,6 +122,6 @@ func (r *dictRepository) ListDataFull(ctx context.Context, dictCode, label, stat
 	if err != nil {
 		return nil, 0, err
 	}
-	err = query.Order("order_by ASC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error
+	err = query.Order("order_by ASC").Scopes(pagination.Paginate(page, pageSize)).Find(&list).Error
 	return list, total, err
 }

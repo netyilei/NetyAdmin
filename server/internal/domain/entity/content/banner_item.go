@@ -35,7 +35,7 @@ func (ContentBannerItem) TableName() string {
 }
 
 func (b *ContentBannerItem) IsEnabled() bool {
-	return b.Status == "1"
+	return b.Status == entity.StatusEnabled
 }
 
 func (b *ContentBannerItem) IsInTimeRange() bool {

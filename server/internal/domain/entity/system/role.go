@@ -37,7 +37,5 @@ func (r *Role) UpdaterName() string {
 }
 
 const (
-	RoleStatusEnabled  = "1"
-	RoleStatusDisabled = "0"
-	SuperRoleCode      = "R_SUPER"
+	SuperRoleCode = "R_SUPER"
 )

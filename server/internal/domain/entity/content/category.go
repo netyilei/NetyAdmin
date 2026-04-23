@@ -30,7 +30,7 @@ func (ContentCategory) TableName() string {
 }
 
 func (c *ContentCategory) IsEnabled() bool {
-	return c.Status == "1"
+	return c.Status == entity.StatusEnabled
 }
 
 func (c *ContentCategory) IsPlainText() bool {

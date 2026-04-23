@@ -5,8 +5,10 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	logEntity "NetyAdmin/internal/domain/entity/log"
+	"NetyAdmin/internal/pkg/pagination"
 )
 
 type ErrorRepository struct {
@@ -18,24 +20,15 @@ func NewErrorRepository(db *gorm.DB) *ErrorRepository {
 }
 
 func (r *ErrorRepository) UpsertByHash(ctx context.Context, logRecord *logEntity.Error) error {
-	var existing logEntity.Error
-	err := r.db.WithContext(ctx).
-		Where("hash = ?", logRecord.Hash).
-		First(&existing).Error
-
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return r.db.WithContext(ctx).Create(logRecord).Error
-		}
-		return err
-	}
-
-	return r.db.WithContext(ctx).Model(&existing).Updates(map[string]interface{}{
-		"occurrence_count": gorm.Expr("occurrence_count + ?", 1),
-		"last_occurred_at": time.Now(),
-		"request_id":       logRecord.RequestID,
-		"ip":               logRecord.IP,
-	}).Error
+	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "hash"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			"occurrence_count": gorm.Expr("occurrence_count + ?", 1),
+			"last_occurred_at": time.Now(),
+			"request_id":       logRecord.RequestID,
+			"ip":               logRecord.IP,
+		}),
+	}).Create(logRecord).Error
 }
 
 func (r *ErrorRepository) BatchUpsertByHash(ctx context.Context, logs []*logEntity.Error) error {
@@ -68,8 +61,7 @@ func (r *ErrorRepository) List(ctx context.Context, level string, resolved *bool
 		return nil, 0, err
 	}
 
-	offset := (page - 1) * pageSize
-	if err := query.Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&logs).Error; err != nil {
+	if err := query.Order("created_at DESC").Scopes(pagination.Paginate(page, pageSize)).Find(&logs).Error; err != nil {
 		return nil, 0, err
 	}
 

@@ -59,7 +59,7 @@ func (ContentArticle) TableName() string {
 }
 
 func (a *ContentArticle) IsEnabled() bool {
-	return a.Status == "1"
+	return a.Status == entity.StatusEnabled
 }
 
 func (a *ContentArticle) IsPublished() bool {

@@ -16,6 +16,7 @@ import (
 	userEntity "NetyAdmin/internal/domain/entity/user"
 	clientDto "NetyAdmin/internal/interface/client/dto/v1"
 
+	"NetyAdmin/internal/domain/entity"
 	userVO "NetyAdmin/internal/domain/vo/user"
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/configsync"
@@ -128,7 +129,7 @@ func (s *userService) Register(ctx context.Context, req *clientDto.UserRegisterR
 		Nickname: req.Nickname,
 		Phone:    req.Phone,
 		Email:    req.Email,
-		Status:   userEntity.UserStatusEnabled,
+		Status:   entity.StatusEnabled,
 	}
 
 	if err := s.repo.Create(ctx, user); err != nil {
@@ -157,7 +158,7 @@ func (s *userService) Login(ctx context.Context, req *clientDto.UserLoginReq, ip
 		return nil, errorx.New(errorx.CodeUserNotFound, "用户不存在")
 	}
 
-	if user.Status == userEntity.UserStatusDisabled {
+	if user.Status == entity.StatusDisabled {
 		return nil, errorx.New(errorx.CodeUserDisabled, "账户已禁用")
 	}
 
@@ -272,7 +273,7 @@ func (s *userService) RefreshToken(ctx context.Context, refreshToken string) (*u
 	if err != nil {
 		return nil, errorx.New(errorx.CodeUserNotFound, "用户不存在")
 	}
-	if user.Status == userEntity.UserStatusDisabled {
+	if user.Status == entity.StatusDisabled {
 		return nil, errorx.New(errorx.CodeUserDisabled, "账户已禁用")
 	}
 
@@ -395,7 +396,7 @@ func (s *userService) ResetPassword(ctx context.Context, req *clientDto.UserRese
 		return errorx.New(errorx.CodeUserNotFound, "用户不存在")
 	}
 
-	if user.Status == userEntity.UserStatusDisabled {
+	if user.Status == entity.StatusDisabled {
 		return errorx.New(errorx.CodeUserDisabled, "账户已禁用，无法找回密码")
 	}
 
@@ -456,7 +457,7 @@ func (s *userService) Create(ctx context.Context, user *userEntity.User) error {
 		user.ID = utils.NewULID()
 	}
 	if user.Status == "" {
-		user.Status = userEntity.UserStatusEnabled
+		user.Status = entity.StatusEnabled
 	}
 
 	return s.repo.Create(ctx, user)
@@ -529,7 +530,7 @@ func (s *userService) UpdateStatus(ctx context.Context, id string, status string
 	}
 	user.Status = status
 
-	if status == userEntity.UserStatusDisabled {
+	if status == entity.StatusDisabled {
 		_ = s.tokenStore.DeleteAll(ctx, id)
 		_ = s.cacheMgr.Delete(ctx, cache.KeyLoginLock(id))
 		_ = s.cacheMgr.Delete(ctx, cache.KeyLoginRetryCount(id))

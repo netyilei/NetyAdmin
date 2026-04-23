@@ -6,6 +6,7 @@ import (
 	"gorm.io/gorm"
 
 	"NetyAdmin/internal/domain/entity/open_platform"
+	"NetyAdmin/internal/pkg/pagination"
 )
 
 type OpenApiRepository interface {
@@ -93,7 +94,7 @@ func (r *openApiRepository) List(ctx context.Context, query *OpenApiRepoQuery) (
 	}
 
 	if query.Page > 0 && query.PageSize > 0 {
-		db = db.Offset((query.Page - 1) * query.PageSize).Limit(query.PageSize)
+		db = db.Scopes(pagination.Paginate(query.Page, query.PageSize))
 	}
 
 	err := db.Order("id ASC").Find(&list).Error
@@ -102,7 +103,7 @@ func (r *openApiRepository) List(ctx context.Context, query *OpenApiRepoQuery) (
 
 func (r *openApiRepository) ListAll(ctx context.Context) ([]*open_platform.OpenApi, error) {
 	var list []*open_platform.OpenApi
-	err := r.db.WithContext(ctx).Where("status = ?", 1).Order("id ASC").Find(&list).Error
+	err := r.db.WithContext(ctx).Where("status = ?", open_platform.ApiStatusEnabled).Order("id ASC").Find(&list).Error
 	return list, err
 }
 

@@ -2,7 +2,6 @@ package dict
 
 import "NetyAdmin/internal/domain/entity"
 
-// DictType 字典类型实体
 type DictType struct {
 	entity.Model
 	Name        string `gorm:"column:name;size:100;not null;comment:字典名称" json:"name"`

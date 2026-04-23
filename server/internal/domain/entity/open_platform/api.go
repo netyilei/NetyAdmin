@@ -2,6 +2,11 @@ package open_platform
 
 import "time"
 
+const (
+	ApiStatusEnabled  = 1
+	ApiStatusDisabled = 0
+)
+
 type OpenApi struct {
 	ID          uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
 	Method      string    `gorm:"size:10;not null" json:"method"`

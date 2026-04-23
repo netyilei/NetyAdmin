@@ -2,10 +2,12 @@ package open_platform
 
 import (
 	"context"
+	"time"
 
 	"gorm.io/gorm"
 
 	"NetyAdmin/internal/domain/entity/open_platform"
+	"NetyAdmin/internal/pkg/pagination"
 )
 
 type OpenLogRepository interface {
@@ -76,7 +78,7 @@ func (r *openLogRepository) List(ctx context.Context, query *OpenLogRepoQuery) (
 	}
 
 	if query.Page > 0 && query.PageSize > 0 {
-		db = db.Offset((query.Page - 1) * query.PageSize).Limit(query.PageSize)
+		db = db.Scopes(pagination.Paginate(query.Page, query.PageSize))
 	}
 
 	err := db.Order("created_at DESC").Find(&list).Error
@@ -94,5 +96,6 @@ func (r *openLogRepository) DeleteBatch(ctx context.Context, ids []uint64) error
 }
 
 func (r *openLogRepository) Clear(ctx context.Context, days int) error {
-	return r.db.WithContext(ctx).Where("created_at < NOW() - INTERVAL '? days'", days).Delete(&open_platform.OpenPlatformLog{}).Error
+	cutoff := time.Now().AddDate(0, 0, -days)
+	return r.db.WithContext(ctx).Where("created_at < ?", cutoff).Delete(&open_platform.OpenPlatformLog{}).Error
 }

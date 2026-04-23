@@ -6,6 +6,7 @@ import (
 	"gorm.io/gorm"
 
 	"NetyAdmin/internal/domain/entity/open_platform"
+	"NetyAdmin/internal/pkg/pagination"
 )
 
 type AppRepository interface {
@@ -103,7 +104,7 @@ func (r *appRepository) List(ctx context.Context, query *AppRepoQuery) ([]*open_
 	}
 
 	if query.Page > 0 && query.PageSize > 0 {
-		db = db.Offset((query.Page - 1) * query.PageSize).Limit(query.PageSize)
+		db = db.Scopes(pagination.Paginate(query.Page, query.PageSize))
 	}
 
 	err := db.Order("created_at DESC").Find(&list).Error

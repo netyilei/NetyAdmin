@@ -6,7 +6,9 @@ import (
 
 	"gorm.io/gorm"
 
+	"NetyAdmin/internal/domain/entity"
 	content "NetyAdmin/internal/domain/entity/content"
+	"NetyAdmin/internal/pkg/pagination"
 )
 
 type ContentBannerItemRepository interface {
@@ -98,19 +100,14 @@ func (r *contentBannerItemRepository) List(ctx context.Context, query *ContentBa
 	}
 
 	var items []*content.ContentBannerItem
-	offset := (query.Current - 1) * query.Size
-	if offset < 0 {
-		offset = 0
-	}
 	if query.Size <= 0 {
-		query.Size = 10
+		query.Size = entity.DefaultPageSize
 	}
 
 	err := db.Preload("Group").
 		Preload("Article").
 		Order("sort ASC, created_at DESC").
-		Offset(offset).
-		Limit(query.Size).
+		Scopes(pagination.Paginate(query.Current, query.Size)).
 		Find(&items).Error
 	if err != nil {
 		return nil, 0, err
@@ -123,7 +120,7 @@ func (r *contentBannerItemRepository) GetByGroupID(ctx context.Context, groupID 
 	var items []*content.ContentBannerItem
 	now := time.Now()
 	err := r.db.WithContext(ctx).
-		Where("group_id = ? AND status = ?", groupID, "1").
+		Where("group_id = ? AND status = ?", groupID, entity.StatusEnabled).
 		Where("(start_time IS NULL OR start_time <= ?) AND (end_time IS NULL OR end_time >= ?)", now, now).
 		Order("sort ASC, created_at DESC").
 		Find(&items).Error
@@ -136,7 +133,7 @@ func (r *contentBannerItemRepository) GetByGroupID(ctx context.Context, groupID 
 func (r *contentBannerItemRepository) CountByGroupID(ctx context.Context, groupID uint) (int64, error) {
 	var count int64
 	err := r.db.WithContext(ctx).Model(&content.ContentBannerItem{}).
-		Where("group_id = ? AND status = ?", groupID, "1").
+		Where("group_id = ? AND status = ?", groupID, entity.StatusEnabled).
 		Count(&count).Error
 	return count, err
 }

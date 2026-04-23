@@ -5,7 +5,9 @@ import (
 
 	"gorm.io/gorm"
 
+	"NetyAdmin/internal/domain/entity"
 	content "NetyAdmin/internal/domain/entity/content"
+	"NetyAdmin/internal/pkg/pagination"
 )
 
 type ContentCategoryRepository interface {
@@ -73,17 +75,12 @@ func (r *contentCategoryRepository) List(ctx context.Context, query *ContentCate
 	}
 
 	var categories []*content.ContentCategory
-	offset := (query.Current - 1) * query.Size
-	if offset < 0 {
-		offset = 0
-	}
 	if query.Size <= 0 {
-		query.Size = 10
+		query.Size = entity.DefaultPageSize
 	}
 
 	err := db.Order("sort ASC, created_at DESC").
-		Offset(offset).
-		Limit(query.Size).
+		Scopes(pagination.Paginate(query.Current, query.Size)).
 		Find(&categories).Error
 	if err != nil {
 		return nil, 0, err
@@ -95,7 +92,7 @@ func (r *contentCategoryRepository) List(ctx context.Context, query *ContentCate
 func (r *contentCategoryRepository) GetTree(ctx context.Context) ([]*content.ContentCategory, error) {
 	var categories []*content.ContentCategory
 	err := r.db.WithContext(ctx).
-		Where("status = ?", "1").
+		Where("status = ?", entity.StatusEnabled).
 		Order("sort ASC, created_at DESC").
 		Find(&categories).Error
 	if err != nil {

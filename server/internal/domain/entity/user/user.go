@@ -44,9 +44,6 @@ func (UserTokenHash) TableName() string {
 }
 
 const (
-	UserStatusEnabled  = "1"
-	UserStatusDisabled = "0"
-
 	UserGenderUnknown = "0"
 	UserGenderMale    = "1"
 	UserGenderFemale  = "2"

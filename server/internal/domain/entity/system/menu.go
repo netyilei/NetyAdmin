@@ -38,7 +38,4 @@ const (
 	MenuTypeCatalog = "1"
 	MenuTypePage    = "2"
 	MenuTypeButton  = "3"
-
-	MenuStatusEnabled  = "1"
-	MenuStatusDisabled = "0"
 )

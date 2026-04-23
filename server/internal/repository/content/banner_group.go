@@ -5,7 +5,9 @@ import (
 
 	"gorm.io/gorm"
 
+	"NetyAdmin/internal/domain/entity"
 	content "NetyAdmin/internal/domain/entity/content"
+	"NetyAdmin/internal/pkg/pagination"
 )
 
 type ContentBannerGroupRepository interface {
@@ -98,17 +100,12 @@ func (r *contentBannerGroupRepository) List(ctx context.Context, query *ContentB
 	}
 
 	var groups []*content.ContentBannerGroup
-	offset := (query.Current - 1) * query.Size
-	if offset < 0 {
-		offset = 0
-	}
 	if query.Size <= 0 {
-		query.Size = 10
+		query.Size = entity.DefaultPageSize
 	}
 
 	err := db.Order("sort ASC, created_at DESC").
-		Offset(offset).
-		Limit(query.Size).
+		Scopes(pagination.Paginate(query.Current, query.Size)).
 		Find(&groups).Error
 	if err != nil {
 		return nil, 0, err
@@ -120,7 +117,7 @@ func (r *contentBannerGroupRepository) List(ctx context.Context, query *ContentB
 func (r *contentBannerGroupRepository) GetAll(ctx context.Context) ([]*content.ContentBannerGroup, error) {
 	var groups []*content.ContentBannerGroup
 	err := r.db.WithContext(ctx).
-		Where("status = ?", "1").
+		Where("status = ?", entity.StatusEnabled).
 		Order("sort ASC, created_at DESC").
 		Find(&groups).Error
 	if err != nil {
@@ -132,9 +129,9 @@ func (r *contentBannerGroupRepository) GetAll(ctx context.Context) ([]*content.C
 func (r *contentBannerGroupRepository) GetByCode(ctx context.Context, code string) (*content.ContentBannerGroup, error) {
 	var group content.ContentBannerGroup
 	err := r.db.WithContext(ctx).
-		Where("code = ? AND status = ?", code, "1").
+		Where("code = ? AND status = ?", code, entity.StatusEnabled).
 		Preload("Banners", func(db *gorm.DB) *gorm.DB {
-			return db.Where("status = ?", "1").Order("sort ASC")
+			return db.Where("status = ?", entity.StatusEnabled).Order("sort ASC")
 		}).
 		First(&group).Error
 	if err != nil {
