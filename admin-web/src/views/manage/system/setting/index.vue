@@ -301,7 +301,7 @@ onMounted(init);
 
 <template>
   <div class="h-full">
-    <NCard :bordered="false" class="h-full rounded-8px shadow-sm overflow-hidden">
+    <NCard :bordered="false" class="h-full overflow-hidden rounded-8px shadow-sm">
       <NTabs type="line" animated class="h-full-setting">
         <!-- Tab 1: Cache Management -->
         <NTabPane name="cache" :tab="$t('page.manage.setting.tabs.cache')">

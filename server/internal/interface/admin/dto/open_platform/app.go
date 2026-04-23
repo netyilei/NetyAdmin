@@ -13,6 +13,7 @@ type CreateAppReq struct {
 	Status          int      `json:"status" binding:"oneof=0 1"`
 	IPFilterEnabled bool     `json:"ipFilterEnabled"`
 	Remark          string   `json:"remark"`
+	StorageID       uint     `json:"storageId"`
 	Scopes          []string `json:"scopes"`
 }
 
@@ -22,6 +23,7 @@ type UpdateAppReq struct {
 	Status          int      `json:"status" binding:"oneof=0 1"`
 	IPFilterEnabled bool     `json:"ipFilterEnabled"`
 	Remark          string   `json:"remark"`
+	StorageID       uint     `json:"storageId"`
 	Scopes          []string `json:"scopes"`
 }
 

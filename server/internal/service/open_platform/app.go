@@ -9,6 +9,7 @@ import (
 	"NetyAdmin/internal/domain/entity/open_platform"
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/storage"
 	"NetyAdmin/internal/pkg/utils"
 	ipacRepoPkg "NetyAdmin/internal/repository/ipac"
 	openRepo "NetyAdmin/internal/repository/open_platform"
@@ -23,6 +24,7 @@ type AppService interface {
 	VerifyAppScope(ctx context.Context, appID string, requiredScope string) (bool, error)
 	AllowRequest(ctx context.Context, app *open_platform.App) (bool, error)
 	GetCacheMgr() cache.LazyCacheManager
+	GetAppStorageDriver(ctx context.Context, app *open_platform.App) (storage.Driver, *storage.Config, error)
 
 	// Admin operations
 	CreateApp(ctx context.Context, app *open_platform.App, scopes []string) error
@@ -42,20 +44,22 @@ type AppService interface {
 }
 
 type appService struct {
-	repo     openRepo.AppRepository
-	cacheMgr cache.LazyCacheManager
-	aesKey   string
-	ipacSvc  ipacSvcPkg.IPACService
-	ipacRepo ipacRepoPkg.IPACRepository
+	repo       openRepo.AppRepository
+	cacheMgr   cache.LazyCacheManager
+	aesKey     string
+	ipacSvc    ipacSvcPkg.IPACService
+	ipacRepo   ipacRepoPkg.IPACRepository
+	storageMgr *storage.Manager
 }
 
-func NewAppService(repo openRepo.AppRepository, cacheMgr cache.LazyCacheManager, aesKey string, ipacSvc ipacSvcPkg.IPACService, ipacRepo ipacRepoPkg.IPACRepository) AppService {
+func NewAppService(repo openRepo.AppRepository, cacheMgr cache.LazyCacheManager, aesKey string, ipacSvc ipacSvcPkg.IPACService, ipacRepo ipacRepoPkg.IPACRepository, storageMgr *storage.Manager) AppService {
 	return &appService{
-		repo:     repo,
-		cacheMgr: cacheMgr,
-		aesKey:   aesKey,
-		ipacSvc:  ipacSvc,
-		ipacRepo: ipacRepo,
+		repo:       repo,
+		cacheMgr:   cacheMgr,
+		aesKey:     aesKey,
+		ipacSvc:    ipacSvc,
+		ipacRepo:   ipacRepo,
+		storageMgr: storageMgr,
 	}
 }
 
@@ -307,4 +311,23 @@ func (s *appService) LinkIPRules(ctx context.Context, appID string, ruleIDs []ui
 	}
 	_ = s.ipacSvc.ReloadCache(ctx)
 	return nil
+}
+
+func (s *appService) GetAppStorageDriver(ctx context.Context, app *open_platform.App) (storage.Driver, *storage.Config, error) {
+	if app.StorageID > 0 {
+		driver, err := s.storageMgr.GetDriver(app.StorageID)
+		if err != nil {
+			return nil, nil, err
+		}
+		config, err := s.storageMgr.GetConfig(app.StorageID)
+		if err != nil {
+			return nil, nil, err
+		}
+		return driver, config, nil
+	}
+	driver, config, err := s.storageMgr.GetDefaultDriver()
+	if err != nil {
+		return nil, nil, err
+	}
+	return driver, config, nil
 }

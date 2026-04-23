@@ -10,6 +10,9 @@ const openPlatform = {
     remark: '备注',
     time: '创建时间',
     scopes: '权限范围',
+    storageId: '存储配置',
+    storageBound: '已绑定',
+    storageDefault: '默认',
     resetSecret: '重置密钥',
     confirmResetSecret: '确定重置该应用的 AppSecret 吗？重置后旧密钥将立即失效！',
     resetSecretSuccess: '密钥重置成功，请妥善保管新密钥：',
@@ -19,7 +22,9 @@ const openPlatform = {
       statusPlaceholder: '请选择状态',
       ipRulesPlaceholder: '请选择 IP 规则',
       remarkPlaceholder: '请输入备注',
-      scopesPlaceholder: '请选择权限范围'
+      scopesPlaceholder: '请选择权限范围',
+      storageIdPlaceholder: '请选择存储配置',
+      storageIdDefault: '使用默认'
     }
   },
   scope: {

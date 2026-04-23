@@ -30,6 +30,7 @@ type RecordQuery struct {
 	BusinessID      string
 	MimeType        string
 	StorageConfigID uint
+	AppID           string
 	StartTime       string
 	EndTime         string
 	Current         int
@@ -105,6 +106,9 @@ func (r *recordRepository) List(ctx context.Context, query *RecordQuery) ([]*sto
 	}
 	if query.StorageConfigID > 0 {
 		db = db.Where("storage_config_id = ?", query.StorageConfigID)
+	}
+	if query.AppID != "" {
+		db = db.Where("app_id = ?", query.AppID)
 	}
 	if query.StartTime != "" {
 		if t, err := time.Parse("2006-01-02", query.StartTime); err == nil {

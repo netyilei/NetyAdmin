@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS upload_record (
     user_agent VARCHAR(500),
     business_type VARCHAR(50),
     business_id VARCHAR(26),
+    app_id VARCHAR(26) DEFAULT '', -- 开放平台应用ID，空字符串表示非应用上传
     uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -30,5 +31,6 @@ CREATE INDEX IF NOT EXISTS idx_upload_record_source ON upload_record(source, sou
 CREATE INDEX IF NOT EXISTS idx_upload_record_business ON upload_record(business_type, business_id);
 CREATE INDEX IF NOT EXISTS idx_upload_record_uploaded_at ON upload_record(uploaded_at);
 CREATE INDEX IF NOT EXISTS idx_upload_record_md5 ON upload_record(md5);
+CREATE INDEX IF NOT EXISTS idx_upload_record_app_id ON upload_record(app_id);
 
 COMMIT;

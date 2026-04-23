@@ -229,7 +229,7 @@ func (h *StorageHandler) GetUploadCredentials(c *gin.Context) {
 		return
 	}
 
-	result, err := h.recordService.GetUploadCredentials(c.Request.Context(), &req)
+	result, err := h.recordService.GetUploadCredentials(c.Request.Context(), &req, "")
 	if err != nil {
 		response.Fail(c, err)
 		return

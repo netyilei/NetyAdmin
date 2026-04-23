@@ -2,9 +2,11 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { addApp, fetchAvailableScopes, linkAppIPRules, updateApp } from '@/service/api/v1/open-app';
 import { fetchIPACList } from '@/service/api/v1/system-ipac';
+import { fetchGetAllEnabledStorageConfigs } from '@/service/api/v1/storage';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { $t } from '@/locales';
 import type { OpenApp } from '@/typings/api/v1/open-app';
+import type { Storage } from '@/typings/api/v1/storage';
 
 defineOptions({
   name: 'AppOperateModal'
@@ -34,6 +36,8 @@ const availableScopes = ref<{ name: string; code: string }[]>([]);
 const ipRuleOptions = ref<{ label: string; value: number }[]>([]);
 const selectedRuleIds = ref<number[]>([]);
 const ipRulesLoading = ref(false);
+const storageConfigOptions = ref<{ label: string; value: number }[]>([]);
+const storageConfigLoading = ref(false);
 
 const scopeOptions = computed(() => {
   return availableScopes.value.map(item => ({
@@ -61,6 +65,21 @@ async function loadIPRules() {
   ipRulesLoading.value = false;
 }
 
+async function loadStorageConfigs() {
+  storageConfigLoading.value = true;
+  const { data } = await fetchGetAllEnabledStorageConfigs();
+  if (data) {
+    storageConfigOptions.value = [
+      { label: $t('page.openPlatform.app.form.storageIdDefault'), value: 0 },
+      ...data.map((item: Storage.StorageConfig) => ({
+        label: item.name,
+        value: item.id
+      }))
+    ];
+  }
+  storageConfigLoading.value = false;
+}
+
 async function loadAppIPRules(appId: string) {
   const { data } = await fetchIPACList({ current: 1, size: 500, appId: Number(appId) || undefined });
   if (data) {
@@ -71,6 +90,7 @@ async function loadAppIPRules(appId: string) {
 onMounted(() => {
   getAvailableScopes();
   loadIPRules();
+  loadStorageConfigs();
 });
 
 const title = computed(() => {
@@ -91,6 +111,7 @@ function createDefaultModel(): Model {
     status: 1,
     ipFilterEnabled: false,
     remark: '',
+    storageId: 0,
     scopes: []
   };
 }
@@ -175,6 +196,14 @@ watch(visible, () => {
           v-model:value="model.remark"
           type="textarea"
           :placeholder="$t('page.openPlatform.app.form.remarkPlaceholder')"
+        />
+      </NFormItem>
+      <NFormItem :label="$t('page.openPlatform.app.storageId')" path="storageId">
+        <NSelect
+          v-model:value="model.storageId"
+          :options="storageConfigOptions"
+          :loading="storageConfigLoading"
+          :placeholder="$t('page.openPlatform.app.form.storageIdPlaceholder')"
         />
       </NFormItem>
       <NFormItem :label="$t('page.openPlatform.app.scopes')" path="scopes">

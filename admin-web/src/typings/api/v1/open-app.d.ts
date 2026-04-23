@@ -7,6 +7,7 @@ export namespace OpenApp {
     ipFilterEnabled: boolean;
     quotaConfig: string;
     remark: string;
+    storageId: number;
     createdAt: string;
     updatedAt: string;
     scopes?: string[];
@@ -28,6 +29,7 @@ export namespace OpenApp {
     status: number;
     ipFilterEnabled: boolean;
     remark?: string;
+    storageId?: number;
     scopes?: string[];
   }
 
@@ -37,6 +39,7 @@ export namespace OpenApp {
     status: number;
     ipFilterEnabled: boolean;
     remark?: string;
+    storageId?: number;
     scopes?: string[];
   }
 

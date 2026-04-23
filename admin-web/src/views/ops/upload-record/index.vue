@@ -51,6 +51,7 @@ const {
     source: undefined,
     businessType: undefined,
     storageConfigId: undefined,
+    appId: undefined,
     startTime: undefined,
     endTime: undefined
   },
@@ -112,6 +113,20 @@ const {
       render: row => {
         if (!row.businessType) return <span class="text-gray">-</span>;
         return <span>{row.businessType}</span>;
+      }
+    },
+    {
+      key: 'appId',
+      title: $t('page.manage.upload.appId'),
+      align: 'center',
+      width: 120,
+      render: row => {
+        if (!row.appId) return <span class="text-gray">-</span>;
+        return (
+          <NTag type="info" size="small">
+            {row.appId}
+          </NTag>
+        );
       }
     },
     {

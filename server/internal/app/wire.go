@@ -212,6 +212,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		handlers.client.auth,
 		handlers.client.message,
 		handlers.client.content,
+		handlers.client.storage,
 		services.app,
 		services.openApi,
 		services.openLog,
@@ -334,7 +335,7 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	s.sysConfig = systemService.NewConfigService(repos.systemConfig, configWatcher, eventBus)
 	s.dict = dictServicePkg.NewDictService(repos.dict, lazyCacheMgr)
 	s.ipac = ipacServicePkg.NewIPACService(repos.ipac, eventBus)
-	s.app = openServicePkg.NewAppService(repos.app, lazyCacheMgr, cfg.Security.AESKey, s.ipac, repos.ipac)
+	s.app = openServicePkg.NewAppService(repos.app, lazyCacheMgr, cfg.Security.AESKey, s.ipac, repos.ipac, storageMgr)
 	s.openApi = openServicePkg.NewOpenApiService(repos.openApi, repos.app, repos.app, lazyCacheMgr)
 	s.openLog = openServicePkg.NewOpenLogService(repos.openLog, func(ctx context.Context, logRecord *openEntity.OpenPlatformLog) error {
 		return s.logBus.Record(ctx, logRecord)
@@ -384,7 +385,7 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	s.operationLog = logService.NewOperationService(repos.operationLog)
 	s.errorLog = logService.NewErrorService(repos.errorLog, configWatcher, lazyCacheMgr, s.logBus)
 	s.storageConfig = storageService.NewConfigService(repos.storageConfig, repos.uploadRecord, storageMgr, lazyCacheMgr, eventBus)
-	s.uploadRecord = storageService.NewRecordService(repos.uploadRecord, repos.storageConfig, storageMgr)
+	s.uploadRecord = storageService.NewRecordService(repos.uploadRecord, repos.storageConfig, storageMgr, s.app)
 	s.contentCategory = contentService.NewCategoryService(repos.contentCategory, s.storageConfig, lazyCacheMgr, configWatcher)
 	s.contentArticle = contentService.NewArticleService(repos.contentArticle, repos.contentCategory)
 	s.contentBannerGroup = contentService.NewBannerGroupService(repos.contentBannerGroup, s.storageConfig)
@@ -424,6 +425,7 @@ type handlerSet struct {
 		auth    *clientHandler.AuthHandler
 		message *clientHandler.MessageHandler
 		content *clientHandler.ContentHandler
+		storage *clientHandler.ClientStorageHandler
 	}
 }
 
@@ -455,6 +457,7 @@ func initHandlers(services *serviceSet, captchaMgr *captcha.Manager, configWatch
 	h.client.auth = clientHandler.NewAuthHandler(services.verification, captchaMgr)
 	h.client.message = clientHandler.NewMessageHandler(services.message)
 	h.client.content = clientHandler.NewContentHandler(services.contentArticle, services.contentCategory, services.contentBannerGroup, services.contentBannerItem)
+	h.client.storage = clientHandler.NewClientStorageHandler(services.uploadRecord)
 
 	return h
 }

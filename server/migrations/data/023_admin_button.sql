@@ -210,7 +210,8 @@ BEGIN
         (app_menu_id, '新增', 'open:app:add', NOW(), NOW()),
         (app_menu_id, '编辑', 'open:app:edit', NOW(), NOW()),
         (app_menu_id, '重置密钥', 'open:app:resetSecret', NOW(), NOW()),
-        (app_menu_id, '删除', 'open:app:delete', NOW(), NOW())
+        (app_menu_id, '删除', 'open:app:delete', NOW(), NOW()),
+        (app_menu_id, '绑定存储', 'open:app:bindStorage', NOW(), NOW())
         ON CONFLICT (code) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 

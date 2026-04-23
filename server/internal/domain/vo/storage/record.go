@@ -20,6 +20,7 @@ type RecordVO struct {
 	UploaderIP      string    `json:"uploaderIp"`
 	BusinessType    string    `json:"businessType"`
 	BusinessID      string    `json:"businessId"`
+	AppID           string    `json:"appId"`
 	UploadedAt      time.Time `json:"uploadedAt"`
 	CreatedAt       time.Time `json:"createdAt"`
 }

@@ -151,6 +151,7 @@ const manage = {
     fileSize: '文件大小',
     source: '上传来源',
     businessType: '业务类型',
+    appId: '应用ID',
     storageName: '存储配置',
     uploaderIp: '上传IP',
     uploadedAt: '上传时间',

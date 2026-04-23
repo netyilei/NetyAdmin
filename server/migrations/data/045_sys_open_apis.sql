@@ -31,7 +31,10 @@ INSERT INTO sys_open_apis (method, path, name, group_name, description, status, 
 ('GET', '/client/v1/content/banners/:code', 'Banner组', '内容管理', '通过编码获取Banner组及有效项', 1, NOW(), NOW()),
 -- 内容管理（需签名）
 ('POST', '/client/v1/content/article/:id/like', '文章点赞', '内容管理', '点赞指定文章', 1, NOW(), NOW()),
-('POST', '/client/v1/content/banners/:id/click', 'Banner点击', '内容管理', '记录Banner点击', 1, NOW(), NOW())
+('POST', '/client/v1/content/banners/:id/click', 'Banner点击', '内容管理', '记录Banner点击', 1, NOW(), NOW()),
+-- 存储上传（需签名）
+('POST', '/client/v1/storage/credentials', '获取上传凭证', '存储上传', '开放平台应用获取上传凭证', 1, NOW(), NOW()),
+('POST', '/client/v1/storage/records', '创建上传记录', '存储上传', '开放平台应用创建上传记录', 1, NOW(), NOW())
 ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
 
 COMMIT;

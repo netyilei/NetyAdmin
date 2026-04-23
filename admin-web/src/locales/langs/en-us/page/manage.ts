@@ -151,6 +151,7 @@ const manage = {
     fileSize: 'File Size',
     source: 'Source',
     businessType: 'Business Type',
+    appId: 'App ID',
     storageName: 'Storage Config',
     uploaderIp: 'Uploader IP',
     uploadedAt: 'Uploaded At',

@@ -36,6 +36,7 @@ type App struct {
 	IPFilterEnabled bool                  `gorm:"default:false" json:"ipFilterEnabled"` // 是否启用 IP 过滤
 	QuotaConfig     string                `gorm:"type:jsonb" json:"quotaConfig"`
 	Remark          string                `gorm:"size:255" json:"remark"`
+	StorageID       uint                  `gorm:"default:0;comment:绑定的存储配置ID" json:"storageId"`
 	CreatedAt       time.Time             `json:"createdAt"`
 	UpdatedAt       time.Time             `json:"updatedAt"`
 	DeletedAt       soft_delete.DeletedAt `gorm:"column:deleted_at;softDelete:milli;default:0" json:"-"`

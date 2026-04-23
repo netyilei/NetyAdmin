@@ -34,6 +34,7 @@ type Record struct {
 	UserAgent       string       `gorm:"column:user_agent;type:varchar(500);comment:用户代理" json:"userAgent"`
 	BusinessType    string       `gorm:"column:business_type;type:varchar(50);index;comment:业务类型" json:"businessType"`
 	BusinessID      string       `gorm:"column:business_id;size:26;index;comment:业务ID" json:"businessId"`
+	AppID           string       `gorm:"column:app_id;size:26;index;comment:开放平台应用ID" json:"appId"`
 	UploadedAt      time.Time    `gorm:"column:uploaded_at;autoCreateTime;comment:上传时间" json:"uploadedAt"`
 }
 

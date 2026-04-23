@@ -59,6 +59,7 @@ func (h *AppHandler) Create(c *gin.Context) {
 		Status:          req.Status,
 		IPFilterEnabled: req.IPFilterEnabled,
 		Remark:          req.Remark,
+		StorageID:       req.StorageID,
 	}
 
 	if err := h.svc.CreateApp(c.Request.Context(), app, req.Scopes); err != nil {
@@ -83,6 +84,7 @@ func (h *AppHandler) Update(c *gin.Context) {
 		Status:          req.Status,
 		IPFilterEnabled: req.IPFilterEnabled,
 		Remark:          req.Remark,
+		StorageID:       req.StorageID,
 	}
 
 	if err := h.svc.UpdateApp(c.Request.Context(), app, req.Scopes); err != nil {

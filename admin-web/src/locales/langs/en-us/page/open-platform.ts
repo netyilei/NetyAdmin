@@ -10,6 +10,9 @@ const openPlatform = {
     remark: 'Remark',
     time: 'Created At',
     scopes: 'Scopes',
+    storageId: 'Storage Config',
+    storageBound: 'Bound',
+    storageDefault: 'Default',
     resetSecret: 'Reset Secret',
     confirmResetSecret: 'Are you sure to reset the AppSecret? The old key will be invalidated immediately!',
     resetSecretSuccess: 'Secret reset successful. Please keep the new secret safe: ',
@@ -19,7 +22,9 @@ const openPlatform = {
       statusPlaceholder: 'Please select status',
       ipRulesPlaceholder: 'Please select IP rules',
       remarkPlaceholder: 'Please enter remark',
-      scopesPlaceholder: 'Please select scopes'
+      scopesPlaceholder: 'Please select scopes',
+      storageIdPlaceholder: 'Please select storage config',
+      storageIdDefault: 'Use Default'
     }
   },
   scope: {

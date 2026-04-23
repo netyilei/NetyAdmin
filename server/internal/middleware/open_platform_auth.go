@@ -201,6 +201,7 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 
 		// 将 appID 存入上下文供后续使用
 		c.Set("appID", app.ID)
+		c.Set("currentOpenApp", app)
 		c.Next()
 	}
 }

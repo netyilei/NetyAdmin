@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS sys_apps (
     ip_filter_enabled BOOLEAN DEFAULT FALSE, -- 是否启用 IP 过滤
     quota_config JSONB, -- 限流配额配置 (QPS, Burst等)
     remark VARCHAR(255),
+    storage_id BIGINT DEFAULT 0, -- 绑定的存储配置ID，0表示使用全局默认
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     deleted_at BIGINT DEFAULT 0

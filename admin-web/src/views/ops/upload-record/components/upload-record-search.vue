@@ -78,6 +78,11 @@ function search() {
             <NInput v-model:value="model.businessType" :placeholder="$t('common.pleaseInput')" clearable />
           </NFormItem>
         </NGridItem>
+        <NGridItem span="24 s:12 m:6">
+          <NFormItem :label="$t('page.manage.upload.appId')" path="appId">
+            <NInput v-model:value="model.appId" :placeholder="$t('common.pleaseInput')" clearable />
+          </NFormItem>
+        </NGridItem>
         <NGridItem span="24 s:12 m:12">
           <NFormItem :label="$t('common.createdAt')" path="startTime">
             <NDatePicker

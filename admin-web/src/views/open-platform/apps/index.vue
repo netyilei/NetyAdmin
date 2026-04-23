@@ -67,6 +67,17 @@ const {
       render: (row: any) => renderDictTag('sys_status', String(row.status))
     } as any,
     {
+      key: 'storageId',
+      title: $t('page.openPlatform.app.storageId'),
+      align: 'center',
+      width: 120,
+      render: (row: any) => (
+        <NTag type={row.storageId > 0 ? 'info' : 'default'}>
+          {row.storageId > 0 ? $t('page.openPlatform.app.storageBound') : $t('page.openPlatform.app.storageDefault')}
+        </NTag>
+      )
+    } as any,
+    {
       key: 'createdAt',
       title: $t('page.openPlatform.app.time'),
       align: 'center',

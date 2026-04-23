@@ -10,6 +10,7 @@ type RecordQuery struct {
 	BusinessID      string `form:"businessId"`
 	MimeType        string `form:"mimeType"`
 	StorageConfigID uint   `form:"storageConfigId"`
+	AppID           string `form:"appId"`
 	StartTime       string `form:"startTime"`
 	EndTime         string `form:"endTime"`
 	Current         int    `form:"current"`

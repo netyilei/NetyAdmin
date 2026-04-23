@@ -12,6 +12,7 @@ import (
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/storage"
 	storageRepo "NetyAdmin/internal/repository/storage"
+	openSvcPkg "NetyAdmin/internal/service/open_platform"
 )
 
 type RecordService interface {
@@ -22,25 +23,28 @@ type RecordService interface {
 	CreateRecord(ctx context.Context, record *storageEntity.Record) error
 	CreateUploadRecord(ctx context.Context, req *storageDto.CreateRecordReq, source storageEntity.UploadSource, sourceID string, uploaderIP, userAgent string) (*storageVO.RecordVO, error)
 	GetByMD5(ctx context.Context, md5 string) (*storageEntity.Record, error)
-	GetUploadCredentials(ctx context.Context, req *storageDto.GetCredentialsReq) (*storageDto.Credentials, error)
-	RecordUpload(ctx context.Context, configID uint, fileName, storedName, filePath, fileURL string, fileSize int64, mimeType, md5 string, source storageEntity.UploadSource, sourceID string, sourceInfo interface{}, uploaderIP, userAgent, businessType string, businessID string) error
+	GetUploadCredentials(ctx context.Context, req *storageDto.GetCredentialsReq, appID string) (*storageDto.Credentials, error)
+	RecordUpload(ctx context.Context, configID uint, fileName, storedName, filePath, fileURL string, fileSize int64, mimeType, md5 string, source storageEntity.UploadSource, sourceID string, sourceInfo interface{}, uploaderIP, userAgent, businessType string, businessID string, appID string) error
 }
 
 type recordService struct {
 	recordRepo storageRepo.RecordRepository
 	configRepo storageRepo.ConfigRepository
 	storageMgr *storage.Manager
+	appSvc     openSvcPkg.AppService
 }
 
 func NewRecordService(
 	recordRepo storageRepo.RecordRepository,
 	configRepo storageRepo.ConfigRepository,
 	storageMgr *storage.Manager,
+	appSvc openSvcPkg.AppService,
 ) RecordService {
 	return &recordService{
 		recordRepo: recordRepo,
 		configRepo: configRepo,
 		storageMgr: storageMgr,
+		appSvc:     appSvc,
 	}
 }
 
@@ -53,6 +57,7 @@ func (s *recordService) List(ctx context.Context, req *storageDto.RecordQuery) (
 		BusinessID:      req.BusinessID,
 		MimeType:        req.MimeType,
 		StorageConfigID: req.StorageConfigID,
+		AppID:           req.AppID,
 		StartTime:       req.StartTime,
 		EndTime:         req.EndTime,
 		Current:         req.Current,
@@ -163,11 +168,13 @@ func (s *recordService) GetByMD5(ctx context.Context, md5 string) (*storageEntit
 	return s.recordRepo.GetByMD5(ctx, md5)
 }
 
-func (s *recordService) GetUploadCredentials(ctx context.Context, req *storageDto.GetCredentialsReq) (*storageDto.Credentials, error) {
+func (s *recordService) GetUploadCredentials(ctx context.Context, req *storageDto.GetCredentialsReq, appID string) (*storageDto.Credentials, error) {
 	var config *storageEntity.Config
 	var err error
 
-	if req.ConfigID > 0 {
+	if appID != "" {
+		config, err = s.getAppStorageConfig(ctx, appID, req.ConfigID)
+	} else if req.ConfigID > 0 {
 		config, err = s.configRepo.GetByID(ctx, req.ConfigID)
 	} else {
 		config, err = s.configRepo.GetDefault(ctx)
@@ -234,7 +241,7 @@ func (s *recordService) GetUploadCredentials(ctx context.Context, req *storageDt
 	}, nil
 }
 
-func (s *recordService) RecordUpload(ctx context.Context, configID uint, fileName, storedName, filePath, fileURL string, fileSize int64, mimeType, md5 string, source storageEntity.UploadSource, sourceID string, sourceInfo interface{}, uploaderIP, userAgent, businessType string, businessID string) error {
+func (s *recordService) RecordUpload(ctx context.Context, configID uint, fileName, storedName, filePath, fileURL string, fileSize int64, mimeType, md5 string, source storageEntity.UploadSource, sourceID string, sourceInfo interface{}, uploaderIP, userAgent, businessType string, businessID string, appID string) error {
 	sourceInfoJSON := ""
 	if sourceInfo != nil {
 		if data, err := json.Marshal(sourceInfo); err == nil {
@@ -259,6 +266,7 @@ func (s *recordService) RecordUpload(ctx context.Context, configID uint, fileNam
 		UserAgent:       userAgent,
 		BusinessType:    businessType,
 		BusinessID:      businessID,
+		AppID:           appID,
 		UploadedAt:      time.Now(),
 	}
 
@@ -283,6 +291,7 @@ func (s *recordService) toVO(r *storageEntity.Record) *storageVO.RecordVO {
 		UploaderIP:      r.UploaderIP,
 		BusinessType:    r.BusinessType,
 		BusinessID:      r.BusinessID,
+		AppID:           r.AppID,
 		UploadedAt:      r.UploadedAt,
 		CreatedAt:       r.CreatedAt,
 	}
@@ -292,4 +301,15 @@ func (s *recordService) toVO(r *storageEntity.Record) *storageVO.RecordVO {
 	}
 
 	return vo
+}
+
+func (s *recordService) getAppStorageConfig(ctx context.Context, appID string, fallbackConfigID uint) (*storageEntity.Config, error) {
+	app, err := s.appSvc.GetAppByKey(ctx, appID)
+	if err == nil && app != nil && app.StorageID > 0 {
+		return s.configRepo.GetByID(ctx, app.StorageID)
+	}
+	if fallbackConfigID > 0 {
+		return s.configRepo.GetByID(ctx, fallbackConfigID)
+	}
+	return s.configRepo.GetDefault(ctx)
 }

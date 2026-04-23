@@ -82,6 +82,7 @@ export namespace Storage {
     uploaderIp: string;
     businessType: string;
     businessId: string;
+    appId: string;
     uploadedAt: string;
     createdAt: string;
   };
@@ -94,6 +95,7 @@ export namespace Storage {
     businessId?: string;
     mimeType?: string;
     storageConfigId?: number;
+    appId?: string;
     startTime?: string;
     endTime?: string;
   };
