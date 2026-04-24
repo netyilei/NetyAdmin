@@ -81,7 +81,7 @@ func (h *ClientStorageHandler) CreateUploadRecord(c *gin.Context) {
 
 	err := h.recordSvc.RecordUpload(
 		c.Request.Context(),
-		0,
+		req.StorageConfigID,
 		req.FileName,
 		req.FileName,
 		req.ObjectKey,

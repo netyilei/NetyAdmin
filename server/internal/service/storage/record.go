@@ -29,20 +29,20 @@ type RecordService interface {
 
 type recordService struct {
 	recordRepo storageRepo.RecordRepository
-	configRepo storageRepo.ConfigRepository
+	configSvc  ConfigService
 	storageMgr *storage.Manager
 	appSvc     openSvcPkg.AppService
 }
 
 func NewRecordService(
 	recordRepo storageRepo.RecordRepository,
-	configRepo storageRepo.ConfigRepository,
+	configSvc ConfigService,
 	storageMgr *storage.Manager,
 	appSvc openSvcPkg.AppService,
 ) RecordService {
 	return &recordService{
 		recordRepo: recordRepo,
-		configRepo: configRepo,
+		configSvc:  configSvc,
 		storageMgr: storageMgr,
 		appSvc:     appSvc,
 	}
@@ -124,9 +124,9 @@ func (s *recordService) CreateUploadRecord(ctx context.Context, req *storageDto.
 	var err error
 
 	if req.ConfigID > 0 {
-		config, err = s.configRepo.GetByID(ctx, req.ConfigID)
+		config, err = s.configSvc.GetByID(ctx, req.ConfigID)
 	} else {
-		config, err = s.configRepo.GetDefault(ctx)
+		config, err = s.configSvc.GetDefault(ctx)
 	}
 	if err != nil {
 		return nil, errorx.New(errorx.CodeNotFound, "存储配置不存在")
@@ -175,9 +175,9 @@ func (s *recordService) GetUploadCredentials(ctx context.Context, req *storageDt
 	if appID != "" {
 		config, err = s.getAppStorageConfig(ctx, appID, req.ConfigID)
 	} else if req.ConfigID > 0 {
-		config, err = s.configRepo.GetByID(ctx, req.ConfigID)
+		config, err = s.configSvc.GetByID(ctx, req.ConfigID)
 	} else {
-		config, err = s.configRepo.GetDefault(ctx)
+		config, err = s.configSvc.GetDefault(ctx)
 	}
 
 	if err != nil {
@@ -306,10 +306,10 @@ func (s *recordService) toVO(r *storageEntity.Record) *storageVO.RecordVO {
 func (s *recordService) getAppStorageConfig(ctx context.Context, appID string, fallbackConfigID uint) (*storageEntity.Config, error) {
 	app, err := s.appSvc.GetAppByKey(ctx, appID)
 	if err == nil && app != nil && app.StorageID > 0 {
-		return s.configRepo.GetByID(ctx, app.StorageID)
+		return s.configSvc.GetByID(ctx, app.StorageID)
 	}
 	if fallbackConfigID > 0 {
-		return s.configRepo.GetByID(ctx, fallbackConfigID)
+		return s.configSvc.GetByID(ctx, fallbackConfigID)
 	}
-	return s.configRepo.GetDefault(ctx)
+	return s.configSvc.GetDefault(ctx)
 }

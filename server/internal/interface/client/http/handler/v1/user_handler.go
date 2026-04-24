@@ -141,7 +141,14 @@ func (h *UserHandler) DeleteAccount(c *gin.Context) {
 // GetUploadToken 获取上传凭证
 func (h *UserHandler) GetUploadToken(c *gin.Context) {
 	userID := c.GetString("userID")
-	token, err := h.userSvc.GetUploadToken(c.Request.Context(), userID)
+
+	var storageID uint
+	if appObj, exists := c.Get("currentOpenApp"); exists {
+		app := appObj.(*openEntity.App)
+		storageID = app.StorageID
+	}
+
+	token, err := h.userSvc.GetUploadToken(c.Request.Context(), userID, storageID)
 	if err != nil {
 		response.Fail(c, err)
 		return

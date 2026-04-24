@@ -64,7 +64,7 @@ onMounted(() => {
     <template #empty>
       <div class="flex-col-center gap-12px pb-12px pt-12px">
         <NEmpty :description="$t('common.noData')" />
-        <NButton type="primary" ghost size="small" @click="$router.push('/system/storage-config')">
+        <NButton type="primary" ghost size="small" @click="$router.push('/settings/storage-config')">
           {{ $t('common.config') }}
         </NButton>
       </div>

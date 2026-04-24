@@ -28,12 +28,13 @@ type ClientCredentials struct {
 }
 
 type CreateClientRecordReq struct {
-	FileName     string `json:"fileName" binding:"required"`
-	ObjectKey    string `json:"objectKey" binding:"required"`
-	FileSize     int64  `json:"fileSize"`
-	MimeType     string `json:"mimeType"`
-	MD5          string `json:"md5"`
-	BusinessType string `json:"businessType"`
-	BusinessID   string `json:"businessId"`
-	SourceInfo   string `json:"sourceInfo"`
+	FileName        string `json:"fileName" binding:"required"`
+	ObjectKey       string `json:"objectKey" binding:"required"`
+	FileSize        int64  `json:"fileSize"`
+	MimeType        string `json:"mimeType"`
+	MD5             string `json:"md5"`
+	StorageConfigID uint   `json:"storageConfigId"`
+	BusinessType    string `json:"businessType"`
+	BusinessID      string `json:"businessId"`
+	SourceInfo      string `json:"sourceInfo"`
 }

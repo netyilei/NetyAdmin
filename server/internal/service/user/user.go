@@ -38,7 +38,7 @@ type UserService interface {
 	Logout(ctx context.Context, userID string, token string) error
 	ResetPassword(ctx context.Context, req *clientDto.UserResetPasswordReq) error
 	DeleteAccount(ctx context.Context, userID string) error
-	GetUploadToken(ctx context.Context, userID string) (interface{}, error)
+	GetUploadToken(ctx context.Context, userID string, storageID uint) (interface{}, error)
 
 	// Admin API
 	List(ctx context.Context, current, size int, query *userRepo.UserRepoQuery) ([]userEntity.User, int64, error)
@@ -566,18 +566,13 @@ func (s *userService) DeleteAccount(ctx context.Context, userID string) error {
 	return s.repo.Delete(ctx, userID)
 }
 
-func (s *userService) GetUploadToken(ctx context.Context, userID string) (interface{}, error) {
-	storageSource, _ := s.configWatcher.GetConfig("user_config", "storage_module")
-
-	if storageSource != "" {
-		configID, err := strconv.ParseUint(storageSource, 10, 32)
-		if err == nil && configID > 0 {
-			presignedURL, err := s.storageMgr.GetPresignedUploadURL(ctx, uint(configID), "user/"+userID+"/", "application/octet-stream", 15*time.Minute)
-			if err != nil {
-				return nil, errorx.New(errorx.CodeInternalError, "获取上传凭证失败")
-			}
-			return gin.H{"uploadUrl": presignedURL, "storageConfigId": configID}, nil
+func (s *userService) GetUploadToken(ctx context.Context, userID string, storageID uint) (interface{}, error) {
+	if storageID > 0 {
+		presignedURL, err := s.storageMgr.GetPresignedUploadURL(ctx, storageID, "user/"+userID+"/", "application/octet-stream", 15*time.Minute)
+		if err != nil {
+			return nil, errorx.New(errorx.CodeInternalError, "获取上传凭证失败")
 		}
+		return gin.H{"uploadUrl": presignedURL, "storageConfigId": storageID}, nil
 	}
 
 	driver, config, err := s.storageMgr.GetDefaultDriver()
