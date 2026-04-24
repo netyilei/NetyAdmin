@@ -12,7 +12,7 @@ import BannerGroupSearch from './components/banner-group-search.vue';
 
 const appStore = useAppStore();
 const router = useRouter();
-const { loadDicts, renderDictTag } = useDict();
+const { loadDicts, renderDictTag, renderBoolDictTag } = useDict();
 
 loadDicts(['sys_status']);
 
@@ -93,7 +93,7 @@ const {
       title: $t('page.content.bannerGroup.autoPlay'),
       align: 'center',
       width: 80,
-      render: row => renderDictTag('sys_yes_no', row.autoPlay ? '1' : '0')
+      render: row => renderBoolDictTag('sys_yes_no', row.autoPlay)
     },
     {
       key: 'interval',

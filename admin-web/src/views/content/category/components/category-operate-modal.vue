@@ -12,6 +12,7 @@ import {
   NSpace,
   NTreeSelect
 } from 'naive-ui';
+import { ENABLE_STATUS } from '@/constants/business';
 import { fetchCreateCategory, fetchUpdateCategory } from '@/service/api/v1/content';
 import { useFormRules } from '@/hooks/common/form';
 import { getAllIconifyIcons } from '@/utils/iconify-icons';
@@ -101,7 +102,7 @@ function createDefaultModel(): Model {
     sort: 0,
     storageConfigId: null,
     contentType: 'richtext',
-    status: '1',
+    status: ENABLE_STATUS.ENABLED,
     remark: ''
   };
 }
@@ -224,8 +225,8 @@ watch(
         <NFormItem :label="$t('page.content.category.status')" path="status">
           <NRadioGroup v-model:value="model.status">
             <NSpace>
-              <NRadio value="1">{{ $t('common.enable') }}</NRadio>
-              <NRadio value="0">{{ $t('common.disable') }}</NRadio>
+              <NRadio :value="ENABLE_STATUS.ENABLED">{{ $t('common.enable') }}</NRadio>
+              <NRadio :value="ENABLE_STATUS.DISABLED">{{ $t('common.disable') }}</NRadio>
             </NSpace>
           </NRadioGroup>
         </NFormItem>

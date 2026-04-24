@@ -1,8 +1,3 @@
-/**
- * namespace Auth
- *
- * backend api module: "auth"
- */
 export namespace Auth {
   interface LoginReq {
     username: string;
@@ -23,7 +18,7 @@ export namespace Auth {
     buttons: string[];
   }
 
-  type UserGender = '1' | '2';
+  type UserGender = import('@/typings/api/v1/system-manage').SystemManage.AdminGender;
 
   interface Profile {
     id: number;
@@ -40,7 +35,7 @@ export namespace Auth {
     nickName: string;
     userPhone: string;
     userEmail: string;
-    userGender: UserGender;
+    userGender: NonNullable<UserGender>;
   }
 
   interface ChangePasswordParams {

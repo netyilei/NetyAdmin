@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import type { FormInst } from 'naive-ui';
+import { GENDER } from '@/constants/business';
 import { fetchChangePassword, fetchGetProfile, fetchUpdateProfile } from '@/service/api/v1/auth';
 import type { Auth } from '@/typings/api/v1/auth';
 import { $t } from '@/locales';
@@ -20,7 +21,7 @@ const profileModel = reactive<Auth.UpdateProfileParams>({
   nickName: '',
   userPhone: '',
   userEmail: '',
-  userGender: '1'
+  userGender: GENDER.MALE as NonNullable<Auth.UserGender>
 });
 
 const passwordModel = reactive<Auth.ChangePasswordParams & { confirmPassword: string }>({
@@ -34,7 +35,7 @@ const userGender = computed({
     return profileModel.userGender as unknown as string;
   },
   set(val: string | number | null) {
-    profileModel.userGender = String(val || '1') as Auth.UserGender;
+    profileModel.userGender = (val || GENDER.MALE) as NonNullable<Auth.UserGender>;
   }
 });
 
@@ -63,7 +64,7 @@ async function loadProfile() {
   profileModel.nickName = data.nickName || '';
   profileModel.userPhone = data.userPhone || '';
   profileModel.userEmail = data.userEmail || '';
-  profileModel.userGender = data.userGender || '1';
+  profileModel.userGender = (data.userGender ?? GENDER.MALE) as NonNullable<Auth.UserGender>;
 }
 
 async function handleSaveProfile() {

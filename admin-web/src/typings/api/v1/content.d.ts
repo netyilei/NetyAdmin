@@ -1,6 +1,4 @@
 export namespace Content {
-  type CommonSearchParams = Pick<import('@/typings/api/v1/common').Common.PaginatingCommonParams, 'current' | 'size'>;
-
   type ContentType = 'plaintext' | 'richtext';
 
   type PublishStatus = 'draft' | 'published' | 'scheduled';
@@ -24,13 +22,11 @@ export namespace Content {
     updatedAt: string;
   };
 
-  type ContentCategory = Category;
-
   type CategoryTree = Category & {
     children: CategoryTree[];
   };
 
-  type CategorySearchParams = CommonSearchParams & {
+  type CategorySearchParams = import('@/typings/api/v1/common').Common.CommonSearchParams & {
     name?: string;
     code?: string;
     status?: import('@/typings/api/v1/common').Common.EnableStatus;
@@ -94,10 +90,10 @@ export namespace Content {
     updatedBy: number;
     createdAt: string;
     updatedAt: string;
-    category?: ContentCategory;
+    category?: Category;
   };
 
-  type ArticleSearchParams = CommonSearchParams & {
+  type ArticleSearchParams = import('@/typings/api/v1/common').Common.CommonSearchParams & {
     categoryId?: number;
     title?: string;
     author?: string;
@@ -180,7 +176,7 @@ export namespace Content {
     updatedAt: string;
   };
 
-  type BannerGroupSearchParams = CommonSearchParams & {
+  type BannerGroupSearchParams = import('@/typings/api/v1/common').Common.CommonSearchParams & {
     name?: string;
     code?: string;
     status?: import('@/typings/api/v1/common').Common.EnableStatus;
@@ -246,19 +242,13 @@ export namespace Content {
     updatedAt: string;
   };
 
-  type BannerItem = Banner;
-
-  type BannerSearchParams = CommonSearchParams & {
+  type BannerSearchParams = import('@/typings/api/v1/common').Common.CommonSearchParams & {
     groupId?: number;
     title?: string;
     status?: import('@/typings/api/v1/common').Common.EnableStatus;
   };
 
-  type BannerItemSearchParams = BannerSearchParams;
-
   type BannerList = import('@/typings/api/v1/common').Common.PaginatingQueryRecord<Banner>;
-
-  type BannerItemList = BannerList;
 
   type CreateBannerParams = {
     groupId: number;
@@ -277,8 +267,6 @@ export namespace Content {
     status?: import('@/typings/api/v1/common').Common.EnableStatus;
   };
 
-  type CreateBannerItemParams = CreateBannerParams;
-
   type UpdateBannerParams = {
     title?: string;
     subtitle?: string;
@@ -294,8 +282,6 @@ export namespace Content {
     endTime?: number | null;
     status?: import('@/typings/api/v1/common').Common.EnableStatus;
   };
-
-  type UpdateBannerItemParams = UpdateBannerParams;
 
   type BannerGroupWithBanners = BannerGroup & {
     banners: Banner[];

@@ -1,6 +1,7 @@
 <script setup lang="tsx">
 import { NAvatar, NButton, NPopconfirm, NSpace, NSwitch, NTag } from 'naive-ui';
 import dayjs from 'dayjs';
+import { ENABLE_STATUS, isEnabledStatus } from '@/constants/business';
 import {
   fetchDeleteUser,
   fetchGetUserList,
@@ -114,9 +115,11 @@ const {
       width: 100,
       render: (row: any) => (
         <NSwitch
-          value={row.status === '1'}
+          value={isEnabledStatus(row.status)}
           loading={loading.value}
-          onUpdateValue={(val: boolean) => handleStatusChange(row.id, val ? '1' : '0')}
+          onUpdateValue={(val: boolean) =>
+            handleStatusChange(row.id, val ? ENABLE_STATUS.ENABLED : ENABLE_STATUS.DISABLED)
+          }
         >
           {{ checked: () => $t('common.enable'), unchecked: () => $t('common.disable') }}
         </NSwitch>

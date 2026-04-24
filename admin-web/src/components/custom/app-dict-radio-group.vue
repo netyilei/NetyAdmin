@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue';
+import { DICT_BOOLEAN } from '@/constants/business';
 import { useDictStore } from '@/store/modules/dict';
 import { $t } from '@/locales';
 
@@ -28,7 +29,7 @@ const options = computed(() => dictStore.dictMap.get(props.dictCode) || []);
 const internalValue = computed(() => {
   if (props.type === 'boolean') {
     if (props.value === null || props.value === undefined) return null;
-    return props.value ? '1' : '0';
+    return props.value ? DICT_BOOLEAN.TRUE : DICT_BOOLEAN.FALSE;
   }
   return props.value as string | number | null;
 });
@@ -44,7 +45,7 @@ function handleUpdateValue(val: string | number | null) {
     if (val === null) {
       emitVal = null;
     } else {
-      emitVal = val === '1';
+      emitVal = val === DICT_BOOLEAN.TRUE;
     }
   } else if (props.type === 'number') {
     emitVal = val !== null ? Number(val) : null;

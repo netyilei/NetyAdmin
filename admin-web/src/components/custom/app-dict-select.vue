@@ -73,7 +73,7 @@ watch(() => props.dictCode, loadOptions);
   <NSelect
     :value="normalizedValue"
     :options="options"
-    :placeholder="placeholder || '请选择'"
+    :placeholder="placeholder || $t('common.pleaseSelect')"
     :loading="loading"
     :disabled="disabled"
     clearable

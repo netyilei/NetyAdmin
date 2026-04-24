@@ -8,6 +8,7 @@ import {
   fetchGetDictDataList,
   fetchGetDictTypeList
 } from '@/service/api/v1/system-dict';
+import { useDictStore } from '@/store/modules/dict';
 import { useTable } from '@/hooks/common/table';
 import { useDict } from '@/hooks/common/dict';
 import type { SystemDict } from '@/typings/api/v1/system-dict';
@@ -191,6 +192,8 @@ async function handleDeleteType(id: number) {
   const { error } = await fetchDeleteDictType(id);
   if (!error) {
     window.$message?.success($t('common.deleteSuccess'));
+    const dictStore = useDictStore();
+    dictStore.clearCache();
     await getTypeData();
   }
 }
@@ -234,8 +237,22 @@ async function handleDeleteData(id: number) {
   const { error } = await fetchDeleteDictData(id);
   if (!error) {
     window.$message?.success($t('common.deleteSuccess'));
+    const dictStore = useDictStore();
+    dictStore.removeDict(selectedDictCode.value);
     loadDictData(selectedDictCode.value);
   }
+}
+
+async function handleTypeSubmitted() {
+  const dictStore = useDictStore();
+  dictStore.clearCache();
+  await getTypeData();
+}
+
+async function handleDataSubmitted() {
+  const dictStore = useDictStore();
+  dictStore.removeDict(selectedDictCode.value);
+  loadDictData(selectedDictCode.value);
 }
 </script>
 
@@ -301,14 +318,14 @@ async function handleDeleteData(id: number) {
       v-model:visible="typeModalVisible"
       :mode="typeModalMode"
       :row-data="editingType"
-      @submitted="getTypeData"
+      @submitted="handleTypeSubmitted"
     />
     <DictDataModal
       v-model:visible="dataModalVisible"
       :mode="dataModalMode"
       :row-data="editingData"
       :dict-code="selectedDictCode"
-      @submitted="() => loadDictData(selectedDictCode)"
+      @submitted="handleDataSubmitted"
     />
   </div>
 </template>

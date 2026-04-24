@@ -1,6 +1,5 @@
 <script setup lang="tsx">
 import { NButton, NPopconfirm } from 'naive-ui';
-import { consola } from 'consola';
 import { fetchBatchDeleteRole, fetchDeleteRole, fetchGetRoleList } from '@/service/api/v1/system-manage';
 import { useAppStore } from '@/store/modules/app';
 import { useTable, useTableOperate } from '@/hooks/common/table';
@@ -118,8 +117,6 @@ const {
 } = useTableOperate(data, getData);
 
 async function handleBatchDelete() {
-  consola.log(checkedRowKeys.value);
-
   const ids = checkedRowKeys.value as unknown as number[];
   if (!ids.length) return;
 
@@ -132,8 +129,6 @@ async function handleBatchDelete() {
 }
 
 async function handleDelete(id: number) {
-  consola.log(id);
-
   loading.value = true;
   const result = await fetchDeleteRole(id);
   loading.value = false;
@@ -146,9 +141,7 @@ function edit(id: number) {
   handleEdit(id);
 }
 
-async function handleSubmit(roleData?: SystemManage.RoleBase) {
-  // if (!roleData) return;
-  consola.info(roleData);
+async function handleSubmit(_roleData?: SystemManage.RoleBase) {
   await getData();
 }
 </script>

@@ -28,6 +28,13 @@ export const useDictStore = defineStore('dict-store', {
     },
     clearCache() {
       this.dictMap.clear();
+    },
+    removeDict(code: string) {
+      this.dictMap.delete(code);
+    },
+    async refreshDict(code: string) {
+      this.dictMap.delete(code);
+      return this.getDict(code);
     }
   }
 });

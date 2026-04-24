@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue';
 import type { UploadFileInfo } from 'naive-ui';
 import dayjs from 'dayjs';
+import { ENABLE_STATUS } from '@/constants/business';
 import {
   fetchCreateBannerItem,
   fetchGetAllBannerGroups,
@@ -80,7 +81,7 @@ const model: Model = reactive({
   sort: 0,
   startTime: null,
   endTime: null,
-  status: '1'
+  status: ENABLE_STATUS.ENABLED
 });
 
 type RuleKey = Extract<keyof Model, 'groupId' | 'title' | 'imageUrl'>;
@@ -120,7 +121,7 @@ function initModel() {
   model.sort = 0;
   model.startTime = null;
   model.endTime = null;
-  model.status = '1';
+  model.status = ENABLE_STATUS.ENABLED;
 }
 
 async function handleInitModel() {
@@ -338,8 +339,8 @@ watch(
       </NGrid>
       <NFormItem :label="$t('common.status')" path="status">
         <NRadioGroup v-model:value="model.status">
-          <NRadio value="1">{{ $t('common.enable') }}</NRadio>
-          <NRadio value="0">{{ $t('common.disable') }}</NRadio>
+          <NRadio :value="ENABLE_STATUS.ENABLED">{{ $t('common.enable') }}</NRadio>
+          <NRadio :value="ENABLE_STATUS.DISABLED">{{ $t('common.disable') }}</NRadio>
         </NRadioGroup>
       </NFormItem>
     </NForm>

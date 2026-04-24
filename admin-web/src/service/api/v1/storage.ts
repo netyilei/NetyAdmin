@@ -100,7 +100,7 @@ export function fetchGetUploadCredentials(data: Storage.UploadCredentialsParams)
 }
 
 export function fetchCreateUploadRecord(data: Storage.CreateUploadRecordParams) {
-  return request<Storage.UploadRecordVO>({
+  return request<Storage.UploadRecord>({
     url: '/admin/v1/storage/upload-record',
     method: 'post',
     data

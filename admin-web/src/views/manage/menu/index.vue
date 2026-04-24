@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import type { Ref } from 'vue';
 import { NButton, NDataTable, NPopconfirm } from 'naive-ui';
 import { useBoolean } from '@na/hooks';
+import { ICON_TYPE, MENU_TYPE } from '@/constants/business';
 import {
   fetchBatchDeleteMenu,
   fetchDeleteMenu,
@@ -20,7 +21,7 @@ import SvgIcon from '@/components/custom/svg-icon.vue';
 import MenuOperateModal, { type OperateType } from './components/menu-operate-modal.vue';
 
 const appStore = useAppStore();
-const { loadDicts, renderDictTag } = useDict();
+const { loadDicts, renderDictTag, renderBoolDictTag } = useDict();
 
 loadDicts(['sys_status', 'menu_type', 'sys_yes_no']);
 
@@ -96,9 +97,9 @@ const { columns, columnChecks, data, loading, pagination, getData, updateSearchP
       align: 'center',
       width: 60,
       render: row => {
-        const icon = row.iconType === '1' ? row.icon : undefined;
+        const icon = row.iconType === ICON_TYPE.ICONIFY ? row.icon : undefined;
 
-        const localIcon = row.iconType === '2' ? row.icon : undefined;
+        const localIcon = row.iconType === ICON_TYPE.LOCAL ? row.icon : undefined;
 
         return (
           <div class="flex-center">
@@ -131,7 +132,7 @@ const { columns, columnChecks, data, loading, pagination, getData, updateSearchP
       title: $t('page.manage.menu.hideInMenu'),
       align: 'center',
       width: 80,
-      render: row => renderDictTag('sys_yes_no', row.hideInMenu ? '1' : '0')
+      render: row => renderBoolDictTag('sys_yes_no', row.hideInMenu)
     },
     {
       key: 'order',
@@ -146,7 +147,7 @@ const { columns, columnChecks, data, loading, pagination, getData, updateSearchP
       width: 250,
       render: row => (
         <div class="flex-center justify-end gap-8px">
-          {row.type === '1' && (
+          {row.type === MENU_TYPE.DIRECTORY && (
             <NButton type="primary" ghost size="small" onClick={() => handleAddChildMenu(row)}>
               {$t('page.manage.menu.addChildMenu')}
             </NButton>
@@ -244,7 +245,6 @@ async function loadMenuData() {
 }
 
 function init() {
-  loadDicts(['menu_type', 'sys_status']);
   getAllPages();
   loadMenuData();
 }

@@ -1,6 +1,4 @@
 export namespace ClientUser {
-  type CommonSearchParams = Pick<import('@/typings/api/v1/common').Common.PaginatingCommonParams, 'current' | 'size'>;
-
   interface RegisterReq {
     username: string;
     password: string;
@@ -42,7 +40,7 @@ export namespace ClientUser {
       email: string;
       gender: string | null;
       status: string | null;
-    } & CommonSearchParams
+    } & import('@/typings/api/v1/common').Common.CommonSearchParams
   >;
 
   type ClientUserList = import('@/typings/api/v1/common').Common.PaginatingQueryRecord<UserInfo>;

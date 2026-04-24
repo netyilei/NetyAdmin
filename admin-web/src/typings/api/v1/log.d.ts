@@ -1,6 +1,4 @@
 export namespace Log {
-  type CommonSearchParams = Pick<import('@/typings/api/v1/common').Common.PaginatingCommonParams, 'current' | 'size'>;
-
   type OperationLog = {
     id: number;
     adminId: number;
@@ -13,7 +11,7 @@ export namespace Log {
     createdAt: string;
   };
 
-  type OperationLogSearchParams = CommonSearchParams & {
+  type OperationLogSearchParams = import('@/typings/api/v1/common').Common.CommonSearchParams & {
     adminId?: number;
     action?: string;
     startDate?: string;
@@ -42,7 +40,7 @@ export namespace Log {
     createdAt: string;
   };
 
-  type ErrorLogSearchParams = CommonSearchParams & {
+  type ErrorLogSearchParams = import('@/typings/api/v1/common').Common.CommonSearchParams & {
     level?: ErrorLogLevel;
     resolved?: boolean;
     startTime?: string;
@@ -67,7 +65,7 @@ export namespace Log {
     createdAt: string;
   };
 
-  type OpenLogSearchParams = CommonSearchParams & {
+  type OpenLogSearchParams = import('@/typings/api/v1/common').Common.CommonSearchParams & {
     appId?: string;
     appKey?: string;
     apiPath?: string;

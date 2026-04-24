@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
+import { ENABLE_STATUS } from '@/constants/business';
 import { fetchCreateBannerGroup, fetchUpdateBannerGroup } from '@/service/api/v1/content';
 import { useFormRules } from '@/hooks/common/form';
 import type { Content } from '@/typings/api/v1/content';
@@ -70,7 +71,7 @@ const model: Model = reactive({
   interval: 5000,
   sort: 0,
   storageConfigId: null,
-  status: '1',
+  status: ENABLE_STATUS.ENABLED,
   remark: ''
 });
 
@@ -95,7 +96,7 @@ function initModel() {
   model.interval = 5000;
   model.sort = 0;
   model.storageConfigId = null;
-  model.status = '1';
+  model.status = ENABLE_STATUS.ENABLED;
   model.remark = '';
 }
 
@@ -243,8 +244,8 @@ watch(
       </NFormItem>
       <NFormItem :label="$t('common.status')" path="status">
         <NRadioGroup v-model:value="model.status">
-          <NRadio value="1">{{ $t('common.enable') }}</NRadio>
-          <NRadio value="0">{{ $t('common.disable') }}</NRadio>
+          <NRadio :value="ENABLE_STATUS.ENABLED">{{ $t('common.enable') }}</NRadio>
+          <NRadio :value="ENABLE_STATUS.DISABLED">{{ $t('common.disable') }}</NRadio>
         </NRadioGroup>
       </NFormItem>
       <NFormItem :label="$t('page.content.category.remark')" path="remark">

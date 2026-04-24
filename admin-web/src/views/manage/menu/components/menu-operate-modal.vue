@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, h, ref, watch } from 'vue';
+import { ENABLE_STATUS, ICON_TYPE, MENU_TYPE } from '@/constants/business';
 import { fetchAddMenu, fetchGetAllRoles, fetchUpdateMenu } from '@/service/api/v1/system-manage';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { useOperation } from '@/hooks/common/operation';
@@ -91,7 +92,7 @@ const model = ref(createDefaultModel());
 
 function createDefaultModel(): Model {
   return {
-    type: '1',
+    type: MENU_TYPE.DIRECTORY,
     name: '',
     routeName: '',
     routePath: '',
@@ -101,9 +102,9 @@ function createDefaultModel(): Model {
     page: '',
     i18nKey: null,
     icon: '',
-    iconType: '1',
+    iconType: ICON_TYPE.ICONIFY,
     parentId: 0,
-    status: '1',
+    status: ENABLE_STATUS.ENABLED,
     keepAlive: false,
     constant: false,
     order: 0,
@@ -142,7 +143,7 @@ const allIconifyIcons = getAllIconifyIcons();
 
 const showLayout = computed(() => model.value.parentId === 0);
 
-const showPage = computed(() => model.value.type === '2');
+const showPage = computed(() => model.value.type === MENU_TYPE.MENU);
 
 const pageOptions = computed(() => {
   const allPages = [...props.allPages];
@@ -330,10 +331,10 @@ watch(
             <AppDictRadioGroup v-model:value="model.iconType" dict-code="menu_icon_type" />
           </NFormItemGi>
           <NFormItemGi span="24 m:12" :label="$t('page.manage.menu.icon')" path="icon">
-            <template v-if="model.iconType === '1'">
+            <template v-if="model.iconType === ICON_TYPE.ICONIFY">
               <IconifyIconSelect v-model:value="model.icon" :icons="allIconifyIcons" />
             </template>
-            <template v-if="model.iconType === '2'">
+            <template v-if="model.iconType === ICON_TYPE.LOCAL">
               <NSelect
                 v-model:value="model.icon"
                 :placeholder="$t('page.manage.menu.form.localIcon')"

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from 'vue';
-import { consola } from 'consola';
 import {
   fetchGetButtonIdsByRole,
   fetchGetButtonTree,
@@ -62,7 +61,6 @@ async function handleSubmit() {
   // Extract number IDs from 'b_{id}' strings
   const buttonIds = checks.value.filter(key => key.startsWith('b_')).map(key => Number(key.replace('b_', '')));
 
-  consola.log(buttonIds, props.roleId);
   loading.value = true;
   const { error } = await fetchUpdateButtonIdsByRole(props.roleId, buttonIds);
   loading.value = false;

@@ -1,6 +1,4 @@
 export namespace Storage {
-  type CommonSearchParams = Pick<import('@/typings/api/v1/common').Common.PaginatingCommonParams, 'current' | 'size'>;
-
   type StorageProvider = 'aliyun' | 'tencent' | 'huawei' | 'qiniu' | 'minio' | 'aws' | 'cloudflare' | 'custom';
 
   type StorageConfig = {
@@ -23,7 +21,7 @@ export namespace Storage {
     updatedAt: string;
   };
 
-  type StorageConfigSearchParams = CommonSearchParams & {
+  type StorageConfigSearchParams = import('@/typings/api/v1/common').Common.CommonSearchParams & {
     name?: string;
     provider?: StorageProvider;
     status?: import('@/typings/api/v1/common').Common.EnableStatus;
@@ -87,7 +85,7 @@ export namespace Storage {
     createdAt: string;
   };
 
-  type UploadRecordSearchParams = CommonSearchParams & {
+  type UploadRecordSearchParams = import('@/typings/api/v1/common').Common.CommonSearchParams & {
     fileName?: string;
     source?: UploadSource;
     sourceId?: string;
@@ -138,6 +136,4 @@ export namespace Storage {
     businessId?: string;
     sourceInfo?: string;
   };
-
-  type UploadRecordVO = UploadRecord;
 }

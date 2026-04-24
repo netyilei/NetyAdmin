@@ -119,8 +119,8 @@ export function fetchDeleteBannerGroup(id: number) {
  * Content Banner Item
  */
 
-export function fetchGetBannerItemList(params?: Content.BannerItemSearchParams) {
-  return request<Content.BannerItemList>({
+export function fetchGetBannerItemList(params?: Content.BannerSearchParams) {
+  return request<Content.BannerList>({
     url: '/admin/v1/content/banner-items',
     method: 'get',
     params
@@ -128,22 +128,22 @@ export function fetchGetBannerItemList(params?: Content.BannerItemSearchParams) 
 }
 
 export function fetchGetBannerItem(id: number) {
-  return request<Content.BannerItem>({
+  return request<Content.Banner>({
     url: `/admin/v1/content/banner-items/${id}`,
     method: 'get'
   });
 }
 
-export function fetchCreateBannerItem(data: Content.CreateBannerItemParams) {
-  return request<Content.BannerItem>({
+export function fetchCreateBannerItem(data: Content.CreateBannerParams) {
+  return request<Content.Banner>({
     url: '/admin/v1/content/banner-items',
     method: 'post',
     data
   });
 }
 
-export function fetchUpdateBannerItem(id: number, data: Content.UpdateBannerItemParams) {
-  return request<Content.BannerItem>({
+export function fetchUpdateBannerItem(id: number, data: Content.UpdateBannerParams) {
+  return request<Content.Banner>({
     url: `/admin/v1/content/banner-items/${id}`,
     method: 'put',
     data
