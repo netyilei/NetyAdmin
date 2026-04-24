@@ -6,14 +6,15 @@
 
 ## 一、接口总览
 
-| 方法 | 路径 | 权限 | 说明 |
-|------|------|------|------|
-| GET | /client/v1/user/profile | 签名 + JWT | 获取个人资料 |
-| PUT | /client/v1/user/profile | 签名 + JWT | 更新个人资料 |
-| PUT | /client/v1/user/password | 签名 + JWT | 修改密码 |
-| DELETE | /client/v1/user/account | 签名 + JWT | 注销账号 |
-| GET | /client/v1/user/upload-token | 签名 + JWT | 获取上传凭证 |
-| POST | /client/v1/user/logout | 签名 + JWT | 退出登录 |
+| 方法 | 路径 | 权限 | Scope | 说明 |
+|------|------|------|-------|------|
+| GET | /client/v1/user/profile | 签名 + JWT | `user_profile` | 获取个人资料 |
+| PUT | /client/v1/user/profile | 签名 + JWT | `user_profile` | 更新个人资料 |
+| PUT | /client/v1/user/password | 签名 + JWT | `user_profile` | 修改密码 |
+| DELETE | /client/v1/user/account | 签名 + JWT | `user_profile` | 注销账号 |
+| GET | /client/v1/user/upload-token | 签名 + JWT | `user_profile` | 获取上传凭证 |
+| POST | /client/v1/user/upload-record | 签名 + JWT | `user_profile` | 记录上传结果 |
+| POST | /client/v1/user/logout | 签名 + JWT | `user_profile` | 退出登录 |
 
 > 登录、注册、找回密码、刷新令牌接口见 [01-auth.md](01-auth.md)。
 
@@ -211,7 +212,65 @@ GET /client/v1/user/upload-token
 
 ---
 
-## 七、退出登录
+## 七、记录上传结果
+
+用户直传文件到对象存储成功后，回调此接口记录上传信息。与 `/user/upload-token` 配套使用。
+
+```
+POST /client/v1/user/upload-record
+```
+
+**权限**：开放平台签名 + 用户 JWT + `user_profile` Scope
+
+**请求参数**（JSON Body）：
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| fileName | string | 是 | 文件名 |
+| objectKey | string | 是 | 对象存储 Key（从获取凭证接口返回的路径） |
+| fileSize | int64 | 否 | 文件大小（字节） |
+| mimeType | string | 否 | MIME 类型 |
+| md5 | string | 否 | 文件 MD5 哈希 |
+| storageConfigId | int | 否 | 存储配置 ID（从获取凭证接口返回） |
+| businessType | string | 否 | 业务类型标识，如 `avatar` |
+| businessId | string | 否 | 业务关联 ID |
+
+**请求示例**：
+
+```json
+{
+  "fileName": "avatar.png",
+  "objectKey": "user/01HXYZ1234567890ABCDEFG/avatar.png",
+  "fileSize": 102400,
+  "mimeType": "image/png",
+  "md5": "d41d8cd98f00b204e9800998ecf8427e",
+  "storageConfigId": 1,
+  "businessType": "avatar"
+}
+```
+
+**响应示例**：
+
+```json
+{
+  "code": "100000",
+  "data": null
+}
+```
+
+> **提示**：上传记录回调是可选步骤，但强烈建议执行，以便后端追踪文件归属和管理存储空间。
+
+**可能错误码**：
+
+| code | 说明 |
+|------|------|
+| `100001` | 参数校验失败（fileName、objectKey 必填） |
+| `100002` | 未授权 |
+| `100005` | 记录上传结果失败 |
+
+---
+
+## 八、退出登录
 
 使当前 Token 失效，退出登录状态。
 

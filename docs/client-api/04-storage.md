@@ -29,14 +29,33 @@
 
 ## 二、接口总览
 
-| 方法 | 路径 | 权限 | 说明 |
-|------|------|------|------|
-| POST | /client/v1/storage/credentials | 签名 | 获取上传凭证 |
-| POST | /client/v1/storage/records | 签名 | 记录上传结果 |
+| 方法 | 路径 | 权限 | Scope | 说明 |
+|------|------|------|-------|------|
+| POST | /client/v1/storage/credentials | 签名 | `storage_upload` | 获取上传凭证 |
+| POST | /client/v1/storage/records | 签名 | `storage_upload` | 记录上传结果 |
 
 ---
 
-## 三、获取上传凭证
+## 三、开放平台权限配置
+
+存储上传接口需要在开放平台**应用管理**中授权 `storage_upload` 权限组才能调用。
+
+| Scope Code | 名称 | 包含接口 |
+|------------|------|----------|
+| `storage_upload` | 存储上传 (凭证/记录) | `POST /client/v1/storage/credentials`、`POST /client/v1/storage/records` |
+
+**配置步骤**：
+
+1. 登录管理后台 → 开放平台 → 应用管理
+2. 选择目标应用 → 编辑权限范围
+3. 勾选 `storage_upload` 权限组并保存
+4. 使用该应用的 AppKey/AppSecret 调用存储上传接口
+
+> **提示**：应用绑定了专属存储配置时，`/storage/credentials` 会自动使用应用级存储源；未绑定则使用系统默认存储源。
+
+---
+
+## 四、获取上传凭证
 
 根据文件信息获取上传所需的预签名 URL 和相关凭证。系统会根据应用绑定的存储配置自动选择存储后端。
 
@@ -119,7 +138,7 @@ POST /client/v1/storage/credentials
 
 ---
 
-## 四、记录上传结果
+## 五、记录上传结果
 
 客户端直传文件到对象存储成功后，回调此接口记录上传信息。
 
@@ -174,7 +193,7 @@ POST /client/v1/storage/records
 
 ---
 
-## 五、客户端直传示例
+## 六、客户端直传示例
 
 ### JavaScript / TypeScript（以阿里云 OSS 为例）
 

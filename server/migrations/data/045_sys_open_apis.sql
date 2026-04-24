@@ -12,6 +12,7 @@ INSERT INTO sys_open_apis (method, path, name, group_name, description, status, 
 ('PUT', '/client/v1/user/password', '修改密码', '用户资料', '修改当前用户密码', 1, NOW(), NOW()),
 ('DELETE', '/client/v1/user/account', '注销账户', '用户资料', '注销当前用户账户', 1, NOW(), NOW()),
 ('GET', '/client/v1/user/upload-token', '获取上传凭证', '用户资料', '获取存储上传凭证', 1, NOW(), NOW()),
+('POST', '/client/v1/user/upload-record', '记录上传结果', '用户资料', '用户上传文件后记录上传结果', 1, NOW(), NOW()),
 ('POST', '/client/v1/user/logout', '退出登录', '用户资料', '退出登录使令牌失效', 1, NOW(), NOW()),
 -- 验证码（公开）
 ('GET', '/client/v1/auth/captcha', '获取验证码', '用户认证', '获取图形验证码', 1, NOW(), NOW()),
@@ -32,6 +33,8 @@ INSERT INTO sys_open_apis (method, path, name, group_name, description, status, 
 -- 内容管理（需签名）
 ('POST', '/client/v1/content/article/:id/like', '文章点赞', '内容管理', '点赞指定文章', 1, NOW(), NOW()),
 ('POST', '/client/v1/content/banners/:id/click', 'Banner点击', '内容管理', '记录Banner点击', 1, NOW(), NOW()),
+-- 示例接口（需签名）
+('POST', '/client/v1/echo', '回显测试', '示例接口', '验证开放平台签名是否正确配置', 1, NOW(), NOW()),
 -- 存储上传（需签名）
 ('POST', '/client/v1/storage/credentials', '获取上传凭证', '存储上传', '开放平台应用获取上传凭证', 1, NOW(), NOW()),
 ('POST', '/client/v1/storage/records', '创建上传记录', '存储上传', '开放平台应用创建上传记录', 1, NOW(), NOW())

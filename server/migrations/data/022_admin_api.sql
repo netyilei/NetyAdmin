@@ -306,9 +306,7 @@ DECLARE
         (app_menu_id, '重置 AppSecret', 'PUT', '/admin/v1/open/apps/reset-secret', '重置 AppSecret', '1', NOW(), NOW()),
         (app_menu_id, '关联IP规则', 'PUT', '/admin/v1/open/apps/ip-rules', '关联IP规则到应用', '1', NOW(), NOW()),
         (app_menu_id, '获取应用权限', 'GET', '/admin/v1/open/apps/scopes', '获取应用的权限范围', '1', NOW(), NOW()),
-        (app_menu_id, '获取可用权限', 'GET', '/admin/v1/open/apps/available-scopes', '获取所有可用的权限范围', '1', NOW(), NOW()),
-        (app_menu_id, 'Client获取上传凭证', 'POST', '/client/v1/storage/credentials', '开放平台应用获取上传凭证', '1', NOW(), NOW()),
-        (app_menu_id, 'Client创建上传记录', 'POST', '/client/v1/storage/records', '开放平台应用创建上传记录', '1', NOW(), NOW())
+        (app_menu_id, '获取可用权限', 'GET', '/admin/v1/open/apps/available-scopes', '获取所有可用的权限范围', '1', NOW(), NOW())
         ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 

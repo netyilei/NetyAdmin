@@ -11,6 +11,7 @@ type UploadSource string
 const (
 	UploadSourceAdmin  UploadSource = "admin"
 	UploadSourceClient UploadSource = "client"
+	UploadSourceUser   UploadSource = "user"
 	UploadSourceAPI    UploadSource = "api"
 	UploadSourceSystem UploadSource = "system"
 )

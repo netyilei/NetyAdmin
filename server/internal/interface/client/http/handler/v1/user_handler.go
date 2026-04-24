@@ -5,19 +5,24 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	openEntity "NetyAdmin/internal/domain/entity/open_platform"
+	storageEntity "NetyAdmin/internal/domain/entity/storage"
 	clientDto "NetyAdmin/internal/interface/client/dto/v1"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
+	storageService "NetyAdmin/internal/service/storage"
 	userSvcPkg "NetyAdmin/internal/service/user"
 )
 
 type UserHandler struct {
-	userSvc userSvcPkg.UserService
+	userSvc   userSvcPkg.UserService
+	recordSvc storageService.RecordService
 }
 
-func NewUserHandler(userSvc userSvcPkg.UserService) *UserHandler {
+func NewUserHandler(userSvc userSvcPkg.UserService, recordSvc storageService.RecordService) *UserHandler {
 	return &UserHandler{
-		userSvc: userSvc,
+		userSvc:   userSvc,
+		recordSvc: recordSvc,
 	}
 }
 
@@ -142,6 +147,49 @@ func (h *UserHandler) GetUploadToken(c *gin.Context) {
 		return
 	}
 	response.Success(c, token)
+}
+
+// RecordUpload 记录用户上传结果
+func (h *UserHandler) RecordUpload(c *gin.Context) {
+	userID := c.GetString("userID")
+	var req clientDto.CreateUserUploadRecordReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithCode(c, errorx.CodeInvalidParams)
+		return
+	}
+
+	appObj, exists := c.Get("currentOpenApp")
+	var appKey string
+	if exists {
+		app := appObj.(*openEntity.App)
+		appKey = app.AppKey
+	}
+
+	err := h.recordSvc.RecordUpload(
+		c.Request.Context(),
+		req.StorageConfigID,
+		req.FileName,
+		req.FileName,
+		req.ObjectKey,
+		"",
+		req.FileSize,
+		req.MimeType,
+		req.MD5,
+		storageEntity.UploadSourceUser,
+		userID,
+		nil,
+		c.ClientIP(),
+		c.GetHeader("User-Agent"),
+		req.BusinessType,
+		req.BusinessID,
+		appKey,
+	)
+	if err != nil {
+		response.Fail(c, err)
+		return
+	}
+
+	response.Success(c, nil)
 }
 
 // Logout 退出登录

@@ -454,7 +454,7 @@ func initHandlers(services *serviceSet, captchaMgr *captcha.Manager, configWatch
 	h.route = route.NewRouteHandler(services.menu, services.admin)
 
 	h.client.echo = clientHandler.NewEchoHandler()
-	h.client.user = clientHandler.NewUserHandler(services.user)
+	h.client.user = clientHandler.NewUserHandler(services.user, services.uploadRecord)
 	h.client.auth = clientHandler.NewAuthHandler(services.verification, captchaMgr, configWatcher, repos.user)
 	h.client.message = clientHandler.NewMessageHandler(services.message)
 	h.client.content = clientHandler.NewContentHandler(services.contentArticle, services.contentCategory, services.contentBannerGroup, services.contentBannerItem)
