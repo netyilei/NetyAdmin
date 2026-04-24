@@ -55,16 +55,6 @@ type ClientArticleDetailVO struct {
 	CreatedAt    time.Time  `json:"createdAt"`
 }
 
-type ClientCategoryTreeVO struct {
-	ID          uint                   `json:"id"`
-	ParentID    uint                   `json:"parentId"`
-	Name        string                 `json:"name"`
-	Code        string                 `json:"code"`
-	Icon        string                 `json:"icon"`
-	ContentType string                 `json:"contentType"`
-	Children    []ClientCategoryTreeVO `json:"children"`
-}
-
 type ClientBannerGroupVO struct {
 	ID          uint                 `json:"id"`
 	Name        string               `json:"name"`

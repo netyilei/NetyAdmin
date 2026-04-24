@@ -6,6 +6,7 @@ import (
 
 	contentEntity "NetyAdmin/internal/domain/entity/content"
 	contentDto "NetyAdmin/internal/interface/admin/dto/content"
+	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/errorx"
 	contentRepo "NetyAdmin/internal/repository/content"
 )
@@ -24,17 +25,20 @@ type bannerItemService struct {
 	repo        contentRepo.ContentBannerItemRepository
 	groupRepo   contentRepo.ContentBannerGroupRepository
 	articleRepo contentRepo.ContentArticleRepository
+	cache       cache.LazyCacheManager
 }
 
 func NewBannerItemService(
 	repo contentRepo.ContentBannerItemRepository,
 	groupRepo contentRepo.ContentBannerGroupRepository,
 	articleRepo contentRepo.ContentArticleRepository,
+	cache cache.LazyCacheManager,
 ) BannerItemService {
 	return &bannerItemService{
 		repo:        repo,
 		groupRepo:   groupRepo,
 		articleRepo: articleRepo,
+		cache:       cache,
 	}
 }
 
@@ -109,6 +113,8 @@ func (s *bannerItemService) Create(ctx context.Context, adminID uint, req *conte
 		return nil, err
 	}
 
+	_ = s.cache.InvalidateByTags(ctx, cache.TagContentBanner)
+
 	return item, nil
 }
 
@@ -163,11 +169,17 @@ func (s *bannerItemService) Update(ctx context.Context, adminID uint, id uint, r
 		return nil, err
 	}
 
+	_ = s.cache.InvalidateByTags(ctx, cache.TagContentBanner)
+
 	return item, nil
 }
 
 func (s *bannerItemService) Delete(ctx context.Context, id uint) error {
-	return s.repo.Delete(ctx, id)
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return err
+	}
+	_ = s.cache.InvalidateByTags(ctx, cache.TagContentBanner)
+	return nil
 }
 
 func (s *bannerItemService) GetByID(ctx context.Context, id uint) (*contentEntity.ContentBannerItem, error) {

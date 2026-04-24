@@ -5,9 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	clientDto "NetyAdmin/internal/interface/client/dto/v1"
-	contentDto "NetyAdmin/internal/interface/admin/dto/content"
 	contentEntity "NetyAdmin/internal/domain/entity/content"
+	clientDto "NetyAdmin/internal/interface/client/dto/v1"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
 	contentService "NetyAdmin/internal/service/content"
@@ -103,16 +102,6 @@ func (h *ContentHandler) LikeArticle(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-func (h *ContentHandler) GetCategoryTree(c *gin.Context) {
-	tree, err := h.categorySvc.GetTree(c.Request.Context(), false)
-	if err != nil {
-		response.Fail(c, err)
-		return
-	}
-
-	response.Success(c, categoryTreeToClientVO(tree))
-}
-
 func (h *ContentHandler) GetBannerGroupByCode(c *gin.Context) {
 	code := c.Param("code")
 	if code == "" {
@@ -201,27 +190,6 @@ func articleToDetailVO(a *contentEntity.ContentArticle) clientDto.ClientArticleD
 		PublishedAt:  a.PublishedAt,
 		CreatedAt:    a.CreatedAt,
 	}
-}
-
-func categoryTreeToClientVO(tree []contentDto.ContentCategoryTreeDTO) []clientDto.ClientCategoryTreeVO {
-	result := make([]clientDto.ClientCategoryTreeVO, 0, len(tree))
-	for _, node := range tree {
-		vo := clientDto.ClientCategoryTreeVO{
-			ID:          node.ID,
-			ParentID:    node.ParentID,
-			Name:        node.Name,
-			Code:        node.Code,
-			Icon:        node.Icon,
-			ContentType: node.ContentType,
-		}
-		if len(node.Children) > 0 {
-			vo.Children = categoryTreeToClientVO(node.Children)
-		} else {
-			vo.Children = make([]clientDto.ClientCategoryTreeVO, 0)
-		}
-		result = append(result, vo)
-	}
-	return result
 }
 
 func bannerGroupToClientVO(g *contentEntity.ContentBannerGroup) clientDto.ClientBannerGroupVO {

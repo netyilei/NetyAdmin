@@ -170,7 +170,8 @@ const manage = {
       task: 'Task Config',
       log: 'Log Maintenance',
       email: 'Email Config',
-      sms: 'SMS Config'
+      sms: 'SMS Config',
+      contentCache: 'Content Cache'
     },
     cache: {
       title: 'Cache Degradation Switches',
@@ -186,8 +187,18 @@ const manage = {
       storage: 'Object Storage Config/Hot Reload',
       err_log_cache: 'Error Log Analysis Cache',
       content_category_cache: 'Content Category Tree Cache',
+      content_article_cache: 'Content Article Cache',
+      content_banner_cache: 'Content Banner Cache',
       captcha: 'Captcha Cache',
       user_profile: 'User Profile Cache'
+    },
+    contentCache: {
+      description:
+        'Configure cache TTL for content modules. Changes take effect immediately for subsequent requests. Cache switches are managed in the "Cache Config" tab.',
+      bannerCacheTTL: 'Banner Group/Banner Cache TTL',
+      categoryCacheTTL: 'Article Category Cache TTL',
+      articleCacheTTL: 'Article Detail Cache TTL',
+      minutesUnit: 'minutes'
     },
     captcha: {
       title: 'Captcha Global Settings',

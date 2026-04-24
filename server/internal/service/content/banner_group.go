@@ -2,9 +2,12 @@ package content
 
 import (
 	"context"
+	"time"
 
 	contentEntity "NetyAdmin/internal/domain/entity/content"
 	contentDto "NetyAdmin/internal/interface/admin/dto/content"
+	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/errorx"
 	contentRepo "NetyAdmin/internal/repository/content"
 	storageService "NetyAdmin/internal/service/storage"
@@ -24,13 +27,27 @@ type BannerGroupService interface {
 type bannerGroupService struct {
 	repo           contentRepo.ContentBannerGroupRepository
 	storageService storageService.ConfigService
+	cache          cache.LazyCacheManager
+	watcher        configsync.ConfigWatcher
 }
 
-func NewBannerGroupService(repo contentRepo.ContentBannerGroupRepository, storageService storageService.ConfigService) BannerGroupService {
+func NewBannerGroupService(repo contentRepo.ContentBannerGroupRepository, storageService storageService.ConfigService, cache cache.LazyCacheManager, watcher configsync.ConfigWatcher) BannerGroupService {
 	return &bannerGroupService{
 		repo:           repo,
 		storageService: storageService,
+		cache:          cache,
+		watcher:        watcher,
 	}
+}
+
+func (s *bannerGroupService) getBannerCacheTTL() time.Duration {
+	val, ok := s.watcher.GetConfig(cache.ConfigGroupContentCache, cache.ConfigKeyBannerCacheTTL)
+	if ok {
+		if mins, err := time.ParseDuration(val + "m"); err == nil {
+			return mins
+		}
+	}
+	return 30 * time.Minute
 }
 
 func (s *bannerGroupService) Create(ctx context.Context, adminID uint, req *contentDto.CreateContentBannerGroupDTO) (*contentEntity.ContentBannerGroup, error) {
@@ -85,6 +102,8 @@ func (s *bannerGroupService) Create(ctx context.Context, adminID uint, req *cont
 	if err := s.repo.Create(ctx, group); err != nil {
 		return nil, err
 	}
+
+	_ = s.cache.InvalidateByTags(ctx, cache.TagContentBanner)
 
 	return group, nil
 }
@@ -159,6 +178,8 @@ func (s *bannerGroupService) Update(ctx context.Context, adminID uint, id uint, 
 		return nil, err
 	}
 
+	_ = s.cache.InvalidateByTags(ctx, cache.TagContentBanner)
+
 	return group, nil
 }
 
@@ -171,7 +192,12 @@ func (s *bannerGroupService) Delete(ctx context.Context, id uint) error {
 		return errorx.New(errorx.CodeBadRequest, "该Banner组下存在Banner项，无法删除")
 	}
 
-	return s.repo.Delete(ctx, id)
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return err
+	}
+
+	_ = s.cache.InvalidateByTags(ctx, cache.TagContentBanner)
+	return nil
 }
 
 func (s *bannerGroupService) GetByID(ctx context.Context, id uint) (*contentEntity.ContentBannerGroup, error) {
@@ -200,5 +226,19 @@ func (s *bannerGroupService) GetAll(ctx context.Context) ([]*contentEntity.Conte
 }
 
 func (s *bannerGroupService) GetByCode(ctx context.Context, code string) (*contentEntity.ContentBannerGroup, error) {
-	return s.repo.GetByCode(ctx, code)
+	cacheKey := cache.KeyContentBannerGroupByCode(code)
+	cacheTags := []string{cache.TagContentBanner}
+	ttl := s.getBannerCacheTTL()
+
+	var group *contentEntity.ContentBannerGroup
+	loader := func() (interface{}, error) {
+		return s.repo.GetByCode(ctx, code)
+	}
+
+	err := s.cache.Fetch(ctx, cacheKey, "content_banner_cache", cacheTags, ttl, &group, loader)
+	if err != nil {
+		return nil, err
+	}
+
+	return group, nil
 }

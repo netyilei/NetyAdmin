@@ -6,6 +6,8 @@ import (
 
 	contentEntity "NetyAdmin/internal/domain/entity/content"
 	contentDto "NetyAdmin/internal/interface/admin/dto/content"
+	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/errorx"
 	contentRepo "NetyAdmin/internal/repository/content"
 )
@@ -28,10 +30,32 @@ type ArticleService interface {
 type articleService struct {
 	repo         contentRepo.ContentArticleRepository
 	categoryRepo contentRepo.ContentCategoryRepository
+	cache        cache.LazyCacheManager
+	watcher      configsync.ConfigWatcher
 }
 
-func NewArticleService(repo contentRepo.ContentArticleRepository, categoryRepo contentRepo.ContentCategoryRepository) ArticleService {
-	return &articleService{repo: repo, categoryRepo: categoryRepo}
+func NewArticleService(repo contentRepo.ContentArticleRepository, categoryRepo contentRepo.ContentCategoryRepository, cache cache.LazyCacheManager, watcher configsync.ConfigWatcher) ArticleService {
+	return &articleService{repo: repo, categoryRepo: categoryRepo, cache: cache, watcher: watcher}
+}
+
+func (s *articleService) getArticleCacheTTL() time.Duration {
+	val, ok := s.watcher.GetConfig(cache.ConfigGroupContentCache, cache.ConfigKeyArticleCacheTTL)
+	if ok {
+		if mins, err := time.ParseDuration(val + "m"); err == nil {
+			return mins
+		}
+	}
+	return 30 * time.Minute
+}
+
+func (s *articleService) getCategoryCacheTTL() time.Duration {
+	val, ok := s.watcher.GetConfig(cache.ConfigGroupContentCache, cache.ConfigKeyCategoryCacheTTL)
+	if ok {
+		if mins, err := time.ParseDuration(val + "m"); err == nil {
+			return mins
+		}
+	}
+	return 60 * time.Minute
 }
 
 func (s *articleService) Create(ctx context.Context, adminID uint, req *contentDto.CreateContentArticleDTO) (*contentEntity.ContentArticle, error) {
@@ -91,6 +115,8 @@ func (s *articleService) Create(ctx context.Context, adminID uint, req *contentD
 	if err := s.repo.Create(ctx, article); err != nil {
 		return nil, err
 	}
+
+	_ = s.cache.InvalidateByTags(ctx, cache.TagContentArticle)
 
 	return article, nil
 }
@@ -165,11 +191,17 @@ func (s *articleService) Update(ctx context.Context, adminID uint, id uint, req 
 		return nil, err
 	}
 
+	_ = s.cache.InvalidateByTags(ctx, cache.TagContentArticle)
+
 	return article, nil
 }
 
 func (s *articleService) Delete(ctx context.Context, id uint) error {
-	return s.repo.Delete(ctx, id)
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return err
+	}
+	_ = s.cache.InvalidateByTags(ctx, cache.TagContentArticle)
+	return nil
 }
 
 func (s *articleService) GetByID(ctx context.Context, id uint) (*contentEntity.ContentArticle, error) {
@@ -208,7 +240,11 @@ func (s *articleService) Publish(ctx context.Context, id uint) error {
 	if err != nil {
 		return err
 	}
-	return s.repo.Publish(ctx, id, time.Now())
+	if err := s.repo.Publish(ctx, id, time.Now()); err != nil {
+		return err
+	}
+	_ = s.cache.InvalidateByTags(ctx, cache.TagContentArticle)
+	return nil
 }
 
 func (s *articleService) Unpublish(ctx context.Context, id uint) error {
@@ -216,7 +252,11 @@ func (s *articleService) Unpublish(ctx context.Context, id uint) error {
 	if err != nil {
 		return err
 	}
-	return s.repo.Unpublish(ctx, id)
+	if err := s.repo.Unpublish(ctx, id); err != nil {
+		return err
+	}
+	_ = s.cache.InvalidateByTags(ctx, cache.TagContentArticle)
+	return nil
 }
 
 func (s *articleService) SetTop(ctx context.Context, id uint, req *contentDto.SetArticleTopDTO) error {
@@ -224,7 +264,11 @@ func (s *articleService) SetTop(ctx context.Context, id uint, req *contentDto.Se
 	if err != nil {
 		return err
 	}
-	return s.repo.SetTop(ctx, id, req.IsTop, req.TopSort)
+	if err := s.repo.SetTop(ctx, id, req.IsTop, req.TopSort); err != nil {
+		return err
+	}
+	_ = s.cache.InvalidateByTags(ctx, cache.TagContentArticle)
+	return nil
 }
 
 func (s *articleService) ListPublishedByCategoryIDs(ctx context.Context, page, pageSize int, categoryIDs []uint, keyword string) ([]*contentEntity.ContentArticle, int64, error) {
@@ -234,22 +278,63 @@ func (s *articleService) ListPublishedByCategoryIDs(ctx context.Context, page, p
 	if pageSize <= 0 {
 		pageSize = 10
 	}
-	return s.repo.ListPublished(ctx, &contentRepo.ContentArticlePublishedQuery{
-		CategoryIDs: categoryIDs,
-		Keyword:     keyword,
-		Current:     page,
-		Size:        pageSize,
-	})
+
+	var primaryCategoryID uint
+	if len(categoryIDs) > 0 {
+		primaryCategoryID = categoryIDs[0]
+	}
+
+	cacheKey := cache.KeyContentArticleList(primaryCategoryID, page, pageSize, keyword)
+	cacheTags := []string{cache.TagContentArticle}
+
+	type cachedResult struct {
+		Articles []*contentEntity.ContentArticle
+		Total    int64
+	}
+
+	var result cachedResult
+	loader := func() (interface{}, error) {
+		articles, total, err := s.repo.ListPublished(ctx, &contentRepo.ContentArticlePublishedQuery{
+			CategoryIDs: categoryIDs,
+			Keyword:     keyword,
+			Current:     page,
+			Size:        pageSize,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return cachedResult{Articles: articles, Total: total}, nil
+	}
+
+	err := s.cache.Fetch(ctx, cacheKey, "content_article_list", cacheTags, s.getCategoryCacheTTL(), &result, loader)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return result.Articles, result.Total, nil
 }
 
 func (s *articleService) GetPublishedByID(ctx context.Context, id uint) (*contentEntity.ContentArticle, error) {
-	article, err := s.repo.GetByIDWithCategory(ctx, id)
+	cacheKey := cache.KeyContentArticleDetail(id)
+	cacheTags := []string{cache.TagContentArticle}
+
+	var article *contentEntity.ContentArticle
+	loader := func() (interface{}, error) {
+		a, err := s.repo.GetByIDWithCategory(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if !a.IsPublished() || !a.IsEnabled() {
+			return nil, errorx.New(errorx.CodeNotFound, "文章不存在")
+		}
+		return a, nil
+	}
+
+	err := s.cache.Fetch(ctx, cacheKey, "content_article_detail", cacheTags, s.getArticleCacheTTL(), &article, loader)
 	if err != nil {
 		return nil, err
 	}
-	if !article.IsPublished() || !article.IsEnabled() {
-		return nil, errorx.New(errorx.CodeNotFound, "文章不存在")
-	}
+
 	return article, nil
 }
 

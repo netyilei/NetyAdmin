@@ -388,9 +388,9 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	s.storageConfig = storageService.NewConfigService(repos.storageConfig, repos.uploadRecord, storageMgr, lazyCacheMgr, eventBus)
 	s.uploadRecord = storageService.NewRecordService(repos.uploadRecord, s.storageConfig, storageMgr, s.app)
 	s.contentCategory = contentService.NewCategoryService(repos.contentCategory, s.storageConfig, lazyCacheMgr, configWatcher)
-	s.contentArticle = contentService.NewArticleService(repos.contentArticle, repos.contentCategory)
-	s.contentBannerGroup = contentService.NewBannerGroupService(repos.contentBannerGroup, s.storageConfig)
-	s.contentBannerItem = contentService.NewBannerItemService(repos.contentBannerItem, repos.contentBannerGroup, repos.contentArticle)
+	s.contentArticle = contentService.NewArticleService(repos.contentArticle, repos.contentCategory, lazyCacheMgr, configWatcher)
+	s.contentBannerGroup = contentService.NewBannerGroupService(repos.contentBannerGroup, s.storageConfig, lazyCacheMgr, configWatcher)
+	s.contentBannerItem = contentService.NewBannerItemService(repos.contentBannerItem, repos.contentBannerGroup, repos.contentArticle, lazyCacheMgr)
 
 	_ = s.storageConfig.LoadAllConfigs(context.Background())
 

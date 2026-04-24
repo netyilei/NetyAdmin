@@ -170,7 +170,8 @@ const manage = {
       task: '任务配置',
       log: '日志管理',
       email: '邮件配置',
-      sms: '短信配置'
+      sms: '短信配置',
+      contentCache: '内容缓存'
     },
     cache: {
       title: '缓存降级开关',
@@ -186,8 +187,18 @@ const manage = {
       storage: '对象存储配置/驱动热更',
       err_log_cache: '错误日志聚合分析缓存',
       content_category_cache: '内容分类(无限级树)缓存',
+      content_article_cache: '内容文章缓存',
+      content_banner_cache: '内容Banner缓存',
       captcha: '验证码缓存',
       user_profile: '用户个人资料缓存'
+    },
+    contentCache: {
+      description:
+        '配置内容模块的缓存时间。修改后实时生效，下次请求将使用新的缓存时间。缓存开关在「缓存配置」标签页中管理。',
+      bannerCacheTTL: 'Banner组/Banner缓存时间',
+      categoryCacheTTL: '文章分类缓存时间',
+      articleCacheTTL: '文章详情缓存时间',
+      minutesUnit: '分钟'
     },
     captcha: {
       title: '验证码全局设置',

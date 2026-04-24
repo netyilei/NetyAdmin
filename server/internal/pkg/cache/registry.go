@@ -25,12 +25,31 @@ const (
 	TagStorageConfig = "storage:config"
 	// TagContentCategoryTree 内容分类树缓存标签
 	TagContentCategoryTree = "content:category:tree"
+	// TagContentArticle 内容文章缓存标签
+	TagContentArticle = "content:article"
+	// TagContentBanner 内容Banner缓存标签
+	TagContentBanner = "content:banner"
 	// TagMsgTemplate 消息模板缓存标签
 	TagMsgTemplate = "msg:template"
 	// TagIPAC IPAC 缓存标签
 	TagIPAC    = "ipac"
 	TagApp     = "open:app"
 	TagOpenApi = "open:api"
+
+	// SysConfig Group: 内容缓存配置
+	ConfigGroupContentCache = "content_cache"
+
+	// SysConfig Keys: 内容缓存 TTL (单位: 分钟)
+	ConfigKeyBannerCacheTTL   = "banner_cache_ttl"
+	ConfigKeyCategoryCacheTTL = "category_cache_ttl"
+	ConfigKeyArticleCacheTTL  = "article_cache_ttl"
+
+	// SysConfig Group: 缓存开关
+	ConfigGroupCacheSwitches = "cache_switches"
+
+	// SysConfig Keys: 内容缓存开关
+	ConfigKeyContentArticleCache = "content_article_cache"
+	ConfigKeyContentBannerCache  = "content_banner_cache"
 )
 
 // 定义系统统一的缓存 Key 生成函数
@@ -154,6 +173,24 @@ func KeyStorageConfigAllEnabled() string {
 // KeyContentCategoryTree 内容分类全量树
 func KeyContentCategoryTree() string {
 	return "content:category:tree:all"
+}
+
+// KeyContentArticleList 内容文章列表缓存 Key
+func KeyContentArticleList(categoryID uint, page, pageSize int, keyword string) string {
+	if keyword != "" {
+		return fmt.Sprintf("content:article:list:%d:%d:%d:%s", categoryID, page, pageSize, keyword)
+	}
+	return fmt.Sprintf("content:article:list:%d:%d:%d", categoryID, page, pageSize)
+}
+
+// KeyContentArticleDetail 内容文章详情缓存 Key
+func KeyContentArticleDetail(id uint) string {
+	return fmt.Sprintf("content:article:detail:%d", id)
+}
+
+// KeyContentBannerGroupByCode Banner组按编码缓存 Key
+func KeyContentBannerGroupByCode(code string) string {
+	return fmt.Sprintf("content:banner:group:code:%s", code)
 }
 
 // KeyTaskEnabled 任务是否启用配置

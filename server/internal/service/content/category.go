@@ -41,6 +41,16 @@ func NewCategoryService(repo contentRepo.ContentCategoryRepository, storageServi
 	}
 }
 
+func (s *categoryService) getCategoryCacheTTL() time.Duration {
+	val, ok := s.watcher.GetConfig(cache.ConfigGroupContentCache, cache.ConfigKeyCategoryCacheTTL)
+	if ok {
+		if mins, err := time.ParseDuration(val + "m"); err == nil {
+			return mins
+		}
+	}
+	return 60 * time.Minute
+}
+
 func (s *categoryService) Create(ctx context.Context, adminID uint, req *contentDto.CreateContentCategoryDTO) (*contentEntity.ContentCategory, error) {
 	if req.Code != "" {
 		exists, err := s.repo.ExistsByCode(ctx, req.Code)
@@ -215,7 +225,7 @@ func (s *categoryService) GetTree(ctx context.Context, forceRefresh bool) ([]con
 		_ = s.cache.InvalidateByTags(ctx, cache.TagContentCategoryTree)
 	}
 
-	err := s.cache.Fetch(ctx, cacheKey, "content_category_cache", []string{cache.TagContentCategoryTree}, 1*time.Hour, &tree, loader)
+	err := s.cache.Fetch(ctx, cacheKey, "content_category_cache", []string{cache.TagContentCategoryTree}, s.getCategoryCacheTTL(), &tree, loader)
 	return tree, err
 }
 

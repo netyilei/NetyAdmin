@@ -1,26 +1,19 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
-import {
-  NAlert,
-  NButton,
-  NCard,
-  NDivider,
-  NFormItem,
-  NGrid,
-  NGridItem,
-  NInput,
-  NInputNumber,
-  NSelect,
-  NSpace,
-  NSpin,
-  NSwitch,
-  NTabPane,
-  NTabs
-} from 'naive-ui';
+import { computed, defineAsyncComponent, onMounted, reactive, ref } from 'vue';
+import { NCard, NTabPane, NTabs } from 'naive-ui';
 import { fetchGetSysConfigs, fetchTestEmail, fetchUpdateSysConfig } from '@/service/api/v1/system-manage';
 import { fetchGetAllEnabledStorageConfigs } from '@/service/api/v1/storage';
 import type { SystemManage } from '@/typings/api/v1/system-manage';
 import { $t } from '@/locales';
+
+const CacheTab = defineAsyncComponent(() => import('./components/cache-tab.vue'));
+const CaptchaTab = defineAsyncComponent(() => import('./components/captcha-tab.vue'));
+const UserTab = defineAsyncComponent(() => import('./components/user-tab.vue'));
+const TaskTab = defineAsyncComponent(() => import('./components/task-tab.vue'));
+const LogTab = defineAsyncComponent(() => import('./components/log-tab.vue'));
+const EmailTab = defineAsyncComponent(() => import('./components/email-tab.vue'));
+const ContentCacheTab = defineAsyncComponent(() => import('./components/content-cache-tab.vue'));
+const SmsTab = defineAsyncComponent(() => import('./components/sms-tab.vue'));
 
 const loading = ref(false);
 const updating = ref<string>('');
@@ -92,6 +85,12 @@ const smsConfigs = reactive<Record<string, ConfigItem | undefined>>({
   sign_name: undefined
 });
 
+const contentCacheConfigs = reactive<Record<string, ConfigItem | undefined>>({
+  banner_cache_ttl: undefined,
+  category_cache_ttl: undefined,
+  article_cache_ttl: undefined
+});
+
 const captchaConfigs = reactive<{
   switches: SystemManage.SysConfig[];
   params: Record<string, ConfigItem | undefined>;
@@ -143,7 +142,6 @@ const verifyTypeOptions = [
 async function init() {
   loading.value = true;
 
-  // 1. 加载所有相关配置
   const results = await Promise.all([
     fetchGetSysConfigs('cache_switches'),
     fetchGetSysConfigs('task_config'),
@@ -156,7 +154,8 @@ async function init() {
     fetchGetSysConfigs('sms_config'),
     fetchGetSysConfigs('msg_record_config'),
     fetchGetSysConfigs('open_platform_config'),
-    fetchGetSysConfigs('logbus_config')
+    fetchGetSysConfigs('logbus_config'),
+    fetchGetSysConfigs('content_cache')
   ]);
 
   if (!results[0].error) cacheConfigs.value = results[0].data;
@@ -266,6 +265,17 @@ async function init() {
     });
   }
 
+  if (!results[12].error) {
+    results[12].data.forEach(item => {
+      if (Object.keys(contentCacheConfigs).includes(item.configKey)) {
+        contentCacheConfigs[item.configKey] = {
+          ...item,
+          numValue: Number.parseInt(item.configValue, 10) || 0
+        };
+      }
+    });
+  }
+
   loading.value = false;
 }
 
@@ -305,881 +315,85 @@ onMounted(init);
   <div class="h-full">
     <NCard :bordered="false" class="h-full overflow-hidden rounded-8px shadow-sm">
       <NTabs type="line" animated class="h-full-setting">
-        <!-- Tab 1: Cache Management -->
         <NTabPane name="cache" :tab="$t('page.manage.setting.tabs.cache')">
-          <div class="pt-4">
-            <NAlert type="info" class="mb-6">
-              {{ $t('page.manage.setting.cache.description') }}
-            </NAlert>
-            <NSpin :show="loading">
-              <div v-if="systemCaches.length > 0">
-                <NDivider title-placement="left">
-                  <span class="text-13px text-gray-500 font-bold tracking-wider uppercase">
-                    {{ $t('page.manage.setting.cache.systemGroup') }}
-                  </span>
-                </NDivider>
-                <NGrid :x-gap="16" :y-gap="16" cols="1 s:2 m:3" responsive="screen">
-                  <NGridItem v-for="item in systemCaches" :key="item.configKey">
-                    <NCard size="small" class="cursor-default transition-colors hover:border-primary">
-                      <div class="flex-y-center justify-between">
-                        <div>
-                          <div class="mb-1 flex items-center text-16px font-bold">
-                            {{ $t(`page.manage.setting.cache.${item.configKey}`) }}
-                          </div>
-                          <div class="text-12px text-gray-400">Key: {{ item.configKey }}</div>
-                        </div>
-                        <NSwitch
-                          v-model:value="item.configValue"
-                          checked-value="true"
-                          unchecked-value="false"
-                          :loading="updating === item.configKey"
-                          @update:value="handleUpdate(item)"
-                        />
-                      </div>
-                    </NCard>
-                  </NGridItem>
-                </NGrid>
-              </div>
-
-              <div v-if="moduleCaches.length > 0" class="mt-8">
-                <NDivider title-placement="left">
-                  <span class="text-13px text-gray-500 font-bold tracking-wider uppercase">
-                    {{ $t('page.manage.setting.cache.moduleGroup') }}
-                  </span>
-                </NDivider>
-                <NGrid :x-gap="16" :y-gap="16" cols="1 s:2 m:3" responsive="screen">
-                  <NGridItem v-for="item in moduleCaches" :key="item.configKey">
-                    <NCard size="small" class="cursor-default transition-colors hover:border-primary">
-                      <div class="flex-y-center justify-between">
-                        <div>
-                          <div class="mb-1 text-16px font-bold">
-                            {{ $t(`page.manage.setting.cache.${item.configKey}`) }}
-                          </div>
-                          <div class="text-12px text-gray-400">Key: {{ item.configKey }}</div>
-                        </div>
-                        <NSwitch
-                          v-model:value="item.configValue"
-                          checked-value="true"
-                          unchecked-value="false"
-                          :loading="updating === item.configKey"
-                          @update:value="handleUpdate(item)"
-                        />
-                      </div>
-                    </NCard>
-                  </NGridItem>
-                </NGrid>
-              </div>
-            </NSpin>
-          </div>
+          <CacheTab
+            :loading="loading"
+            :updating="updating"
+            :system-caches="systemCaches"
+            :module-caches="moduleCaches"
+            @update="handleUpdate"
+          />
         </NTabPane>
 
-        <!-- Tab 2: Captcha Configuration -->
         <NTabPane name="captcha" :tab="$t('page.manage.setting.tabs.captcha')">
-          <div class="pt-4">
-            <NAlert type="info" class="mb-6">
-              {{ $t('page.manage.setting.captcha.description') }}
-            </NAlert>
-            <NSpin :show="loading">
-              <NDivider title-placement="left">
-                <span class="text-13px text-gray-500 font-bold tracking-wider uppercase">
-                  {{ $t('page.manage.setting.captcha.switches') }}
-                </span>
-              </NDivider>
-              <NGrid :x-gap="16" :y-gap="16" cols="1 s:2 m:3" responsive="screen">
-                <NGridItem v-for="item in captchaConfigs.switches" :key="item.configKey">
-                  <NCard size="small" class="cursor-default transition-colors hover:border-primary">
-                    <div class="flex-y-center justify-between">
-                      <div>
-                        <div class="mb-1 flex items-center text-16px font-bold">
-                          {{ $t(`page.manage.setting.captcha.${item.configKey}`) }}
-                        </div>
-                        <div class="text-12px text-gray-400">Key: {{ item.configKey }}</div>
-                      </div>
-                      <NSwitch
-                        v-model:value="item.configValue"
-                        checked-value="true"
-                        unchecked-value="false"
-                        :loading="updating === item.configKey"
-                        @update:value="handleUpdate(item)"
-                      />
-                    </div>
-                  </NCard>
-                </NGridItem>
-              </NGrid>
-
-              <NDivider title-placement="left" class="mt-8">
-                <span class="text-13px text-gray-500 font-bold tracking-wider uppercase">
-                  {{ $t('page.manage.setting.captcha.params') }}
-                </span>
-              </NDivider>
-              <div class="max-w-600px">
-                <NSpace vertical :size="20">
-                  <NFormItem :label="$t('page.manage.setting.captcha.type')" label-placement="left">
-                    <NSelect
-                      v-if="captchaConfigs.params.captcha_type"
-                      v-model:value="captchaConfigs.params.captcha_type.configValue"
-                      :options="captchaTypeOptions"
-                      class="w-240px"
-                      @update:value="handleUpdate(captchaConfigs.params.captcha_type)"
-                    />
-                  </NFormItem>
-                  <NFormItem :label="$t('page.manage.setting.captcha.length')" label-placement="left">
-                    <NInputNumber
-                      v-if="captchaConfigs.params.captcha_length"
-                      v-model:value="captchaConfigs.params.captcha_length.numValue"
-                      :min="2"
-                      :max="10"
-                      class="w-240px"
-                      @blur="handleNumberUpdate(captchaConfigs.params.captcha_length)"
-                    />
-                  </NFormItem>
-                  <NFormItem :label="$t('page.manage.setting.captcha.width')" label-placement="left">
-                    <NInputNumber
-                      v-if="captchaConfigs.params.captcha_width"
-                      v-model:value="captchaConfigs.params.captcha_width.numValue"
-                      :min="100"
-                      :max="1000"
-                      class="w-240px"
-                      @blur="handleNumberUpdate(captchaConfigs.params.captcha_width)"
-                    />
-                  </NFormItem>
-                  <NFormItem :label="$t('page.manage.setting.captcha.height')" label-placement="left">
-                    <NInputNumber
-                      v-if="captchaConfigs.params.captcha_height"
-                      v-model:value="captchaConfigs.params.captcha_height.numValue"
-                      :min="30"
-                      :max="500"
-                      class="w-240px"
-                      @blur="handleNumberUpdate(captchaConfigs.params.captcha_height)"
-                    />
-                  </NFormItem>
-                  <NFormItem :label="$t('page.manage.setting.captcha.expire')" label-placement="left">
-                    <NInputNumber
-                      v-if="captchaConfigs.params.captcha_expire"
-                      v-model:value="captchaConfigs.params.captcha_expire.numValue"
-                      :min="30"
-                      :max="3600"
-                      class="w-240px"
-                      @blur="handleNumberUpdate(captchaConfigs.params.captcha_expire)"
-                    />
-                  </NFormItem>
-                </NSpace>
-              </div>
-            </NSpin>
-          </div>
+          <CaptchaTab
+            :loading="loading"
+            :updating="updating"
+            :captcha-configs="captchaConfigs"
+            :captcha-type-options="captchaTypeOptions"
+            @update="handleUpdate"
+            @number-update="handleNumberUpdate"
+          />
         </NTabPane>
 
-        <!-- Tab 3: User Configuration -->
         <NTabPane name="user" :tab="$t('page.manage.setting.tabs.user')">
-          <div class="pt-4">
-            <NAlert type="info" class="mb-6">
-              {{ $t('page.manage.setting.user.description') }}
-            </NAlert>
-            <NSpin :show="loading">
-              <div class="max-w-1000px">
-                <NGrid :x-gap="24" :y-gap="24" cols="1 s:1 m:2" responsive="screen">
-                  <NGridItem>
-                    <!-- Basic & Storage -->
-                    <NCard :title="$t('page.manage.setting.user.basic')" size="small" class="h-full">
-                      <NSpace vertical :size="16">
-                        <NFormItem :label="$t('page.manage.setting.user.storage_module')" label-placement="left">
-                          <NSelect
-                            v-if="userConfigs.storage_module"
-                            v-model:value="userConfigs.storage_module.configValue"
-                            :options="storageOptions"
-                            clearable
-                            :placeholder="$t('page.manage.setting.user.storage_module_placeholder')"
-                            class="w-240px"
-                            @update:value="handleUpdate(userConfigs.storage_module)"
-                          />
-                        </NFormItem>
-                        <NFormItem :label="$t('page.manage.setting.user.login_storage')" label-placement="left">
-                          <NSelect
-                            v-if="userConfigs.login_storage"
-                            v-model:value="userConfigs.login_storage.configValue"
-                            :options="loginStorageOptions"
-                            class="w-240px"
-                            @update:value="handleUpdate(userConfigs.login_storage)"
-                          />
-                        </NFormItem>
-                        <NFormItem :label="$t('page.manage.setting.user.token_expire')" label-placement="left">
-                          <NInputNumber
-                            v-if="userConfigs.token_expire"
-                            v-model:value="userConfigs.token_expire.numValue"
-                            :min="60"
-                            class="w-240px"
-                            @blur="handleNumberUpdate(userConfigs.token_expire)"
-                          />
-                        </NFormItem>
-                        <NFormItem :label="$t('page.manage.setting.user.login_max_retry')" label-placement="left">
-                          <NInputNumber
-                            v-if="userConfigs.login_max_retry"
-                            v-model:value="userConfigs.login_max_retry.numValue"
-                            :min="1"
-                            class="w-240px"
-                            @blur="handleNumberUpdate(userConfigs.login_max_retry)"
-                          />
-                        </NFormItem>
-                        <NFormItem :label="$t('page.manage.setting.user.login_lock_duration')" label-placement="left">
-                          <NInputNumber
-                            v-if="userConfigs.login_lock_duration"
-                            v-model:value="userConfigs.login_lock_duration.numValue"
-                            :min="1"
-                            class="w-240px"
-                            @blur="handleNumberUpdate(userConfigs.login_lock_duration)"
-                          />
-                        </NFormItem>
-                        <NFormItem :label="$t('page.manage.setting.user.password_min_length')" label-placement="left">
-                          <NInputNumber
-                            v-if="userConfigs.password_min_length"
-                            v-model:value="userConfigs.password_min_length.numValue"
-                            :min="4"
-                            class="w-240px"
-                            @blur="handleNumberUpdate(userConfigs.password_min_length)"
-                          />
-                        </NFormItem>
-                        <NFormItem
-                          :label="$t('page.manage.setting.user.password_require_types')"
-                          label-placement="left"
-                        >
-                          <NInputNumber
-                            v-if="userConfigs.password_require_types"
-                            v-model:value="userConfigs.password_require_types.numValue"
-                            :min="1"
-                            :max="4"
-                            class="w-240px"
-                            @blur="handleNumberUpdate(userConfigs.password_require_types)"
-                          />
-                        </NFormItem>
-                      </NSpace>
-                    </NCard>
-                  </NGridItem>
-
-                  <NGridItem>
-                    <!-- Verify Settings -->
-                    <NCard :title="$t('page.manage.setting.user.verify')" size="small" class="h-full">
-                      <NSpace vertical :size="16">
-                        <!-- Register Verify -->
-                        <div class="border border-gray-100 rounded-8px bg-gray-50/30 p-4">
-                          <NFormItem
-                            :label="$t('page.manage.setting.user.user_register_verify')"
-                            label-placement="left"
-                          >
-                            <NSwitch
-                              v-if="userConfigs.user_register_verify"
-                              v-model:value="userConfigs.user_register_verify.configValue"
-                              checked-value="true"
-                              unchecked-value="false"
-                              :loading="updating === userConfigs.user_register_verify.configKey"
-                              @update:value="handleUpdate(userConfigs.user_register_verify)"
-                            />
-                          </NFormItem>
-                          <NFormItem
-                            v-if="userConfigs.user_register_verify?.configValue === 'true'"
-                            :label="$t('page.manage.setting.user.user_register_verify_type')"
-                            label-placement="left"
-                            class="mt-2"
-                          >
-                            <NSelect
-                              v-if="userConfigs.user_register_verify_type"
-                              v-model:value="userConfigs.user_register_verify_type.configValue"
-                              :options="verifyTypeOptions"
-                              class="w-240px"
-                              @update:value="handleUpdate(userConfigs.user_register_verify_type)"
-                            />
-                          </NFormItem>
-                        </div>
-
-                        <!-- Login Verify -->
-                        <div class="border border-gray-100 rounded-8px bg-gray-50/30 p-4">
-                          <NFormItem :label="$t('page.manage.setting.user.user_login_verify')" label-placement="left">
-                            <NSwitch
-                              v-if="userConfigs.user_login_verify"
-                              v-model:value="userConfigs.user_login_verify.configValue"
-                              checked-value="true"
-                              unchecked-value="false"
-                              :loading="updating === userConfigs.user_login_verify.configKey"
-                              @update:value="handleUpdate(userConfigs.user_login_verify)"
-                            />
-                          </NFormItem>
-                          <NFormItem
-                            v-if="userConfigs.user_login_verify?.configValue === 'true'"
-                            :label="$t('page.manage.setting.user.user_login_verify_type')"
-                            label-placement="left"
-                            class="mt-2"
-                          >
-                            <NSelect
-                              v-if="userConfigs.user_login_verify_type"
-                              v-model:value="userConfigs.user_login_verify_type.configValue"
-                              :options="verifyTypeOptions"
-                              class="w-240px"
-                              @update:value="handleUpdate(userConfigs.user_login_verify_type)"
-                            />
-                          </NFormItem>
-                        </div>
-
-                        <!-- Reset Pwd Verify -->
-                        <div class="mt-4 border border-gray-100 rounded-8px bg-gray-50/30 p-4">
-                          <NFormItem
-                            :label="$t('page.manage.setting.user.user_reset_pwd_verify')"
-                            label-placement="left"
-                          >
-                            <NSwitch
-                              v-if="userConfigs.user_reset_pwd_verify"
-                              v-model:value="userConfigs.user_reset_pwd_verify.configValue"
-                              checked-value="true"
-                              unchecked-value="false"
-                              :loading="updating === userConfigs.user_reset_pwd_verify.configKey"
-                              @update:value="handleUpdate(userConfigs.user_reset_pwd_verify)"
-                            />
-                          </NFormItem>
-                          <NFormItem
-                            v-if="userConfigs.user_reset_pwd_verify?.configValue === 'true'"
-                            :label="$t('page.manage.setting.user.user_reset_pwd_verify_type')"
-                            label-placement="left"
-                            class="mt-2"
-                          >
-                            <NSelect
-                              v-if="userConfigs.user_reset_pwd_verify_type"
-                              v-model:value="userConfigs.user_reset_pwd_verify_type.configValue"
-                              :options="verifyTypeOptions"
-                              class="w-240px"
-                              @update:value="handleUpdate(userConfigs.user_reset_pwd_verify_type)"
-                            />
-                          </NFormItem>
-                        </div>
-                      </NSpace>
-                    </NCard>
-                  </NGridItem>
-                </NGrid>
-              </div>
-            </NSpin>
-          </div>
+          <UserTab
+            :loading="loading"
+            :updating="updating"
+            :user-configs="userConfigs"
+            :storage-options="storageOptions"
+            :login-storage-options="loginStorageOptions"
+            :verify-type-options="verifyTypeOptions"
+            @update="handleUpdate"
+            @number-update="handleNumberUpdate"
+          />
         </NTabPane>
 
-        <!-- Tab 2: Task Configuration -->
         <NTabPane name="task" :tab="$t('page.manage.setting.tabs.task')">
-          <div class="max-w-600px pt-4">
-            <NCard :title="$t('page.manage.setting.log.taskLog')" size="small">
-              <NSpace vertical :size="20">
-                <NFormItem :label="$t('page.manage.setting.log.enabled')" label-placement="left">
-                  <NSwitch
-                    v-if="logConfigs.task_log_enabled !== undefined"
-                    v-model:value="logConfigs.task_log_enabled.configValue"
-                    checked-value="true"
-                    unchecked-value="false"
-                    :loading="updating === logConfigs.task_log_enabled?.configKey"
-                    @update:value="handleUpdate(logConfigs.task_log_enabled)"
-                  />
-                </NFormItem>
-                <NFormItem :label="$t('page.manage.setting.log.retentionDays')" label-placement="left">
-                  <NInputNumber
-                    v-if="logConfigs.task_retention !== undefined"
-                    v-model:value="logConfigs.task_retention.numValue"
-                    :min="0"
-                    :max="3650"
-                    class="w-200px"
-                    @blur="handleNumberUpdate(logConfigs.task_retention)"
-                  >
-                    <template #suffix>{{ $t('page.manage.setting.log.daysUnit') }}</template>
-                  </NInputNumber>
-                </NFormItem>
-                <NAlert type="info" size="small">
-                  {{ $t('page.manage.setting.log.description') }}
-                </NAlert>
-              </NSpace>
-            </NCard>
-          </div>
+          <TaskTab
+            :updating="updating"
+            :log-configs="logConfigs"
+            @update="handleUpdate"
+            @number-update="handleNumberUpdate"
+          />
         </NTabPane>
 
-        <!-- Tab 3: Log Maintenance -->
         <NTabPane name="log" :tab="$t('page.manage.setting.tabs.log')">
-          <div class="max-w-1000px pt-4">
-            <NGrid :x-gap="24" :y-gap="24" cols="1 s:1 m:2" responsive="screen">
-              <NGridItem>
-                <!-- Ops Logs -->
-                <NCard :title="$t('page.manage.setting.log.operationLog')" size="small">
-                  <NFormItem :label="$t('page.manage.setting.log.retentionDays')">
-                    <NInputNumber
-                      v-if="logConfigs.ops_retention !== undefined"
-                      v-model:value="logConfigs.ops_retention.numValue"
-                      :min="0"
-                      :max="3650"
-                      class="w-full"
-                      @blur="handleNumberUpdate(logConfigs.ops_retention)"
-                    >
-                      <template #suffix>{{ $t('page.manage.setting.log.daysUnit') }}</template>
-                    </NInputNumber>
-                  </NFormItem>
-                </NCard>
-              </NGridItem>
-
-              <NGridItem>
-                <!-- Error Logs -->
-                <NCard :title="$t('page.manage.setting.log.errorLog')" size="small">
-                  <NFormItem :label="$t('page.manage.setting.log.retentionDays')">
-                    <NInputNumber
-                      v-if="logConfigs.err_retention !== undefined"
-                      v-model:value="logConfigs.err_retention.numValue"
-                      :min="0"
-                      :max="3650"
-                      class="w-full"
-                      @blur="handleNumberUpdate(logConfigs.err_retention)"
-                    >
-                      <template #suffix>{{ $t('page.manage.setting.log.daysUnit') }}</template>
-                    </NInputNumber>
-                  </NFormItem>
-                </NCard>
-              </NGridItem>
-
-              <NGridItem>
-                <!-- Message Record -->
-                <NCard :title="$t('page.manage.setting.log.msgRecord')" size="small">
-                  <NFormItem :label="$t('page.manage.setting.log.retentionDays')">
-                    <NInputNumber
-                      v-if="logConfigs.msg_record_retention !== undefined"
-                      v-model:value="logConfigs.msg_record_retention.numValue"
-                      :min="0"
-                      :max="3650"
-                      class="w-full"
-                      @blur="handleNumberUpdate(logConfigs.msg_record_retention)"
-                    >
-                      <template #suffix>{{ $t('page.manage.setting.log.daysUnit') }}</template>
-                    </NInputNumber>
-                  </NFormItem>
-                </NCard>
-              </NGridItem>
-
-              <NGridItem>
-                <!-- Open Platform Logs -->
-                <NCard :title="$t('page.manage.setting.log.openLog')" size="small">
-                  <NFormItem :label="$t('page.manage.setting.log.retentionDays')">
-                    <NInputNumber
-                      v-if="logConfigs.open_log_retention !== undefined"
-                      v-model:value="logConfigs.open_log_retention.numValue"
-                      :min="0"
-                      :max="3650"
-                      class="w-full"
-                      @blur="handleNumberUpdate(logConfigs.open_log_retention)"
-                    >
-                      <template #suffix>{{ $t('page.manage.setting.log.daysUnit') }}</template>
-                    </NInputNumber>
-                  </NFormItem>
-                </NCard>
-              </NGridItem>
-            </NGrid>
-
-            <!-- LogBus Configuration -->
-            <NCard :title="$t('page.manage.setting.logbus.title')" size="small" class="mt-6">
-              <template #header-extra>
-                <NAlert type="info" :show-icon="false" size="small" class="max-w-500px">
-                  {{ $t('page.manage.setting.logbus.description') }}
-                </NAlert>
-              </template>
-              <NSpin :show="loading">
-                <NGrid :x-gap="24" :y-gap="16" cols="1 s:2 m:4" responsive="screen">
-                  <NGridItem>
-                    <NFormItem :label="$t('page.manage.setting.logbus.globalMaxEntries')" label-placement="top">
-                      <NInputNumber
-                        v-if="logbusConfigs.global_max_entries !== undefined"
-                        v-model:value="logbusConfigs.global_max_entries.numValue"
-                        :min="100"
-                        :max="100000"
-                        class="w-full"
-                        @blur="handleNumberUpdate(logbusConfigs.global_max_entries)"
-                      >
-                        <template #suffix>{{ $t('page.manage.setting.log.recordsUnit') }}</template>
-                      </NInputNumber>
-                    </NFormItem>
-                  </NGridItem>
-                  <NGridItem>
-                    <NFormItem :label="$t('page.manage.setting.logbus.globalMaxBytes')" label-placement="top">
-                      <NInputNumber
-                        v-if="logbusConfigs.global_max_bytes_mb !== undefined"
-                        v-model:value="logbusConfigs.global_max_bytes_mb.numValue"
-                        :min="1"
-                        :max="1024"
-                        class="w-full"
-                        @blur="handleNumberUpdate(logbusConfigs.global_max_bytes_mb)"
-                      >
-                        <template #suffix>MB</template>
-                      </NInputNumber>
-                    </NFormItem>
-                  </NGridItem>
-                  <NGridItem>
-                    <NFormItem :label="$t('page.manage.setting.logbus.defaultBatchSize')" label-placement="top">
-                      <NInputNumber
-                        v-if="logbusConfigs.default_batch_size !== undefined"
-                        v-model:value="logbusConfigs.default_batch_size.numValue"
-                        :min="10"
-                        :max="10000"
-                        class="w-full"
-                        @blur="handleNumberUpdate(logbusConfigs.default_batch_size)"
-                      >
-                        <template #suffix>{{ $t('page.manage.setting.log.recordsUnit') }}</template>
-                      </NInputNumber>
-                    </NFormItem>
-                  </NGridItem>
-                  <NGridItem>
-                    <NFormItem :label="$t('page.manage.setting.logbus.defaultTimeThreshold')" label-placement="top">
-                      <NInputNumber
-                        v-if="logbusConfigs.default_time_threshold !== undefined"
-                        v-model:value="logbusConfigs.default_time_threshold.numValue"
-                        :min="1"
-                        :max="3600"
-                        class="w-full"
-                        @blur="handleNumberUpdate(logbusConfigs.default_time_threshold)"
-                      >
-                        <template #suffix>{{ $t('page.manage.setting.log.secondsUnit') }}</template>
-                      </NInputNumber>
-                    </NFormItem>
-                  </NGridItem>
-                  <NGridItem>
-                    <NFormItem :label="$t('page.manage.setting.logbus.forceSync')" label-placement="left">
-                      <NSwitch
-                        v-if="logbusConfigs.force_sync !== undefined"
-                        v-model:value="logbusConfigs.force_sync.configValue"
-                        checked-value="true"
-                        unchecked-value="false"
-                        :loading="updating === logbusConfigs.force_sync?.configKey"
-                        @update:value="handleUpdate(logbusConfigs.force_sync)"
-                      />
-                    </NFormItem>
-                  </NGridItem>
-                </NGrid>
-
-                <NDivider title-placement="left" class="mt-2">
-                  <span class="text-13px text-gray-500 font-bold tracking-wider uppercase">
-                    {{ $t('page.manage.setting.logbus.bucketConfig') }}
-                  </span>
-                </NDivider>
-                <NGrid :x-gap="24" :y-gap="16" cols="1 s:2 m:4" responsive="screen">
-                  <NGridItem>
-                    <NCard size="small" :title="$t('page.manage.setting.logbus.operationBucket')" class="h-full">
-                      <NSpace vertical :size="12">
-                        <NFormItem :label="$t('page.manage.setting.logbus.batchSize')" label-placement="left">
-                          <NInputNumber
-                            v-if="logbusConfigs.operation_batch_size !== undefined"
-                            v-model:value="logbusConfigs.operation_batch_size.numValue"
-                            :min="10"
-                            :max="10000"
-                            class="w-full"
-                            @blur="handleNumberUpdate(logbusConfigs.operation_batch_size)"
-                          />
-                        </NFormItem>
-                        <NFormItem :label="$t('page.manage.setting.logbus.timeThreshold')" label-placement="left">
-                          <NInputNumber
-                            v-if="logbusConfigs.operation_time_threshold !== undefined"
-                            v-model:value="logbusConfigs.operation_time_threshold.numValue"
-                            :min="1"
-                            :max="3600"
-                            class="w-full"
-                            @blur="handleNumberUpdate(logbusConfigs.operation_time_threshold)"
-                          >
-                            <template #suffix>{{ $t('page.manage.setting.log.secondsUnit') }}</template>
-                          </NInputNumber>
-                        </NFormItem>
-                      </NSpace>
-                    </NCard>
-                  </NGridItem>
-                  <NGridItem>
-                    <NCard size="small" :title="$t('page.manage.setting.logbus.errorBucket')" class="h-full">
-                      <NSpace vertical :size="12">
-                        <NFormItem :label="$t('page.manage.setting.logbus.batchSize')" label-placement="left">
-                          <NInputNumber
-                            v-if="logbusConfigs.error_batch_size !== undefined"
-                            v-model:value="logbusConfigs.error_batch_size.numValue"
-                            :min="10"
-                            :max="10000"
-                            class="w-full"
-                            @blur="handleNumberUpdate(logbusConfigs.error_batch_size)"
-                          />
-                        </NFormItem>
-                        <NFormItem :label="$t('page.manage.setting.logbus.timeThreshold')" label-placement="left">
-                          <NInputNumber
-                            v-if="logbusConfigs.error_time_threshold !== undefined"
-                            v-model:value="logbusConfigs.error_time_threshold.numValue"
-                            :min="1"
-                            :max="3600"
-                            class="w-full"
-                            @blur="handleNumberUpdate(logbusConfigs.error_time_threshold)"
-                          >
-                            <template #suffix>{{ $t('page.manage.setting.log.secondsUnit') }}</template>
-                          </NInputNumber>
-                        </NFormItem>
-                      </NSpace>
-                    </NCard>
-                  </NGridItem>
-                  <NGridItem>
-                    <NCard size="small" :title="$t('page.manage.setting.logbus.openBucket')" class="h-full">
-                      <NSpace vertical :size="12">
-                        <NFormItem :label="$t('page.manage.setting.logbus.batchSize')" label-placement="left">
-                          <NInputNumber
-                            v-if="logbusConfigs.open_batch_size !== undefined"
-                            v-model:value="logbusConfigs.open_batch_size.numValue"
-                            :min="10"
-                            :max="10000"
-                            class="w-full"
-                            @blur="handleNumberUpdate(logbusConfigs.open_batch_size)"
-                          />
-                        </NFormItem>
-                        <NFormItem :label="$t('page.manage.setting.logbus.timeThreshold')" label-placement="left">
-                          <NInputNumber
-                            v-if="logbusConfigs.open_time_threshold !== undefined"
-                            v-model:value="logbusConfigs.open_time_threshold.numValue"
-                            :min="1"
-                            :max="3600"
-                            class="w-full"
-                            @blur="handleNumberUpdate(logbusConfigs.open_time_threshold)"
-                          >
-                            <template #suffix>{{ $t('page.manage.setting.log.secondsUnit') }}</template>
-                          </NInputNumber>
-                        </NFormItem>
-                      </NSpace>
-                    </NCard>
-                  </NGridItem>
-                  <NGridItem>
-                    <NCard size="small" :title="$t('page.manage.setting.logbus.taskBucket')" class="h-full">
-                      <NSpace vertical :size="12">
-                        <NFormItem :label="$t('page.manage.setting.logbus.batchSize')" label-placement="left">
-                          <NInputNumber
-                            v-if="logbusConfigs.task_batch_size !== undefined"
-                            v-model:value="logbusConfigs.task_batch_size.numValue"
-                            :min="10"
-                            :max="10000"
-                            class="w-full"
-                            @blur="handleNumberUpdate(logbusConfigs.task_batch_size)"
-                          />
-                        </NFormItem>
-                        <NFormItem :label="$t('page.manage.setting.logbus.timeThreshold')" label-placement="left">
-                          <NInputNumber
-                            v-if="logbusConfigs.task_time_threshold !== undefined"
-                            v-model:value="logbusConfigs.task_time_threshold.numValue"
-                            :min="1"
-                            :max="3600"
-                            class="w-full"
-                            @blur="handleNumberUpdate(logbusConfigs.task_time_threshold)"
-                          >
-                            <template #suffix>{{ $t('page.manage.setting.log.secondsUnit') }}</template>
-                          </NInputNumber>
-                        </NFormItem>
-                      </NSpace>
-                    </NCard>
-                  </NGridItem>
-                </NGrid>
-              </NSpin>
-            </NCard>
-          </div>
+          <LogTab
+            :loading="loading"
+            :updating="updating"
+            :log-configs="logConfigs"
+            :logbus-configs="logbusConfigs"
+            @update="handleUpdate"
+            @number-update="handleNumberUpdate"
+          />
         </NTabPane>
 
-        <!-- Tab: Email Configuration -->
         <NTabPane name="email" :tab="$t('page.manage.setting.tabs.email')">
-          <div class="max-w-600px pt-4">
-            <NAlert type="info" class="mb-6">
-              {{ $t('page.manage.setting.email.description') }}
-            </NAlert>
-            <NSpin :show="loading">
-              <NSpace vertical :size="20">
-                <NFormItem :label="$t('page.manage.setting.email.enabled')" label-placement="left">
-                  <NSwitch
-                    v-if="emailConfigs.enabled"
-                    v-model:value="emailConfigs.enabled.configValue"
-                    checked-value="true"
-                    unchecked-value="false"
-                    :loading="updating === emailConfigs.enabled?.configKey"
-                    @update:value="handleUpdate(emailConfigs.enabled)"
-                  />
-                </NFormItem>
-                <NFormItem :label="$t('page.manage.setting.email.host')" label-placement="left">
-                  <NInput
-                    v-if="emailConfigs.host"
-                    v-model:value="emailConfigs.host.configValue"
-                    :placeholder="$t('page.manage.setting.email.hostPlaceholder')"
-                    class="w-300px"
-                    @blur="handleUpdate(emailConfigs.host)"
-                  />
-                </NFormItem>
-                <NFormItem :label="$t('page.manage.setting.email.port')" label-placement="left">
-                  <NInputNumber
-                    v-if="emailConfigs.port"
-                    v-model:value="emailConfigs.port.numValue"
-                    :min="1"
-                    :max="65535"
-                    class="w-200px"
-                    @blur="handleNumberUpdate(emailConfigs.port)"
-                  />
-                </NFormItem>
-                <NFormItem :label="$t('page.manage.setting.email.sslEnabled')" label-placement="left">
-                  <NSwitch
-                    v-if="emailConfigs.ssl_enabled"
-                    v-model:value="emailConfigs.ssl_enabled.configValue"
-                    checked-value="true"
-                    unchecked-value="false"
-                    :loading="updating === emailConfigs.ssl_enabled?.configKey"
-                    @update:value="handleUpdate(emailConfigs.ssl_enabled)"
-                  />
-                </NFormItem>
-                <NFormItem :label="$t('page.manage.setting.email.starttlsEnabled')" label-placement="left">
-                  <NSwitch
-                    v-if="emailConfigs.starttls_enabled"
-                    v-model:value="emailConfigs.starttls_enabled.configValue"
-                    checked-value="true"
-                    unchecked-value="false"
-                    :loading="updating === emailConfigs.starttls_enabled?.configKey"
-                    @update:value="handleUpdate(emailConfigs.starttls_enabled)"
-                  />
-                </NFormItem>
-                <NFormItem :label="$t('page.manage.setting.email.authType')" label-placement="left">
-                  <NSelect
-                    v-if="emailConfigs.auth_type"
-                    v-model:value="emailConfigs.auth_type.configValue"
-                    :options="emailAuthTypeOptions"
-                    class="w-200px"
-                    @update:value="handleUpdate(emailConfigs.auth_type)"
-                  />
-                </NFormItem>
-                <NFormItem :label="$t('page.manage.setting.email.connectTimeout')" label-placement="left">
-                  <NInputNumber
-                    v-if="emailConfigs.connect_timeout"
-                    v-model:value="emailConfigs.connect_timeout.numValue"
-                    :min="5"
-                    :max="120"
-                    class="w-200px"
-                    @blur="handleNumberUpdate(emailConfigs.connect_timeout)"
-                  />
-                </NFormItem>
-                <NFormItem :label="$t('page.manage.setting.email.sendTimeout')" label-placement="left">
-                  <NInputNumber
-                    v-if="emailConfigs.send_timeout"
-                    v-model:value="emailConfigs.send_timeout.numValue"
-                    :min="5"
-                    :max="120"
-                    class="w-200px"
-                    @blur="handleNumberUpdate(emailConfigs.send_timeout)"
-                  />
-                </NFormItem>
-                <NFormItem :label="$t('page.manage.setting.email.user')" label-placement="left">
-                  <NInput
-                    v-if="emailConfigs.user"
-                    v-model:value="emailConfigs.user.configValue"
-                    :placeholder="$t('page.manage.setting.email.userPlaceholder')"
-                    class="w-300px"
-                    @blur="handleUpdate(emailConfigs.user)"
-                  />
-                </NFormItem>
-                <NFormItem :label="$t('page.manage.setting.email.password')" label-placement="left">
-                  <NInput
-                    v-if="emailConfigs.password"
-                    v-model:value="emailConfigs.password.configValue"
-                    type="password"
-                    show-password-on="click"
-                    :placeholder="$t('page.manage.setting.email.passwordPlaceholder')"
-                    class="w-300px"
-                    @blur="handleUpdate(emailConfigs.password)"
-                  />
-                </NFormItem>
-                <NFormItem :label="$t('page.manage.setting.email.from')" label-placement="left">
-                  <NInput
-                    v-if="emailConfigs.from"
-                    v-model:value="emailConfigs.from.configValue"
-                    :placeholder="$t('page.manage.setting.email.fromPlaceholder')"
-                    class="w-300px"
-                    @blur="handleUpdate(emailConfigs.from)"
-                  />
-                </NFormItem>
-                <NDivider />
-                <NFormItem :label="$t('page.manage.setting.email.testEmail')" label-placement="left">
-                  <NSpace align="center">
-                    <NInput
-                      v-model:value="testEmailReceiver"
-                      :placeholder="$t('page.manage.setting.email.testReceiverPlaceholder')"
-                      class="w-250px"
-                    />
-                    <NButton
-                      type="primary"
-                      :loading="testEmailLoading"
-                      :disabled="!testEmailReceiver"
-                      @click="handleTestEmail"
-                    >
-                      {{ $t('page.manage.setting.email.testSend') }}
-                    </NButton>
-                  </NSpace>
-                </NFormItem>
-              </NSpace>
-            </NSpin>
-          </div>
+          <EmailTab
+            :loading="loading"
+            :updating="updating"
+            :email-configs="emailConfigs"
+            :email-auth-type-options="emailAuthTypeOptions"
+            :test-email-loading="testEmailLoading"
+            :test-email-receiver="testEmailReceiver"
+            @update="handleUpdate"
+            @number-update="handleNumberUpdate"
+            @test-email="handleTestEmail"
+            @update:test-email-receiver="testEmailReceiver = $event"
+          />
         </NTabPane>
 
-        <!-- Tab: SMS Configuration -->
+        <NTabPane name="contentCache" :tab="$t('page.manage.setting.tabs.contentCache')">
+          <ContentCacheTab
+            :loading="loading"
+            :content-cache-configs="contentCacheConfigs"
+            @number-update="handleNumberUpdate"
+          />
+        </NTabPane>
+
         <NTabPane name="sms" :tab="$t('page.manage.setting.tabs.sms')">
-          <div class="max-w-600px pt-4">
-            <NAlert type="info" class="mb-6">
-              {{ $t('page.manage.setting.sms.description') }}
-            </NAlert>
-            <NSpin :show="loading">
-              <NSpace vertical :size="20">
-                <NFormItem :label="$t('page.manage.setting.sms.enabled')" label-placement="left">
-                  <NSwitch
-                    v-if="smsConfigs.enabled"
-                    v-model:value="smsConfigs.enabled.configValue"
-                    checked-value="true"
-                    unchecked-value="false"
-                    :loading="updating === smsConfigs.enabled?.configKey"
-                    @update:value="handleUpdate(smsConfigs.enabled)"
-                  />
-                </NFormItem>
-                <NFormItem :label="$t('page.manage.setting.sms.driver')" label-placement="left">
-                  <NSelect
-                    v-if="smsConfigs.driver"
-                    v-model:value="smsConfigs.driver.configValue"
-                    :options="[{ label: 'Tencent Cloud', value: 'tencent' }]"
-                    class="w-200px"
-                    @update:value="handleUpdate(smsConfigs.driver)"
-                  />
-                </NFormItem>
-                <NFormItem :label="$t('page.manage.setting.sms.secretId')" label-placement="left">
-                  <NInput
-                    v-if="smsConfigs.secret_id"
-                    v-model:value="smsConfigs.secret_id.configValue"
-                    type="password"
-                    show-password-on="click"
-                    :placeholder="$t('page.manage.setting.sms.secretIdPlaceholder')"
-                    class="w-300px"
-                    @blur="handleUpdate(smsConfigs.secret_id)"
-                  />
-                </NFormItem>
-                <NFormItem :label="$t('page.manage.setting.sms.secretKey')" label-placement="left">
-                  <NInput
-                    v-if="smsConfigs.secret_key"
-                    v-model:value="smsConfigs.secret_key.configValue"
-                    type="password"
-                    show-password-on="click"
-                    :placeholder="$t('page.manage.setting.sms.secretKeyPlaceholder')"
-                    class="w-300px"
-                    @blur="handleUpdate(smsConfigs.secret_key)"
-                  />
-                </NFormItem>
-                <NFormItem :label="$t('page.manage.setting.sms.appId')" label-placement="left">
-                  <NInput
-                    v-if="smsConfigs.app_id"
-                    v-model:value="smsConfigs.app_id.configValue"
-                    :placeholder="$t('page.manage.setting.sms.appIdPlaceholder')"
-                    class="w-300px"
-                    @blur="handleUpdate(smsConfigs.app_id)"
-                  />
-                </NFormItem>
-                <NFormItem :label="$t('page.manage.setting.sms.signName')" label-placement="left">
-                  <NInput
-                    v-if="smsConfigs.sign_name"
-                    v-model:value="smsConfigs.sign_name.configValue"
-                    :placeholder="$t('page.manage.setting.sms.signNamePlaceholder')"
-                    class="w-300px"
-                    @blur="handleUpdate(smsConfigs.sign_name)"
-                  />
-                </NFormItem>
-              </NSpace>
-            </NSpin>
-          </div>
+          <SmsTab :loading="loading" :updating="updating" :sms-configs="smsConfigs" @update="handleUpdate" />
         </NTabPane>
       </NTabs>
     </NCard>
@@ -1187,11 +401,6 @@ onMounted(init);
 </template>
 
 <style scoped>
-.flex-y-center {
-  display: flex;
-  align-items: center;
-}
-
 .h-full-setting {
   height: 100%;
   display: flex;
