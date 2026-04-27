@@ -110,6 +110,7 @@
 | `101006` | `CodeTokenInvalid` | `tokenInvalid` | 令牌无效 | Invalid token |
 | `101007` | `CodeUserLocked` | `userLocked` | 账户已锁定 | Account locked |
 | `101008` | `CodeOldPasswordWrong` | `oldPasswordWrong` | 原密码错误 | Incorrect old password |
+| `101009` | `CodePasswordTooWeak` | `passwordTooWeak` | 密码强度不足 | Password is too weak |
 
 ### 4.3 角色 (1020xx)
 

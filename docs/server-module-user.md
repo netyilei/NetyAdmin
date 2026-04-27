@@ -126,6 +126,8 @@ type UserTokenHash struct {
 
 - **双 Token 机制**：登录成功返回 `accessToken` (短效) 和 `refreshToken` (长效)。
 - **Token 存储**：通过 `TokenStore` 抽象层管理，支持缓存和数据库两种存储后端。
+- **Token 哈希**：登录和刷新令牌时，AccessToken 与 RefreshToken 的 SHA256 哈希均存入 `user_token_hashes` 表，用于后续主动拉黑或单端登录控制。
+- **RefreshToken 黑名单**：刷新令牌后，旧 RefreshToken 立即加入缓存黑名单（TTL 等于 Token 剩余有效期），防止已使用的 RefreshToken 被重放。黑名单 Key 由 `cache.KeyAuthBlacklistRefreshToken(token)` 工厂函数生成。
 - **校验**：`UserJWTAuth` 中间件解析 Token 后，根据存储后端校验 Token 有效性。
 
 ### 5.3 登录存储介质

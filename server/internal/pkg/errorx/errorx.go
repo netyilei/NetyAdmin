@@ -26,6 +26,7 @@ const (
 	CodeTokenInvalid      Code = 101006
 	CodeUserLocked        Code = 101007
 	CodeOldPasswordWrong  Code = 101008
+	CodePasswordTooWeak   Code = 101009
 
 	CodeRoleNotFound      Code = 102001
 	CodeRoleInUse         Code = 102002
@@ -106,6 +107,7 @@ var codeMessages = map[Code]string{
 	CodeTokenInvalid:      "令牌无效",
 	CodeUserLocked:        "账户已锁定",
 	CodeOldPasswordWrong:  "原密码错误",
+	CodePasswordTooWeak:   "密码强度不足",
 
 	CodeRoleNotFound:      "角色不存在",
 	CodeRoleInUse:         "角色正在使用中",

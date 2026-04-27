@@ -20,13 +20,13 @@ func (r *userRouter) RegisterPublic(publicGroup *gin.RouterGroup) {}
 func (r *userRouter) RegisterAuth(authGroup *gin.RouterGroup) {
 	group := authGroup.Group("/user")
 	{
-		// 仅需要 App 签名的公开接口
+		// 需要 App 签名但不需要 User JWT 的接口
 		group.POST("/register", r.handler.Register)
 		group.POST("/login", r.handler.Login)
 		group.POST("/refresh-token", r.handler.RefreshToken)
 		group.POST("/reset-password", r.handler.ResetPassword)
 
-		// 需要 App 签名 + User JWT 的授权接口
+		// 需要 App 签名 + User JWT 的接口
 		userAuth := group.Group("")
 		userAuth.Use(middleware.UserJWTAuth())
 		{

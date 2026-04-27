@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/mojocn/base64Captcha"
 	"golang.org/x/crypto/bcrypt"
 
@@ -38,7 +37,7 @@ type UserService interface {
 	Logout(ctx context.Context, userID string, token string) error
 	ResetPassword(ctx context.Context, req *clientDto.UserResetPasswordReq) error
 	DeleteAccount(ctx context.Context, userID string) error
-	GetUploadToken(ctx context.Context, userID string, storageID uint) (interface{}, error)
+	GetUploadToken(ctx context.Context, userID string, storageID uint) (*userVO.UploadTokenVO, error)
 
 	// Admin API
 	List(ctx context.Context, current, size int, query *userRepo.UserRepoQuery) ([]userEntity.User, int64, error)
@@ -189,7 +188,7 @@ func (s *userService) Login(ctx context.Context, req *clientDto.UserLoginReq, ip
 		}
 	}
 
-	// 5. 验证密码
+	// 4. 验证密码
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
 		maxRetryStr, _ := s.configWatcher.GetConfig("user_config", "login_max_retry")
 		lockDurationStr, _ := s.configWatcher.GetConfig("user_config", "login_lock_duration")
@@ -225,13 +224,13 @@ func (s *userService) Login(ctx context.Context, req *clientDto.UserLoginReq, ip
 	retryKey := cache.KeyLoginRetryCount(user.ID)
 	_ = s.cacheMgr.Delete(ctx, retryKey)
 
-	// 6. 更新登录信息
+	// 5. 更新登录信息
 	now := time.Now()
 	user.LastLoginAt = &now
 	user.LastLoginIP = ip
 	_ = s.repo.Update(ctx, user)
 
-	// 7. 生成令牌
+	// 6. 生成令牌
 	claims := s.jwt.NewUserClaims(user.ID, req.Platform, jwt.AccessToken)
 	token, err := s.jwt.GenerateToken(claims)
 	if err != nil {
@@ -244,13 +243,24 @@ func (s *userService) Login(ctx context.Context, req *clientDto.UserLoginReq, ip
 		return nil, errorx.New(errorx.CodeInternalError, "刷新令牌生成失败")
 	}
 
-	// 8. 存储 Token 哈希 (用于后续主动拉黑或单端登录控制)
+	// 7. 存储 Token 哈希 (用于后续主动拉黑或单端登录控制)
 	tokenHash := s.computeHash(token)
-	err = s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
+	if err := s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
 		UserID:    user.ID,
 		TokenHash: tokenHash,
 		ExpiredAt: time.Unix(claims.ExpiresAt.Unix(), 0),
-	})
+	}); err != nil {
+		return nil, errorx.New(errorx.CodeInternalError, "令牌存储失败")
+	}
+
+	refreshTokenHash := s.computeHash(refreshToken)
+	if err := s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
+		UserID:    user.ID,
+		TokenHash: refreshTokenHash,
+		ExpiredAt: time.Unix(refreshClaims.ExpiresAt.Unix(), 0),
+	}); err != nil {
+		return nil, errorx.New(errorx.CodeInternalError, "刷新令牌存储失败")
+	}
 
 	return &userVO.UserLoginVO{
 		AccessToken:  token,
@@ -268,7 +278,12 @@ func (s *userService) RefreshToken(ctx context.Context, refreshToken string) (*u
 		return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌无效")
 	}
 
-	// 获取用户信息以刷新权限/状态
+	blacklistKey := cache.KeyAuthBlacklistRefreshToken(refreshToken)
+	exists, _ := s.cacheMgr.Exists(ctx, blacklistKey)
+	if exists {
+		return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌已失效，请重新登录")
+	}
+
 	user, err := s.repo.GetByID(ctx, claims.UID)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeUserNotFound, "用户不存在")
@@ -277,20 +292,40 @@ func (s *userService) RefreshToken(ctx context.Context, refreshToken string) (*u
 		return nil, errorx.New(errorx.CodeUserDisabled, "账户已禁用")
 	}
 
-	// 生成新令牌对
 	newClaims := s.jwt.NewUserClaims(user.ID, claims.Platform, jwt.AccessToken)
-	token, _ := s.jwt.GenerateToken(newClaims)
+	token, err := s.jwt.GenerateToken(newClaims)
+	if err != nil {
+		return nil, errorx.New(errorx.CodeInternalError, "生成令牌失败")
+	}
 
 	newRefreshClaims := s.jwt.NewUserClaims(user.ID, claims.Platform, jwt.RefreshToken)
-	newRefreshToken, _ := s.jwt.GenerateToken(newRefreshClaims)
+	newRefreshToken, err := s.jwt.GenerateToken(newRefreshClaims)
+	if err != nil {
+		return nil, errorx.New(errorx.CodeInternalError, "生成刷新令牌失败")
+	}
 
-	// 记录新 Token 哈希
 	tokenHash := s.computeHash(token)
-	_ = s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
+	if err := s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
 		UserID:    user.ID,
 		TokenHash: tokenHash,
 		ExpiredAt: time.Unix(newClaims.ExpiresAt.Unix(), 0),
-	})
+	}); err != nil {
+		return nil, errorx.New(errorx.CodeInternalError, "令牌存储失败")
+	}
+
+	refreshTokenHash := s.computeHash(newRefreshToken)
+	if err := s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
+		UserID:    user.ID,
+		TokenHash: refreshTokenHash,
+		ExpiredAt: time.Unix(newRefreshClaims.ExpiresAt.Unix(), 0),
+	}); err != nil {
+		return nil, errorx.New(errorx.CodeInternalError, "刷新令牌存储失败")
+	}
+
+	remainingTTL := time.Until(time.Unix(claims.ExpiresAt.Unix(), 0))
+	if remainingTTL > 0 {
+		_ = s.cacheMgr.Set(ctx, blacklistKey, "1", remainingTTL)
+	}
 
 	return &userVO.UserLoginVO{
 		AccessToken:  token,
@@ -566,13 +601,13 @@ func (s *userService) DeleteAccount(ctx context.Context, userID string) error {
 	return s.repo.Delete(ctx, userID)
 }
 
-func (s *userService) GetUploadToken(ctx context.Context, userID string, storageID uint) (interface{}, error) {
+func (s *userService) GetUploadToken(ctx context.Context, userID string, storageID uint) (*userVO.UploadTokenVO, error) {
 	if storageID > 0 {
 		presignedURL, err := s.storageMgr.GetPresignedUploadURL(ctx, storageID, "user/"+userID+"/", "application/octet-stream", 15*time.Minute)
 		if err != nil {
 			return nil, errorx.New(errorx.CodeInternalError, "获取上传凭证失败")
 		}
-		return gin.H{"uploadUrl": presignedURL, "storageConfigId": storageID}, nil
+		return &userVO.UploadTokenVO{UploadURL: presignedURL, StorageConfigID: storageID}, nil
 	}
 
 	driver, config, err := s.storageMgr.GetDefaultDriver()
@@ -585,7 +620,7 @@ func (s *userService) GetUploadToken(ctx context.Context, userID string, storage
 		return nil, errorx.New(errorx.CodeInternalError, "获取上传凭证失败")
 	}
 
-	return gin.H{"uploadUrl": presignedURL, "storageConfigId": config.ID}, nil
+	return &userVO.UploadTokenVO{UploadURL: presignedURL, StorageConfigID: config.ID}, nil
 }
 
 func (s *userService) validatePasswordStrength(ctx context.Context, password string) error {
@@ -602,7 +637,7 @@ func (s *userService) validatePasswordStrength(ctx context.Context, password str
 	}
 
 	if len(password) < minLength {
-		return fmt.Errorf("密码长度不能少于 %d 位", minLength)
+		return errorx.New(errorx.CodePasswordTooWeak, fmt.Sprintf("密码长度不能少于 %d 位", minLength))
 	}
 
 	types := 0
@@ -620,7 +655,7 @@ func (s *userService) validatePasswordStrength(ctx context.Context, password str
 	}
 
 	if types < requireTypes {
-		return fmt.Errorf("密码必须包含数字、大小写字母、特殊符号中的至少 %d 种", requireTypes)
+		return errorx.New(errorx.CodePasswordTooWeak, fmt.Sprintf("密码必须包含数字、大小写字母、特殊符号中的至少 %d 种", requireTypes))
 	}
 
 	return nil

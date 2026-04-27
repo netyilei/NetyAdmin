@@ -26,18 +26,18 @@ type OpenApiService interface {
 }
 
 type openApiService struct {
-	apiRepo        openRepo.OpenApiRepository
-	appRepo        openRepo.AppRepository
-	scopeGroupRepo openRepo.AppRepository
-	cacheMgr       cache.LazyCacheManager
+	apiRepo   openRepo.OpenApiRepository
+	appRepo   openRepo.AppRepository
+	scopeRepo openRepo.AppRepository
+	cacheMgr  cache.LazyCacheManager
 }
 
-func NewOpenApiService(apiRepo openRepo.OpenApiRepository, appRepo openRepo.AppRepository, scopeGroupRepo openRepo.AppRepository, cacheMgr cache.LazyCacheManager) OpenApiService {
+func NewOpenApiService(apiRepo openRepo.OpenApiRepository, appRepo openRepo.AppRepository, scopeRepo openRepo.AppRepository, cacheMgr cache.LazyCacheManager) OpenApiService {
 	return &openApiService{
-		apiRepo:        apiRepo,
-		appRepo:        appRepo,
-		scopeGroupRepo: scopeGroupRepo,
-		cacheMgr:       cacheMgr,
+		apiRepo:   apiRepo,
+		appRepo:   appRepo,
+		scopeRepo: scopeRepo,
+		cacheMgr:  cacheMgr,
 	}
 }
 
@@ -123,14 +123,14 @@ func (s *openApiService) ListGroupedApis(ctx context.Context) (interface{}, erro
 }
 
 func (s *openApiService) GetScopeApis(ctx context.Context, scopeID uint64) ([]*open_platform.OpenApi, error) {
-	if _, err := s.scopeGroupRepo.GetScopeGroupByID(ctx, scopeID); err != nil {
+	if _, err := s.scopeRepo.GetScopeGroupByID(ctx, scopeID); err != nil {
 		return nil, err
 	}
 	return s.apiRepo.GetScopeApis(ctx, scopeID)
 }
 
 func (s *openApiService) UpdateScopeApis(ctx context.Context, scopeID uint64, apiIDs []uint64) error {
-	if _, err := s.scopeGroupRepo.GetScopeGroupByID(ctx, scopeID); err != nil {
+	if _, err := s.scopeRepo.GetScopeGroupByID(ctx, scopeID); err != nil {
 		return err
 	}
 	if err := s.apiRepo.UpdateScopeApis(ctx, scopeID, apiIDs); err != nil {
@@ -157,15 +157,17 @@ func (s *openApiService) GetAppAllowedApis(ctx context.Context, appID string) ([
 		}
 
 		var scopeIDs []uint64
+		groups, err := s.scopeRepo.ListScopeGroups(ctx)
+		if err != nil {
+			return nil, err
+		}
+		codeToID := make(map[string]uint64, len(groups))
+		for _, g := range groups {
+			codeToID[g.Code] = g.ID
+		}
 		for _, code := range scopes {
-			groups, err := s.appRepo.ListScopeGroups(ctx)
-			if err != nil {
-				return nil, err
-			}
-			for _, g := range groups {
-				if g.Code == code {
-					scopeIDs = append(scopeIDs, g.ID)
-				}
+			if id, ok := codeToID[code]; ok {
+				scopeIDs = append(scopeIDs, id)
 			}
 		}
 

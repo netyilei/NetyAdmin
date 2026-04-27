@@ -77,7 +77,7 @@ PUT /client/v1/user/profile
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| nickname | string | 否 | 昵称 |
+| nickName | string | 否 | 昵称 |
 | avatar | string | 否 | 头像 URL |
 | gender | string | 否 | 性别：`0` / `1` / `2` |
 | email | string | 否 | 邮箱 |
@@ -87,7 +87,7 @@ PUT /client/v1/user/profile
 
 ```json
 {
-  "nickname": "新昵称",
+  "nickName": "新昵称",
   "gender": "1"
 }
 ```
@@ -149,6 +149,7 @@ PUT /client/v1/user/password
 | `100001` | 参数校验失败 |
 | `100002` | 未授权 |
 | `101008` | 原密码错误 |
+| `101009` | 密码强度不足 |
 
 ---
 

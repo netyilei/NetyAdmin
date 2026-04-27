@@ -123,7 +123,7 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 			return
 		}
 
-		// 3. IP 访问控制 (IPAC)
+		// 4. IP 访问控制 (IPAC)
 		clientIP := c.ClientIP()
 		allowed, err := ipacSvc.CheckIP(c.Request.Context(), clientIP, &app.ID)
 		if err != nil {
@@ -134,7 +134,7 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 			return
 		}
 
-		// 4. Nonce 防重放 (使用缓存模块)
+		// 5. Nonce 防重放 (使用缓存模块)
 		nonceKey := cache.KeyAppNonce(appKey, nonce)
 		set, err := appSvc.GetCacheMgr().SetNX(c.Request.Context(), nonceKey, "1", 60*time.Second)
 		if err != nil || !set {
@@ -143,7 +143,7 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 			return
 		}
 
-		// 5. 解密 AppSecret
+		// 6. 解密 AppSecret
 		appSecret, err := appSvc.GetAppSecret(c.Request.Context(), app)
 		if err != nil {
 			response.FailWithCode(c, errorx.CodeInternalError, "系统错误")
@@ -151,10 +151,10 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 			return
 		}
 
-		// 6. 构造待签名字符串 (StringToSign)
-		stringToSign := constructStringToSign(c, timestampStr, nonce)
+		// 7. 构造待签名字符串 (StringToSign)
+		stringToSign := constructStringToSign(c, timestampStr, nonce, requestBody)
 
-		// 7. 计算 HMAC-SHA256 签名
+		// 8. 计算 HMAC-SHA256 签名
 		expectedSignature := computeHmacSha256(appSecret, stringToSign)
 
 		if signature != expectedSignature {
@@ -163,7 +163,7 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 			return
 		}
 
-		// 8. 流量限制 (Rate Limiting)
+		// 9. 流量限制 (Rate Limiting)
 		allowed, err = appSvc.AllowRequest(c.Request.Context(), app)
 		if err != nil || !allowed {
 			response.FailWithCode(c, errorx.CodeRateLimited, "已触发流量限制")
@@ -171,7 +171,7 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 			return
 		}
 
-		// 9. 验证 API 权限 (Scope Check)
+		// 10. 验证 API 权限 (Scope Check)
 		allowedApis, err := apiSvc.GetAppAllowedApis(c.Request.Context(), app.ID)
 		if err != nil {
 			response.FailWithCode(c, errorx.CodeInternalError, "鉴权服务异常")
@@ -184,7 +184,7 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 			matchedPath = c.Request.URL.Path
 		}
 		currentApi := strings.ToUpper(c.Request.Method) + ":" + matchedPath
-		
+
 		matched := false
 		for _, api := range allowedApis {
 			if api == currentApi {
@@ -192,7 +192,7 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 				break
 			}
 		}
-		
+
 		if !matched {
 			response.FailWithCode(c, errorx.CodeScopeMismatch, "权限不足 (Scope Mismatch)")
 			c.Abort()
@@ -206,13 +206,12 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 	}
 }
 
-func constructStringToSign(c *gin.Context, timestamp, nonce string) string {
+func constructStringToSign(c *gin.Context, timestamp, nonce string, requestBody []byte) string {
 	method := strings.ToUpper(c.Request.Method)
 	path := c.Request.URL.Path
 
 	var payload string
 	if method == http.MethodGet {
-		// GET 请求：对 Query 参数按 key 排序并拼接
 		query := c.Request.URL.Query()
 		keys := make([]string, 0, len(query))
 		for k := range query {
@@ -231,21 +230,13 @@ func constructStringToSign(c *gin.Context, timestamp, nonce string) string {
 		}
 		payload = sb.String()
 	} else {
-		// POST/PUT/DELETE：计算 Body 的 SHA256 哈希
-		var body []byte
-		if c.Request.Body != nil {
-			body, _ = io.ReadAll(c.Request.Body)
-			// 将 Body 重新写回，以便后续 Handler 使用
-			c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
-		}
-		if len(body) > 0 {
+		if len(requestBody) > 0 {
 			h := sha256.New()
-			h.Write(body)
+			h.Write(requestBody)
 			payload = fmt.Sprintf("%x", h.Sum(nil))
 		}
 	}
 
-	// 构造规则: Method + Path + Timestamp + Nonce + Payload
 	return fmt.Sprintf("%s\n%s\n%s\n%s\n%s", method, path, timestamp, nonce, payload)
 }
 

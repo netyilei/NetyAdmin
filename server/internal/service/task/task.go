@@ -230,7 +230,7 @@ func (s *taskService) ListLogs(ctx context.Context, name string, page, size int)
 		page = 1
 	}
 	if size <= 0 {
-		size = 10
+		size = entity.DefaultPageSize
 	}
 	return s.logRepo.List(ctx, name, page, size)
 }

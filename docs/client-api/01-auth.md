@@ -241,7 +241,7 @@ POST /client/v1/user/login
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| username | string | 是 | 用户名 |
+| userName | string | 是 | 用户名 |
 | password | string | 是 | 密码 |
 | platform | string | 否 | 登录平台标识：`web` / `app` / `mini_program` 等 |
 | captchaKey | string | 条件必填 | 图形验证码 ID（captchaEnabled=true 时必填） |
@@ -255,7 +255,7 @@ POST /client/v1/user/login
 
 ```json
 {
-  "username": "testuser",
+  "userName": "testuser",
   "password": "MyPassword123",
   "platform": "web"
 }
@@ -265,7 +265,7 @@ POST /client/v1/user/login
 
 ```json
 {
-  "username": "testuser",
+  "userName": "testuser",
   "password": "MyPassword123",
   "platform": "web",
   "captchaKey": "captcha_01HXYZ...",
@@ -277,7 +277,7 @@ POST /client/v1/user/login
 
 ```json
 {
-  "username": "testuser",
+  "userName": "testuser",
   "password": "MyPassword123",
   "platform": "web",
   "captchaKey": "captcha_01HXYZ...",
@@ -316,6 +316,7 @@ POST /client/v1/user/login
 | `101002` | 用户已禁用 |
 | `101003` | 密码错误 |
 | `101007` | 账户已锁定（密码错误次数过多） |
+| `101009` | 密码强度不足 |
 
 ---
 
@@ -331,9 +332,9 @@ POST /client/v1/user/register
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| username | string | 是 | 用户名，4-20 位 |
+| userName | string | 是 | 用户名，4-20 位 |
 | password | string | 是 | 密码，6-20 位（受系统配置约束强度） |
-| nickname | string | 是 | 昵称 |
+| nickName | string | 是 | 昵称 |
 | phone | string | 条件必填 | 手机号（与 email 至少填一个） |
 | email | string | 条件必填 | 邮箱（与 phone 至少填一个） |
 | code | string | 条件必填 | 短信/邮箱验证码（verifyEnabled=true 时必填） |
@@ -342,9 +343,9 @@ POST /client/v1/user/register
 
 ```json
 {
-  "username": "newuser",
+  "userName": "newuser",
   "password": "MyPassword123",
-  "nickname": "新用户",
+  "nickName": "新用户",
   "email": "user@example.com",
   "code": "123456"
 }
@@ -375,6 +376,7 @@ POST /client/v1/user/register
 | `101004` | 用户名已存在 |
 | `101103` | 邮箱已存在 |
 | `101104` | 手机号已存在 |
+| `101009` | 密码强度不足 |
 
 ---
 
@@ -459,6 +461,6 @@ POST /client/v1/user/refresh-token
 | code | 说明 |
 |------|------|
 | `100001` | 缺少刷新令牌 |
-| `100002` | 刷新令牌无效 |
-| `101001` | 用户不存在 |
-| `101002` | 用户已禁用 |
+| `100002` | 刷新令牌无效或已被使用 |
+
+> **安全说明**：每次刷新令牌后，旧的 RefreshToken 会被加入黑名单（缓存 TTL 等于 Token 剩余有效期），不可再次使用。客户端必须在刷新成功后立即替换本地存储的 RefreshToken。

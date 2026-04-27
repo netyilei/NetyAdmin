@@ -2,7 +2,7 @@ package v1
 
 // UserLoginReq 用户登录请求
 type UserLoginReq struct {
-	Username    string `json:"username" binding:"required"`
+	Username    string `json:"userName" binding:"required"`
 	Password    string `json:"password" binding:"required"`
 	Platform    string `json:"platform"`
 	CaptchaKey  string `json:"captchaKey"`
@@ -10,11 +10,10 @@ type UserLoginReq struct {
 	Code        string `json:"code"`
 }
 
-// UserRegisterReq 用户注册请求
 type UserRegisterReq struct {
-	Username string `json:"username" binding:"required,min=4,max=20"`
+	Username string `json:"userName" binding:"required,min=4,max=20"`
 	Password string `json:"password" binding:"required,min=6,max=20"`
-	Nickname string `json:"nickname" binding:"required"`
+	Nickname string `json:"nickName" binding:"required"`
 	Phone    string `json:"phone"`
 	Email    string `json:"email"`
 	Code     string `json:"code"`
@@ -29,7 +28,7 @@ type UserResetPasswordReq struct {
 
 // UserUpdateProfileReq 更新个人资料请求
 type UserUpdateProfileReq struct {
-	Nickname string `json:"nickname"`
+	Nickname string `json:"nickName"`
 	Avatar   string `json:"avatar"`
 	Gender   string `json:"gender"`
 	Email    string `json:"email"`
@@ -63,12 +62,12 @@ type UserInfoVO struct {
 }
 
 type CreateUserUploadRecordReq struct {
-	FileName     string `json:"fileName" binding:"required"`
-	ObjectKey    string `json:"objectKey" binding:"required"`
-	FileSize     int64  `json:"fileSize"`
-	MimeType     string `json:"mimeType"`
-	MD5          string `json:"md5"`
-	StorageConfigID uint `json:"storageConfigId"`
-	BusinessType string `json:"businessType"`
-	BusinessID   string `json:"businessId"`
+	FileName        string `json:"fileName" binding:"required"`
+	ObjectKey       string `json:"objectKey" binding:"required"`
+	FileSize        int64  `json:"fileSize"`
+	MimeType        string `json:"mimeType"`
+	MD5             string `json:"md5"`
+	StorageConfigID uint   `json:"storageConfigId"`
+	BusinessType    string `json:"businessType"`
+	BusinessID      string `json:"businessId"`
 }

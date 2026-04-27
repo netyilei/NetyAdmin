@@ -31,3 +31,8 @@ type UserItemVO struct {
 	CreatedAt   time.Time  `json:"createTime"`
 	LastLoginAt *time.Time `json:"lastLoginAt"`
 }
+
+type UploadTokenVO struct {
+	UploadURL       string `json:"uploadUrl"`
+	StorageConfigID uint   `json:"storageConfigId"`
+}

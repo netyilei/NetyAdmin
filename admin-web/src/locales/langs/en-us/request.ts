@@ -25,6 +25,7 @@ const request = {
     tokenInvalid: 'Invalid token',
     userLocked: 'Account locked, please try again later',
     oldPasswordWrong: 'Incorrect old password',
+    passwordTooWeak: 'Password is too weak',
     roleNotFound: 'Role not found',
     roleInUse: 'Role is in use',
     roleAlreadyExists: 'Role already exists',

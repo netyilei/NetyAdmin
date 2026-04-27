@@ -25,6 +25,7 @@ const request = {
     tokenInvalid: '令牌无效',
     userLocked: '账户已锁定，请稍后再试',
     oldPasswordWrong: '原密码错误',
+    passwordTooWeak: '密码强度不足',
     roleNotFound: '角色不存在',
     roleInUse: '角色正在使用中',
     roleAlreadyExists: '角色已存在',
