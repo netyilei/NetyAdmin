@@ -37,8 +37,8 @@ enabled = true
 dir = "migrations"
 
 [task]
-enabled = true   # 是否开启任务管理器
-workers = 5      # 后台 Worker 数量（根据业务负载和服务器配置调节）
+enabled = true # 是否开启任务管理器
+workers = 5    # 后台 Worker 数量（根据业务负载和服务器配置调节）
 
 # 文章定时发布任务
 # 代码中已定义默认：间隔执行(interval), 周期 1m, 权重 80, 默认开启。

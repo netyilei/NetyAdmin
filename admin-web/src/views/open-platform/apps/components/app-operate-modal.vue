@@ -39,8 +39,8 @@ const ipRulesLoading = ref(false);
 const storageConfigOptions = ref<{ label: string; value: number }[]>([]);
 const storageConfigLoading = ref(false);
 
-const quotaRate = ref<number | null>(10);
-const quotaCapacity = ref<number | null>(20);
+const quotaRate = ref<number | null>(null);
+const quotaCapacity = ref<number | null>(null);
 
 const scopeOptions = computed(() => {
   return availableScopes.value.map(item => ({
@@ -92,17 +92,17 @@ async function loadAppIPRules(appId: string) {
 
 function parseQuotaConfig(quotaConfig: string | undefined) {
   if (!quotaConfig) {
-    quotaRate.value = 10;
-    quotaCapacity.value = 20;
+    quotaRate.value = null;
+    quotaCapacity.value = null;
     return;
   }
   try {
     const parsed = JSON.parse(quotaConfig);
-    quotaRate.value = parsed.rate ?? 10;
-    quotaCapacity.value = parsed.capacity ?? 20;
+    quotaRate.value = parsed.rate ?? null;
+    quotaCapacity.value = parsed.capacity ?? null;
   } catch {
-    quotaRate.value = 10;
-    quotaCapacity.value = 20;
+    quotaRate.value = null;
+    quotaCapacity.value = null;
   }
 }
 
@@ -110,10 +110,14 @@ function buildQuotaConfig(): string {
   if (quotaRate.value === null && quotaCapacity.value === null) {
     return '';
   }
-  return JSON.stringify({
-    rate: quotaRate.value ?? 10,
-    capacity: quotaCapacity.value ?? 20
-  });
+  const quota: Record<string, number> = {};
+  if (quotaRate.value !== null) {
+    quota.rate = quotaRate.value;
+  }
+  if (quotaCapacity.value !== null) {
+    quota.capacity = quotaCapacity.value;
+  }
+  return JSON.stringify(quota);
 }
 
 onMounted(() => {
@@ -227,26 +231,48 @@ watch(visible, () => {
         />
       </NFormItem>
       <NFormItem :label="$t('page.openPlatform.app.quotaConfig')" path="quotaConfig">
-        <NSpace :size="12" align="center" :wrap="false">
-          <NInputNumber
-            v-model:value="quotaRate"
-            :min="1"
-            :max="10000"
-            :placeholder="$t('page.openPlatform.app.form.quotaRatePlaceholder')"
-            class="w-140px"
-          >
-            <template #suffix>{{ $t('page.openPlatform.app.form.quotaRateSuffix') }}</template>
-          </NInputNumber>
-          <NInputNumber
-            v-model:value="quotaCapacity"
-            :min="1"
-            :max="100000"
-            :placeholder="$t('page.openPlatform.app.form.quotaCapacityPlaceholder')"
-            class="w-140px"
-          >
-            <template #suffix>{{ $t('page.openPlatform.app.form.quotaCapacitySuffix') }}</template>
-          </NInputNumber>
-        </NSpace>
+        <NCard size="small" :bordered="true" class="w-full">
+          <NSpace vertical :size="14">
+            <NFormItem
+              :label="$t('page.openPlatform.app.quotaRate')"
+              :show-feedback="false"
+              label-placement="left"
+              :label-width="120"
+            >
+              <NInputNumber
+                v-model:value="quotaRate"
+                :min="1"
+                :max="10000"
+                :placeholder="$t('page.openPlatform.app.form.quotaRatePlaceholder')"
+                class="w-full"
+              >
+                <template #suffix>{{ $t('page.openPlatform.app.form.quotaRateSuffix') }}</template>
+              </NInputNumber>
+            </NFormItem>
+            <NText depth="3" class="quota-tip">
+              {{ $t('page.openPlatform.app.form.quotaRateTip') }}
+            </NText>
+            <NFormItem
+              :label="$t('page.openPlatform.app.quotaCapacity')"
+              :show-feedback="false"
+              label-placement="left"
+              :label-width="120"
+            >
+              <NInputNumber
+                v-model:value="quotaCapacity"
+                :min="1"
+                :max="100000"
+                :placeholder="$t('page.openPlatform.app.form.quotaCapacityPlaceholder')"
+                class="w-full"
+              >
+                <template #suffix>{{ $t('page.openPlatform.app.form.quotaCapacitySuffix') }}</template>
+              </NInputNumber>
+            </NFormItem>
+            <NText depth="3" class="quota-tip">
+              {{ $t('page.openPlatform.app.form.quotaCapacityTip') }}
+            </NText>
+          </NSpace>
+        </NCard>
       </NFormItem>
       <NFormItem :label="$t('page.openPlatform.app.remark')" path="remark">
         <NInput
@@ -281,4 +307,9 @@ watch(visible, () => {
   </NModal>
 </template>
 
-<style scoped></style>
+<style scoped>
+.quota-tip {
+  font-size: 12px;
+  margin-top: -8px;
+}
+</style>

@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"time"
 
 	"NetyAdmin/internal/domain/entity/open_platform"
 	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/storage"
 	"NetyAdmin/internal/pkg/utils"
@@ -44,22 +46,24 @@ type AppService interface {
 }
 
 type appService struct {
-	repo       openRepo.AppRepository
-	cacheMgr   cache.LazyCacheManager
-	aesKey     string
-	ipacSvc    ipacSvcPkg.IPACService
-	ipacRepo   ipacRepoPkg.IPACRepository
-	storageMgr *storage.Manager
+	repo          openRepo.AppRepository
+	cacheMgr      cache.LazyCacheManager
+	aesKey        string
+	ipacSvc       ipacSvcPkg.IPACService
+	ipacRepo      ipacRepoPkg.IPACRepository
+	storageMgr    *storage.Manager
+	configWatcher configsync.ConfigWatcher
 }
 
-func NewAppService(repo openRepo.AppRepository, cacheMgr cache.LazyCacheManager, aesKey string, ipacSvc ipacSvcPkg.IPACService, ipacRepo ipacRepoPkg.IPACRepository, storageMgr *storage.Manager) AppService {
+func NewAppService(repo openRepo.AppRepository, cacheMgr cache.LazyCacheManager, aesKey string, ipacSvc ipacSvcPkg.IPACService, ipacRepo ipacRepoPkg.IPACRepository, storageMgr *storage.Manager, configWatcher configsync.ConfigWatcher) AppService {
 	return &appService{
-		repo:       repo,
-		cacheMgr:   cacheMgr,
-		aesKey:     aesKey,
-		ipacSvc:    ipacSvc,
-		ipacRepo:   ipacRepo,
-		storageMgr: storageMgr,
+		repo:          repo,
+		cacheMgr:      cacheMgr,
+		aesKey:        aesKey,
+		ipacSvc:       ipacSvc,
+		ipacRepo:      ipacRepo,
+		storageMgr:    storageMgr,
+		configWatcher: configWatcher,
 	}
 }
 
@@ -109,11 +113,9 @@ func (s *appService) VerifyAppScope(ctx context.Context, appID string, requiredS
 }
 
 func (s *appService) AllowRequest(ctx context.Context, app *open_platform.App) (bool, error) {
-	// 默认限流配置
-	rate := 10     // 每秒 10 个请求
-	capacity := 20 // 桶容量 20
+	rate := s.getDefaultRate()
+	capacity := s.getDefaultCapacity()
 
-	// 从 app.QuotaConfig 解析具体配置
 	if app.QuotaConfig != "" {
 		var quota open_platform.AppQuotaConfig
 		if err := json.Unmarshal([]byte(app.QuotaConfig), &quota); err == nil {
@@ -128,6 +130,30 @@ func (s *appService) AllowRequest(ctx context.Context, app *open_platform.App) (
 
 	key := cache.KeyAppRateLimit(app.AppKey)
 	return s.cacheMgr.RateLimit(ctx, key, rate, capacity)
+}
+
+func (s *appService) getDefaultRate() int {
+	val, exists := s.configWatcher.GetConfig("open_platform_config", "default_rate")
+	if !exists {
+		return 100
+	}
+	n, err := strconv.Atoi(val)
+	if err != nil || n <= 0 {
+		return 100
+	}
+	return n
+}
+
+func (s *appService) getDefaultCapacity() int {
+	val, exists := s.configWatcher.GetConfig("open_platform_config", "default_capacity")
+	if !exists {
+		return 200
+	}
+	n, err := strconv.Atoi(val)
+	if err != nil || n <= 0 {
+		return 200
+	}
+	return n
 }
 
 func (s *appService) GetCacheMgr() cache.LazyCacheManager {

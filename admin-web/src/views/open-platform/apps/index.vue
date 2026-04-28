@@ -81,7 +81,7 @@ const {
       key: 'quotaConfig',
       title: $t('page.openPlatform.app.quotaConfig'),
       align: 'center',
-      width: 130,
+      width: 160,
       render: (row: any) => {
         if (!row.quotaConfig) {
           return <NTag>{$t('page.openPlatform.app.quotaDefault')}</NTag>;
@@ -91,6 +91,7 @@ const {
           return (
             <NSpace justify="center" size={4} align="center">
               <NTag size="small" type="info">{`${quota.rate}${$t('page.openPlatform.app.form.quotaRateSuffix')}`}</NTag>
+              <span style="color: var(--n-text-color-3); font-size: 12px">/</span>
               <NTag
                 size="small"
                 type="success"

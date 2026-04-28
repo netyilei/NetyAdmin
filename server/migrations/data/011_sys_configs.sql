@@ -52,6 +52,8 @@ VALUES
 ('user_config', 'user_reset_pwd_verify', 'true', 'boolean', '用户找回密码是否需要验证', FALSE, 1, 1),
 ('user_config', 'user_reset_pwd_verify_type', 'email', 'string', '用户找回密码验证方式 (email/sms)', FALSE, 1, 1),
 ('open_platform_config', 'log_retention_days', '30', 'number', '开放平台日志保留天数', FALSE, 1, 1),
+('open_platform_config', 'default_rate', '100', 'number', '应用默认限流：每秒请求数', FALSE, 1, 1),
+('open_platform_config', 'default_capacity', '200', 'number', '应用默认限流：突发上限', FALSE, 1, 1),
 ('email_config', 'ssl_enabled', 'true', 'boolean', '是否启用 SSL/TLS 加密连接', FALSE, 1, 1),
 ('email_config', 'auth_type', 'plain', 'string', 'SMTP 认证方式 (plain/login/crammd5/auto)', FALSE, 1, 1),
 ('email_config', 'starttls_enabled', 'false', 'boolean', '是否启用 STARTTLS 加密连接 (适用于端口587)', FALSE, 1, 1),

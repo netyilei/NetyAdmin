@@ -14,8 +14,8 @@ const openPlatform = {
     storageBound: 'Bound',
     storageDefault: 'Default',
     quotaConfig: 'Rate Limit',
-    quotaRate: 'Rate',
-    quotaCapacity: 'Capacity',
+    quotaRate: 'Requests/sec',
+    quotaCapacity: 'Burst Limit',
     quotaDefault: 'Default',
     resetSecret: 'Reset Secret',
     confirmResetSecret: 'Are you sure to reset the AppSecret? The old key will be invalidated immediately!',
@@ -31,10 +31,12 @@ const openPlatform = {
       scopesPlaceholder: 'Please select scopes',
       storageIdPlaceholder: 'Please select storage config',
       storageIdDefault: 'Use Default',
-      quotaRatePlaceholder: 'Tokens per second',
-      quotaRateSuffix: '/sec',
-      quotaCapacityPlaceholder: 'Max burst',
-      quotaCapacitySuffix: 'tokens'
+      quotaRatePlaceholder: 'Leave empty for system default',
+      quotaRateSuffix: 'req/sec',
+      quotaRateTip: 'Maximum requests per second. Requests exceeding this rate will be throttled',
+      quotaCapacityPlaceholder: 'Leave empty for system default',
+      quotaCapacitySuffix: 'req',
+      quotaCapacityTip: 'Maximum concurrent requests allowed in a short burst to handle traffic spikes'
     }
   },
   scope: {

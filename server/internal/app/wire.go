@@ -335,7 +335,7 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	s.sysConfig = systemService.NewConfigService(repos.systemConfig, configWatcher, eventBus)
 	s.dict = dictServicePkg.NewDictService(repos.dict, lazyCacheMgr)
 	s.ipac = ipacServicePkg.NewIPACService(repos.ipac, eventBus)
-	s.app = openServicePkg.NewAppService(repos.app, lazyCacheMgr, cfg.Security.AESKey, s.ipac, repos.ipac, storageMgr)
+	s.app = openServicePkg.NewAppService(repos.app, lazyCacheMgr, cfg.Security.AESKey, s.ipac, repos.ipac, storageMgr, configWatcher)
 	s.openApi = openServicePkg.NewOpenApiService(repos.openApi, repos.app, repos.app, lazyCacheMgr)
 	s.openLog = openServicePkg.NewOpenLogService(repos.openLog, func(ctx context.Context, logRecord *openEntity.OpenPlatformLog) error {
 		return s.logBus.Record(ctx, logRecord)

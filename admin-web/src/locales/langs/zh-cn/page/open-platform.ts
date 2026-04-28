@@ -14,8 +14,8 @@ const openPlatform = {
     storageBound: '已绑定',
     storageDefault: '默认',
     quotaConfig: '限流配置',
-    quotaRate: '填充速率',
-    quotaCapacity: '桶容量',
+    quotaRate: '每秒请求数',
+    quotaCapacity: '突发上限',
     quotaDefault: '默认',
     resetSecret: '重置密钥',
     confirmResetSecret: '确定重置该应用的 AppSecret 吗？重置后旧密钥将立即失效！',
@@ -30,10 +30,12 @@ const openPlatform = {
       scopesPlaceholder: '请选择权限范围',
       storageIdPlaceholder: '请选择存储配置',
       storageIdDefault: '使用默认',
-      quotaRatePlaceholder: '每秒令牌数',
-      quotaRateSuffix: '个/秒',
-      quotaCapacityPlaceholder: '最大突发量',
-      quotaCapacitySuffix: '个'
+      quotaRatePlaceholder: '留空使用系统默认',
+      quotaRateSuffix: '次/秒',
+      quotaRateTip: '该应用每秒允许处理的最大请求数，超过此速率的请求将被限流',
+      quotaCapacityPlaceholder: '留空使用系统默认',
+      quotaCapacitySuffix: '次',
+      quotaCapacityTip: '允许短时间内的最大并发请求数，用于应对瞬时流量高峰'
     }
   },
   scope: {
