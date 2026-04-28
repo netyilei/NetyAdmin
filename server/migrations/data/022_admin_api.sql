@@ -26,9 +26,6 @@ DECLARE
         scope_menu_id BIGINT;
         open_log_menu_id BIGINT;
         msg_tpl_menu_id BIGINT;
-        msg_sms_menu_id BIGINT;
-        msg_email_menu_id BIGINT;
-        msg_internal_menu_id BIGINT;
         msg_log_menu_id BIGINT;
     BEGIN
         SELECT id INTO admin_menu_id FROM admin_menu WHERE route_name = 'manage_admin' AND deleted_at = 0;
@@ -54,9 +51,6 @@ DECLARE
         SELECT id INTO scope_menu_id FROM admin_menu WHERE route_name = 'open-platform_scopes' AND deleted_at = 0;
         SELECT id INTO open_log_menu_id FROM admin_menu WHERE route_name = 'ops_open-platform-log' AND deleted_at = 0;
         SELECT id INTO msg_tpl_menu_id FROM admin_menu WHERE route_name = 'settings_message-template' AND deleted_at = 0;
-        SELECT id INTO msg_sms_menu_id FROM admin_menu WHERE route_name = 'message_send-sms' AND deleted_at = 0;
-        SELECT id INTO msg_email_menu_id FROM admin_menu WHERE route_name = 'message_send-email' AND deleted_at = 0;
-        SELECT id INTO msg_internal_menu_id FROM admin_menu WHERE route_name = 'message_send-internal' AND deleted_at = 0;
         SELECT id INTO msg_log_menu_id FROM admin_menu WHERE route_name = 'ops_message-log' AND deleted_at = 0;
 
         -- 管理员管理API
@@ -128,7 +122,9 @@ DECLARE
             INSERT INTO admin_api (menu_id, name, method, path, description, auth, created_at, updated_at)
             VALUES 
             (button_menu_id, '获取按钮列表', 'GET', '/admin/v1/systemManage/getButtonList', '获取按钮列表', '1', NOW(), NOW()),
-            (button_menu_id, '添加按钮', 'POST', '/admin/v1/systemManage/addButton', '添加按钮', '1', NOW(), NOW()),
+            (button_menu_id, '获取所有按钮', 'GET', '/admin/v1/systemManage/getAllButton', '获取所有按钮', '1', NOW(), NOW()),
+            (button_menu_id, '获取按钮详情', 'GET', '/admin/v1/systemManage/getButton/:id', '获取按钮详情', '1', NOW(), NOW()),
+            (button_menu_id, '创建按钮', 'POST', '/admin/v1/systemManage/createButton', '创建按钮', '1', NOW(), NOW()),
             (button_menu_id, '更新按钮', 'PUT', '/admin/v1/systemManage/updateButton', '更新按钮', '1', NOW(), NOW()),
             (button_menu_id, '删除按钮', 'DELETE', '/admin/v1/systemManage/deleteButton', '删除按钮', '1', NOW(), NOW())
             ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
@@ -139,9 +135,11 @@ DECLARE
             INSERT INTO admin_api (menu_id, name, method, path, description, auth, created_at, updated_at)
             VALUES 
             (api_menu_id, '获取API列表', 'GET', '/admin/v1/systemManage/getApiList', '获取API列表', '1', NOW(), NOW()),
-            (api_menu_id, '添加API', 'POST', '/admin/v1/systemManage/addApi', '添加API', '1', NOW(), NOW()),
+            (api_menu_id, '获取所有API', 'GET', '/admin/v1/systemManage/getAllApi', '获取所有API', '1', NOW(), NOW()),
+            (api_menu_id, '获取API详情', 'GET', '/admin/v1/systemManage/getApi/:id', '获取API详情', '1', NOW(), NOW()),
+            (api_menu_id, '创建API', 'POST', '/admin/v1/systemManage/createApi', '创建API', '1', NOW(), NOW()),
             (api_menu_id, '更新API', 'PUT', '/admin/v1/systemManage/updateApi', '更新API', '1', NOW(), NOW()),
-            (api_menu_id, '删除API', 'DELETE', '/admin/v1/systemManage/deleteApi', '删除API', '1', NOW(), NOW())
+            (api_menu_id, '删除API', 'DELETE', '/admin/v1/systemManage/deleteApi/:id', '删除API', '1', NOW(), NOW())
             ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
         END IF;
 
@@ -184,7 +182,8 @@ DECLARE
         INSERT INTO admin_api (menu_id, name, method, path, description, auth, created_at, updated_at)
         VALUES 
         (config_menu_id, '查询系统配置列表', 'GET', '/admin/v1/system/configs', '查询系统配置列表', '1', NOW(), NOW()),
-        (config_menu_id, '修改系统配置及热更新', 'PUT', '/admin/v1/system/configs', '修改系统配置及热更新', '1', NOW(), NOW())
+        (config_menu_id, '修改系统配置及热更新', 'PUT', '/admin/v1/system/configs', '修改系统配置及热更新', '1', NOW(), NOW()),
+        (config_menu_id, '测试邮件发送', 'POST', '/admin/v1/system/test-email', '测试邮件发送', '1', NOW(), NOW())
         ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
@@ -211,7 +210,7 @@ DECLARE
         (ipac_menu_id, '获取 IP 规则列表', 'GET', '/admin/v1/open-platform/ip-access', '获取 IP 规则列表', '1', NOW(), NOW()),
         (ipac_menu_id, '新增 IP 规则', 'POST', '/admin/v1/open-platform/ip-access', '新增 IP 规则', '1', NOW(), NOW()),
         (ipac_menu_id, '修改 IP 规则', 'PUT', '/admin/v1/open-platform/ip-access', '修改 IP 规则', '1', NOW(), NOW()),
-        (ipac_menu_id, '删除 IP 规则', 'DELETE', '/admin/v1/open-platform/ip-access', '删除 IP 规则', '1', NOW(), NOW()),
+        (ipac_menu_id, '删除 IP 规则', 'DELETE', '/admin/v1/open-platform/ip-access/:id', '删除 IP 规则', '1', NOW(), NOW()),
         (ipac_menu_id, '批量删除规则', 'DELETE', '/admin/v1/open-platform/ip-access/batch', '批量删除规则', '1', NOW(), NOW())
         ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
@@ -224,7 +223,7 @@ DECLARE
         (category_menu_id, '获取分类树', 'GET', '/admin/v1/content/categories/tree', '获取分类树', '1', NOW(), NOW()),
         (category_menu_id, '获取分类详情', 'GET', '/admin/v1/content/categories/:id', '获取分类详情', '1', NOW(), NOW()),
         (category_menu_id, '创建分类', 'POST', '/admin/v1/content/categories', '创建分类', '1', NOW(), NOW()),
-        (category_menu_id, '更新分类', 'PUT', '/admin/v1/content/categories', '更新分类', '1', NOW(), NOW()),
+        (category_menu_id, '更新分类', 'PUT', '/admin/v1/content/categories/:id', '更新分类', '1', NOW(), NOW()),
         (category_menu_id, '删除分类', 'DELETE', '/admin/v1/content/categories/:id', '删除分类', '1', NOW(), NOW())
         ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
@@ -236,7 +235,7 @@ DECLARE
         (article_menu_id, '获取文章列表', 'GET', '/admin/v1/content/articles', '获取文章列表', '1', NOW(), NOW()),
         (article_menu_id, '获取文章详情', 'GET', '/admin/v1/content/articles/:id', '获取文章详情', '1', NOW(), NOW()),
         (article_menu_id, '创建文章', 'POST', '/admin/v1/content/articles', '创建文章', '1', NOW(), NOW()),
-        (article_menu_id, '更新文章', 'PUT', '/admin/v1/content/articles', '更新文章', '1', NOW(), NOW()),
+        (article_menu_id, '更新文章', 'PUT', '/admin/v1/content/articles/:id', '更新文章', '1', NOW(), NOW()),
         (article_menu_id, '删除文章', 'DELETE', '/admin/v1/content/articles/:id', '删除文章', '1', NOW(), NOW()),
         (article_menu_id, '发布文章', 'PUT', '/admin/v1/content/articles/:id/publish', '发布文章', '1', NOW(), NOW()),
         (article_menu_id, '下架文章', 'PUT', '/admin/v1/content/articles/:id/unpublish', '下架文章', '1', NOW(), NOW()),
@@ -251,7 +250,7 @@ DECLARE
         (banner_group_menu_id, '获取Banner组列表', 'GET', '/admin/v1/content/banner-groups', '获取Banner组列表', '1', NOW(), NOW()),
         (banner_group_menu_id, '获取Banner组详情', 'GET', '/admin/v1/content/banner-groups/:id', '获取Banner组详情', '1', NOW(), NOW()),
         (banner_group_menu_id, '创建Banner组', 'POST', '/admin/v1/content/banner-groups', '创建Banner组', '1', NOW(), NOW()),
-        (banner_group_menu_id, '更新Banner组', 'PUT', '/admin/v1/content/banner-groups', '更新Banner组', '1', NOW(), NOW()),
+        (banner_group_menu_id, '更新Banner组', 'PUT', '/admin/v1/content/banner-groups/:id', '更新Banner组', '1', NOW(), NOW()),
         (banner_group_menu_id, '删除Banner组', 'DELETE', '/admin/v1/content/banner-groups/:id', '删除Banner组', '1', NOW(), NOW())
         ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
@@ -262,7 +261,7 @@ DECLARE
         (banner_item_menu_id, '获取Banner项列表', 'GET', '/admin/v1/content/banner-items', '获取Banner项列表', '1', NOW(), NOW()),
         (banner_item_menu_id, '获取Banner项详情', 'GET', '/admin/v1/content/banner-items/:id', '获取Banner项详情', '1', NOW(), NOW()),
         (banner_item_menu_id, '创建Banner项', 'POST', '/admin/v1/content/banner-items', '创建Banner项', '1', NOW(), NOW()),
-        (banner_item_menu_id, '更新Banner项', 'PUT', '/admin/v1/content/banner-items', '更新Banner项', '1', NOW(), NOW()),
+        (banner_item_menu_id, '更新Banner项', 'PUT', '/admin/v1/content/banner-items/:id', '更新Banner项', '1', NOW(), NOW()),
         (banner_item_menu_id, '删除Banner项', 'DELETE', '/admin/v1/content/banner-items/:id', '删除Banner项', '1', NOW(), NOW())
         ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
@@ -350,33 +349,17 @@ DECLARE
         (msg_tpl_menu_id, '获取模板列表', 'GET', '/admin/v1/message/templates', '获取消息模板列表', '1', NOW(), NOW()),
         (msg_tpl_menu_id, '新增模板', 'POST', '/admin/v1/message/templates', '新增消息模板', '1', NOW(), NOW()),
         (msg_tpl_menu_id, '更新模板', 'PUT', '/admin/v1/message/templates', '更新消息模板', '1', NOW(), NOW()),
-        (msg_tpl_menu_id, '删除模板', 'DELETE', '/admin/v1/message/templates/:id', '删除消息模板', '1', NOW(), NOW())
-        ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
-    END IF;
-
-    IF msg_sms_menu_id IS NOT NULL THEN
-        INSERT INTO admin_api (menu_id, name, method, path, description, auth, created_at, updated_at)
-        VALUES (msg_sms_menu_id, '发送短信', 'POST', '/admin/v1/message/send-sms', '发送短信通知', '1', NOW(), NOW())
-        ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
-    END IF;
-
-    IF msg_email_menu_id IS NOT NULL THEN
-        INSERT INTO admin_api (menu_id, name, method, path, description, auth, created_at, updated_at)
-        VALUES (msg_email_menu_id, '发送邮件', 'POST', '/admin/v1/message/send-email', '发送邮件通知', '1', NOW(), NOW())
-        ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
-    END IF;
-
-    IF msg_internal_menu_id IS NOT NULL THEN
-        INSERT INTO admin_api (menu_id, name, method, path, description, auth, created_at, updated_at)
-        VALUES (msg_internal_menu_id, '发送站内信', 'POST', '/admin/v1/message/send-internal', '发送系统站内信', '1', NOW(), NOW())
+        (msg_tpl_menu_id, '删除模板', 'DELETE', '/admin/v1/message/templates/:id', '删除消息模板', '1', NOW(), NOW()),
+        (msg_tpl_menu_id, '获取发送记录', 'GET', '/admin/v1/message/records', '获取消息发送历史记录', '1', NOW(), NOW()),
+        (msg_tpl_menu_id, '重试发送', 'POST', '/admin/v1/message/records/:id/retry', '重试发送消息', '1', NOW(), NOW()),
+        (msg_tpl_menu_id, '直接发送消息', 'POST', '/admin/v1/message/send', '直接发送消息', '1', NOW(), NOW())
         ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
     IF msg_log_menu_id IS NOT NULL THEN
         INSERT INTO admin_api (menu_id, name, method, path, description, auth, created_at, updated_at)
         VALUES 
-        (msg_log_menu_id, '获取发送记录', 'GET', '/admin/v1/message/records', '获取消息发送历史记录', '1', NOW(), NOW()),
-        (msg_log_menu_id, '删除发送记录', 'DELETE', '/admin/v1/message/records/:id', '删除单条发送记录', '1', NOW(), NOW())
+        (msg_log_menu_id, '获取发送记录', 'GET', '/admin/v1/message/records', '获取消息发送历史记录', '1', NOW(), NOW())
         ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 
