@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS admin_error_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_admin_error_log_deleted ON admin_error_log(deleted_at);
-CREATE INDEX IF NOT EXISTS idx_admin_error_log_hash ON admin_error_log(hash) WHERE deleted_at = 0;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_error_log_hash ON admin_error_log(hash) WHERE deleted_at = 0;
 CREATE INDEX IF NOT EXISTS idx_admin_error_log_group_id ON admin_error_log(group_id);
 
 COMMIT;

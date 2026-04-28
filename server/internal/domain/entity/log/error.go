@@ -17,7 +17,7 @@ type Error struct {
 	AdminID         uint      `gorm:"column:admin_id;comment:管理员ID" json:"adminId"`
 	IP              string    `gorm:"column:ip;size:50;comment:IP地址" json:"ip"`
 	UserAgent       string    `gorm:"column:user_agent;size:500;comment:User-Agent" json:"userAgent"`
-	Hash            string    `gorm:"column:hash;size:64;index;comment:错误指纹" json:"hash"`
+	Hash            string    `gorm:"column:hash;size:64;uniqueIndex;comment:错误指纹" json:"hash"`
 	GroupID         int64     `gorm:"column:group_id;default:0;comment:分组ID" json:"groupId"`
 	OccurrenceCount int64     `gorm:"column:occurrence_count;default:1;comment:发生次数" json:"occurrenceCount"`
 	LastOccurredAt  time.Time `gorm:"column:last_occurred_at;comment:最后发生时间" json:"lastOccurredAt"`
