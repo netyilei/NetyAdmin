@@ -6,6 +6,7 @@ const openPlatform = {
     appSecret: 'AppSecret',
     status: '状态',
     ipFilterEnabled: 'IP 过滤',
+    rateLimitEnabled: '限流开关',
     ipRules: 'IP 规则',
     remark: '备注',
     time: '创建时间',
@@ -17,6 +18,7 @@ const openPlatform = {
     quotaRate: '每秒请求数',
     quotaCapacity: '突发上限',
     quotaDefault: '默认',
+    cacheTTL: '缓存有效期',
     resetSecret: '重置密钥',
     confirmResetSecret: '确定重置该应用的 AppSecret 吗？重置后旧密钥将立即失效！',
     resetSecretSuccess: '密钥重置成功，请妥善保管新密钥：',
@@ -35,7 +37,10 @@ const openPlatform = {
       quotaRateTip: '该应用每秒允许处理的最大请求数，超过此速率的请求将被限流',
       quotaCapacityPlaceholder: '留空使用系统默认',
       quotaCapacitySuffix: '次',
-      quotaCapacityTip: '允许短时间内的最大并发请求数，用于应对瞬时流量高峰'
+      quotaCapacityTip: '允许短时间内的最大并发请求数，用于应对瞬时流量高峰',
+      cacheTTLPlaceholder: '0 使用系统默认',
+      cacheTTLSuffix: '秒',
+      cacheTTLTip: '该应用缓存数据的过期时间，设为 0 则使用系统默认值（local_ttl_min）'
     }
   },
   scope: {

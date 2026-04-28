@@ -26,23 +26,35 @@ var (
 )
 
 type LazyCacheManager interface {
-	// Fetch 具有透明缓存能力的获取方法。
-	// 按照 L1 (Local) -> L2 (Redis) -> Loader (DB) 的顺序获取。
-	// 如果命中 L2，会自动回填 L1。如果执行 Loader，会自动回填 L1 和 L2。
+	// Fetch 模式B（标准模式）：L2 (Redis) → L3 (DB 回源)
+	// 如果 L1 全局开启，则走 L1+L2 chain 读取，但 L2 命中时不会回填 L1
+	// 需要自动回填 L1 请使用 FetchFast（模式A）
 	Fetch(ctx context.Context, key string, moduleName string, tags []string, ttl time.Duration, v interface{}, loader func() (interface{}, error)) error
+
+	// FetchFast 模式A（极速模式）：L1 (BigCache) → L2 (Redis) → L3 (DB 回源)
+	// L1 关闭时自动降级为模式B（纯 L2）
+	// 失效统一走 InvalidateByTags
+	FetchFast(ctx context.Context, key string, moduleName string, tags []string, ttl time.Duration, v interface{}, loader func() (interface{}, error)) error
 
 	// InvalidateByTags 根据标签批量失效所有关联 Key (如果是集群模式，会通过 Redis Pub/Sub 同步失效)
 	InvalidateByTags(ctx context.Context, tags ...string) error
 
-	// Set 强制写入一个缓存项，带过期时间
+	// Set 强制写入一个缓存项（模式B），带过期时间
 	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
-	// SetNX 仅在 Key 不存在时写入 (原子操作)
+	// SetFast 强制写入 L1+L2（模式A），带过期时间和 tags
+	SetFast(ctx context.Context, key string, value interface{}, tags []string, ttl time.Duration) error
+	// SetNX 仅在 Key 不存在时写入 (原子操作，模式B)
 	SetNX(ctx context.Context, key string, value interface{}, ttl time.Duration) (bool, error)
-	// Get 直接读取一个缓存项
+	// Get 直接读取一个缓存项（模式B）
 	Get(ctx context.Context, key string, v interface{}) error
-	// Delete 删除一个缓存项
+	// GetFast 强制读取 L1→L2（模式A），L2 命中回填 L1 时带 tags
+	// ttl 用于 L1 回填的过期时间，与 L2 一致
+	GetFast(ctx context.Context, key string, tags []string, ttl time.Duration, v interface{}) error
+	// Delete 删除一个缓存项（模式B）
 	Delete(ctx context.Context, key string) error
-	// Exists 判断一个缓存项是否存在
+	// DeleteFast 强制删除 L1+L2（模式A）
+	DeleteFast(ctx context.Context, key string) error
+	// Exists 判断一个缓存项是否存在（模式B）
 	Exists(ctx context.Context, key string) (bool, error)
 
 	// InvalidateL1ByTags 仅失效本地 L1 缓存（由 PubSubBus 订阅者调用，避免递归）
@@ -53,6 +65,9 @@ type LazyCacheManager interface {
 
 	// RateLimit 限流校验
 	RateLimit(ctx context.Context, key string, rate int, capacity int) (bool, error)
+
+	// GetRedisClient 获取底层 Redis 客户端
+	GetRedisClient() *redis.Client
 }
 
 type SwitchChecker interface {
@@ -62,6 +77,7 @@ type SwitchChecker interface {
 type lazyCacheManager struct {
 	cacheManager cache.CacheInterface[any]
 	l1Cache      *cache.Cache[any]
+	l1Enabled    bool
 	switches     SwitchChecker
 	prefix       string
 	redisClient  *redis.Client
@@ -110,24 +126,25 @@ func NewLazyCacheManager(cfg *config.RedisConfig, redisClient *redis.Client, che
 	var cacheMgr cache.CacheInterface[any]
 	var l1Cache *cache.Cache[any]
 
+	l1Cache = cache.New[any](l1Store)
+
 	if cfg.Enabled && redisClient != nil {
 		l2Store := redisStore.NewRedis(redisClient)
 		l2Cache := cache.New[any](l2Store)
 
 		if cfg.L1Enabled {
-			l1Cache = cache.New[any](l1Store)
 			cacheMgr = cache.NewChain[any](l1Cache, l2Cache)
 		} else {
 			cacheMgr = l2Cache
 		}
 	} else {
-		l1Cache = cache.New[any](l1Store)
 		cacheMgr = l1Cache
 	}
 
 	mgr := &lazyCacheManager{
 		cacheManager:  cacheMgr,
 		l1Cache:       l1Cache,
+		l1Enabled:     cfg.L1Enabled,
 		switches:      checker,
 		prefix:        cfg.Prefix,
 		redisClient:   redisClient,
@@ -340,6 +357,160 @@ func (m *lazyCacheManager) isNil(i interface{}) bool {
 	default:
 		return false
 	}
+}
+
+func (m *lazyCacheManager) FetchFast(ctx context.Context, key string, moduleName string, tags []string, ttl time.Duration, v interface{}, loader func() (interface{}, error)) error {
+	if !m.l1Enabled {
+		return m.Fetch(ctx, key, moduleName, tags, ttl, v, loader)
+	}
+
+	fullKey := m.buildKey(key)
+
+	if !m.switches.IsCacheEnabled(moduleName) {
+		val, err := loader()
+		if err != nil {
+			return err
+		}
+		return m.assign(val, v)
+	}
+
+	if m.l1Cache != nil {
+		data, err := m.l1Cache.Get(ctx, fullKey)
+		if err == nil {
+			if raw, ok := data.([]byte); ok && len(raw) > 0 {
+				if err := m.unmarshal(raw, v); err == nil {
+					return nil
+				}
+			}
+		}
+	}
+
+	if m.redisClient != nil {
+		data, err := m.redisClient.Get(ctx, fullKey).Bytes()
+		if err == nil && len(data) > 0 {
+			if err := m.unmarshal(data, v); err == nil {
+				if m.l1Cache != nil {
+					backfillOpts := []store.Option{store.WithExpiration(ttl)}
+					if len(tags) > 0 {
+						backfillOpts = append(backfillOpts, store.WithTags(tags))
+					}
+					_ = m.l1Cache.Set(ctx, fullKey, data, backfillOpts...)
+				}
+				return nil
+			}
+		}
+	}
+
+	val, err := loader()
+	if err != nil {
+		return err
+	}
+
+	if !m.isNil(val) {
+		dataToCache, err := m.marshal(val)
+		if err == nil {
+			options := []store.Option{
+				store.WithExpiration(ttl),
+			}
+			if len(tags) > 0 {
+				options = append(options, store.WithTags(tags))
+			}
+			_ = m.cacheManager.Set(ctx, fullKey, dataToCache, options...)
+		}
+	}
+
+	return m.assign(val, v)
+}
+
+func (m *lazyCacheManager) SetFast(ctx context.Context, key string, value interface{}, tags []string, ttl time.Duration) error {
+	fullKey := m.buildKey(key)
+	data, err := m.marshal(value)
+	if err != nil {
+		return err
+	}
+
+	options := []store.Option{store.WithExpiration(ttl)}
+	if len(tags) > 0 {
+		options = append(options, store.WithTags(tags))
+	}
+
+	if !m.l1Enabled {
+		return m.cacheManager.Set(ctx, fullKey, data, options...)
+	}
+
+	if m.redisClient != nil {
+		l2Cache := cache.New[any](redisStore.NewRedis(m.redisClient))
+		_ = l2Cache.Set(ctx, fullKey, data, options...)
+	}
+
+	if m.l1Cache != nil {
+		l1Opts := []store.Option{store.WithExpiration(ttl)}
+		if len(tags) > 0 {
+			l1Opts = append(l1Opts, store.WithTags(tags))
+		}
+		_ = m.l1Cache.Set(ctx, fullKey, data, l1Opts...)
+	}
+
+	return nil
+}
+
+func (m *lazyCacheManager) GetFast(ctx context.Context, key string, tags []string, ttl time.Duration, v interface{}) error {
+	if !m.l1Enabled {
+		return m.Get(ctx, key, v)
+	}
+
+	fullKey := m.buildKey(key)
+
+	if m.l1Cache != nil {
+		data, err := m.l1Cache.Get(ctx, fullKey)
+		if err == nil {
+			if raw, ok := data.([]byte); ok && len(raw) > 0 {
+				if err := m.unmarshal(raw, v); err == nil {
+					return nil
+				}
+			}
+		}
+	}
+
+	if m.redisClient != nil {
+		data, err := m.redisClient.Get(ctx, fullKey).Bytes()
+		if err == nil && len(data) > 0 {
+			if err := m.unmarshal(data, v); err == nil {
+				if m.l1Cache != nil {
+					backfillOpts := []store.Option{store.WithExpiration(ttl)}
+					if len(tags) > 0 {
+						backfillOpts = append(backfillOpts, store.WithTags(tags))
+					}
+					_ = m.l1Cache.Set(ctx, fullKey, data, backfillOpts...)
+				}
+				return nil
+			}
+		}
+	}
+
+	return fmt.Errorf("cache miss for key: %s", fullKey)
+}
+
+func (m *lazyCacheManager) DeleteFast(ctx context.Context, key string) error {
+	if !m.l1Enabled {
+		return m.Delete(ctx, key)
+	}
+
+	fullKey := m.buildKey(key)
+
+	if m.l1Cache != nil {
+		_ = m.l1Cache.Delete(ctx, fullKey)
+	}
+
+	if m.redisClient != nil {
+		_ = m.redisClient.Del(ctx, fullKey)
+	}
+
+	return nil
+}
+
+func (m *lazyCacheManager) GetRedisClient() *redis.Client {
+	return m.redisClient
 }
 
 func (m *lazyCacheManager) InvalidateByTags(ctx context.Context, tags ...string) error {

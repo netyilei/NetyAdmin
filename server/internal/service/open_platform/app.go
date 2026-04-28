@@ -53,9 +53,10 @@ type appService struct {
 	ipacRepo      ipacRepoPkg.IPACRepository
 	storageMgr    *storage.Manager
 	configWatcher configsync.ConfigWatcher
+	localTTLMin   int
 }
 
-func NewAppService(repo openRepo.AppRepository, cacheMgr cache.LazyCacheManager, aesKey string, ipacSvc ipacSvcPkg.IPACService, ipacRepo ipacRepoPkg.IPACRepository, storageMgr *storage.Manager, configWatcher configsync.ConfigWatcher) AppService {
+func NewAppService(repo openRepo.AppRepository, cacheMgr cache.LazyCacheManager, aesKey string, ipacSvc ipacSvcPkg.IPACService, ipacRepo ipacRepoPkg.IPACRepository, storageMgr *storage.Manager, configWatcher configsync.ConfigWatcher, localTTLMin int) AppService {
 	return &appService{
 		repo:          repo,
 		cacheMgr:      cacheMgr,
@@ -64,20 +65,29 @@ func NewAppService(repo openRepo.AppRepository, cacheMgr cache.LazyCacheManager,
 		ipacRepo:      ipacRepo,
 		storageMgr:    storageMgr,
 		configWatcher: configWatcher,
+		localTTLMin:   localTTLMin,
 	}
 }
 
 func (s *appService) GetAppByKey(ctx context.Context, appKey string) (*open_platform.App, error) {
-	// 尝试从缓存获取
 	var app open_platform.App
 	key := cache.KeyAppInfo(appKey)
-	err := s.cacheMgr.Fetch(ctx, key, cache.TagApp, []string{cache.TagApp, cache.TagAppKey(appKey)}, 3600*time.Second, &app, func() (interface{}, error) {
+	ttl := s.getAppCacheTTL(0)
+	err := s.cacheMgr.FetchFast(ctx, key, cache.TagApp, []string{cache.TagApp, cache.TagAppKey(appKey)}, ttl, &app, func() (interface{}, error) {
 		return s.repo.GetByKey(ctx, appKey)
 	})
 
 	if err != nil {
 		return nil, err
 	}
+
+	if app.CacheTTL > 0 {
+		appTTL := time.Duration(app.CacheTTL) * time.Second
+		if appTTL != ttl {
+			_ = s.cacheMgr.SetFast(ctx, key, app, []string{cache.TagApp, cache.TagAppKey(appKey)}, appTTL)
+		}
+	}
+
 	return &app, nil
 }
 
@@ -96,7 +106,8 @@ func (s *appService) VerifyAppScope(ctx context.Context, appID string, requiredS
 
 	var scopes []string
 	key := cache.KeyAppScopes(appID)
-	err := s.cacheMgr.Fetch(ctx, key, cache.TagApp, []string{cache.TagApp, cache.TagAppID(appID)}, 3600*time.Second, &scopes, func() (interface{}, error) {
+	ttl := s.getAppCacheTTL(0)
+	err := s.cacheMgr.FetchFast(ctx, key, cache.TagApp, []string{cache.TagApp, cache.TagAppID(appID)}, ttl, &scopes, func() (interface{}, error) {
 		return s.repo.GetAppScopes(ctx, appID)
 	})
 
@@ -113,6 +124,10 @@ func (s *appService) VerifyAppScope(ctx context.Context, appID string, requiredS
 }
 
 func (s *appService) AllowRequest(ctx context.Context, app *open_platform.App) (bool, error) {
+	if !app.RateLimitEnabled {
+		return true, nil
+	}
+
 	rate := s.getDefaultRate()
 	capacity := s.getDefaultCapacity()
 
@@ -154,6 +169,13 @@ func (s *appService) getDefaultCapacity() int {
 		return 200
 	}
 	return n
+}
+
+func (s *appService) getAppCacheTTL(appCacheTTL int) time.Duration {
+	if appCacheTTL > 0 {
+		return time.Duration(appCacheTTL) * time.Second
+	}
+	return time.Duration(s.localTTLMin) * time.Minute
 }
 
 func (s *appService) GetCacheMgr() cache.LazyCacheManager {
@@ -274,7 +296,7 @@ func (s *appService) ListAvailableScopes(ctx context.Context) ([]map[string]stri
 	// 从数据库动态加载，支持 i18n key，结合缓存模块
 	var groups []*open_platform.AppScopeGroup
 	key := cache.KeyAppAvailableScopes()
-	err := s.cacheMgr.Fetch(ctx, key, cache.TagApp, []string{cache.TagApp, "app_scopes"}, 3600*time.Second, &groups, func() (interface{}, error) {
+	err := s.cacheMgr.Fetch(ctx, key, cache.TagApp, []string{cache.TagApp, "app_scopes"}, s.getAppCacheTTL(0), &groups, func() (interface{}, error) {
 		// 仅返回启用的分组
 		allGroups, err := s.repo.ListScopeGroups(ctx)
 		if err != nil {

@@ -26,18 +26,20 @@ type OpenApiService interface {
 }
 
 type openApiService struct {
-	apiRepo   openRepo.OpenApiRepository
-	appRepo   openRepo.AppRepository
-	scopeRepo openRepo.AppRepository
-	cacheMgr  cache.LazyCacheManager
+	apiRepo     openRepo.OpenApiRepository
+	appRepo     openRepo.AppRepository
+	scopeRepo   openRepo.AppRepository
+	cacheMgr    cache.LazyCacheManager
+	localTTLMin int
 }
 
-func NewOpenApiService(apiRepo openRepo.OpenApiRepository, appRepo openRepo.AppRepository, scopeRepo openRepo.AppRepository, cacheMgr cache.LazyCacheManager) OpenApiService {
+func NewOpenApiService(apiRepo openRepo.OpenApiRepository, appRepo openRepo.AppRepository, scopeRepo openRepo.AppRepository, cacheMgr cache.LazyCacheManager, localTTLMin int) OpenApiService {
 	return &openApiService{
-		apiRepo:   apiRepo,
-		appRepo:   appRepo,
-		scopeRepo: scopeRepo,
-		cacheMgr:  cacheMgr,
+		apiRepo:     apiRepo,
+		appRepo:     appRepo,
+		scopeRepo:   scopeRepo,
+		cacheMgr:    cacheMgr,
+		localTTLMin: localTTLMin,
 	}
 }
 
@@ -84,7 +86,7 @@ func (s *openApiService) ListApis(ctx context.Context, query *openRepo.OpenApiRe
 func (s *openApiService) ListAllApis(ctx context.Context) ([]*open_platform.OpenApi, error) {
 	var list []*open_platform.OpenApi
 	key := cache.KeyOpenApiAll()
-	err := s.cacheMgr.Fetch(ctx, key, cache.TagOpenApi, []string{cache.TagOpenApi}, 3600*time.Second, &list, func() (interface{}, error) {
+	err := s.cacheMgr.Fetch(ctx, key, cache.TagOpenApi, []string{cache.TagOpenApi}, s.getDefaultCacheTTL(), &list, func() (interface{}, error) {
 		return s.apiRepo.ListAll(ctx)
 	})
 	return list, err
@@ -93,7 +95,7 @@ func (s *openApiService) ListAllApis(ctx context.Context) ([]*open_platform.Open
 func (s *openApiService) ListGroupedApis(ctx context.Context) (interface{}, error) {
 	var result []map[string]interface{}
 	key := cache.KeyOpenApiGrouped()
-	err := s.cacheMgr.Fetch(ctx, key, cache.TagOpenApi, []string{cache.TagOpenApi}, 3600*time.Second, &result, func() (interface{}, error) {
+	err := s.cacheMgr.Fetch(ctx, key, cache.TagOpenApi, []string{cache.TagOpenApi}, s.getDefaultCacheTTL(), &result, func() (interface{}, error) {
 		apis, err := s.apiRepo.ListAll(ctx)
 		if err != nil {
 			return nil, err
@@ -147,7 +149,8 @@ func (s *openApiService) GetApisByScopeIDs(ctx context.Context, scopeIDs []uint6
 func (s *openApiService) GetAppAllowedApis(ctx context.Context, appID string) ([]string, error) {
 	var apiKeys []string
 	key := cache.KeyAppApis(appID)
-	err := s.cacheMgr.Fetch(ctx, key, cache.TagApp, []string{cache.TagApp, cache.TagAppID(appID)}, 3600*time.Second, &apiKeys, func() (interface{}, error) {
+	ttl := s.getDefaultCacheTTL()
+	err := s.cacheMgr.FetchFast(ctx, key, cache.TagApp, []string{cache.TagApp, cache.TagAppID(appID)}, ttl, &apiKeys, func() (interface{}, error) {
 		scopes, err := s.appRepo.GetAppScopes(ctx, appID)
 		if err != nil {
 			return nil, err
@@ -183,4 +186,8 @@ func (s *openApiService) GetAppAllowedApis(ctx context.Context, appID string) ([
 		return result, nil
 	})
 	return apiKeys, err
+}
+
+func (s *openApiService) getDefaultCacheTTL() time.Duration {
+	return time.Duration(s.localTTLMin) * time.Minute
 }

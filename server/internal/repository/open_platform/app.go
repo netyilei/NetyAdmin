@@ -55,13 +55,15 @@ func (r *appRepository) Update(ctx context.Context, app *open_platform.App) erro
 		Model(&open_platform.App{}).
 		Where("id = ?", app.ID).
 		Updates(map[string]any{
-			"name":              app.Name,
-			"status":            app.Status,
-			"ip_filter_enabled": app.IPFilterEnabled,
-			"remark":            app.Remark,
-			"app_secret":        app.AppSecret,
-			"quota_config":      app.QuotaConfig,
-			"storage_id":        app.StorageID,
+			"name":               app.Name,
+			"status":             app.Status,
+			"ip_filter_enabled":  app.IPFilterEnabled,
+			"rate_limit_enabled": app.RateLimitEnabled,
+			"remark":             app.Remark,
+			"app_secret":         app.AppSecret,
+			"quota_config":       app.QuotaConfig,
+			"cache_ttl":          app.CacheTTL,
+			"storage_id":         app.StorageID,
 		}).Error
 }
 

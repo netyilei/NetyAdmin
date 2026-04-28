@@ -5,7 +5,9 @@ export namespace OpenApp {
     name: string;
     status: 0 | 1;
     ipFilterEnabled: boolean;
+    rateLimitEnabled: boolean;
     quotaConfig: string;
+    cacheTTL: number;
     remark: string;
     storageId: number;
     createdAt: string;
@@ -28,8 +30,10 @@ export namespace OpenApp {
     name: string;
     status: number;
     ipFilterEnabled: boolean;
+    rateLimitEnabled: boolean;
     remark?: string;
     quotaConfig?: string;
+    cacheTTL?: number;
     storageId?: number;
     scopes?: string[];
   }
@@ -39,8 +43,10 @@ export namespace OpenApp {
     name: string;
     status: number;
     ipFilterEnabled: boolean;
+    rateLimitEnabled: boolean;
     remark?: string;
     quotaConfig?: string;
+    cacheTTL?: number;
     storageId?: number;
     scopes?: string[];
   }

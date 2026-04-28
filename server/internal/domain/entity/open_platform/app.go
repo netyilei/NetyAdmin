@@ -33,8 +33,10 @@ type App struct {
 	Name            string                `gorm:"size:100;not null" json:"name"`
 	Status          int                   `gorm:"default:1;index" json:"status"`        // 1: Enabled, 0: Disabled
 	IPStrategy      int                   `gorm:"default:1" json:"ipStrategy"`          // 1: Blacklist, 2: Whitelist
-	IPFilterEnabled bool                  `gorm:"default:false" json:"ipFilterEnabled"` // 是否启用 IP 过滤
-	QuotaConfig     string                `gorm:"type:jsonb" json:"quotaConfig"`
+	IPFilterEnabled   bool                  `gorm:"default:false" json:"ipFilterEnabled"`    // 是否启用 IP 过滤
+	RateLimitEnabled  bool                  `gorm:"default:true" json:"rateLimitEnabled"`    // 是否启用限流
+	QuotaConfig       string                `gorm:"type:jsonb" json:"quotaConfig"`
+	CacheTTL          int                   `gorm:"default:0;comment:缓存TTL(秒),0使用系统默认" json:"cacheTTL"`
 	Remark          string                `gorm:"size:255" json:"remark"`
 	StorageID       uint                  `gorm:"default:0;comment:绑定的存储配置ID" json:"storageId"`
 	CreatedAt       time.Time             `json:"createdAt"`

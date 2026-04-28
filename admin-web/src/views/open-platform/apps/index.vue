@@ -60,6 +60,17 @@ const {
       )
     } as any,
     {
+      key: 'rateLimitEnabled',
+      title: $t('page.openPlatform.app.rateLimitEnabled'),
+      align: 'center',
+      width: 120,
+      render: (row: any) => (
+        <NTag type={row.rateLimitEnabled ? 'success' : 'default'}>
+          {row.rateLimitEnabled ? $t('common.enable') : $t('common.disable')}
+        </NTag>
+      )
+    } as any,
+    {
       key: 'status',
       title: $t('page.openPlatform.app.status'),
       align: 'center',

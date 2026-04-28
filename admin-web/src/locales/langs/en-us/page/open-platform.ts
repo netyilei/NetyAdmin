@@ -6,6 +6,7 @@ const openPlatform = {
     appSecret: 'AppSecret',
     status: 'Status',
     ipFilterEnabled: 'IP Filter',
+    rateLimitEnabled: 'Rate Limit',
     ipRules: 'IP Rules',
     remark: 'Remark',
     time: 'Created At',
@@ -17,6 +18,7 @@ const openPlatform = {
     quotaRate: 'Requests/sec',
     quotaCapacity: 'Burst Limit',
     quotaDefault: 'Default',
+    cacheTTL: 'Cache TTL',
     resetSecret: 'Reset Secret',
     confirmResetSecret: 'Are you sure to reset the AppSecret? The old key will be invalidated immediately!',
     resetSecretSuccess: 'Secret reset successful. Please keep the new secret safe: ',
@@ -36,7 +38,10 @@ const openPlatform = {
       quotaRateTip: 'Maximum requests per second. Requests exceeding this rate will be throttled',
       quotaCapacityPlaceholder: 'Leave empty for system default',
       quotaCapacitySuffix: 'req',
-      quotaCapacityTip: 'Maximum concurrent requests allowed in a short burst to handle traffic spikes'
+      quotaCapacityTip: 'Maximum concurrent requests allowed in a short burst to handle traffic spikes',
+      cacheTTLPlaceholder: '0 for system default',
+      cacheTTLSuffix: 'sec',
+      cacheTTLTip: 'Cache expiration time for this app. Set to 0 to use system default (local_ttl_min)'
     }
   },
   scope: {

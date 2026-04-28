@@ -143,8 +143,10 @@ function createDefaultModel(): Model {
     name: '',
     status: 1,
     ipFilterEnabled: false,
+    rateLimitEnabled: true,
     remark: '',
     quotaConfig: '',
+    cacheTTL: 0,
     storageId: 0,
     scopes: []
   };
@@ -230,7 +232,10 @@ watch(visible, () => {
           :placeholder="$t('page.openPlatform.app.form.ipRulesPlaceholder')"
         />
       </NFormItem>
-      <NFormItem :label="$t('page.openPlatform.app.quotaConfig')" path="quotaConfig">
+      <NFormItem :label="$t('page.openPlatform.app.rateLimitEnabled')" path="rateLimitEnabled">
+        <NSwitch v-model:value="model.rateLimitEnabled" />
+      </NFormItem>
+      <NFormItem v-if="model.rateLimitEnabled" :label="$t('page.openPlatform.app.quotaConfig')" path="quotaConfig">
         <NCard size="small" :bordered="true" class="w-full">
           <NSpace vertical :size="14">
             <NFormItem
@@ -274,6 +279,20 @@ watch(visible, () => {
           </NSpace>
         </NCard>
       </NFormItem>
+      <NFormItem :label="$t('page.openPlatform.app.cacheTTL')" path="cacheTTL">
+        <NInputNumber
+          v-model:value="model.cacheTTL"
+          :min="0"
+          :max="86400"
+          :placeholder="$t('page.openPlatform.app.form.cacheTTLPlaceholder')"
+          class="w-full"
+        >
+          <template #suffix>{{ $t('page.openPlatform.app.form.cacheTTLSuffix') }}</template>
+        </NInputNumber>
+      </NFormItem>
+      <NText depth="3" class="cache-ttl-tip">
+        {{ $t('page.openPlatform.app.form.cacheTTLTip') }}
+      </NText>
       <NFormItem :label="$t('page.openPlatform.app.remark')" path="remark">
         <NInput
           v-model:value="model.remark"
@@ -311,5 +330,10 @@ watch(visible, () => {
 .quota-tip {
   font-size: 12px;
   margin-top: -8px;
+}
+.cache-ttl-tip {
+  font-size: 12px;
+  margin-top: -16px;
+  margin-left: 100px;
 }
 </style>

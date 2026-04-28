@@ -55,12 +55,14 @@ func (h *AppHandler) Create(c *gin.Context) {
 	}
 
 	app := &openEntity.App{
-		Name:            req.Name,
-		Status:          req.Status,
-		IPFilterEnabled: req.IPFilterEnabled,
-		Remark:          req.Remark,
-		QuotaConfig:     req.QuotaConfig,
-		StorageID:       req.StorageID,
+		Name:             req.Name,
+		Status:           req.Status,
+		IPFilterEnabled:  req.IPFilterEnabled,
+		RateLimitEnabled: req.RateLimitEnabled,
+		Remark:           req.Remark,
+		QuotaConfig:      req.QuotaConfig,
+		CacheTTL:         req.CacheTTL,
+		StorageID:        req.StorageID,
 	}
 
 	if err := h.svc.CreateApp(c.Request.Context(), app, req.Scopes); err != nil {
@@ -80,13 +82,15 @@ func (h *AppHandler) Update(c *gin.Context) {
 	}
 
 	app := &openEntity.App{
-		ID:              req.ID,
-		Name:            req.Name,
-		Status:          req.Status,
-		IPFilterEnabled: req.IPFilterEnabled,
-		Remark:          req.Remark,
-		QuotaConfig:     req.QuotaConfig,
-		StorageID:       req.StorageID,
+		ID:               req.ID,
+		Name:             req.Name,
+		Status:           req.Status,
+		IPFilterEnabled:  req.IPFilterEnabled,
+		RateLimitEnabled: req.RateLimitEnabled,
+		Remark:           req.Remark,
+		QuotaConfig:      req.QuotaConfig,
+		CacheTTL:         req.CacheTTL,
+		StorageID:        req.StorageID,
 	}
 
 	if err := h.svc.UpdateApp(c.Request.Context(), app, req.Scopes); err != nil {

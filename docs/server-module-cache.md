@@ -48,11 +48,20 @@ server/internal/pkg/cache/
 
 ### 3.1 引擎组合矩阵
 
-| 配置状态 | standardCache (模式B) | fastCache (模式A) | 说明 |
+缓存管理器内部维护两个核心缓存实例：
+
+| 变量 | 类型 | 说明 |
+|------|------|------|
+| `cacheManager` | `CacheInterface[any]` | 主缓存引擎，供模式B方法使用。L1 开启时为 Chain(L1, L2)，否则为 L2 |
+| `l1Cache` | `*Cache[any]` | 独立的 L1 实例，供模式A方法手动编排读写链路 |
+
+| 配置状态 | cacheManager (模式B) | FetchFast (模式A) | 说明 |
 |----------|----------------------|-------------------|------|
-| Redis开 + L1开 | L2 (Redis) | Chain(L1, L2) | **正常模式**：Fast 走 L1+L2，标准走 L2 |
-| Redis开 + L1关 | L2 (Redis) | L2 (Redis) | **L1 降级**：Fast 退化为标准模式 |
-| Redis关 | L1 (BigCache) | L1 (BigCache) | **Redis 降级**：都用本地缓存 |
+| Redis开 + L1开 | Chain(L1, L2) | 手动编排 L1→L2→DB | **正常模式**：Fast 手动编排 L1+L2，标准走 chain |
+| Redis开 + L1关 | L2 (Redis) | 降级为 Fetch (纯 L2) | **L1 降级**：Fast 退化为标准模式 |
+| Redis关 | L1 (BigCache) | 降级为 Fetch (纯 L1) | **Redis 降级**：都用本地缓存 |
+
+> **设计说明**：模式A（FetchFast）不依赖 chain cache，而是手动编排 L1→L2→DB 的读取链路，并在 L2 命中时自动回填 L1（带 tags）。这样设计是因为 gocache 的 chain cache 在 L1 miss、L2 hit 时不会回填 L1，无法满足极速模式的需求。
 
 ### 3.2 缓存管理器接口 (LazyCacheManager)
 
@@ -60,6 +69,8 @@ server/internal/pkg/cache/
 type LazyCacheManager interface {
     // ===== 模式B（标准模式）: L2 Redis + L3 DB =====
     // 适合：RBAC、字典、存储配置、内容分类、消息模板等
+    // L1 开启时走 chain(L1,L2) 读取，但 L2 命中不回填 L1
+    // 需要自动回填 L1 请使用 FetchFast（模式A）
     Fetch(ctx context.Context, key string, moduleName string, tags []string, ttl time.Duration, v interface{}, loader func() (interface{}, error)) error
     Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
     Get(ctx context.Context, key string, v interface{}) error
@@ -68,24 +79,28 @@ type LazyCacheManager interface {
 
     // ===== 模式A（极速模式）: L1 本地 + L2 Redis + L3 DB =====
     // 适合：开放平台 API 权限等每次请求都要校验的场景
+    // 手动编排 L1→L2→DB 链路，L2 命中时自动回填 L1（带 tags）
     // L1 关闭时自动降级为模式B（纯 L2）
-    // Redis 也关闭时降级为纯 L1 (BigCache)
     FetchFast(ctx context.Context, key string, moduleName string, tags []string, ttl time.Duration, v interface{}, loader func() (interface{}, error)) error
-    SetFast(ctx context.Context, key string, value interface{}, ttl time.Duration) error
-    GetFast(ctx context.Context, key string, v interface{}) error
+    // SetFast 写入 L1+L2，支持 tags，L1 关闭时降级为 cacheManager 写入
+    SetFast(ctx context.Context, key string, value interface{}, tags []string, ttl time.Duration) error
+    // GetFast 读取 L1→L2，L2 命中回填 L1 时带 tags
+    // ttl 用于计算 L1 回填过期时间：min(ttl, local_ttl_min)
+    GetFast(ctx context.Context, key string, tags []string, ttl time.Duration, v interface{}) error
+    // DeleteFast 删除 L1+L2
     DeleteFast(ctx context.Context, key string) error
 
     // ===== 共用方法 =====
-    // InvalidateByTags 同时失效 standardCache 和 fastCache 两个引擎
+    // InvalidateByTags 失效 cacheManager 并通过 PubSub 广播，其他节点仅失效 L1
     InvalidateByTags(ctx context.Context, tags ...string) error
 
-    // InvalidateL1ByTags 仅失效本地 L1 缓存（由 PubSubBus 订阅者调用）
+    // InvalidateL1ByTags 仅失效本地 L1 缓存（由 PubSubBus 订阅者调用，避免递归）
     InvalidateL1ByTags(ctx context.Context, tags ...string) error
 
-    // SetNX 原子性写入（走标准模式B引擎，Nonce 防重放等场景不需要 L1）
+    // SetNX 原子性写入（走 Redis 原生 NX，Nonce 防重放等场景不需要 L1）
     SetNX(ctx context.Context, key string, value interface{}, ttl time.Duration) (bool, error)
 
-    // RateLimit 分布式/单机自适应限流
+    // RateLimit 分布式/单机自适应限流（Redis Lua 脚本或本地令牌桶）
     RateLimit(ctx context.Context, key string, rate int, capacity int) (bool, error)
 
     // SetEventBus 注入 PubSubBus 实例
@@ -98,20 +113,20 @@ type LazyCacheManager interface {
 
 ### 3.3 方法与引擎对照表
 
-| 方法 | 引擎 | 说明 |
-|------|------|------|
-| `Fetch` | standardCache | 模式B：L2(Redis) only |
-| `Set` | standardCache | 模式B |
-| `Get` | standardCache | 模式B |
-| `Delete` | standardCache | 模式B |
-| `Exists` | standardCache | 模式B |
-| `SetNX` | standardCache | 模式B（Nonce 防重放等场景不需要 L1） |
-| `FetchFast` | fastCache | 模式A：L1+L2 chain |
-| `SetFast` | fastCache | 模式A |
-| `GetFast` | fastCache | 模式A |
-| `DeleteFast` | fastCache | 模式A |
-| `InvalidateByTags` | 两个引擎都失效 | 确保不管数据在哪个引擎都能被清除 |
-| `RateLimit` | 不走缓存引擎 | 直接用 Redis Lua 或本地令牌桶 |
+| 方法 | 读取链路 | 写入链路 | 说明 |
+|------|----------|----------|------|
+| `Fetch` | cacheManager (chain/L2) | cacheManager | 模式B：L2(Redis) only，L1 开启时走 chain 但 L2 命中不回填 L1 |
+| `Set` | — | cacheManager | 模式B：写入 cacheManager |
+| `Get` | cacheManager | — | 模式B |
+| `Delete` | — | cacheManager | 模式B |
+| `Exists` | cacheManager | — | 模式B |
+| `SetNX` | — | Redis 原子操作 | 模式B（Nonce 防重放等场景不需要 L1） |
+| `FetchFast` | 手动 L1→L2→DB | cacheManager + L1 回填 | 模式A：L2 命中时自动回填 L1（带 tags） |
+| `SetFast` | — | L1 + L2 分别写入 | 模式A：支持 tags，L1 关闭时降级为 cacheManager 写入 |
+| `GetFast` | 手动 L1→L2 | — | 模式A：L2 命中时回填 L1（带 tags） |
+| `DeleteFast` | — | L1 + L2 分别删除 | 模式A |
+| `InvalidateByTags` | — | cacheManager + PubSub 广播 | 失效 cacheManager 并广播，其他节点仅失效 L1 |
+| `RateLimit` | — | Redis Lua / 本地令牌桶 | 不走缓存引擎，直接用 Redis Lua 脚本或本地令牌桶 |
 
 ---
 
@@ -156,15 +171,25 @@ type LazyCacheManager interface {
 
 **读取流程**（Fetch / FetchFast）：
 
+**模式B - Fetch**：
+
 1. 检查模块缓存开关（`cache_switches`）
-2. 尝试从 L1 (BigCache) 读取 → 命中直接返回（仅模式A）
-3. 尝试从 L2 (Redis) 读取 → 命中则回填 L1 并返回
-4. L2 未命中，执行 Loader 回源数据库 → 结果异步写入缓存
+2. 尝试从 cacheManager 读取（L1 开启时为 chain，否则为 L2）→ 命中直接返回
+3. Cache Miss，执行 Loader 回源数据库 → 结果写入 cacheManager（带 tags 和 TTL）
+4. **注意**：当 L1 开启时，Fetch 走 chain cache 读取，但 chain 的 Get 在 L1 miss、L2 hit 时**不会回填 L1**
+
+**模式A - FetchFast**：
+
+1. 检查模块缓存开关（`cache_switches`）
+2. 尝试从 L1 (BigCache) 读取 → 命中直接返回
+3. 尝试从 L2 (Redis) 读取 → 命中则**回填 L1（带 tags）**并返回
+4. L1 和 L2 都未命中，执行 Loader 回源数据库 → 结果写入 cacheManager（带 tags 和 TTL）
+5. L1 关闭时自动降级为模式B（调用 Fetch）
 
 **写入流程**（Set / SetFast）：
 
-- 模式A：同时写入 L1 (BigCache) 和 L2 (Redis)
-- 模式B：仅写入 L2 (Redis)
+- 模式A (SetFast)：分别写入 L1 (BigCache) 和 L2 (Redis)，**不支持 tags**
+- 模式B (Set)：写入 cacheManager（L1 开启时写入 chain，否则写入 L2）
 
 **失效流程**（InvalidateByTags）：
 
@@ -231,11 +256,15 @@ prefix = "netyadmin"
 # L1 缓存配置
 l1_enabled = true       # L1 开关：控制模式A是否启用 L1 加速
 local_max_size_mb = 256 # L1 最大内存占用（MB）
-local_max_entry_kb = 256 # L1 单条记录最大大小（KB）
-local_ttl_min = 10      # L1 本地缓存 TTL（分钟）
+local_max_entry_kb = 500 # L1 单条记录最大大小（KB）
+local_ttl_min = 10      # L1 兜底 TTL（分钟），仅当 l1Cache.Set 不带 WithExpiration 时生效
 ```
 
-> **语义说明**：`l1_enabled` 仅控制模式A（Fast 方法）是否走 L1，模式B（标准方法）始终不走 L1。
+> **语义说明**：
+>
+> - `l1_enabled` 仅控制模式A（Fast 方法）是否走 L1，模式B（标准方法）始终不走 L1
+> - `local_ttl_min` 是 BigCache 初始化的兜底默认 TTL，正常走模式A的 Fast 方法时，L1 使用用户传入的 TTL（与 L2 一致）
+> - 模式A 降级为模式B 时，TTL 完全一致（都用用户传入的 TTL），无任何行为差异
 
 ### 6.2 动态配置（sys_configs）
 
@@ -465,7 +494,9 @@ s.cacheManager.FetchFast(ctx, cache.KeyFeatureLib(libID), "feature", tags, ttl, 
 5. **大对象处理**：超过 1MB 的数据建议压缩后存储
 6. **Key 统一管理**：无论是模式A还是模式B，所有缓存 Key 和 Tag 必须在 `registry.go` 中统一定义，严禁硬编码
 7. **避免混用模式**：同一个 Key 不要混用 Fetch 和 FetchFast，避免两个引擎中存在同一 Key 的副本
-8. **InvalidateByTags 优先**：变更数据后优先使用 InvalidateByTags 而非 Delete，确保两个引擎同时失效
+8. **InvalidateByTags 优先**：变更数据后优先使用 InvalidateByTags 而非 Delete，确保缓存统一失效
+9. **Fast 方法的 tags 支持**：FetchFast、SetFast、GetFast 均支持 tags 参数，确保 L1 回填和写入时 tag 关联正确，InvalidateByTags 可统一失效
+10. **L1 TTL 与 L2 一致**：模式A的 Fast 方法中，L1 使用用户传入的 TTL（与 L2 完全一致），`local_ttl_min` 仅作为 BigCache 初始化的兜底默认值。降级模式B 时 TTL 无差异
 
 ---
 
