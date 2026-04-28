@@ -397,6 +397,8 @@ func (s *configService) toPkgConfig(c *storageEntity.Config) *storage.Config {
 		SecretKey:     c.SecretKey,
 		Domain:        c.Domain,
 		PathPrefix:    c.PathPrefix,
+		IsDefault:     c.IsDefault,
+		Status:        c.Status,
 		MaxFileSize:   c.MaxFileSize,
 		AllowedTypes:  c.AllowedTypes,
 		STSExpireTime: c.STSExpireTime,
