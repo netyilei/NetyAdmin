@@ -105,6 +105,7 @@ watch(visible, () => {
         <AppDictSelect
           v-model:value="model.type"
           dict-code="sys_ip_action_type"
+          value-type="number"
           :placeholder="$t('page.openPlatform.ipac.form.typePlaceholder')"
         />
       </NFormItem>
@@ -112,6 +113,7 @@ watch(visible, () => {
         <AppDictSelect
           v-model:value="model.status"
           dict-code="sys_status"
+          value-type="number"
           :placeholder="$t('page.openPlatform.ipac.form.statusPlaceholder')"
         />
       </NFormItem>

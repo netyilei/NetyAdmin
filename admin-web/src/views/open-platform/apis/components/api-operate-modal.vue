@@ -119,7 +119,7 @@ watch(visible, () => {
         <NInput v-model:value="model.group" :placeholder="$t('page.openPlatform.api.form.groupPlaceholder')" />
       </NFormItem>
       <NFormItem :label="$t('page.openPlatform.api.status')" path="status">
-        <AppDictSelect v-model:value="model.status" dict-code="sys_status" />
+        <AppDictSelect v-model:value="model.status" dict-code="sys_status" value-type="number" />
       </NFormItem>
       <NFormItem :label="$t('page.openPlatform.api.description')" path="description">
         <NInput v-model:value="model.description" type="textarea" />

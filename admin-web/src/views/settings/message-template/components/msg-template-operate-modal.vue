@@ -110,7 +110,7 @@ watch(visible, () => {
           />
         </NFormItemGi>
         <NFormItemGi :span="12" :label="$t('page.messageHub.template.status')" path="status">
-          <AppDictSelect v-model:value="model.status" dict-code="sys_status" />
+          <AppDictSelect v-model:value="model.status" dict-code="sys_status" value-type="number" />
         </NFormItemGi>
         <NFormItemGi :span="24" :label="$t('page.messageHub.template.msgTitle')" path="title">
           <NInput v-model:value="model.title" :placeholder="$t('page.messageHub.template.form.titlePlaceholder')" />

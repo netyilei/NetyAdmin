@@ -260,7 +260,7 @@ getData();
           <NInput v-model:value="model.name" :placeholder="$t('page.openPlatform.scope.form.displayNamePlaceholder')" />
         </NFormItem>
         <NFormItem :label="$t('page.openPlatform.app.status')" path="status">
-          <AppDictSelect v-model:value="model.status" dict-code="sys_status" />
+          <AppDictSelect v-model:value="model.status" dict-code="sys_status" value-type="number" />
         </NFormItem>
         <NFormItem :label="$t('page.openPlatform.app.remark')" path="description">
           <NInput v-model:value="model.description" type="textarea" />
