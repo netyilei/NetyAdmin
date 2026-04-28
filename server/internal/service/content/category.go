@@ -2,7 +2,6 @@ package content
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	contentEntity "NetyAdmin/internal/domain/entity/content"
@@ -58,7 +57,7 @@ func (s *categoryService) Create(ctx context.Context, adminID uint, req *content
 			return nil, err
 		}
 		if exists {
-			return nil, errors.New("分类编码已存在")
+			return nil, errorx.New(errorx.CodeAlreadyExists, "分类编码已存在")
 		}
 	}
 
@@ -106,7 +105,7 @@ func (s *categoryService) Create(ctx context.Context, adminID uint, req *content
 func (s *categoryService) Update(ctx context.Context, adminID uint, id uint, req *contentDto.UpdateContentCategoryDTO) (*contentEntity.ContentCategory, error) {
 	category, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, errorx.New(errorx.CodeNotFound, "分类不存在")
 	}
 
 	if req.Code != "" && req.Code != category.Code {
@@ -115,7 +114,7 @@ func (s *categoryService) Update(ctx context.Context, adminID uint, id uint, req
 			return nil, err
 		}
 		if exists {
-			return nil, errors.New("分类编码已存在")
+			return nil, errorx.New(errorx.CodeAlreadyExists, "分类编码已存在")
 		}
 		category.Code = req.Code
 	}
@@ -129,7 +128,7 @@ func (s *categoryService) Update(ctx context.Context, adminID uint, id uint, req
 	if req.ParentID != category.ParentID {
 		// 防止循环引用
 		if req.ParentID == id {
-			return nil, errors.New("父级分类不能是自己")
+			return nil, errorx.New(errorx.CodeBadRequest, "父级分类不能是自己")
 		}
 		category.ParentID = req.ParentID
 	}
@@ -173,7 +172,7 @@ func (s *categoryService) Delete(ctx context.Context, id uint) error {
 		return err
 	}
 	if hasChildren {
-		return errors.New("该分类下存在子分类，无法删除")
+		return errorx.New(errorx.CodeBadRequest, "该分类下存在子分类，无法删除")
 	}
 
 	hasArticles, err := s.repo.HasArticles(ctx, id)
@@ -181,7 +180,7 @@ func (s *categoryService) Delete(ctx context.Context, id uint) error {
 		return err
 	}
 	if hasArticles {
-		return errors.New("该分类下存在文章，无法删除")
+		return errorx.New(errorx.CodeBadRequest, "该分类下存在文章，无法删除")
 	}
 
 	if err := s.repo.Delete(ctx, id); err != nil {
@@ -195,7 +194,11 @@ func (s *categoryService) Delete(ctx context.Context, id uint) error {
 }
 
 func (s *categoryService) GetByID(ctx context.Context, id uint) (*contentEntity.ContentCategory, error) {
-	return s.repo.GetByID(ctx, id)
+	category, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, errorx.New(errorx.CodeNotFound, "分类不存在")
+	}
+	return category, nil
 }
 
 func (s *categoryService) List(ctx context.Context, query *contentDto.ContentCategoryListQueryDTO) ([]*contentEntity.ContentCategory, int64, error) {

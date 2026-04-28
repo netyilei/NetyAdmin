@@ -125,7 +125,7 @@ func (s *articleService) Create(ctx context.Context, adminID uint, req *contentD
 func (s *articleService) Update(ctx context.Context, adminID uint, id uint, req *contentDto.UpdateContentArticleDTO) (*contentEntity.ContentArticle, error) {
 	article, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, errorx.New(errorx.CodeNotFound, "文章不存在")
 	}
 
 	if req.CategoryID != nil {
@@ -206,7 +206,11 @@ func (s *articleService) Delete(ctx context.Context, id uint) error {
 }
 
 func (s *articleService) GetByID(ctx context.Context, id uint) (*contentEntity.ContentArticle, error) {
-	return s.repo.GetByIDWithCategory(ctx, id)
+	article, err := s.repo.GetByIDWithCategory(ctx, id)
+	if err != nil {
+		return nil, errorx.New(errorx.CodeNotFound, "文章不存在")
+	}
+	return article, nil
 }
 
 func (s *articleService) List(ctx context.Context, query *contentDto.ContentArticleListQueryDTO) ([]*contentEntity.ContentArticle, int64, error) {
@@ -239,7 +243,7 @@ func (s *articleService) List(ctx context.Context, query *contentDto.ContentArti
 func (s *articleService) Publish(ctx context.Context, id uint) error {
 	_, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		return err
+		return errorx.New(errorx.CodeNotFound, "文章不存在")
 	}
 	if err := s.repo.Publish(ctx, id, time.Now()); err != nil {
 		return err
@@ -251,7 +255,7 @@ func (s *articleService) Publish(ctx context.Context, id uint) error {
 func (s *articleService) Unpublish(ctx context.Context, id uint) error {
 	_, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		return err
+		return errorx.New(errorx.CodeNotFound, "文章不存在")
 	}
 	if err := s.repo.Unpublish(ctx, id); err != nil {
 		return err
@@ -263,7 +267,7 @@ func (s *articleService) Unpublish(ctx context.Context, id uint) error {
 func (s *articleService) SetTop(ctx context.Context, id uint, req *contentDto.SetArticleTopDTO) error {
 	_, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		return err
+		return errorx.New(errorx.CodeNotFound, "文章不存在")
 	}
 	if err := s.repo.SetTop(ctx, id, req.IsTop, req.TopSort); err != nil {
 		return err
@@ -323,7 +327,7 @@ func (s *articleService) GetPublishedByID(ctx context.Context, id uint) (*conten
 	loader := func() (interface{}, error) {
 		a, err := s.repo.GetByIDWithCategory(ctx, id)
 		if err != nil {
-			return nil, err
+			return nil, errorx.New(errorx.CodeNotFound, "文章不存在")
 		}
 		if !a.IsPublished() || !a.IsEnabled() {
 			return nil, errorx.New(errorx.CodeNotFound, "文章不存在")
