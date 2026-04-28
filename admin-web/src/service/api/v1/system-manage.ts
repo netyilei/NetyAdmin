@@ -93,7 +93,7 @@ export function fetchBatchDeleteRole(ids: number[]) {
 /** get admin list */
 export function fetchGetAdminList(params?: SystemManage.AdminSearchParams) {
   return request<SystemManage.AdminList>({
-    url: '/admin/v1/systemManage/getUserList',
+    url: '/admin/v1/admins',
     method: 'get',
     params
   });
@@ -102,16 +102,16 @@ export function fetchGetAdminList(params?: SystemManage.AdminSearchParams) {
 /** add admin */
 export function fetchAddAdmin(data: SystemManage.EditAdmin) {
   return request({
-    url: '/admin/v1/systemManage/addUser',
+    url: '/admin/v1/admins',
     method: 'post',
     data
   });
 }
 
 /** update admin */
-export function fetchUpdateAdmin(data: SystemManage.EditAdmin & { id: number }) {
+export function fetchUpdateAdmin(id: number, data: Omit<SystemManage.EditAdmin, 'id'>) {
   return request({
-    url: '/admin/v1/systemManage/updateUser',
+    url: `/admin/v1/admins/${id}`,
     method: 'put',
     data
   });
@@ -120,18 +120,17 @@ export function fetchUpdateAdmin(data: SystemManage.EditAdmin & { id: number }) 
 /** delete admin */
 export function fetchDeleteAdmin(id: number) {
   return request({
-    url: '/admin/v1/systemManage/deleteUser',
-    method: 'delete',
-    params: { userId: id }
+    url: `/admin/v1/admins/${id}`,
+    method: 'delete'
   });
 }
 
 /** delete admins */
 export function fetchBatchDeleteAdmin(ids: number[]) {
   return request({
-    url: '/admin/v1/systemManage/deleteUsers',
+    url: '/admin/v1/admins/batch',
     method: 'delete',
-    params: { userIds: ids }
+    data: { ids }
   });
 }
 

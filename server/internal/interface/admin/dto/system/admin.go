@@ -45,8 +45,9 @@ type CreateAdminReq struct {
 }
 
 type UpdateAdminReq struct {
-	ID       uint     `json:"id" binding:"required"`
+	ID       uint     `json:"id"`
 	Username string   `json:"username" binding:"required,min=3,max=50"`
+	Password string   `json:"password"`
 	Nickname string   `json:"nickname"`
 	Phone    string   `json:"phone"`
 	Email    string   `json:"email"`

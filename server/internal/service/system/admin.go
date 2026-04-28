@@ -323,6 +323,14 @@ func (s *adminService) Update(ctx context.Context, req *systemDto.UpdateAdminReq
 	admin.Status = req.Status
 	admin.UpdatedBy = operatorID
 
+	if req.Password != "" {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return errorx.New(errorx.CodeInternalError, "密码加密失败")
+		}
+		admin.Password = string(hashedPassword)
+	}
+
 	if len(req.Roles) > 0 {
 		roles, err := s.roleRepo.GetByCodes(ctx, req.Roles)
 		if err != nil {

@@ -31,11 +31,11 @@ const {
     current: 1,
     size: 20,
     status: null,
-    userName: null,
-    userGender: null,
-    nickName: null,
-    userPhone: null,
-    userEmail: null
+    username: null,
+    gender: null,
+    nickname: null,
+    phone: null,
+    email: null
   },
   columns: () => [
     {

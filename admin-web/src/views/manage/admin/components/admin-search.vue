@@ -20,14 +20,14 @@ const { formRef, validate, restoreValidation } = useNaiveForm();
 
 const model = defineModel<SystemManage.AdminSearchParams>('model', { required: true });
 
-type RuleKey = Extract<keyof SystemManage.AdminSearchParams, 'userEmail' | 'userPhone'>;
+type RuleKey = Extract<keyof SystemManage.AdminSearchParams, 'email' | 'phone'>;
 
 const rules = computed<Record<RuleKey, App.Global.FormRule>>(() => {
   const { patternRules } = useFormRules();
 
   return {
-    userEmail: patternRules.email,
-    userPhone: patternRules.phone
+    email: patternRules.email,
+    phone: patternRules.phone
   };
 });
 
@@ -48,36 +48,26 @@ async function search() {
       <NCollapseItem :title="$t('common.search')" name="admin-search">
         <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="80">
           <NGrid responsive="screen" item-responsive>
-            <NFormItemGi span="24 s:12 m:6" :label="$t('page.manage.admin.userName')" path="userName" class="pr-24px">
-              <NInput v-model:value="model.userName" :placeholder="$t('page.manage.admin.form.userName')" />
+            <NFormItemGi span="24 s:12 m:6" :label="$t('page.manage.admin.userName')" path="username" class="pr-24px">
+              <NInput v-model:value="model.username" :placeholder="$t('page.manage.admin.form.userName')" />
             </NFormItemGi>
-            <NFormItemGi
-              span="24 s:12 m:6"
-              :label="$t('page.manage.admin.userGender')"
-              path="userGender"
-              class="pr-24px"
-            >
+            <NFormItemGi span="24 s:12 m:6" :label="$t('page.manage.admin.userGender')" path="gender" class="pr-24px">
               <AppDictSelect
-                v-model:value="model.userGender"
+                v-model:value="model.gender"
                 dict-code="sys_gender"
                 :placeholder="$t('page.manage.admin.form.userGender')"
               />
             </NFormItemGi>
-            <NFormItemGi span="24 s:12 m:6" :label="$t('page.manage.admin.nickName')" path="nickName" class="pr-24px">
-              <NInput v-model:value="model.nickName" :placeholder="$t('page.manage.admin.form.nickName')" />
+            <NFormItemGi span="24 s:12 m:6" :label="$t('page.manage.admin.nickName')" path="nickname" class="pr-24px">
+              <NInput v-model:value="model.nickname" :placeholder="$t('page.manage.admin.form.nickName')" />
             </NFormItemGi>
-            <NFormItemGi span="24 s:12 m:6" :label="$t('page.manage.admin.userPhone')" path="userPhone" class="pr-24px">
-              <NInput v-model:value="model.userPhone" :placeholder="$t('page.manage.admin.form.userPhone')" />
+            <NFormItemGi span="24 s:12 m:6" :label="$t('page.manage.admin.userPhone')" path="phone" class="pr-24px">
+              <NInput v-model:value="model.phone" :placeholder="$t('page.manage.admin.form.userPhone')" />
             </NFormItemGi>
-            <NFormItemGi span="24 s:12 m:6" :label="$t('page.manage.admin.userEmail')" path="userEmail" class="pr-24px">
-              <NInput v-model:value="model.userEmail" :placeholder="$t('page.manage.admin.form.userEmail')" />
+            <NFormItemGi span="24 s:12 m:6" :label="$t('page.manage.admin.userEmail')" path="email" class="pr-24px">
+              <NInput v-model:value="model.email" :placeholder="$t('page.manage.admin.form.userEmail')" />
             </NFormItemGi>
-            <NFormItemGi
-              span="24 s:12 m:6"
-              :label="$t('page.manage.admin.userStatus')"
-              path="userStatus"
-              class="pr-24px"
-            >
+            <NFormItemGi span="24 s:12 m:6" :label="$t('page.manage.admin.userStatus')" path="status" class="pr-24px">
               <AppDictSelect
                 v-model:value="model.status"
                 dict-code="sys_status"

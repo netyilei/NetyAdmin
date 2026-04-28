@@ -437,7 +437,7 @@ func initHandlers(services *serviceSet, captchaMgr *captcha.Manager, configWatch
 	h.admin = admin.NewAdminHandler(services.admin)
 	h.operationLog = operation_log.NewOperationLogHandler(services.operationLog)
 	h.errorLog = error_log.NewErrorLogHandler(services.errorLog)
-	h.system = system.NewSystemHandler(services.role, services.menu, services.api, services.button, services.admin, services.sysConfig, services.emailDriver)
+	h.system = system.NewSystemHandler(services.role, services.menu, services.api, services.button, services.sysConfig, services.emailDriver)
 	h.storage = storageHandler.NewStorageHandler(services.storageConfig, services.uploadRecord)
 	h.ipac = ipacHandler.NewIPACHandler(services.ipac)
 	h.app = openHandler.NewAppHandler(services.app)

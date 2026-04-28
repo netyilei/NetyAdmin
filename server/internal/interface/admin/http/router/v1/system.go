@@ -29,7 +29,6 @@ func (r *SystemRouter) RegisterPermission(group *gin.RouterGroup) {
 	// 1. 系统管理组 (RBAC 相关) - 对应前端 systemManage 路径
 	systemManage := group.Group("/systemManage")
 	{
-		r.registerAdminRoutes(systemManage)
 		r.registerRoleRoutes(systemManage)
 		r.registerMenuRoutes(systemManage)
 		r.registerAPIRoutes(systemManage)
@@ -45,14 +44,6 @@ func (r *SystemRouter) RegisterPermission(group *gin.RouterGroup) {
 		// 测试邮件发送需要权限
 		system.POST("/test-email", r.handler.Config.TestEmail)
 	}
-}
-
-func (r *SystemRouter) registerAdminRoutes(group *gin.RouterGroup) {
-	group.GET("/getUserList", r.handler.GetAdminList)
-	group.POST("/addUser", r.handler.AddAdmin)
-	group.PUT("/updateUser", r.handler.UpdateAdmin)
-	group.DELETE("/deleteUser", r.handler.DeleteAdmin)
-	group.DELETE("/deleteUsers", r.handler.DeleteAdmins)
 }
 
 func (r *SystemRouter) registerRoleRoutes(group *gin.RouterGroup) {

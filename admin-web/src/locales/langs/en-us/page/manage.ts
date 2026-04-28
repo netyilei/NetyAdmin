@@ -35,6 +35,7 @@ const manage = {
     userEmail: 'Email',
     userStatus: 'User Status',
     userRole: 'User Role',
+    password: 'Password',
     form: {
       userName: 'Please enter user name',
       userGender: 'Please select gender',
@@ -42,7 +43,9 @@ const manage = {
       userPhone: 'Please enter phone number',
       userEmail: 'Please enter email',
       userStatus: 'Please select user status',
-      userRole: 'Please select user role'
+      userRole: 'Please select user role',
+      password: 'Please enter password',
+      passwordPlaceholder: 'Leave empty to keep current password'
     },
     addAdmin: 'Add Admin',
     editAdmin: 'Edit Admin',

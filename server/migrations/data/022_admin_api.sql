@@ -68,7 +68,7 @@ DECLARE
             (admin_menu_id, '创建管理员', 'POST', '/admin/v1/admins', '创建管理员', '1', NOW(), NOW()),
             (admin_menu_id, '更新管理员', 'PUT', '/admin/v1/admins/:id', '更新管理员', '1', NOW(), NOW()),
             (admin_menu_id, '删除管理员', 'DELETE', '/admin/v1/admins/:id', '删除管理员', '1', NOW(), NOW()),
-            (admin_menu_id, '批量删除管理员', 'DELETE', '/admin/v1/systemManage/deleteUsers', '批量删除管理员', '1', NOW(), NOW())
+            (admin_menu_id, '批量删除管理员', 'DELETE', '/admin/v1/admins/batch', '批量删除管理员', '1', NOW(), NOW())
             ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
         END IF;
 

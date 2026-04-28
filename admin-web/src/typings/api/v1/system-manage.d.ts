@@ -35,6 +35,7 @@ export namespace SystemManage {
   type EditAdmin = {
     id?: number;
     username: string;
+    password?: string;
     nickname: string;
     phone: string;
     email: string;
@@ -45,8 +46,8 @@ export namespace SystemManage {
 
   type AdminSearchParams = CommonType.RecordNullable<
     Pick<
-      import('@/typings/api/v1/system-manage').SystemManage.Admin,
-      'userName' | 'userGender' | 'nickName' | 'userPhone' | 'userEmail' | 'status'
+      import('@/typings/api/v1/system-manage').SystemManage.EditAdmin,
+      'username' | 'gender' | 'nickname' | 'phone' | 'email' | 'status'
     > &
       import('@/typings/api/v1/common').Common.CommonSearchParams
   >;

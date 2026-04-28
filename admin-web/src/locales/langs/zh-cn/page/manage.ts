@@ -35,6 +35,7 @@ const manage = {
     userEmail: '邮箱',
     userStatus: '用户状态',
     userRole: '用户角色',
+    password: '密码',
     form: {
       userName: '请输入用户名',
       userGender: '请选择性别',
@@ -42,7 +43,9 @@ const manage = {
       userPhone: '请输入手机号',
       userEmail: '请输入邮箱',
       userStatus: '请选择用户状态',
-      userRole: '请选择用户角色'
+      userRole: '请选择用户角色',
+      password: '请输入密码',
+      passwordPlaceholder: '留空则不修改密码'
     },
     addAdmin: '新增管理员',
     editAdmin: '编辑管理员',

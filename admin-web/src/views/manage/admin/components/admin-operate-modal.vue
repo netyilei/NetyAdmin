@@ -48,6 +48,7 @@ const model = reactive(createDefaultModel());
 function createDefaultModel(): Model {
   return {
     username: '',
+    password: '',
     gender: null,
     nickname: '',
     phone: '',
@@ -57,12 +58,15 @@ function createDefaultModel(): Model {
   };
 }
 
-type RuleKey = Extract<keyof Model, 'username' | 'status'>;
+type RuleKey = Extract<keyof Model, 'username' | 'password' | 'status'>;
 
-const rules: Record<RuleKey, App.Global.FormRule> = {
-  username: defaultRequiredRule,
-  status: defaultRequiredRule
-};
+const rules = computed<Record<RuleKey, App.Global.FormRule>>(() => {
+  return {
+    username: defaultRequiredRule,
+    password: props.operateType === 'add' ? defaultRequiredRule : {},
+    status: defaultRequiredRule
+  };
+});
 
 const roleOptions = ref<CommonType.Option<string>[]>([]);
 
@@ -105,7 +109,7 @@ async function handleSubmit() {
     editBeforeValidate: () => {
       return Boolean(model && model.id);
     },
-    edit: () => fetchUpdateAdmin({ ...model, id: model.id! }),
+    edit: () => fetchUpdateAdmin(model.id!, model),
     add: () => fetchAddAdmin(model as SystemManage.EditAdmin),
     onSuccess: () => {
       closeModal();
@@ -128,6 +132,18 @@ watch(visible, val => {
     <NForm ref="formRef" :model="model" :rules="rules">
       <NFormItem :label="$t('page.manage.admin.userName')" path="username">
         <NInput v-model:value="model.username" :placeholder="$t('page.manage.admin.form.userName')" />
+      </NFormItem>
+      <NFormItem :label="$t('page.manage.admin.password')" path="password">
+        <NInput
+          v-model:value="model.password"
+          type="password"
+          show-password-on="click"
+          :placeholder="
+            operateType === 'add'
+              ? $t('page.manage.admin.form.password')
+              : $t('page.manage.admin.form.passwordPlaceholder')
+          "
+        />
       </NFormItem>
       <NFormItem :label="$t('page.manage.admin.userGender')" path="gender">
         <AppDictRadioGroup v-model:value="model.gender" dict-code="sys_gender" />

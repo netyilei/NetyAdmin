@@ -10,7 +10,6 @@ type SystemHandler struct {
 	menuService   systemService.MenuService
 	apiService    systemService.APIService
 	buttonService systemService.ButtonService
-	adminService  systemService.AdminService
 
 	Config *ConfigHandler
 }
@@ -20,7 +19,6 @@ func NewSystemHandler(
 	menuService systemService.MenuService,
 	apiService systemService.APIService,
 	buttonService systemService.ButtonService,
-	adminService systemService.AdminService,
 	configSvc systemService.ConfigService,
 	emailDriver msgPkg.Driver,
 ) *SystemHandler {
@@ -29,7 +27,6 @@ func NewSystemHandler(
 		menuService:   menuService,
 		apiService:    apiService,
 		buttonService: buttonService,
-		adminService:  adminService,
 		Config:        NewConfigHandler(configSvc, emailDriver),
 	}
 }

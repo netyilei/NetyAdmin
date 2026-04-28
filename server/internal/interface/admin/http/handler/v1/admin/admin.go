@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"NetyAdmin/internal/domain/entity"
 	systemDto "NetyAdmin/internal/interface/admin/dto/system"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
@@ -30,7 +31,7 @@ func (h *AdminHandler) List(c *gin.Context) {
 		req.Current = 1
 	}
 	if req.Size <= 0 {
-		req.Size = 10
+		req.Size = entity.DefaultPageSize
 	}
 
 	admins, total, err := h.adminService.List(c.Request.Context(), &req)
@@ -63,11 +64,19 @@ func (h *AdminHandler) Create(c *gin.Context) {
 func (h *AdminHandler) Update(c *gin.Context) {
 	operatorID, _ := c.Get("adminID")
 
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		response.FailWithCode(c, errorx.CodeInvalidParams, "无效的管理员ID")
+		return
+	}
+
 	var req systemDto.UpdateAdminReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithCode(c, errorx.CodeInvalidParams, "参数错误")
 		return
 	}
+	req.ID = uint(id)
 
 	if err := h.adminService.Update(c.Request.Context(), &req, operatorID.(uint)); err != nil {
 		response.Fail(c, err)
@@ -91,6 +100,23 @@ func (h *AdminHandler) Delete(c *gin.Context) {
 	}
 
 	response.SuccessWithMsg(c, "管理员删除成功", nil)
+}
+
+func (h *AdminHandler) DeleteBatch(c *gin.Context) {
+	var req struct {
+		Ids []uint `form:"ids" json:"ids" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithCode(c, errorx.CodeInvalidParams, "参数错误")
+		return
+	}
+
+	if err := h.adminService.DeleteBatch(c.Request.Context(), req.Ids); err != nil {
+		response.Fail(c, err)
+		return
+	}
+
+	response.SuccessWithMsg(c, "管理员批量删除成功", nil)
 }
 
 func (h *AdminHandler) GetByID(c *gin.Context) {

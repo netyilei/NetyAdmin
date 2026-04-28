@@ -26,5 +26,6 @@ func (r *AdminRouter) RegisterPermission(group *gin.RouterGroup) {
 		adminGroup.GET("/:id", r.handler.GetByID)
 		adminGroup.PUT("/:id", r.handler.Update)
 		adminGroup.DELETE("/:id", r.handler.Delete)
+		adminGroup.DELETE("/batch", r.handler.DeleteBatch)
 	}
 }
