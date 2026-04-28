@@ -242,6 +242,14 @@ func (s *recordService) GetUploadCredentials(ctx context.Context, req *storageDt
 }
 
 func (s *recordService) RecordUpload(ctx context.Context, configID uint, fileName, storedName, filePath, fileURL string, fileSize int64, mimeType, md5 string, source storageEntity.UploadSource, sourceID string, sourceInfo interface{}, uploaderIP, userAgent, businessType string, businessID string, appID string) error {
+	if configID == 0 {
+		_, cfg, err := s.storageMgr.GetDefaultDriver()
+		if err != nil {
+			return errorx.New(errorx.CodeInternalError, "未配置默认存储源")
+		}
+		configID = cfg.ID
+	}
+
 	sourceInfoJSON := ""
 	if sourceInfo != nil {
 		if data, err := json.Marshal(sourceInfo); err == nil {

@@ -23,7 +23,7 @@ func (r *ErrorRepository) UpsertByHash(ctx context.Context, logRecord *logEntity
 	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "hash"}},
 		DoUpdates: clause.Assignments(map[string]interface{}{
-			"occurrence_count": gorm.Expr("occurrence_count + ?", 1),
+			"occurrence_count": gorm.Expr("admin_error_log.occurrence_count + ?", 1),
 			"last_occurred_at": time.Now(),
 			"request_id":       logRecord.RequestID,
 			"ip":               logRecord.IP,
