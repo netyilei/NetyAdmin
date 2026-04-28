@@ -60,6 +60,7 @@ func (r *appRepository) Update(ctx context.Context, app *open_platform.App) erro
 			"ip_filter_enabled": app.IPFilterEnabled,
 			"remark":            app.Remark,
 			"app_secret":        app.AppSecret,
+			"quota_config":      app.QuotaConfig,
 			"storage_id":        app.StorageID,
 		}).Error
 }

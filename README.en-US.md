@@ -43,7 +43,7 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 | **RBAC** | Admin, Role, Menu, Button, API management |
 | **User Module** | Client-side user system, multi-terminal login, TokenStore abstraction (cache/database), account lock & auto-unlock, secure encryption |
 | **Message Hub** | Unified sending entry (SMS/Email/Internal), template rendering, async retry, STARTTLS support |
-| **Open Platform** | AppKey authentication, secure signature, distributed rate limiting, Scope permissions, app-level storage binding |
+| **Open Platform** | AppKey authentication, secure signature, configurable distributed rate limiting (token bucket), Scope permissions, app-level storage binding |
 | **IP Access Control** | Global/App-level IP governance, CIDR matching, high-performance memory filtering |
 | **Content Management** | Categories, Articles, Banner, supporting rich text and scheduled publishing |
 | **Storage Management** | Multi-storage source configuration, upload credentials, upload records, app-level storage isolation, Client-side upload API |
@@ -53,10 +53,6 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 | **Captcha** | Graphic captcha, supporting multiple types and storage schemes, scene-based verification config (login/register/password reset) |
 
 ---
-
-## 🛠️ Project Maintenance
-
-### **Maintenance Branch (No User):** <https://github.com/netyilei/NetyAdmin/tree/maint-nouser>
 
 ## 📚 Documentation Index
 
@@ -73,7 +69,7 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 |----------|-------------|
 | [User Module Details](docs/server-module-user.md) | Client user system, multi-terminal login, TokenStore abstraction, account lock mechanism, login storage backend |
 | [Message Hub Details](docs/server-module-message.md) | Unified sending entry (SMS/Email/Internal), driver extension, async tasks |
-| [Open Platform Details](docs/server-module-open-platform.md) | AppKey authentication, signature verification, distributed rate limiting, Scope permissions |
+| [Open Platform Details](docs/server-module-open-platform.md) | AppKey authentication, signature verification, configurable distributed rate limiting, Scope permissions |
 | [IP Access Control Details](docs/server-module-ipac.md) | High-performance memory matching, CIDR network, hierarchical governance |
 | [Captcha Module Details](docs/server-module-captcha.md) | Captcha types, storage schemes, dynamic configuration, scene-based verification |
 | [Cache Module Details](docs/server-module-cache.md) | Dual-engine caching, Tags batch invalidation, dynamic switches |

@@ -78,6 +78,31 @@ const {
       )
     } as any,
     {
+      key: 'quotaConfig',
+      title: $t('page.openPlatform.app.quotaConfig'),
+      align: 'center',
+      width: 130,
+      render: (row: any) => {
+        if (!row.quotaConfig) {
+          return <NTag>{$t('page.openPlatform.app.quotaDefault')}</NTag>;
+        }
+        try {
+          const quota = JSON.parse(row.quotaConfig);
+          return (
+            <NSpace justify="center" size={4} align="center">
+              <NTag size="small" type="info">{`${quota.rate}${$t('page.openPlatform.app.form.quotaRateSuffix')}`}</NTag>
+              <NTag
+                size="small"
+                type="success"
+              >{`${quota.capacity}${$t('page.openPlatform.app.form.quotaCapacitySuffix')}`}</NTag>
+            </NSpace>
+          );
+        } catch {
+          return <NTag>{$t('page.openPlatform.app.quotaDefault')}</NTag>;
+        }
+      }
+    } as any,
+    {
       key: 'createdAt',
       title: $t('page.openPlatform.app.time'),
       align: 'center',
@@ -146,7 +171,7 @@ async function handleResetSecret(id: string) {
           <NTag type="success" size="large">
             {res.appSecret}
           </NTag>
-          <span class="text-error">请务必妥善保管，关闭此窗口后将无法再次查看！</span>
+          <span class="text-error">{$t('page.openPlatform.app.resetSecretWarning')}</span>
         </NSpace>
       )
     });

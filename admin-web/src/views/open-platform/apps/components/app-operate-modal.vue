@@ -39,6 +39,9 @@ const ipRulesLoading = ref(false);
 const storageConfigOptions = ref<{ label: string; value: number }[]>([]);
 const storageConfigLoading = ref(false);
 
+const quotaRate = ref<number | null>(10);
+const quotaCapacity = ref<number | null>(20);
+
 const scopeOptions = computed(() => {
   return availableScopes.value.map(item => ({
     label: item.name,
@@ -87,6 +90,32 @@ async function loadAppIPRules(appId: string) {
   }
 }
 
+function parseQuotaConfig(quotaConfig: string | undefined) {
+  if (!quotaConfig) {
+    quotaRate.value = 10;
+    quotaCapacity.value = 20;
+    return;
+  }
+  try {
+    const parsed = JSON.parse(quotaConfig);
+    quotaRate.value = parsed.rate ?? 10;
+    quotaCapacity.value = parsed.capacity ?? 20;
+  } catch {
+    quotaRate.value = 10;
+    quotaCapacity.value = 20;
+  }
+}
+
+function buildQuotaConfig(): string {
+  if (quotaRate.value === null && quotaCapacity.value === null) {
+    return '';
+  }
+  return JSON.stringify({
+    rate: quotaRate.value ?? 10,
+    capacity: quotaCapacity.value ?? 20
+  });
+}
+
 onMounted(() => {
   getAvailableScopes();
   loadIPRules();
@@ -111,6 +140,7 @@ function createDefaultModel(): Model {
     status: 1,
     ipFilterEnabled: false,
     remark: '',
+    quotaConfig: '',
     storageId: 0,
     scopes: []
   };
@@ -123,6 +153,8 @@ const rules: Record<string, App.Global.FormRule[]> = {
 
 async function handleSubmit() {
   await validate();
+
+  model.quotaConfig = buildQuotaConfig();
 
   if (props.operateType === 'add') {
     const { error } = await addApp(model);
@@ -154,11 +186,13 @@ watch(visible, () => {
       Object.assign(model, {
         ...props.rowData
       });
+      parseQuotaConfig(props.rowData.quotaConfig);
       if (props.rowData.id) {
         loadAppIPRules(props.rowData.id);
       }
     } else {
       Object.assign(model, createDefaultModel());
+      parseQuotaConfig(undefined);
       selectedRuleIds.value = [];
     }
     restoreValidation();
@@ -191,6 +225,28 @@ watch(visible, () => {
           :loading="ipRulesLoading"
           :placeholder="$t('page.openPlatform.app.form.ipRulesPlaceholder')"
         />
+      </NFormItem>
+      <NFormItem :label="$t('page.openPlatform.app.quotaConfig')" path="quotaConfig">
+        <NSpace :size="12" align="center" :wrap="false">
+          <NInputNumber
+            v-model:value="quotaRate"
+            :min="1"
+            :max="10000"
+            :placeholder="$t('page.openPlatform.app.form.quotaRatePlaceholder')"
+            class="w-140px"
+          >
+            <template #suffix>{{ $t('page.openPlatform.app.form.quotaRateSuffix') }}</template>
+          </NInputNumber>
+          <NInputNumber
+            v-model:value="quotaCapacity"
+            :min="1"
+            :max="100000"
+            :placeholder="$t('page.openPlatform.app.form.quotaCapacityPlaceholder')"
+            class="w-140px"
+          >
+            <template #suffix>{{ $t('page.openPlatform.app.form.quotaCapacitySuffix') }}</template>
+          </NInputNumber>
+        </NSpace>
       </NFormItem>
       <NFormItem :label="$t('page.openPlatform.app.remark')" path="remark">
         <NInput

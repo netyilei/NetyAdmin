@@ -29,6 +29,7 @@ export namespace OpenApp {
     status: number;
     ipFilterEnabled: boolean;
     remark?: string;
+    quotaConfig?: string;
     storageId?: number;
     scopes?: string[];
   }
@@ -39,6 +40,7 @@ export namespace OpenApp {
     status: number;
     ipFilterEnabled: boolean;
     remark?: string;
+    quotaConfig?: string;
     storageId?: number;
     scopes?: string[];
   }

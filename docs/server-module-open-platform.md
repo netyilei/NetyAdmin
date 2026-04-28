@@ -91,16 +91,20 @@ API 开发者在注册路由时可标记所属 Scope。应用必须被授予该 
 
 ```go
 type App struct {
-    ID          string `gorm:"primaryKey;size:26"` // ULID
-    AppKey      string `gorm:"size:26;uniqueIndex"`
-    AppSecret   string `gorm:"size:255"`           // AES 加密存储
-    Name        string `gorm:"size:100"`
-    Status      int    `gorm:"default:1"`          // 1:启用, 0:禁用
-    IPStrategy  int    `gorm:"default:1"`          // 1:黑名单, 2:白名单
-    QuotaConfig string `gorm:"type:jsonb"`         // 限流配置 {"rate":10, "capacity":20}
-    StorageID   uint   `gorm:"default:0"`          // 绑定的存储配置ID，0表示使用全局默认
+    ID              string `gorm:"primaryKey;size:26"` // ULID
+    AppKey          string `gorm:"size:26;uniqueIndex"`
+    AppSecret       string `gorm:"size:255"`           // AES 加密存储
+    Name            string `gorm:"size:100"`
+    Status          int    `gorm:"default:1"`          // 1:启用, 0:禁用
+    IPStrategy      int    `gorm:"default:1"`          // 1:黑名单, 2:白名单
+    IPFilterEnabled bool   `gorm:"default:false"`      // 是否启用 IP 过滤
+    QuotaConfig     string `gorm:"type:jsonb"`         // 限流配置 {"rate":10, "capacity":20}
+    Remark          string `gorm:"size:255"`
+    StorageID       uint   `gorm:"default:0"`          // 绑定的存储配置ID，0表示使用全局默认
 }
 ```
+
+> **限流配置说明**：`QuotaConfig` 为 JSONB 格式，包含 `rate`（每秒填充令牌数）和 `capacity`（桶容量/最大突发量）两个字段。当 `QuotaConfig` 为空时，使用默认值 `rate=10, capacity=20`。
 
 > **存储绑定机制**：当 `StorageID > 0` 时，该应用的所有上传操作使用指定的存储配置；当 `StorageID = 0` 时，自动回退到全局默认存储配置。
 
@@ -112,11 +116,27 @@ type App struct {
 |--------|------|------|
 | GET | /admin/v1/open-platform/apps | 应用列表查询 |
 | POST | /admin/v1/open-platform/apps | 创建新应用 (自动生成密钥) |
-| PUT | /admin/v1/open-platform/apps | 修改应用信息/权限范围/存储绑定 |
+| PUT | /admin/v1/open-platform/apps | 修改应用信息/权限范围/存储绑定/限流配置 |
 | POST | /admin/v1/open-platform/apps/reset-secret | 重置 AppSecret |
 | GET | /admin/v1/open-platform/logs | API 调用审计日志查询 |
 
 > **存储绑定**：创建和修改应用时，可通过 `storageId` 字段指定绑定的存储配置。`storageId = 0` 表示使用全局默认存储。
+
+> **限流配置**：创建和修改应用时，可通过 `quotaConfig` 字段指定限流参数，格式为 JSON 字符串，例如 `{"rate":10, "capacity":20}`。`rate` 为每秒填充令牌数，`capacity` 为桶容量（最大突发量）。若不传或传空字符串，则使用默认值 `rate=10, capacity=20`。
+
+**创建/修改应用请求体示例**：
+
+```json
+{
+  "name": "测试应用",
+  "status": 1,
+  "ipFilterEnabled": false,
+  "remark": "备注信息",
+  "quotaConfig": "{\"rate\":10,\"capacity\":20}",
+  "storageId": 0,
+  "scopes": ["content_view", "user_base"]
+}
+```
 
 ## 六、二次开发示例
 
@@ -222,6 +242,46 @@ function computeSignature(secret, method, path, timestamp, nonce, payload) {
                  .digest('base64');
 }
 ```
+
+### 7.3 配置应用限流参数
+
+开放平台使用令牌桶算法进行分布式限流。每个应用可独立配置 `rate`（每秒填充令牌数）和 `capacity`（桶容量/最大突发量）。
+
+**通过 Admin API 配置**：
+
+```bash
+# 创建应用时指定限流配置
+curl -X POST http://localhost:8010/admin/v1/open-platform/apps \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "高流量应用",
+    "status": 1,
+    "quotaConfig": "{\"rate\":100,\"capacity\":200}",
+    "scopes": ["content_view"]
+  }'
+
+# 修改已有应用的限流配置
+curl -X PUT http://localhost:8010/admin/v1/open-platform/apps \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "<app_id>",
+    "name": "高流量应用",
+    "status": 1,
+    "quotaConfig": "{\"rate\":50,\"capacity\":100}",
+    "scopes": ["content_view"]
+  }'
+```
+
+**通过 Admin 界面配置**：在应用管理页面的新增/编辑表单中，"限流配置" 区域提供"填充速率"和"桶容量"两个输入框，分别对应 `rate` 和 `capacity`。
+
+**限流行为说明**：
+
+- 当 `QuotaConfig` 为空或未配置时，使用默认值 `rate=10, capacity=20`
+- `rate` 控制每秒向桶中放入的令牌数，值越大允许的稳态请求速率越高
+- `capacity` 控制桶的最大容量，值越大允许的瞬时突发量越高
+- 限流由 `cache/manager.go` 的 `RateLimit` 方法执行，Redis 可用时使用 Lua 脚本实现分布式精准计数，Redis 不可用时降级为本地令牌桶
 
 ---
 

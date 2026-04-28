@@ -13,9 +13,14 @@ const openPlatform = {
     storageId: '存储配置',
     storageBound: '已绑定',
     storageDefault: '默认',
+    quotaConfig: '限流配置',
+    quotaRate: '填充速率',
+    quotaCapacity: '桶容量',
+    quotaDefault: '默认',
     resetSecret: '重置密钥',
     confirmResetSecret: '确定重置该应用的 AppSecret 吗？重置后旧密钥将立即失效！',
     resetSecretSuccess: '密钥重置成功，请妥善保管新密钥：',
+    resetSecretWarning: '请务必妥善保管，关闭此窗口后将无法再次查看！',
     form: {
       namePlaceholder: '请输入应用名称',
       appKeyPlaceholder: '请输入 AppKey',
@@ -24,7 +29,11 @@ const openPlatform = {
       remarkPlaceholder: '请输入备注',
       scopesPlaceholder: '请选择权限范围',
       storageIdPlaceholder: '请选择存储配置',
-      storageIdDefault: '使用默认'
+      storageIdDefault: '使用默认',
+      quotaRatePlaceholder: '每秒令牌数',
+      quotaRateSuffix: '个/秒',
+      quotaCapacityPlaceholder: '最大突发量',
+      quotaCapacitySuffix: '个'
     }
   },
   scope: {

@@ -13,9 +13,15 @@ const openPlatform = {
     storageId: 'Storage Config',
     storageBound: 'Bound',
     storageDefault: 'Default',
+    quotaConfig: 'Rate Limit',
+    quotaRate: 'Rate',
+    quotaCapacity: 'Capacity',
+    quotaDefault: 'Default',
     resetSecret: 'Reset Secret',
     confirmResetSecret: 'Are you sure to reset the AppSecret? The old key will be invalidated immediately!',
     resetSecretSuccess: 'Secret reset successful. Please keep the new secret safe: ',
+    resetSecretWarning:
+      'Please keep this secret safe! You will not be able to view it again after closing this window.',
     form: {
       namePlaceholder: 'Please enter app name',
       appKeyPlaceholder: 'Please enter AppKey',
@@ -24,7 +30,11 @@ const openPlatform = {
       remarkPlaceholder: 'Please enter remark',
       scopesPlaceholder: 'Please select scopes',
       storageIdPlaceholder: 'Please select storage config',
-      storageIdDefault: 'Use Default'
+      storageIdDefault: 'Use Default',
+      quotaRatePlaceholder: 'Tokens per second',
+      quotaRateSuffix: '/sec',
+      quotaCapacityPlaceholder: 'Max burst',
+      quotaCapacitySuffix: 'tokens'
     }
   },
   scope: {

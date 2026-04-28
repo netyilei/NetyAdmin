@@ -59,6 +59,7 @@ func (h *AppHandler) Create(c *gin.Context) {
 		Status:          req.Status,
 		IPFilterEnabled: req.IPFilterEnabled,
 		Remark:          req.Remark,
+		QuotaConfig:     req.QuotaConfig,
 		StorageID:       req.StorageID,
 	}
 
@@ -84,6 +85,7 @@ func (h *AppHandler) Update(c *gin.Context) {
 		Status:          req.Status,
 		IPFilterEnabled: req.IPFilterEnabled,
 		Remark:          req.Remark,
+		QuotaConfig:     req.QuotaConfig,
 		StorageID:       req.StorageID,
 	}
 
