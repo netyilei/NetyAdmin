@@ -20,6 +20,7 @@ type AppRepository interface {
 
 	// Scopes
 	GetAppScopes(ctx context.Context, appID string) ([]string, error)
+	GetAppScopesByAppIDs(ctx context.Context, appIDs []string) (map[string][]string, error)
 	UpdateAppScopes(ctx context.Context, appID string, scopes []string) error
 
 	// Scope Groups
@@ -83,7 +84,7 @@ func (r *appRepository) GetByID(ctx context.Context, id string) (*open_platform.
 
 func (r *appRepository) GetByKey(ctx context.Context, appKey string) (*open_platform.App, error) {
 	var app open_platform.App
-	err := r.db.WithContext(ctx).Where("app_key = ? AND status = ?", appKey, open_platform.AppStatusEnabled).First(&app).Error
+	err := r.db.WithContext(ctx).Where("app_key = ?", appKey).First(&app).Error
 	return &app, err
 }
 
@@ -120,6 +121,28 @@ func (r *appRepository) GetAppScopes(ctx context.Context, appID string) ([]strin
 		Where("app_id = ?", appID).
 		Pluck("scope", &scopes).Error
 	return scopes, err
+}
+
+func (r *appRepository) GetAppScopesByAppIDs(ctx context.Context, appIDs []string) (map[string][]string, error) {
+	if len(appIDs) == 0 {
+		return make(map[string][]string), nil
+	}
+	var results []struct {
+		AppID string
+		Scope string
+	}
+	err := r.db.WithContext(ctx).Model(&open_platform.AppScope{}).
+		Select("app_id, scope").
+		Where("app_id IN ?", appIDs).
+		Find(&results).Error
+	if err != nil {
+		return nil, err
+	}
+	scopesMap := make(map[string][]string, len(appIDs))
+	for _, r := range results {
+		scopesMap[r.AppID] = append(scopesMap[r.AppID], r.Scope)
+	}
+	return scopesMap, nil
 }
 
 func (r *appRepository) UpdateAppScopes(ctx context.Context, appID string, scopes []string) error {

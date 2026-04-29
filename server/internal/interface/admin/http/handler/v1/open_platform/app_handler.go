@@ -17,6 +17,13 @@ type AppHandler struct {
 	svc openSvc.AppService
 }
 
+func normalizeQuotaConfig(s string) string {
+	if s == "" {
+		return "{}"
+	}
+	return s
+}
+
 func NewAppHandler(svc openSvc.AppService) *AppHandler {
 	return &AppHandler{svc: svc}
 }
@@ -60,7 +67,7 @@ func (h *AppHandler) Create(c *gin.Context) {
 		IPFilterEnabled:  req.IPFilterEnabled,
 		RateLimitEnabled: req.RateLimitEnabled,
 		Remark:           req.Remark,
-		QuotaConfig:      req.QuotaConfig,
+		QuotaConfig:      normalizeQuotaConfig(req.QuotaConfig),
 		CacheTTL:         req.CacheTTL,
 		StorageID:        req.StorageID,
 	}
@@ -88,7 +95,7 @@ func (h *AppHandler) Update(c *gin.Context) {
 		IPFilterEnabled:  req.IPFilterEnabled,
 		RateLimitEnabled: req.RateLimitEnabled,
 		Remark:           req.Remark,
-		QuotaConfig:      req.QuotaConfig,
+		QuotaConfig:      normalizeQuotaConfig(req.QuotaConfig),
 		CacheTTL:         req.CacheTTL,
 		StorageID:        req.StorageID,
 	}

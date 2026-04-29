@@ -2,7 +2,6 @@ package open_platform
 
 import (
 	"context"
-	"time"
 
 	"NetyAdmin/internal/domain/entity/open_platform"
 	"NetyAdmin/internal/pkg/cache"
@@ -26,20 +25,16 @@ type OpenApiService interface {
 }
 
 type openApiService struct {
-	apiRepo     openRepo.OpenApiRepository
-	appRepo     openRepo.AppRepository
-	scopeRepo   openRepo.AppRepository
-	cacheMgr    cache.LazyCacheManager
-	localTTLMin int
+	apiRepo  openRepo.OpenApiRepository
+	appRepo  openRepo.AppRepository
+	cacheMgr cache.LazyCacheManager
 }
 
-func NewOpenApiService(apiRepo openRepo.OpenApiRepository, appRepo openRepo.AppRepository, scopeRepo openRepo.AppRepository, cacheMgr cache.LazyCacheManager, localTTLMin int) OpenApiService {
+func NewOpenApiService(apiRepo openRepo.OpenApiRepository, appRepo openRepo.AppRepository, cacheMgr cache.LazyCacheManager) OpenApiService {
 	return &openApiService{
-		apiRepo:     apiRepo,
-		appRepo:     appRepo,
-		scopeRepo:   scopeRepo,
-		cacheMgr:    cacheMgr,
-		localTTLMin: localTTLMin,
+		apiRepo:  apiRepo,
+		appRepo:  appRepo,
+		cacheMgr: cacheMgr,
 	}
 }
 
@@ -86,7 +81,7 @@ func (s *openApiService) ListApis(ctx context.Context, query *openRepo.OpenApiRe
 func (s *openApiService) ListAllApis(ctx context.Context) ([]*open_platform.OpenApi, error) {
 	var list []*open_platform.OpenApi
 	key := cache.KeyOpenApiAll()
-	err := s.cacheMgr.Fetch(ctx, key, cache.TagOpenApi, []string{cache.TagOpenApi}, s.getDefaultCacheTTL(), &list, func() (interface{}, error) {
+	err := s.cacheMgr.Fetch(ctx, key, cache.TagOpenApi, []string{cache.TagOpenApi}, 0, &list, func() (interface{}, error) {
 		return s.apiRepo.ListAll(ctx)
 	})
 	return list, err
@@ -95,7 +90,7 @@ func (s *openApiService) ListAllApis(ctx context.Context) ([]*open_platform.Open
 func (s *openApiService) ListGroupedApis(ctx context.Context) (interface{}, error) {
 	var result []map[string]interface{}
 	key := cache.KeyOpenApiGrouped()
-	err := s.cacheMgr.Fetch(ctx, key, cache.TagOpenApi, []string{cache.TagOpenApi}, s.getDefaultCacheTTL(), &result, func() (interface{}, error) {
+	err := s.cacheMgr.Fetch(ctx, key, cache.TagOpenApi, []string{cache.TagOpenApi}, 0, &result, func() (interface{}, error) {
 		apis, err := s.apiRepo.ListAll(ctx)
 		if err != nil {
 			return nil, err
@@ -125,14 +120,14 @@ func (s *openApiService) ListGroupedApis(ctx context.Context) (interface{}, erro
 }
 
 func (s *openApiService) GetScopeApis(ctx context.Context, scopeID uint64) ([]*open_platform.OpenApi, error) {
-	if _, err := s.scopeRepo.GetScopeGroupByID(ctx, scopeID); err != nil {
+	if _, err := s.appRepo.GetScopeGroupByID(ctx, scopeID); err != nil {
 		return nil, err
 	}
 	return s.apiRepo.GetScopeApis(ctx, scopeID)
 }
 
 func (s *openApiService) UpdateScopeApis(ctx context.Context, scopeID uint64, apiIDs []uint64) error {
-	if _, err := s.scopeRepo.GetScopeGroupByID(ctx, scopeID); err != nil {
+	if _, err := s.appRepo.GetScopeGroupByID(ctx, scopeID); err != nil {
 		return err
 	}
 	if err := s.apiRepo.UpdateScopeApis(ctx, scopeID, apiIDs); err != nil {
@@ -149,8 +144,7 @@ func (s *openApiService) GetApisByScopeIDs(ctx context.Context, scopeIDs []uint6
 func (s *openApiService) GetAppAllowedApis(ctx context.Context, appID string) ([]string, error) {
 	var apiKeys []string
 	key := cache.KeyAppApis(appID)
-	ttl := s.getDefaultCacheTTL()
-	err := s.cacheMgr.FetchFast(ctx, key, cache.TagApp, []string{cache.TagApp, cache.TagAppID(appID)}, ttl, &apiKeys, func() (interface{}, error) {
+	err := s.cacheMgr.FetchFast(ctx, key, cache.TagApp, []string{cache.TagApp, cache.TagAppID(appID)}, 0, &apiKeys, func() (interface{}, error) {
 		scopes, err := s.appRepo.GetAppScopes(ctx, appID)
 		if err != nil {
 			return nil, err
@@ -160,7 +154,7 @@ func (s *openApiService) GetAppAllowedApis(ctx context.Context, appID string) ([
 		}
 
 		var scopeIDs []uint64
-		groups, err := s.scopeRepo.ListScopeGroups(ctx)
+		groups, err := s.appRepo.ListScopeGroups(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -186,8 +180,4 @@ func (s *openApiService) GetAppAllowedApis(ctx context.Context, appID string) ([
 		return result, nil
 	})
 	return apiKeys, err
-}
-
-func (s *openApiService) getDefaultCacheTTL() time.Duration {
-	return time.Duration(s.localTTLMin) * time.Minute
 }

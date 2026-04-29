@@ -55,6 +55,7 @@ export const BackendErrorCode = {
   requestExpired: '101303',
   scopeMismatch: '101304',
   rateLimited: '101305',
+  appDisabled: '101306',
   // IP 访问控制 (1014xx)
   ipBlocked: '101401',
   ipInvalid: '101402',
@@ -119,6 +120,7 @@ const backendErrorI18nKeyMap: Record<string, string> = {
   [BackendErrorCode.requestExpired]: 'request.backend.requestExpired',
   [BackendErrorCode.scopeMismatch]: 'request.backend.scopeMismatch',
   [BackendErrorCode.rateLimited]: 'request.backend.rateLimited',
+  [BackendErrorCode.appDisabled]: 'request.backend.appDisabled',
   // IP 访问控制 (1014xx)
   [BackendErrorCode.ipBlocked]: 'request.backend.ipBlocked',
   [BackendErrorCode.ipInvalid]: 'request.backend.ipInvalid',

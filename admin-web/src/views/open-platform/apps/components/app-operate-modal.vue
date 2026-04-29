@@ -84,7 +84,7 @@ async function loadStorageConfigs() {
 }
 
 async function loadAppIPRules(appId: string) {
-  const { data } = await fetchIPACList({ current: 1, size: 500, appId: Number(appId) || undefined });
+  const { data } = await fetchIPACList({ current: 1, size: 500, appId });
   if (data) {
     selectedRuleIds.value = data.records.map(item => item.id);
   }
@@ -106,9 +106,9 @@ function parseQuotaConfig(quotaConfig: string | undefined) {
   }
 }
 
-function buildQuotaConfig(): string {
+function buildQuotaConfig(): string | undefined {
   if (quotaRate.value === null && quotaCapacity.value === null) {
-    return '';
+    return undefined;
   }
   const quota: Record<string, number> = {};
   if (quotaRate.value !== null) {
@@ -190,7 +190,15 @@ watch(visible, () => {
   if (visible.value) {
     if (props.operateType === 'edit' && props.rowData) {
       Object.assign(model, {
-        ...props.rowData
+        id: props.rowData.id,
+        name: props.rowData.name,
+        status: props.rowData.status,
+        ipFilterEnabled: props.rowData.ipFilterEnabled,
+        rateLimitEnabled: props.rowData.rateLimitEnabled,
+        remark: props.rowData.remark,
+        cacheTTL: props.rowData.cacheTTL,
+        storageId: props.rowData.storageId,
+        scopes: props.rowData.scopes || []
       });
       parseQuotaConfig(props.rowData.quotaConfig);
       if (props.rowData.id) {
@@ -283,7 +291,7 @@ watch(visible, () => {
         <NInputNumber
           v-model:value="model.cacheTTL"
           :min="0"
-          :max="86400"
+          :max="2592000"
           :placeholder="$t('page.openPlatform.app.form.cacheTTLPlaceholder')"
           class="w-full"
         >

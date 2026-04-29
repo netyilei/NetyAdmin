@@ -61,6 +61,7 @@ const request = {
     requestExpired: '请求已过期',
     scopeMismatch: '权限不足 (Scope 不匹配)',
     rateLimited: '已触发流量限制',
+    appDisabled: '应用已被禁用',
     // IP 访问控制 (1014xx)
     ipBlocked: '访问受限 (您的 IP 已被封禁)',
     ipInvalid: '非法 IP/CIDR 格式',

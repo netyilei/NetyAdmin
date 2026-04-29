@@ -1,9 +1,9 @@
 export namespace SystemIPAC {
   interface IPAC {
     id: number;
-    appId: number | null;
+    appId: string | null;
     ipAddr: string;
-    type: 1 | 2; // 1: Allow, 2: Deny
+    type: 1 | 2;
     reason: string;
     expiredAt: string | null;
     status: 0 | 1;
@@ -14,7 +14,7 @@ export namespace SystemIPAC {
   interface IPACQueryParams {
     current: number;
     size: number;
-    appId?: number;
+    appId?: string;
     ipAddr?: string;
     type?: 1 | 2;
     status?: 0 | 1;
@@ -24,7 +24,7 @@ export namespace SystemIPAC {
   type IPACPageResult = import('@/typings/api/v1/common').Common.PaginatingQueryRecord<IPAC>;
 
   interface CreateIPACReq {
-    appId?: number;
+    appId?: string;
     ipAddr: string;
     type: number;
     reason?: string;

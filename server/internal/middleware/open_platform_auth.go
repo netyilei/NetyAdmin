@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strconv"
@@ -118,7 +119,7 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 
 		// 3. 检查应用状态
 		if app.Status == openEntity.AppStatusDisabled {
-			response.FailWithCode(c, errorx.CodeAppKeyInvalid, "应用已被禁用")
+			response.FailWithCode(c, errorx.CodeAppDisabled, "应用已被禁用")
 			c.Abort()
 			return
 		}
@@ -127,7 +128,7 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 		clientIP := c.ClientIP()
 		allowed, err := ipacSvc.CheckIP(c.Request.Context(), clientIP, &app.ID)
 		if err != nil {
-			// 如果匹配过程出错，为了安全，记录日志并放行 (或者为了更严谨可以拦截，这里遵循 IPACAuth 逻辑)
+			slog.Error("[OpenPlatformAuth] IPAC check error", "ip", clientIP, "appID", app.ID, "err", err)
 		} else if !allowed {
 			response.FailWithCode(c, errorx.CodeIPBlocked, "您的 IP 访问受限")
 			c.Abort()

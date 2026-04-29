@@ -61,6 +61,7 @@ const request = {
     requestExpired: 'Request expired',
     scopeMismatch: 'Insufficient permissions (Scope mismatch)',
     rateLimited: 'Rate limited',
+    appDisabled: 'Application has been disabled',
     // IP Access Control (1014xx)
     ipBlocked: 'Access denied (Your IP has been blocked)',
     ipInvalid: 'Invalid IP/CIDR format',

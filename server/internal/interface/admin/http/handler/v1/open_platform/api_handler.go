@@ -1,7 +1,7 @@
 package open_platform
 
 import (
-	"log"
+	"log/slog"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -65,7 +65,7 @@ func (h *OpenApiHandler) Create(c *gin.Context) {
 	}
 
 	if err := h.svc.CreateApi(c.Request.Context(), api); err != nil {
-		log.Printf("[OpenApi] Create error: %v", err)
+		slog.Error("[OpenApi] Create error", "err", err)
 		response.FailWithCode(c, errorx.CodeInternalError)
 		return
 	}
@@ -91,7 +91,7 @@ func (h *OpenApiHandler) Update(c *gin.Context) {
 	}
 
 	if err := h.svc.UpdateApi(c.Request.Context(), api); err != nil {
-		log.Printf("[OpenApi] Update error: %v", err)
+		slog.Error("[OpenApi] Update error", "err", err)
 		response.FailWithCode(c, errorx.CodeInternalError)
 		return
 	}
@@ -142,7 +142,7 @@ func (h *OpenApiHandler) GetScopeApis(c *gin.Context) {
 
 	list, err := h.svc.GetScopeApis(c.Request.Context(), id)
 	if err != nil {
-		log.Printf("[OpenApi] GetScopeApis error: %v", err)
+		slog.Error("[OpenApi] GetScopeApis error", "err", err)
 		response.FailWithCode(c, errorx.CodeInternalError)
 		return
 	}
@@ -157,7 +157,7 @@ func (h *OpenApiHandler) UpdateScopeApis(c *gin.Context) {
 	}
 
 	if err := h.svc.UpdateScopeApis(c.Request.Context(), req.ScopeID, req.ApiIDs); err != nil {
-		log.Printf("[OpenApi] UpdateScopeApis error: %v", err)
+		slog.Error("[OpenApi] UpdateScopeApis error", "err", err)
 		response.FailWithCode(c, errorx.CodeInternalError)
 		return
 	}

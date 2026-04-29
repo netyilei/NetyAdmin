@@ -110,9 +110,9 @@ func (r *openApiRepository) ListAll(ctx context.Context) ([]*open_platform.OpenA
 func (r *openApiRepository) GetScopeApis(ctx context.Context, scopeID uint64) ([]*open_platform.OpenApi, error) {
 	var list []*open_platform.OpenApi
 	err := r.db.WithContext(ctx).
-		Where("id IN (?)", r.db.Table("sys_scope_apis").
+		Where("id IN (?)", r.db.Model(&open_platform.ScopeApi{}).
 			Select("api_id").
-			Where("scope_id = ? AND deleted_at = 0", scopeID)).
+			Where("scope_id = ?", scopeID)).
 		Order("id ASC").
 		Find(&list).Error
 	return list, err
@@ -145,9 +145,9 @@ func (r *openApiRepository) GetApisByScopeIDs(ctx context.Context, scopeIDs []ui
 	}
 	var list []*open_platform.OpenApi
 	err := r.db.WithContext(ctx).
-		Where("id IN (?)", r.db.Table("sys_scope_apis").
+		Where("id IN (?)", r.db.Model(&open_platform.ScopeApi{}).
 			Select("api_id").
-			Where("scope_id IN ? AND deleted_at = 0", scopeIDs)).
+			Where("scope_id IN ?", scopeIDs)).
 		Order("id ASC").
 		Find(&list).Error
 	return list, err

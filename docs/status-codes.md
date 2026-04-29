@@ -201,6 +201,7 @@
 | `101303` | `CodeRequestExpired` | `requestExpired` | 请求已过期 | Request expired |
 | `101304` | `CodeScopeMismatch` | `scopeMismatch` | 权限不足 (Scope 不匹配) | Insufficient permissions (Scope mismatch) |
 | `101305` | `CodeRateLimited` | `rateLimited` | 已触发流量限制 | Rate limit exceeded |
+| `101306` | `CodeAppDisabled` | `appDisabled` | 应用已被禁用 | Application has been disabled |
 
 ---
 

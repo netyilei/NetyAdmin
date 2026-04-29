@@ -36,7 +36,7 @@ type App struct {
 	IPFilterEnabled   bool                  `gorm:"default:false" json:"ipFilterEnabled"`    // 是否启用 IP 过滤
 	RateLimitEnabled  bool                  `gorm:"default:true" json:"rateLimitEnabled"`    // 是否启用限流
 	QuotaConfig       string                `gorm:"type:jsonb" json:"quotaConfig"`
-	CacheTTL          int                   `gorm:"default:0;comment:缓存TTL(秒),0使用系统默认" json:"cacheTTL"`
+	CacheTTL          int                   `gorm:"default:0;comment:缓存TTL(秒),0表示永久缓存" json:"cacheTTL"`
 	Remark          string                `gorm:"size:255" json:"remark"`
 	StorageID       uint                  `gorm:"default:0;comment:绑定的存储配置ID" json:"storageId"`
 	CreatedAt       time.Time             `json:"createdAt"`

@@ -63,6 +63,9 @@ type LazyCacheManager interface {
 	// SetEventBus 注入 PubSubBus 实例（解决循环依赖：CacheManager 先于 EventBus 创建）
 	SetEventBus(bus pubsub.EventBus)
 
+	// IsCacheEnabled 检查指定模块的缓存开关是否开启
+	IsCacheEnabled(moduleName string) bool
+
 	// RateLimit 限流校验
 	RateLimit(ctx context.Context, key string, rate int, capacity int) (bool, error)
 
@@ -84,6 +87,7 @@ type lazyCacheManager struct {
 	eventBus     pubsub.EventBus
 
 	localLimiters sync.Map
+	l2Cache       *cache.Cache[any]
 }
 
 // DefaultSwitchChecker 给一个总是返回 True 的默认校验器，直到我们实现 configsync
@@ -125,12 +129,13 @@ func NewLazyCacheManager(cfg *config.RedisConfig, redisClient *redis.Client, che
 
 	var cacheMgr cache.CacheInterface[any]
 	var l1Cache *cache.Cache[any]
+	var l2Cache *cache.Cache[any]
 
 	l1Cache = cache.New[any](l1Store)
 
 	if cfg.Enabled && redisClient != nil {
 		l2Store := redisStore.NewRedis(redisClient)
-		l2Cache := cache.New[any](l2Store)
+		l2Cache = cache.New[any](l2Store)
 
 		if cfg.L1Enabled {
 			cacheMgr = cache.NewChain[any](l1Cache, l2Cache)
@@ -144,6 +149,7 @@ func NewLazyCacheManager(cfg *config.RedisConfig, redisClient *redis.Client, che
 	mgr := &lazyCacheManager{
 		cacheManager:  cacheMgr,
 		l1Cache:       l1Cache,
+		l2Cache:       l2Cache,
 		l1Enabled:     cfg.L1Enabled,
 		switches:      checker,
 		prefix:        cfg.Prefix,
@@ -155,6 +161,10 @@ func NewLazyCacheManager(cfg *config.RedisConfig, redisClient *redis.Client, che
 }
 
 func (m *lazyCacheManager) RateLimit(ctx context.Context, key string, r int, capacity int) (bool, error) {
+	if r <= 0 || capacity <= 0 {
+		return true, nil
+	}
+
 	// 1. 如果 Redis 开启，使用 Redis 脚本限流 (分布式准确)
 	if m.redisClient != nil {
 		// 这里借用一下我们现有的 Lua 脚本逻辑，但直接写在 manager 里以减少依赖
@@ -438,9 +448,8 @@ func (m *lazyCacheManager) SetFast(ctx context.Context, key string, value interf
 		return m.cacheManager.Set(ctx, fullKey, data, options...)
 	}
 
-	if m.redisClient != nil {
-		l2Cache := cache.New[any](redisStore.NewRedis(m.redisClient))
-		_ = l2Cache.Set(ctx, fullKey, data, options...)
+	if m.l2Cache != nil {
+		_ = m.l2Cache.Set(ctx, fullKey, data, options...)
 	}
 
 	if m.l1Cache != nil {
@@ -511,6 +520,10 @@ func (m *lazyCacheManager) DeleteFast(ctx context.Context, key string) error {
 
 func (m *lazyCacheManager) GetRedisClient() *redis.Client {
 	return m.redisClient
+}
+
+func (m *lazyCacheManager) IsCacheEnabled(moduleName string) bool {
+	return m.switches.IsCacheEnabled(moduleName)
 }
 
 func (m *lazyCacheManager) InvalidateByTags(ctx context.Context, tags ...string) error {

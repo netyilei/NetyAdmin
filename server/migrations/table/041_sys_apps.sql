@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS sys_apps (
     ip_filter_enabled BOOLEAN DEFAULT FALSE, -- 是否启用 IP 过滤
     rate_limit_enabled BOOLEAN DEFAULT TRUE, -- 是否启用限流
     quota_config JSONB, -- 限流配额配置 (QPS, Burst等)
-    cache_ttl INTEGER DEFAULT 0, -- 缓存TTL(秒), 0表示使用系统默认(local_ttl_min)
+    cache_ttl INTEGER DEFAULT 0, -- 缓存TTL(秒), 0表示永久缓存
     remark VARCHAR(255),
     storage_id BIGINT DEFAULT 0, -- 绑定的存储配置ID，0表示使用全局默认
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
