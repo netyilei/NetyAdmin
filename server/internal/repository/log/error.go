@@ -27,6 +27,7 @@ func (r *ErrorRepository) UpsertByHash(ctx context.Context, logRecord *logEntity
 			"last_occurred_at": time.Now(),
 			"request_id":       logRecord.RequestID,
 			"ip":               logRecord.IP,
+			"deleted_at":       0,
 		}),
 	}).Create(logRecord).Error
 }
