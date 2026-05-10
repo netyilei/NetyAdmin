@@ -30,7 +30,7 @@ type UserResetPasswordReq struct {
 type UserUpdateProfileReq struct {
 	Nickname string `json:"nickName"`
 	Avatar   string `json:"avatar"`
-	Gender   string `json:"gender"`
+	Gender   string `json:"gender" binding:"omitempty,oneof=0 1 2"`
 	Email    string `json:"email"`
 	Phone    string `json:"phone"`
 }

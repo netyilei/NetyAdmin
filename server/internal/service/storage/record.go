@@ -125,11 +125,14 @@ func (s *recordService) CreateUploadRecord(ctx context.Context, req *storageDto.
 
 	if req.ConfigID > 0 {
 		config, err = s.configSvc.GetByID(ctx, req.ConfigID)
+		if err != nil {
+			return nil, errorx.New(errorx.CodeNotFound, "存储配置不存在")
+		}
 	} else {
 		config, err = s.configSvc.GetDefault(ctx)
-	}
-	if err != nil {
-		return nil, errorx.New(errorx.CodeNotFound, "存储配置不存在")
+		if err != nil {
+			return nil, errorx.New(errorx.CodeNotFound, "存储配置不存在")
+		}
 	}
 
 	if req.ConfigID == 0 && config != nil {
@@ -248,6 +251,10 @@ func (s *recordService) RecordUpload(ctx context.Context, configID uint, fileNam
 			return errorx.New(errorx.CodeInternalError, "未配置默认存储源")
 		}
 		configID = cfg.ID
+	} else {
+		if _, err := s.configSvc.GetByID(ctx, configID); err != nil {
+			return errorx.New(errorx.CodeNotFound, "存储配置不存在")
+		}
 	}
 
 	sourceInfoJSON := ""

@@ -20,7 +20,7 @@ type UpdateProfileReq struct {
 	Nickname string `json:"nickname"`
 	Phone    string `json:"phone"`
 	Email    string `json:"email"`
-	Gender   string `json:"gender"`
+	Gender   string `json:"gender" binding:"omitempty,oneof=0 1 2"`
 }
 
 type AdminQuery struct {
@@ -30,7 +30,7 @@ type AdminQuery struct {
 	Phone    string  `form:"phone" json:"phone"`
 	Email    string  `form:"email" json:"email"`
 	Status   *string `form:"status" json:"status"`
-	Gender   *string `form:"gender" json:"gender"`
+	Gender   *string `form:"gender" json:"gender" binding:"omitempty,oneof=0 1 2"`
 }
 
 type CreateAdminReq struct {
@@ -39,7 +39,7 @@ type CreateAdminReq struct {
 	Nickname string   `json:"nickname"`
 	Phone    string   `json:"phone"`
 	Email    string   `json:"email"`
-	Gender   string   `json:"gender"`
+	Gender   string   `json:"gender" binding:"omitempty,oneof=0 1 2"`
 	Status   string   `json:"status" binding:"required,oneof=0 1"`
 	Roles    []string `json:"roles"`
 }
@@ -51,7 +51,7 @@ type UpdateAdminReq struct {
 	Nickname string   `json:"nickname"`
 	Phone    string   `json:"phone"`
 	Email    string   `json:"email"`
-	Gender   string   `json:"gender"`
+	Gender   string   `json:"gender" binding:"omitempty,oneof=0 1 2"`
 	Status   string   `json:"status" binding:"required,oneof=0 1"`
 	Roles    []string `json:"roles"`
 }

@@ -23,7 +23,7 @@ type CreateUserReq struct {
 	Password string `json:"password" binding:"required"`
 	Nickname string `json:"nickname"`
 	Avatar   string `json:"avatar"`
-	Gender   string `json:"gender"`
+	Gender   string `json:"gender" binding:"omitempty,oneof=0 1 2"`
 	Phone    string `json:"phone"`
 	Email    string `json:"email"`
 	Status   string `json:"status"`
@@ -34,7 +34,7 @@ type UpdateUserReq struct {
 	Password string `json:"password"`
 	Nickname string `json:"nickname"`
 	Avatar   string `json:"avatar"`
-	Gender   string `json:"gender"`
+	Gender   string `json:"gender" binding:"omitempty,oneof=0 1 2"`
 	Phone    string `json:"phone"`
 	Email    string `json:"email"`
 	Status   string `json:"status"`
