@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -204,15 +205,15 @@ func IsAllowedFileType(filename string, allowedTypes string) bool {
 }
 
 func splitAndTrim(s string, sep string) []string {
-	var result []string
-	start := 0
-	for i := 0; i <= len(s); i++ {
-		if i == len(s) || string(s[i]) == sep {
-			if i > start {
-				result = append(result, s[start:i])
-			}
-			start = i + 1
+	if s == "" {
+		return nil
+	}
+	parts := make([]string, 0)
+	for _, part := range strings.Split(s, sep) {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			parts = append(parts, trimmed)
 		}
 	}
-	return result
+	return parts
 }

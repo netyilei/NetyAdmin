@@ -2,15 +2,20 @@ package utils
 
 import (
 	"crypto/rand"
+	"sync"
 	"time"
 
 	"github.com/oklog/ulid/v2"
 )
 
+var (
+	entropy     = ulid.Monotonic(rand.Reader, 0)
+	entropyOnce sync.Once
+)
+
 // NewULID 生成一个新的 ULID 字符串
 func NewULID() string {
 	t := time.Now()
-	entropy := ulid.Monotonic(rand.Reader, 0)
 	id := ulid.MustNew(ulid.Timestamp(t), entropy)
 	return id.String()
 }

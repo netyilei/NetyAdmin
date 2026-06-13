@@ -79,6 +79,8 @@ type MemoryDriver struct {
 	*baseBus
 	stopChan chan struct{}
 	msgChan  chan *Message
+	closed   bool
+	closeMu  sync.Mutex
 }
 
 func NewMemoryDriver() EventBus {
@@ -92,6 +94,13 @@ func NewMemoryDriver() EventBus {
 }
 
 func (d *MemoryDriver) Publish(ctx context.Context, topic string, msg interface{}) error {
+	d.closeMu.Lock()
+	if d.closed {
+		d.closeMu.Unlock()
+		return fmt.Errorf("event bus is closed")
+	}
+	d.closeMu.Unlock()
+
 	m, err := NewMessage(topic, msg)
 	if err != nil {
 		return err
@@ -110,13 +119,22 @@ func (d *MemoryDriver) loop() {
 		select {
 		case <-d.stopChan:
 			return
-		case msg := <-d.msgChan:
+		case msg, ok := <-d.msgChan:
+			if !ok {
+				return
+			}
 			d.dispatch(msg.Topic, msg.Payload)
 		}
 	}
 }
 
 func (d *MemoryDriver) Close() error {
+	d.closeMu.Lock()
+	defer d.closeMu.Unlock()
+	if d.closed {
+		return nil
+	}
+	d.closed = true
 	close(d.stopChan)
 	return nil
 }
@@ -129,6 +147,8 @@ type RedisDriver struct {
 	channel     string
 	stopChan    chan struct{}
 	wg          sync.WaitGroup
+	closed      bool
+	closeMu     sync.Mutex
 }
 
 func NewRedisDriver(redisClient *redis.Client, prefix string) EventBus {
@@ -153,6 +173,13 @@ func NewRedisDriver(redisClient *redis.Client, prefix string) EventBus {
 }
 
 func (d *RedisDriver) Publish(ctx context.Context, topic string, msg interface{}) error {
+	d.closeMu.Lock()
+	if d.closed {
+		d.closeMu.Unlock()
+		return fmt.Errorf("event bus is closed")
+	}
+	d.closeMu.Unlock()
+
 	if d.redisClient == nil {
 		return fmt.Errorf("redis client is nil")
 	}
@@ -173,29 +200,59 @@ func (d *RedisDriver) Publish(ctx context.Context, topic string, msg interface{}
 func (d *RedisDriver) subscribeLoop() {
 	defer d.wg.Done()
 
-	ctx := context.Background()
-	sub := d.redisClient.Subscribe(ctx, d.channel)
-	defer sub.Close()
+	const reconnectDelay = 3 * time.Second
 
-	ch := sub.Channel()
 	for {
+		d.closeMu.Lock()
+		if d.closed {
+			d.closeMu.Unlock()
+			return
+		}
+		d.closeMu.Unlock()
+
+		ctx := context.Background()
+		sub := d.redisClient.Subscribe(ctx, d.channel)
+		ch := sub.Channel()
+
+		func() {
+			defer sub.Close()
+			for {
+				select {
+				case <-d.stopChan:
+					return
+				case msg, ok := <-ch:
+					if !ok {
+						// channel 关闭，Redis 断连，尝试重连
+						return
+					}
+					var m Message
+					if err := json.Unmarshal([]byte(msg.Payload), &m); err != nil {
+						continue
+					}
+					d.dispatch(m.Topic, m.Payload)
+				}
+			}
+		}()
+
+		// 检查是否应该退出
 		select {
 		case <-d.stopChan:
 			return
-		case msg, ok := <-ch:
-			if !ok {
-				return
-			}
-			var m Message
-			if err := json.Unmarshal([]byte(msg.Payload), &m); err != nil {
-				continue
-			}
-			d.dispatch(m.Topic, m.Payload)
+		case <-time.After(reconnectDelay):
+			// 重连延迟后继续循环
 		}
 	}
 }
 
 func (d *RedisDriver) Close() error {
+	d.closeMu.Lock()
+	if d.closed {
+		d.closeMu.Unlock()
+		return nil
+	}
+	d.closed = true
+	d.closeMu.Unlock()
+
 	close(d.stopChan)
 	d.wg.Wait()
 	return nil

@@ -3,6 +3,7 @@ package storage
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,13 +21,17 @@ import (
 )
 
 type S3Driver struct {
-	client     *s3.Client
-	uploader   *manager.Uploader
-	downloader *manager.Downloader
-	bucket     string
-	domain     string
-	pathPrefix string
+	client      *s3.Client
+	uploader    *manager.Uploader
+	downloader  *manager.Downloader
+	bucket      string
+	domain      string
+	pathPrefix  string
+	maxFileSize int64
 }
+
+// DefaultMaxDownloadSize 默认下载文件大小上限（100MB），防止 OOM
+const DefaultMaxDownloadSize = 100 * 1024 * 1024
 
 func NewS3Driver(cfg *Config) (*S3Driver, error) {
 	region := GetProviderRegion(cfg.Provider, cfg.Region)
@@ -53,13 +58,19 @@ func NewS3Driver(cfg *Config) (*S3Driver, error) {
 			cfg.Provider == ProviderCustom
 	})
 
+	maxFileSize := cfg.MaxFileSize
+	if maxFileSize <= 0 {
+		maxFileSize = DefaultMaxDownloadSize
+	}
+
 	return &S3Driver{
-		client:     client,
-		uploader:   manager.NewUploader(client),
-		downloader: manager.NewDownloader(client),
-		bucket:     cfg.Bucket,
-		domain:     cfg.Domain,
-		pathPrefix: cfg.PathPrefix,
+		client:      client,
+		uploader:    manager.NewUploader(client),
+		downloader:  manager.NewDownloader(client),
+		bucket:      cfg.Bucket,
+		domain:      cfg.Domain,
+		pathPrefix:  cfg.PathPrefix,
+		maxFileSize: maxFileSize,
 	}, nil
 }
 
@@ -130,19 +141,23 @@ func (d *S3Driver) UploadFile(ctx context.Context, key string, filePath string, 
 func (d *S3Driver) Download(ctx context.Context, key string) (io.ReadCloser, *ObjectInfo, error) {
 	fullKey := d.buildKey(key)
 
-	buffer := manager.NewWriteAtBuffer([]byte{})
+	// 先获取对象信息，检查大小，防止大文件 OOM
+	info, err := d.GetObjectInfo(ctx, key)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get object info: %w", err)
+	}
+	if info.Size > d.maxFileSize {
+		return nil, nil, fmt.Errorf("file size %d exceeds maximum %d", info.Size, d.maxFileSize)
+	}
 
-	_, err := d.downloader.Download(ctx, buffer, &s3.GetObjectInput{
+	buffer := manager.NewWriteAtBuffer(make([]byte, 0, info.Size))
+
+	_, err = d.downloader.Download(ctx, buffer, &s3.GetObjectInput{
 		Bucket: aws.String(d.bucket),
 		Key:    aws.String(fullKey),
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to download object: %w", err)
-	}
-
-	info, err := d.GetObjectInfo(ctx, key)
-	if err != nil {
-		info = &ObjectInfo{Key: fullKey}
 	}
 
 	return io.NopCloser(bytes.NewReader(buffer.Bytes())), info, nil
@@ -173,15 +188,24 @@ func (d *S3Driver) DeleteMultiple(ctx context.Context, keys []string) error {
 		}
 	}
 
-	_, err := d.client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+	result, err := d.client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
 		Bucket: aws.String(d.bucket),
 		Delete: &types.Delete{
 			Objects: objects,
-			Quiet:   aws.Bool(true),
+			Quiet:   aws.Bool(false), // 返回详细删除结果，不静默吞错误
 		},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to delete objects: %w", err)
+	}
+
+	// 汇总部分删除失败的错误
+	if len(result.Errors) > 0 {
+		var errMsgs []string
+		for _, e := range result.Errors {
+			errMsgs = append(errMsgs, fmt.Sprintf("%s: %s", aws.ToString(e.Key), aws.ToString(e.Message)))
+		}
+		return fmt.Errorf("partial delete failure: %s", strings.Join(errMsgs, "; "))
 	}
 	return nil
 }
@@ -194,8 +218,7 @@ func (d *S3Driver) Exists(ctx context.Context, key string) (bool, error) {
 		Key:    aws.String(fullKey),
 	})
 	if err != nil {
-		var notFound *types.NotFound
-		if isNotFoundError(err, notFound) {
+		if isNotFoundError(err) {
 			return false, nil
 		}
 		return false, fmt.Errorf("failed to check object existence: %w", err)
@@ -360,9 +383,10 @@ func detectContentType(filePath string) string {
 	}
 }
 
-func isNotFoundError(err error, notFound *types.NotFound) bool {
-	_, ok := err.(*types.NotFound)
-	return ok || err.Error() == "NotFound" || err.Error() == "404"
+// isNotFoundError 使用 errors.As 判断是否为 S3 对象不存在错误
+func isNotFoundError(err error) bool {
+	var nfe *types.NotFound
+	return errors.As(err, &nfe)
 }
 
 type S3DriverFactory struct{}

@@ -99,6 +99,9 @@ func GetProviderEndpoint(provider Provider, region string) string {
 		}
 		return "https://s3." + region + ".amazonaws.com"
 	case ProviderCloudflare:
+		if region == "" {
+			region = "auto"
+		}
 		return "https://" + region + ".r2.cloudflarestorage.com"
 	default:
 		return ""
