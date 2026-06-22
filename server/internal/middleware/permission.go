@@ -52,9 +52,8 @@ func PermissionAuth(authVerifier AuthVerifier) gin.HandlerFunc {
 		_ = adminID
 
 		roles, _ := c.Get("roles")
-		roleCodes := roles.([]string)
-
-		if len(roleCodes) == 0 {
+		roleCodes, ok := roles.([]string)
+		if !ok || len(roleCodes) == 0 {
 			response.FailWithCode(c, errorx.CodeForbidden, "用户没有任何角色权限")
 			c.Abort()
 			return

@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/rand"
 	"math/big"
+	"strconv"
 	"time"
 
 	"github.com/mojocn/base64Captcha"
@@ -88,10 +89,18 @@ func (s *verificationService) GetVerifyConfig(ctx context.Context, scene string)
 
 func (s *verificationService) SendCode(ctx context.Context, scene, target, captchaKey, captchaCode string) error {
 	// 0. 图形验证码二次校验 (Synergy)
-	// 如果开启了验证码，则必须校验。目前逻辑：只要传了就校验，防止接口轰炸。
-	if captchaKey != "" && captchaCode != "" {
-		if !s.captchaStore.Verify(captchaKey, captchaCode, true) {
-			return errorx.New(errorx.CodeCaptchaInvalid, "图形验证码错误")
+	// 如果配置开启了图形验证码，则必须校验，防止接口轰炸。
+	captchaEnabledKey := sceneCaptchaKey(scene)
+	if captchaEnabledKey != "" {
+		captchaVal, _ := s.watcher.GetConfig("captcha_config", captchaEnabledKey)
+		captchaEnabled := captchaVal == "true" || captchaVal == "1"
+		if captchaEnabled {
+			if captchaKey == "" || captchaCode == "" {
+				return errorx.New(errorx.CodeCaptchaRequired, "请输入图形验证码")
+			}
+			if !s.captchaStore.Verify(captchaKey, captchaCode, true) {
+				return errorx.New(errorx.CodeCaptchaInvalid, "图形验证码错误")
+			}
 		}
 	}
 
@@ -103,7 +112,10 @@ func (s *verificationService) SendCode(ctx context.Context, scene, target, captc
 	}
 
 	// 2. 生成 6 位随机验证码
-	code := s.generateCode(6)
+	code, err := s.generateCode(6)
+	if err != nil {
+		return errorx.New(errorx.CodeInternalError, "验证码生成失败")
+	}
 
 	// 3. 存储验证码 (有效时长 10 分钟)
 	cacheKey := cache.KeyVerificationCode(scene, target)
@@ -132,6 +144,16 @@ func (s *verificationService) VerifyCode(ctx context.Context, scene, target, cod
 	if code == "" {
 		return false, nil
 	}
+
+	// 尝试次数检查：超过 5 次自动失效验证码
+	attemptKey := cache.KeyVerifyCodeAttempt(scene, target)
+	var attemptStr string
+	_ = s.cacheMgr.Get(ctx, attemptKey, &attemptStr)
+	if n, err := strconv.Atoi(attemptStr); err == nil && n >= 5 {
+		_ = s.cacheMgr.Delete(ctx, cache.KeyVerificationCode(scene, target))
+		return false, nil
+	}
+
 	cacheKey := cache.KeyVerificationCode(scene, target)
 	var storedCode string
 	err := s.cacheMgr.Get(ctx, cacheKey, &storedCode)
@@ -139,7 +161,14 @@ func (s *verificationService) VerifyCode(ctx context.Context, scene, target, cod
 		return false, nil // 验证码不存在或已过期
 	}
 
-	return storedCode == code, nil
+	if storedCode != code {
+		n, _ := strconv.Atoi(attemptStr)
+		n++
+		_ = s.cacheMgr.Set(ctx, attemptKey, strconv.Itoa(n), 10*time.Minute)
+		return false, nil
+	}
+
+	return true, nil
 }
 
 func (s *verificationService) VerifyAndClearCode(ctx context.Context, scene, target, code string) (bool, error) {
@@ -151,12 +180,28 @@ func (s *verificationService) VerifyAndClearCode(ctx context.Context, scene, tar
 	return ok, err
 }
 
-func (s *verificationService) generateCode(length int) string {
+func (s *verificationService) generateCode(length int) (string, error) {
 	const charset = "0123456789"
 	result := make([]byte, length)
 	for i := range result {
-		num, _ := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			return "", err
+		}
 		result[i] = charset[num.Int64()]
 	}
-	return string(result)
+	return string(result), nil
+}
+
+func sceneCaptchaKey(scene string) string {
+	switch scene {
+	case SceneRegister:
+		return "user_register_enabled"
+	case SceneResetPassword:
+		return "user_reset_pwd_captcha_enabled"
+	case SceneLogin:
+		return "user_login_enabled"
+	default:
+		return ""
+	}
 }

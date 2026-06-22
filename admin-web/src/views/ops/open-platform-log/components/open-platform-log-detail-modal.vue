@@ -45,7 +45,10 @@ function formatJson(str: string) {
         </NTag>
       </NDescriptionsItem>
       <NDescriptionsItem label="状态码">
-        <NTag :type="rowData?.statusCode >= 200 && rowData?.statusCode < 300 ? 'success' : 'error'" size="small">
+        <NTag
+          :type="(rowData?.statusCode ?? 0) >= 200 && (rowData?.statusCode ?? 0) < 300 ? 'success' : 'error'"
+          size="small"
+        >
           {{ rowData?.statusCode }}
         </NTag>
       </NDescriptionsItem>

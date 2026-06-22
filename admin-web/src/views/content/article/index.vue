@@ -106,7 +106,7 @@ const {
       align: 'center',
       width: 100,
       render: row => {
-        const status = publishStatusRecord[row.publishStatus];
+        const status = publishStatusRecord[row.publishStatus] || { label: row.publishStatus, type: 'default' as const };
         return <NTag type={status.type}>{status.label}</NTag>;
       }
     },

@@ -14,7 +14,6 @@ import { clearAuthStorage, getToken } from './shared';
 
 export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
   const route = useRoute();
-  const authStore = useAuthStore();
   const routeStore = useRouteStore();
   const tabStore = useTabStore();
   const { toLogin, redirectFromLogin } = useRouterPush(false);
@@ -45,7 +44,14 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
 
     clearAuthStorage();
 
-    authStore.$reset();
+    // 手动重置 state（setup store 的 $reset 不生效）
+    token.value = '';
+    Object.assign(userInfo, {
+      userId: '',
+      userName: '',
+      roles: [],
+      buttons: []
+    });
 
     if (!route.meta.constant) {
       await toLogin();
@@ -144,6 +150,9 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
 
       return true;
     }
+
+    // getUserInfo 失败，清理 localStorage 中的残留 token
+    clearAuthStorage();
 
     return false;
   }

@@ -36,12 +36,16 @@ func (r *ErrorRepository) BatchUpsertByHash(ctx context.Context, logs []*logEnti
 	if len(logs) == 0 {
 		return nil
 	}
-	for _, l := range logs {
-		if err := r.UpsertByHash(ctx, l); err != nil {
-			return err
-		}
-	}
-	return nil
+	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "hash"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			"occurrence_count": gorm.Expr("admin_error_log.occurrence_count + ?", 1),
+			"last_occurred_at": time.Now(),
+			"request_id":       gorm.Expr("EXCLUDED.request_id"),
+			"ip":               gorm.Expr("EXCLUDED.ip"),
+			"deleted_at":       0,
+		}),
+	}).Create(&logs).Error
 }
 
 func (r *ErrorRepository) List(ctx context.Context, level string, resolved *bool, page, pageSize int) ([]logEntity.Error, int64, error) {

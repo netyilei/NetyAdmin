@@ -70,6 +70,8 @@ func (m *Manager) SetOnFinish(fn func(name string, info ExecutionInfo)) {
 
 // Register 注册一个或多个任务。如果任务名重复，后者将覆盖前者。
 func (m *Manager) Register(tasks ...Task) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	for _, t := range tasks {
 		name := t.Name()
 		if _, exists := m.tasks[name]; exists {
@@ -97,12 +99,14 @@ func (m *Manager) Start(ctx context.Context) {
 	}
 	var enabledTasks []taskWithConfig
 
+	m.mu.RLock()
 	for _, t := range m.tasks {
 		meta := m.getTaskMetadata(t)
 		if meta.Enabled {
 			enabledTasks = append(enabledTasks, taskWithConfig{t, meta})
 		}
 	}
+	m.mu.RUnlock()
 
 	// 2. 按权重降序排序（确保 Once 任务按优先级执行）
 	sort.Slice(enabledTasks, func(i, j int) bool {
@@ -365,7 +369,7 @@ func (m *Manager) ManualRun(ctx context.Context, name string) error {
 	m.mu.RUnlock()
 
 	if !exists {
-		return log.Output(2, "[任务引擎] 手动触发失败: 任务不存在")
+		return fmt.Errorf("任务 [%s] 不存在", name)
 	}
 
 	m.wg.Add(1)

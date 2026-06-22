@@ -2,7 +2,6 @@ package user
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -62,7 +61,8 @@ func (s *cacheTokenStore) Create(ctx context.Context, hash *userEntity.UserToken
 		ttl = time.Hour
 	}
 	key := cache.KeyUserTokenHash(hash.UserID, hash.TokenHash)
-	_ = s.cacheMgr.Set(ctx, key, "1", ttl)
+	tag := cache.TagUserToken(hash.UserID)
+	_ = s.cacheMgr.SetFast(ctx, key, "1", []string{tag}, ttl)
 	return nil
 }
 
@@ -83,7 +83,7 @@ func (s *cacheTokenStore) Delete(ctx context.Context, userID, tokenHash string) 
 }
 
 func (s *cacheTokenStore) DeleteAll(ctx context.Context, userID string) error {
-	_ = s.cacheMgr.InvalidateByTags(ctx, fmt.Sprintf("user:token:%s", userID))
+	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagUserToken(userID))
 	return s.repo.DeleteAllTokenHashes(ctx, userID)
 }
 

@@ -1,8 +1,8 @@
 package storage
 
 import (
-	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,7 +22,6 @@ import (
 type S3Driver struct {
 	client     *s3.Client
 	uploader   *manager.Uploader
-	downloader *manager.Downloader
 	bucket     string
 	domain     string
 	pathPrefix string
@@ -56,7 +55,6 @@ func NewS3Driver(cfg *Config) (*S3Driver, error) {
 	return &S3Driver{
 		client:     client,
 		uploader:   manager.NewUploader(client),
-		downloader: manager.NewDownloader(client),
 		bucket:     cfg.Bucket,
 		domain:     cfg.Domain,
 		pathPrefix: cfg.PathPrefix,
@@ -130,9 +128,7 @@ func (d *S3Driver) UploadFile(ctx context.Context, key string, filePath string, 
 func (d *S3Driver) Download(ctx context.Context, key string) (io.ReadCloser, *ObjectInfo, error) {
 	fullKey := d.buildKey(key)
 
-	buffer := manager.NewWriteAtBuffer([]byte{})
-
-	_, err := d.downloader.Download(ctx, buffer, &s3.GetObjectInput{
+	output, err := d.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(d.bucket),
 		Key:    aws.String(fullKey),
 	})
@@ -140,12 +136,13 @@ func (d *S3Driver) Download(ctx context.Context, key string) (io.ReadCloser, *Ob
 		return nil, nil, fmt.Errorf("failed to download object: %w", err)
 	}
 
-	info, err := d.GetObjectInfo(ctx, key)
-	if err != nil {
-		info = &ObjectInfo{Key: fullKey}
+	info := &ObjectInfo{
+		Key:      fullKey,
+		Size:     aws.ToInt64(output.ContentLength),
+		MimeType: aws.ToString(output.ContentType),
 	}
 
-	return io.NopCloser(bytes.NewReader(buffer.Bytes())), info, nil
+	return output.Body, info, nil
 }
 
 func (d *S3Driver) Delete(ctx context.Context, key string) error {
@@ -194,8 +191,7 @@ func (d *S3Driver) Exists(ctx context.Context, key string) (bool, error) {
 		Key:    aws.String(fullKey),
 	})
 	if err != nil {
-		var notFound *types.NotFound
-		if isNotFoundError(err, notFound) {
+		if isNotFoundError(err) {
 			return false, nil
 		}
 		return false, fmt.Errorf("failed to check object existence: %w", err)
@@ -360,9 +356,12 @@ func detectContentType(filePath string) string {
 	}
 }
 
-func isNotFoundError(err error, notFound *types.NotFound) bool {
-	_, ok := err.(*types.NotFound)
-	return ok || err.Error() == "NotFound" || err.Error() == "404"
+func isNotFoundError(err error) bool {
+	var notFound *types.NotFound
+	if errors.As(err, &notFound) {
+		return true
+	}
+	return err.Error() == "NotFound" || err.Error() == "404"
 }
 
 type S3DriverFactory struct{}

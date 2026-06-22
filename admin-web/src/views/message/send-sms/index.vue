@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, onUnmounted, reactive, ref, watch } from 'vue';
 import { NButton, NCard, NForm, NFormItem, NInput, NSelect, NSpace, NSwitch } from 'naive-ui';
 import { fetchTemplateList, sendDirect } from '@/service/api/v1/message-hub';
 import { fetchUserAutocomplete } from '@/service/api/v1/system-manage';
@@ -113,27 +113,30 @@ function renderContent() {
 }
 
 async function handleSubmit() {
-  await validate();
-  loading.value = true;
-  const content = renderContent();
-  let successCount = 0;
-  let failCount = 0;
-  const results = await Promise.allSettled(
-    model.receivers.map(receiver => sendDirect({ channel: model.channel, receiver, content }))
-  );
-  for (const r of results) {
-    if (r.status === 'fulfilled' && !r.value.error) {
-      successCount += 1;
-    } else {
-      failCount += 1;
-    }
-  }
-  loading.value = false;
-  if (successCount > 0) {
-    window.$message?.success(
-      `${$t('common.sendSuccess')} (${successCount}${failCount > 0 ? `/${$t('common.fail')}${failCount}` : ''})`
+  try {
+    await validate();
+    loading.value = true;
+    const content = renderContent();
+    let successCount = 0;
+    let failCount = 0;
+    const results = await Promise.allSettled(
+      model.receivers.map(receiver => sendDirect({ channel: model.channel, receiver, content }))
     );
-    resetForm();
+    for (const r of results) {
+      if (r.status === 'fulfilled' && !r.value.error) {
+        successCount += 1;
+      } else {
+        failCount += 1;
+      }
+    }
+    if (successCount > 0) {
+      window.$message?.success(
+        `${$t('common.sendSuccess')} (${successCount}${failCount > 0 ? `/${$t('common.fail')}${failCount}` : ''})`
+      );
+      resetForm();
+    }
+  } finally {
+    loading.value = false;
   }
 }
 
@@ -156,6 +159,12 @@ watch(
 );
 
 getTemplates();
+
+onUnmounted(() => {
+  if (userSearchTimer) {
+    clearTimeout(userSearchTimer);
+  }
+});
 </script>
 
 <template>

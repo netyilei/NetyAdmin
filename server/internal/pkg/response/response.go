@@ -1,6 +1,7 @@
 package response
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -57,7 +58,8 @@ func SuccessWithPage(c *gin.Context, current, size int, total int64, list interf
 
 func Fail(c *gin.Context, err error) {
 	_ = c.Error(err) // 注册错误到 Gin 上下文
-	if bizErr, ok := err.(*errorx.BizError); ok {
+	var bizErr *errorx.BizError
+	if errors.As(err, &bizErr) {
 		c.JSON(http.StatusOK, Response{
 			Code:      bizErr.Code.String(),
 			Message:   "",

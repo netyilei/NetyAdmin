@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"log/slog"
+
 	"github.com/gin-gonic/gin"
 
 	"NetyAdmin/internal/pkg/errorx"
@@ -24,6 +26,7 @@ func IPACAuth(ipacSvc ipacSvcPkg.IPACService) gin.HandlerFunc {
 		allowed, err := ipacSvc.CheckIP(c.Request.Context(), clientIP, appID)
 		if err != nil {
 			// 如果匹配过程出错，为了安全，记录日志并放行
+			slog.Error("IPAC 校验异常，临时放行", "error", err, "clientIP", clientIP)
 			c.Next()
 			return
 		}

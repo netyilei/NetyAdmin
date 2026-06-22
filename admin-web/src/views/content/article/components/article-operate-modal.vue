@@ -9,7 +9,7 @@ import {
   fetchUpdateArticle
 } from '@/service/api/v1/content';
 import { fetchCreateUploadRecord, fetchGetUploadCredentials } from '@/service/api/v1/storage';
-import { useFormRules } from '@/hooks/common/form';
+import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { uploadWithPresignedUrl } from '@/utils/upload';
 import type { Content } from '@/typings/api/v1/content';
 import { $t } from '@/locales';
@@ -34,6 +34,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const { defaultRequiredRule } = useFormRules();
+const { formRef, validate } = useNaiveForm();
 
 const drawerVisible = computed({
   get() {
@@ -251,16 +252,18 @@ function closeModal() {
 async function handleSubmit() {
   loading.value = true;
 
-  const params = { ...model.value };
-
-  // Format date if scheduled
-  if (params.publishStatus === 'scheduled' && params.scheduledAt) {
-    params.scheduledAt = dayjs(params.scheduledAt).toISOString() as any;
-  } else {
-    params.scheduledAt = null;
-  }
-
   try {
+    await validate();
+
+    const params = { ...model.value };
+
+    // Format date if scheduled
+    if (params.publishStatus === 'scheduled' && params.scheduledAt) {
+      params.scheduledAt = dayjs(params.scheduledAt).toISOString() as any;
+    } else {
+      params.scheduledAt = null;
+    }
+
     if (props.operateType === 'add') {
       const { error } = await fetchCreateArticle(params);
       if (!error) {
@@ -295,7 +298,7 @@ watch(
 
 <template>
   <NModal v-model:show="drawerVisible" preset="card" :title="title" class="w-1400px overflow-y-auto">
-    <NForm :model="model" :rules="rules" label-placement="left" :label-width="100">
+    <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="100">
       <NGrid :cols="24" :x-gap="16">
         <NGridItem :span="12">
           <NFormItem :label="$t('page.content.article.categoryId')" path="categoryId">

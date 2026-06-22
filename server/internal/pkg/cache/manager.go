@@ -86,8 +86,11 @@ type lazyCacheManager struct {
 	redisClient  *redis.Client
 	eventBus     pubsub.EventBus
 
-	localLimiters sync.Map
-	l2Cache       *cache.Cache[any]
+	localLimiters     sync.Map
+	limiterLastAccess sync.Map
+	localNX           sync.Map
+	stopChan          chan struct{}
+	l2Cache           *cache.Cache[any]
 }
 
 // DefaultSwitchChecker 给一个总是返回 True 的默认校验器，直到我们实现 configsync
@@ -154,8 +157,13 @@ func NewLazyCacheManager(cfg *config.RedisConfig, redisClient *redis.Client, che
 		switches:      checker,
 		prefix:        cfg.Prefix,
 		redisClient:   redisClient,
-		localLimiters: sync.Map{},
+		localLimiters:     sync.Map{},
+		limiterLastAccess: sync.Map{},
+		localNX:           sync.Map{},
+		stopChan:          make(chan struct{}),
 	}
+
+	go mgr.cleanupLimiters()
 
 	return mgr, nil
 }
@@ -208,6 +216,7 @@ return allowed and 1 or 0
 
 	// 2. 如果 Redis 未开启，降级为本地令牌桶限流
 	limiter, _ := m.localLimiters.LoadOrStore(key, rate.NewLimiter(rate.Limit(r), capacity))
+	m.limiterLastAccess.Store(key, time.Now())
 	return limiter.(*rate.Limiter).Allow(), nil
 }
 
@@ -242,13 +251,17 @@ func (m *lazyCacheManager) SetNX(ctx context.Context, key string, value interfac
 		return res == "OK", nil
 	}
 
-	// 2. 本地模式 (非绝对原子，但对单机应用足够)
-	exists, _ := m.Exists(ctx, key)
-	if exists {
+	// 2. 本地模式：使用 sync.Map.LoadOrStore 实现原子操作
+	_, loaded := m.localNX.LoadOrStore(fullKey, struct{}{})
+	if loaded {
 		return false, nil
 	}
-	err := m.Set(ctx, key, value, ttl)
-	return err == nil, err
+	if err := m.Set(ctx, key, value, ttl); err != nil {
+		m.localNX.Delete(fullKey)
+		return false, err
+	}
+	time.AfterFunc(ttl, func() { m.localNX.Delete(fullKey) })
+	return true, nil
 }
 
 func (m *lazyCacheManager) getRaw(ctx context.Context, key string) ([]byte, error) {
@@ -562,4 +575,26 @@ func (m *lazyCacheManager) assign(src interface{}, dest interface{}) error {
 		return err
 	}
 	return json.Unmarshal(b, dest)
+}
+
+func (m *lazyCacheManager) cleanupLimiters() {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			cutoff := time.Now().Add(-30 * time.Minute)
+			m.localLimiters.Range(func(key, val any) bool {
+				if lastAccess, ok := m.limiterLastAccess.Load(key); ok {
+					if lastAccess.(time.Time).Before(cutoff) {
+						m.localLimiters.Delete(key)
+						m.limiterLastAccess.Delete(key)
+					}
+				}
+				return true
+			})
+		case <-m.stopChan:
+			return
+		}
+	}
 }

@@ -67,6 +67,9 @@ func NewLogBusService(
 }
 
 func (b *logBusService) loadConfig() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	if val, ok := b.watcher.GetConfig("logbus_config", "global_max_entries"); ok {
 		if v := parseInt(val); v > 0 {
 			b.globalMaxEntries = v
@@ -126,11 +129,17 @@ func (b *logBusService) loadConfig() {
 }
 
 func (b *logBusService) Record(ctx context.Context, entry logEntity.LogEntry) error {
-	if b.forceSync {
+	b.mu.Lock()
+	forceSync := b.forceSync
+	b.mu.Unlock()
+
+	if forceSync {
 		return b.syncWrite(ctx, entry)
 	}
 
+	b.mu.Lock()
 	cfg, exists := b.configs[entry.GetLogType()]
+	b.mu.Unlock()
 	if !exists {
 		return b.syncWrite(ctx, entry)
 	}
@@ -194,15 +203,25 @@ func (b *logBusService) submitP1(ctx context.Context, entry logEntity.LogEntry) 
 
 func (b *logBusService) submitP2(entry logEntity.LogEntry) error {
 	b.mu.Lock()
-	_ = b.tryAppend(entry)
+	added := b.tryAppend(entry)
 	b.mu.Unlock()
+	if !added {
+		log.Printf("[LogBus] P2 日志丢弃: type=%s", entry.GetLogType())
+	}
 	return nil
 }
 
 func (b *logBusService) tryAppend(entry logEntity.LogEntry) bool {
 	lt := entry.GetLogType()
-	buf := b.buffers[lt]
-	b.buffers[lt] = append(buf, entry)
+	cfg, exists := b.configs[lt]
+	if !exists {
+		return false
+	}
+	// 缓冲区达到单批次阈值时拒绝追加，触发调用方的同步写入降级
+	if cfg.SizeThreshold > 0 && len(b.buffers[lt]) >= cfg.SizeThreshold {
+		return false
+	}
+	b.buffers[lt] = append(b.buffers[lt], entry)
 	b.totalEntries++
 	return true
 }
@@ -271,17 +290,11 @@ func (b *logBusService) flushAll() {
 	b.mu.Unlock()
 
 	for lt, entries := range snapshots {
-		cfg := b.configs[lt]
 		writer := b.writers[lt]
 		if writer == nil {
 			continue
 		}
-
-		if cfg.SizeThreshold > 0 && len(entries) >= cfg.SizeThreshold {
-			b.flushToWriter(writer, entries)
-		} else {
-			b.flushToWriter(writer, entries)
-		}
+		b.flushToWriter(writer, entries)
 	}
 }
 

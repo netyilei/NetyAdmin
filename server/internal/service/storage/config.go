@@ -11,6 +11,7 @@ import (
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/pubsub"
 	"NetyAdmin/internal/pkg/storage"
+	"NetyAdmin/internal/pkg/utils"
 	storageRepo "NetyAdmin/internal/repository/storage"
 )
 
@@ -34,6 +35,7 @@ type configService struct {
 	storageMgr *storage.Manager
 	cache      cache.LazyCacheManager
 	eventBus   pubsub.EventBus
+	aesKey     string
 }
 
 func NewConfigService(
@@ -42,6 +44,7 @@ func NewConfigService(
 	storageMgr *storage.Manager,
 	cache cache.LazyCacheManager,
 	eventBus pubsub.EventBus,
+	aesKey string,
 ) ConfigService {
 	return &configService{
 		configRepo: configRepo,
@@ -49,7 +52,17 @@ func NewConfigService(
 		storageMgr: storageMgr,
 		cache:      cache,
 		eventBus:   eventBus,
+		aesKey:     aesKey,
 	}
+}
+
+func (s *configService) decryptSecretKey(secretKey string) string {
+	if s.aesKey != "" && secretKey != "" {
+		if decrypted, err := utils.Decrypt(secretKey, s.aesKey); err == nil {
+			return decrypted
+		}
+	}
+	return secretKey
 }
 
 func (s *configService) broadcastStorageUpdate(ctx context.Context) {
@@ -68,10 +81,17 @@ func (s *configService) List(ctx context.Context, req *storageDto.ConfigQuery) (
 		query.Current = 1
 	}
 	if query.Size <= 0 {
-		query.Size = 10
+		query.Size = entity.DefaultPageSize
 	}
 
-	return s.configRepo.List(ctx, query)
+	configs, total, err := s.configRepo.List(ctx, query)
+	if err != nil {
+		return nil, 0, err
+	}
+	for _, c := range configs {
+		c.SecretKey = s.decryptSecretKey(c.SecretKey)
+	}
+	return configs, total, nil
 }
 
 func (s *configService) GetByID(ctx context.Context, id uint) (*storageEntity.Config, error) {
@@ -83,6 +103,7 @@ func (s *configService) GetByID(ctx context.Context, id uint) (*storageEntity.Co
 	if err != nil {
 		return nil, err
 	}
+	config.SecretKey = s.decryptSecretKey(config.SecretKey)
 	return &config, nil
 }
 
@@ -94,6 +115,7 @@ func (s *configService) GetDefault(ctx context.Context) (*storageEntity.Config, 
 	if err != nil {
 		return nil, err
 	}
+	config.SecretKey = s.decryptSecretKey(config.SecretKey)
 	return &config, nil
 }
 
@@ -104,6 +126,9 @@ func (s *configService) GetAllEnabled(ctx context.Context) ([]*storageEntity.Con
 	})
 	if err != nil {
 		return nil, err
+	}
+	for _, c := range configs {
+		c.SecretKey = s.decryptSecretKey(c.SecretKey)
 	}
 	return configs, nil
 }
@@ -139,6 +164,11 @@ func (s *configService) Create(ctx context.Context, req *storageDto.CreateConfig
 		req.Status = "1"
 	}
 
+	encryptedSecret, err := utils.Encrypt(req.SecretKey, s.aesKey)
+	if err != nil {
+		return 0, errorx.New(errorx.CodeInternalError, "加密存储密钥失败")
+	}
+
 	config := &storageEntity.Config{
 		Operator: entity.Operator{
 			CreatedBy: operatorID,
@@ -150,7 +180,7 @@ func (s *configService) Create(ctx context.Context, req *storageDto.CreateConfig
 		Region:        req.Region,
 		Bucket:        req.Bucket,
 		AccessKey:     req.AccessKey,
-		SecretKey:     req.SecretKey,
+		SecretKey:     encryptedSecret,
 		Domain:        req.Domain,
 		PathPrefix:    req.PathPrefix,
 		IsDefault:     req.IsDefault,
@@ -208,7 +238,11 @@ func (s *configService) Update(ctx context.Context, req *storageDto.UpdateConfig
 	config.Bucket = req.Bucket
 	config.AccessKey = req.AccessKey
 	if req.SecretKey != "" {
-		config.SecretKey = req.SecretKey
+		encryptedSecret, err := utils.Encrypt(req.SecretKey, s.aesKey)
+		if err != nil {
+			return errorx.New(errorx.CodeInternalError, "加密存储密钥失败")
+		}
+		config.SecretKey = encryptedSecret
 	}
 	config.Domain = req.Domain
 	config.PathPrefix = req.PathPrefix
@@ -394,7 +428,7 @@ func (s *configService) toPkgConfig(c *storageEntity.Config) *storage.Config {
 		Region:        c.Region,
 		Bucket:        c.Bucket,
 		AccessKey:     c.AccessKey,
-		SecretKey:     c.SecretKey,
+		SecretKey:     s.decryptSecretKey(c.SecretKey),
 		Domain:        c.Domain,
 		PathPrefix:    c.PathPrefix,
 		IsDefault:     c.IsDefault,

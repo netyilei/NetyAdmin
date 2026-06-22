@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/mojocn/base64Captcha"
-	"golang.org/x/crypto/bcrypt"
 
 	userEntity "NetyAdmin/internal/domain/entity/user"
 	clientDto "NetyAdmin/internal/interface/client/dto/v1"
@@ -21,6 +20,7 @@ import (
 	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
+	"NetyAdmin/internal/pkg/password"
 	storagePkg "NetyAdmin/internal/pkg/storage"
 	"NetyAdmin/internal/pkg/utils"
 	userRepo "NetyAdmin/internal/repository/user"
@@ -115,7 +115,7 @@ func (s *userService) Register(ctx context.Context, req *clientDto.UserRegisterR
 	}
 
 	// 2. 密码加密
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	hashedPassword, err := password.Hash(req.Password)
 	if err != nil {
 		return "", errorx.New(errorx.CodeInternalError, "密码加密失败")
 	}
@@ -124,7 +124,7 @@ func (s *userService) Register(ctx context.Context, req *clientDto.UserRegisterR
 	user := &userEntity.User{
 		ID:       utils.NewULID(),
 		Username: req.Username,
-		Password: string(hashedPassword),
+		Password: hashedPassword,
 		Nickname: req.Nickname,
 		Phone:    req.Phone,
 		Email:    req.Email,
@@ -189,7 +189,7 @@ func (s *userService) Login(ctx context.Context, req *clientDto.UserLoginReq, ip
 	}
 
 	// 4. 验证密码
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+	if err := password.Verify(user.Password, req.Password); err != nil {
 		maxRetryStr, _ := s.configWatcher.GetConfig("user_config", "login_max_retry")
 		lockDurationStr, _ := s.configWatcher.GetConfig("user_config", "login_lock_duration")
 		maxRetry, _ := strconv.Atoi(maxRetryStr)
@@ -392,12 +392,15 @@ func (s *userService) ChangePassword(ctx context.Context, userID string, req *cl
 		return errorx.New(errorx.CodeUserNotFound, "用户不存在")
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.OldPassword)); err != nil {
+	if err := password.Verify(user.Password, req.OldPassword); err != nil {
 		return errorx.New(errorx.CodePasswordWrong, "原密码错误")
 	}
 
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
-	user.Password = string(hashedPassword)
+	hashedPassword, err := password.Hash(req.NewPassword)
+	if err != nil {
+		return errorx.New(errorx.CodeInternalError, "密码加密失败")
+	}
+	user.Password = hashedPassword
 
 	return s.repo.Update(ctx, user)
 }
@@ -435,8 +438,11 @@ func (s *userService) ResetPassword(ctx context.Context, req *clientDto.UserRese
 		return errorx.New(errorx.CodeUserDisabled, "账户已禁用，无法找回密码")
 	}
 
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
-	user.Password = string(hashedPassword)
+	hashedPassword, err := password.Hash(req.NewPassword)
+	if err != nil {
+		return errorx.New(errorx.CodeInternalError, "密码加密失败")
+	}
+	user.Password = hashedPassword
 
 	_ = s.tokenStore.DeleteAll(ctx, user.ID)
 
@@ -480,11 +486,11 @@ func (s *userService) Create(ctx context.Context, user *userEntity.User) error {
 		if err := s.validatePasswordStrength(ctx, user.Password); err != nil {
 			return err
 		}
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+		hashedPassword, err := password.Hash(user.Password)
 		if err != nil {
 			return errorx.New(errorx.CodeInternalError, "密码加密失败")
 		}
-		user.Password = string(hashedPassword)
+		user.Password = hashedPassword
 	}
 
 	// 3. 设置 ID 和默认状态
@@ -532,11 +538,11 @@ func (s *userService) Update(ctx context.Context, user *userEntity.User) error {
 		if err := s.validatePasswordStrength(ctx, user.Password); err != nil {
 			return err
 		}
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+		hashedPassword, err := password.Hash(user.Password)
 		if err != nil {
 			return errorx.New(errorx.CodeInternalError, "密码加密失败")
 		}
-		oldUser.Password = string(hashedPassword)
+		oldUser.Password = hashedPassword
 		// 强制清理 Token
 		_ = s.tokenStore.DeleteAll(ctx, user.ID)
 	}

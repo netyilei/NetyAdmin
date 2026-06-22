@@ -146,9 +146,7 @@ func (r *userRepository) List(ctx context.Context, query *UserRepoQuery) ([]user
 		return nil, 0, err
 	}
 
-	if query.Current > 0 && query.Size > 0 {
-		db = db.Scopes(pagination.Paginate(query.Current, query.Size))
-	}
+	db = db.Scopes(pagination.Paginate(query.Current, query.Size))
 
 	if err := db.Order("created_at DESC").Find(&users).Error; err != nil {
 		return nil, 0, err

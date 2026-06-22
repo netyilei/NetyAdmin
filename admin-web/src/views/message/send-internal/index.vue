@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue';
+import { onUnmounted, reactive, ref, watch } from 'vue';
 import { NButton, NCard, NForm, NFormItem, NInput, NRadio, NRadioGroup, NSelect, NSpace, NSwitch } from 'naive-ui';
 import { fetchTemplateList, sendDirect } from '@/service/api/v1/message-hub';
 import { fetchUserAutocomplete } from '@/service/api/v1/system-manage';
@@ -89,18 +89,21 @@ function handleTemplateChange(code: string | null) {
 }
 
 async function handleSubmit() {
-  await validate();
-  loading.value = true;
-  const { error } = await sendDirect({
-    channel: model.channel,
-    receiver: model.sendType === 'broadcast' ? 'all' : model.receiver,
-    title: model.title,
-    content: model.content
-  });
-  loading.value = false;
-  if (!error) {
-    window.$message?.success($t('common.sendSuccess'));
-    resetForm();
+  try {
+    await validate();
+    loading.value = true;
+    const { error } = await sendDirect({
+      channel: model.channel,
+      receiver: model.sendType === 'broadcast' ? 'all' : model.receiver,
+      title: model.title,
+      content: model.content
+    });
+    if (!error) {
+      window.$message?.success($t('common.sendSuccess'));
+      resetForm();
+    }
+  } finally {
+    loading.value = false;
   }
 }
 
@@ -124,6 +127,12 @@ watch(
 );
 
 getTemplates();
+
+onUnmounted(() => {
+  if (userSearchTimer) {
+    clearTimeout(userSearchTimer);
+  }
+});
 </script>
 
 <template>

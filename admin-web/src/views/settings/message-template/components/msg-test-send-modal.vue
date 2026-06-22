@@ -47,13 +47,16 @@ function handleInitModel() {
 }
 
 async function handleSubmit() {
-  await validate();
-  loading.value = true;
-  const { error } = await sendDirect(model);
-  loading.value = false;
-  if (!error) {
-    window.$message?.success($t('common.sendSuccess'));
-    visible.value = false;
+  try {
+    await validate();
+    loading.value = true;
+    const { error } = await sendDirect(model);
+    if (!error) {
+      window.$message?.success($t('common.sendSuccess'));
+      visible.value = false;
+    }
+  } finally {
+    loading.value = false;
   }
 }
 

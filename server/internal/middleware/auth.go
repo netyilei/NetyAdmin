@@ -50,6 +50,12 @@ func JWTAuth() gin.HandlerFunc {
 			return
 		}
 
+		if claims.Subject != string(jwt.AccessToken) {
+			response.FailWithCode(c, errorx.CodeTokenInvalid, "令牌用途不正确")
+			c.Abort()
+			return
+		}
+
 		c.Set("adminID", claims.UserID)
 		c.Set("username", claims.Username)
 		c.Set("roles", claims.Roles)

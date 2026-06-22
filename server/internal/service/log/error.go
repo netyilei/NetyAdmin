@@ -2,7 +2,8 @@ package log
 
 import (
 	"context"
-	"crypto/md5"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"runtime"
 	"time"
@@ -103,7 +104,8 @@ func (s *errorService) generateHash(l *logEntity.Error) string {
 
 	// 特征因子：级别 + 消息 + 路径 + 方法 + 核心堆栈
 	raw := fmt.Sprintf("%s|%s|%s|%s|%s", l.Level, l.Message, l.Path, l.Method, stackKey)
-	return fmt.Sprintf("%x", md5.Sum([]byte(raw)))
+	hash := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(hash[:])
 }
 
 func (s *errorService) getStack(skip int) string {

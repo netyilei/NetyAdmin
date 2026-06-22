@@ -54,10 +54,6 @@ export function showErrorMsg(state: RequestInstanceState, message: string) {
     window.$message?.error(message, {
       onLeave: () => {
         state.errMsgStack = state.errMsgStack.filter(msg => msg !== message);
-
-        setTimeout(() => {
-          state.errMsgStack = [];
-        }, 5000);
       }
     });
   }

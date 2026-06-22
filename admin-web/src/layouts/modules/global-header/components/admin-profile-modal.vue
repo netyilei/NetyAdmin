@@ -68,28 +68,34 @@ async function loadProfile() {
 }
 
 async function handleSaveProfile() {
-  await profileFormRef.value?.validate();
-  profileLoading.value = true;
-  const { error } = await fetchUpdateProfile(profileModel);
-  profileLoading.value = false;
-  if (error) return;
-  window.$message?.success($t('common.updateSuccess'));
+  try {
+    await profileFormRef.value?.validate();
+    profileLoading.value = true;
+    const { error } = await fetchUpdateProfile(profileModel);
+    if (error) return;
+    window.$message?.success($t('common.updateSuccess'));
+  } finally {
+    profileLoading.value = false;
+  }
 }
 
 async function handleChangePassword() {
-  await passwordFormRef.value?.validate();
-  passwordLoading.value = true;
-  const { error } = await fetchChangePassword({
-    oldPassword: passwordModel.oldPassword,
-    newPassword: passwordModel.newPassword
-  });
-  passwordLoading.value = false;
-  if (error) return;
+  try {
+    await passwordFormRef.value?.validate();
+    passwordLoading.value = true;
+    const { error } = await fetchChangePassword({
+      oldPassword: passwordModel.oldPassword,
+      newPassword: passwordModel.newPassword
+    });
+    if (error) return;
 
-  passwordModel.oldPassword = '';
-  passwordModel.newPassword = '';
-  passwordModel.confirmPassword = '';
-  window.$message?.success($t('page.adminProfile.passwordChangeSuccess'));
+    passwordModel.oldPassword = '';
+    passwordModel.newPassword = '';
+    passwordModel.confirmPassword = '';
+    window.$message?.success($t('page.adminProfile.passwordChangeSuccess'));
+  } finally {
+    passwordLoading.value = false;
+  }
 }
 
 function handleClose() {

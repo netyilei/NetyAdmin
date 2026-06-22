@@ -23,6 +23,7 @@ type DictRepository interface {
 	CreateData(ctx context.Context, d *dictEntity.DictData) error
 	UpdateData(ctx context.Context, d *dictEntity.DictData) error
 	DeleteData(ctx context.Context, id uint) error
+	DeleteDataByTypeCode(ctx context.Context, typeCode string) error
 	GetDataById(ctx context.Context, id uint) (*dictEntity.DictData, error)
 	ListData(ctx context.Context, dictCode string) ([]dictEntity.DictData, error)
 	ListDataFull(ctx context.Context, dictCode, label, status string, page, pageSize int) ([]dictEntity.DictData, int64, error)
@@ -91,6 +92,10 @@ func (r *dictRepository) UpdateData(ctx context.Context, d *dictEntity.DictData)
 
 func (r *dictRepository) DeleteData(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Delete(&dictEntity.DictData{}, id).Error
+}
+
+func (r *dictRepository) DeleteDataByTypeCode(ctx context.Context, typeCode string) error {
+	return r.db.WithContext(ctx).Where("dict_code = ?", typeCode).Delete(&dictEntity.DictData{}).Error
 }
 
 func (r *dictRepository) GetDataById(ctx context.Context, id uint) (*dictEntity.DictData, error) {

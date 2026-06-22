@@ -271,6 +271,11 @@ func KeyUserTokenHash(userID, tokenHash string) string {
 	return fmt.Sprintf("user:token:%s:%s", userID, tokenHash)
 }
 
+// TagUserToken 用户登录态 Token 缓存标签（按用户维度失效）
+func TagUserToken(userID string) string {
+	return fmt.Sprintf("user:token:%s", userID)
+}
+
 // KeyCaptchaToken 图形验证码缓存 Key
 func KeyCaptchaToken(captchaID string) string {
 	return fmt.Sprintf("captcha:%s", captchaID)
@@ -289,4 +294,19 @@ func KeyLoginLock(userID string) string {
 // KeyLoginRetryCount 用户登录重试次数 Key
 func KeyLoginRetryCount(userID string) string {
 	return fmt.Sprintf("auth:retry:%s", userID)
+}
+
+// KeyAdminLoginLock 管理端登录锁定 Key
+func KeyAdminLoginLock(username string) string {
+	return fmt.Sprintf("admin:login:lock:%s", username)
+}
+
+// KeyAdminLoginRetryCount 管理端登录重试次数 Key
+func KeyAdminLoginRetryCount(username string) string {
+	return fmt.Sprintf("admin:login:retry:%s", username)
+}
+
+// KeyVerifyCodeAttempt 验证码尝试次数 Key
+func KeyVerifyCodeAttempt(scene, target string) string {
+	return fmt.Sprintf("auth:code:attempt:%s:%s", scene, target)
 }

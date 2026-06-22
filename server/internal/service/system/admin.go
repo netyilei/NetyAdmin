@@ -2,10 +2,9 @@ package system
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
-
-	"golang.org/x/crypto/bcrypt"
 
 	systemEntity "NetyAdmin/internal/domain/entity/system"
 	systemDto "NetyAdmin/internal/interface/admin/dto/system"
@@ -14,6 +13,7 @@ import (
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
+	"NetyAdmin/internal/pkg/password"
 	systemRepo "NetyAdmin/internal/repository/system"
 )
 
@@ -51,6 +51,13 @@ func NewAdminService(adminRepo systemRepo.AdminRepository, roleRepo systemRepo.R
 }
 
 func (s *adminService) Login(ctx context.Context, req *systemDto.LoginReq) (*systemVO.LoginVO, error) {
+	// 检查账户是否被锁定
+	lockKey := cache.KeyAdminLoginLock(req.Username)
+	var lockVal string
+	if err := s.cacheMgr.Get(ctx, lockKey, &lockVal); err == nil && lockVal != "" {
+		return nil, errorx.New(errorx.CodeUserLocked, "账户已被锁定，请稍后再试")
+	}
+
 	admin, err := s.adminRepo.GetByUsername(ctx, req.Username)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeUserNotFound, "用户不存在")
@@ -60,9 +67,27 @@ func (s *adminService) Login(ctx context.Context, req *systemDto.LoginReq) (*sys
 		return nil, errorx.New(errorx.CodeUserDisabled)
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(admin.Password), []byte(req.Password)); err != nil {
-		return nil, errorx.New(errorx.CodePasswordWrong)
+	if err := password.Verify(admin.Password, req.Password); err != nil {
+		retryKey := cache.KeyAdminLoginRetryCount(req.Username)
+		var retryVal string
+		var retryCount int
+		if err := s.cacheMgr.Get(ctx, retryKey, &retryVal); err == nil && retryVal != "" {
+			retryCount, _ = strconv.Atoi(retryVal)
+		}
+		retryCount++
+
+		if retryCount >= 5 {
+			_ = s.cacheMgr.Set(ctx, lockKey, "1", 15*time.Minute)
+			_ = s.cacheMgr.Delete(ctx, retryKey)
+			return nil, errorx.New(errorx.CodeUserLocked, "密码错误次数过多，账户已被锁定 15 分钟")
+		}
+
+		_ = s.cacheMgr.Set(ctx, retryKey, strconv.Itoa(retryCount), 10*time.Minute)
+		return nil, errorx.New(errorx.CodePasswordWrong, fmt.Sprintf("密码错误，剩余尝试次数 %d 次", 5-retryCount))
 	}
+
+	// 登录成功，清除失败计数
+	_ = s.cacheMgr.Delete(ctx, cache.KeyAdminLoginRetryCount(req.Username))
 
 	now := time.Now().Format(time.DateTime)
 	admin.LastLoginAt = &now
@@ -196,16 +221,16 @@ func (s *adminService) ChangePassword(ctx context.Context, adminID uint, req *sy
 		return errorx.New(errorx.CodeUserNotFound)
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(admin.Password), []byte(req.OldPassword)); err != nil {
+	if err := password.Verify(admin.Password, req.OldPassword); err != nil {
 		return errorx.New(errorx.CodeOldPasswordWrong)
 	}
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	hashedPassword, err := password.Hash(req.NewPassword)
 	if err != nil {
 		return errorx.New(errorx.CodeInternalError, "密码加密失败")
 	}
 
-	admin.Password = string(hashedPassword)
+	admin.Password = hashedPassword
 	return s.adminRepo.Update(ctx, admin)
 }
 
@@ -266,14 +291,14 @@ func (s *adminService) Create(ctx context.Context, req *systemDto.CreateAdminReq
 		}
 	}
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	hashedPassword, err := password.Hash(req.Password)
 	if err != nil {
 		return 0, errorx.New(errorx.CodeInternalError, "密码加密失败")
 	}
 
 	admin := &systemEntity.Admin{
 		Username: req.Username,
-		Password: string(hashedPassword),
+		Password: hashedPassword,
 		Nickname: req.Nickname,
 		Phone:    req.Phone,
 		Email:    req.Email,
@@ -324,11 +349,11 @@ func (s *adminService) Update(ctx context.Context, req *systemDto.UpdateAdminReq
 	admin.UpdatedBy = operatorID
 
 	if req.Password != "" {
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		hashedPassword, err := password.Hash(req.Password)
 		if err != nil {
 			return errorx.New(errorx.CodeInternalError, "密码加密失败")
 		}
-		admin.Password = string(hashedPassword)
+		admin.Password = hashedPassword
 	}
 
 	if len(req.Roles) > 0 {

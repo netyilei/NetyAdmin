@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { fetchGetAllEnabledStorageConfigs } from '@/service/api/v1/storage';
+import { useRouterPush } from '@/hooks/common/router';
 import { $t } from '@/locales';
 
 defineOptions({
@@ -23,6 +24,8 @@ withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<Emits>();
+
+const { routerPushByKey } = useRouterPush();
 
 const loading = ref(false);
 const options = ref<{ label: string; value: number }[]>([]);
@@ -64,7 +67,7 @@ onMounted(() => {
     <template #empty>
       <div class="flex-col-center gap-12px pb-12px pt-12px">
         <NEmpty :description="$t('common.noData')" />
-        <NButton type="primary" ghost size="small" @click="$router.push('/settings/storage-config')">
+        <NButton type="primary" ghost size="small" @click="routerPushByKey('settings_storage-config')">
           {{ $t('common.config') }}
         </NButton>
       </div>

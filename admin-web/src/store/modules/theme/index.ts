@@ -1,5 +1,4 @@
-import { computed, effectScope, onScopeDispose, ref, toRefs, watch } from 'vue';
-import type { Ref } from 'vue';
+import { computed, effectScope, onScopeDispose, reactive, toRefs, watch } from 'vue';
 import { useEventListener, usePreferredColorScheme } from '@vueuse/core';
 import { defineStore } from 'pinia';
 import { getPaletteColorByNumber } from '@na/color';
@@ -20,25 +19,25 @@ export const useThemeStore = defineStore(SetupStoreId.Theme, () => {
   const osTheme = usePreferredColorScheme();
 
   /** Theme settings */
-  const settings: Ref<App.Theme.ThemeSetting> = ref(initThemeSettings());
+  const settings = reactive(initThemeSettings());
 
   /** Dark mode */
   const darkMode = computed(() => {
-    if (settings.value.themeScheme === 'auto') {
+    if (settings.themeScheme === 'auto') {
       return osTheme.value === 'dark';
     }
-    return settings.value.themeScheme === 'dark';
+    return settings.themeScheme === 'dark';
   });
 
   /** grayscale mode */
-  const grayscaleMode = computed(() => settings.value.grayscale);
+  const grayscaleMode = computed(() => settings.grayscale);
 
   /** colourWeakness mode */
-  const colourWeaknessMode = computed(() => settings.value.colourWeakness);
+  const colourWeaknessMode = computed(() => settings.colourWeakness);
 
   /** Theme colors */
   const themeColors = computed(() => {
-    const { themeColor, otherColor, isInfoFollowPrimary } = settings.value;
+    const { themeColor, otherColor, isInfoFollowPrimary } = settings;
     const colors: App.Theme.ThemeColor = {
       primary: themeColor,
       ...otherColor,
@@ -48,20 +47,18 @@ export const useThemeStore = defineStore(SetupStoreId.Theme, () => {
   });
 
   /** Naive theme */
-  const naiveTheme = computed(() => getNaiveTheme(themeColors.value, settings.value.recommendColor));
+  const naiveTheme = computed(() => getNaiveTheme(themeColors.value, settings.recommendColor));
 
   /**
    * Settings json
    *
    * It is for copy settings
    */
-  const settingsJson = computed(() => JSON.stringify(settings.value));
+  const settingsJson = computed(() => JSON.stringify(settings));
 
   /** Reset store */
   function resetStore() {
-    const themeStore = useThemeStore();
-
-    themeStore.$reset();
+    Object.assign(settings, initThemeSettings());
   }
 
   /**
@@ -70,7 +67,7 @@ export const useThemeStore = defineStore(SetupStoreId.Theme, () => {
    * @param themeScheme
    */
   function setThemeScheme(themeScheme: UnionKey.ThemeScheme) {
-    settings.value.themeScheme = themeScheme;
+    settings.themeScheme = themeScheme;
   }
 
   /**
@@ -79,7 +76,7 @@ export const useThemeStore = defineStore(SetupStoreId.Theme, () => {
    * @param isGrayscale
    */
   function setGrayscale(isGrayscale: boolean) {
-    settings.value.grayscale = isGrayscale;
+    settings.grayscale = isGrayscale;
   }
 
   /**
@@ -88,14 +85,14 @@ export const useThemeStore = defineStore(SetupStoreId.Theme, () => {
    * @param isColourWeakness
    */
   function setColourWeakness(isColourWeakness: boolean) {
-    settings.value.colourWeakness = isColourWeakness;
+    settings.colourWeakness = isColourWeakness;
   }
 
   /** Toggle theme scheme */
   function toggleThemeScheme() {
     const themeSchemes: UnionKey.ThemeScheme[] = ['light', 'dark', 'auto'];
 
-    const index = themeSchemes.findIndex(item => item === settings.value.themeScheme);
+    const index = themeSchemes.findIndex(item => item === settings.themeScheme);
 
     const nextIndex = index === themeSchemes.length - 1 ? 0 : index + 1;
 
@@ -113,16 +110,16 @@ export const useThemeStore = defineStore(SetupStoreId.Theme, () => {
   function updateThemeColors(key: App.Theme.ThemeColorKey, color: string) {
     let colorValue = color;
 
-    if (settings.value.recommendColor) {
+    if (settings.recommendColor) {
       // get a color palette by provided color and color name, and use the suitable color
 
       colorValue = getPaletteColorByNumber(color, 500, true);
     }
 
     if (key === 'primary') {
-      settings.value.themeColor = colorValue;
+      settings.themeColor = colorValue;
     } else {
-      settings.value.otherColor[key] = colorValue;
+      settings.otherColor[key] = colorValue;
     }
   }
 
@@ -132,15 +129,15 @@ export const useThemeStore = defineStore(SetupStoreId.Theme, () => {
    * @param mode Theme layout mode
    */
   function setThemeLayout(mode: UnionKey.ThemeLayoutMode) {
-    settings.value.layout.mode = mode;
+    settings.layout.mode = mode;
   }
 
   /** Setup theme vars to global */
   function setupThemeVarsToGlobal() {
     const { themeTokens, darkThemeTokens } = createThemeToken(
       themeColors.value,
-      settings.value.tokens,
-      settings.value.recommendColor
+      settings.tokens,
+      settings.recommendColor
     );
     addThemeVarsToGlobal(themeTokens, darkThemeTokens);
   }
@@ -150,7 +147,7 @@ export const useThemeStore = defineStore(SetupStoreId.Theme, () => {
    * @param reverse Reverse horizontal mix
    */
   function setLayoutReverseHorizontalMix(reverse: boolean) {
-    settings.value.layout.reverseHorizontalMix = reverse;
+    settings.layout.reverseHorizontalMix = reverse;
   }
 
   /** Cache theme settings */
@@ -159,7 +156,7 @@ export const useThemeStore = defineStore(SetupStoreId.Theme, () => {
 
     if (!isProd) return;
 
-    localStg.set('themeSettings', settings.value);
+    localStg.set('themeSettings', settings);
   }
 
   // cache theme settings when page is closed or refreshed
@@ -204,7 +201,7 @@ export const useThemeStore = defineStore(SetupStoreId.Theme, () => {
   });
 
   return {
-    ...toRefs(settings.value),
+    ...toRefs(settings),
     darkMode,
     themeColors,
     naiveTheme,

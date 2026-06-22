@@ -49,16 +49,6 @@ func (s *articleService) getArticleCacheTTL() time.Duration {
 	return 30 * time.Minute
 }
 
-func (s *articleService) getCategoryCacheTTL() time.Duration {
-	val, ok := s.watcher.GetConfig(cache.ConfigGroupContentCache, cache.ConfigKeyCategoryCacheTTL)
-	if ok {
-		if mins, err := time.ParseDuration(val + "m"); err == nil {
-			return mins
-		}
-	}
-	return 60 * time.Minute
-}
-
 func (s *articleService) Create(ctx context.Context, adminID uint, req *contentDto.CreateContentArticleDTO) (*contentEntity.ContentArticle, error) {
 	_, err := s.categoryRepo.GetByID(ctx, req.CategoryID)
 	if err != nil {
@@ -311,7 +301,7 @@ func (s *articleService) ListPublishedByCategoryIDs(ctx context.Context, page, p
 		return cachedResult{Articles: articles, Total: total}, nil
 	}
 
-	err := s.cache.Fetch(ctx, cacheKey, "content_article_list", cacheTags, s.getCategoryCacheTTL(), &result, loader)
+	err := s.cache.Fetch(ctx, cacheKey, "content_article_list", cacheTags, s.getArticleCacheTTL(), &result, loader)
 	if err != nil {
 		return nil, 0, err
 	}

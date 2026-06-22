@@ -18,6 +18,8 @@ import (
 	msgRepo "NetyAdmin/internal/repository/message"
 )
 
+var templateRe = regexp.MustCompile(`\{\{(.*?)\}\}`)
+
 type MessageService interface {
 	// SendTemplate 发送模板消息
 	SendTemplate(ctx context.Context, code string, receiver string, params map[string]string) error
@@ -160,8 +162,7 @@ func (s *messageService) RetryRecord(ctx context.Context, id uint64) error {
 }
 
 func (s *messageService) renderTemplate(content string, params map[string]string) string {
-	re := regexp.MustCompile(`\{\{(.*?)\}\}`)
-	return re.ReplaceAllStringFunc(content, func(match string) string {
+	return templateRe.ReplaceAllStringFunc(content, func(match string) string {
 		key := strings.Trim(match, "{} ")
 		if val, ok := params[key]; ok {
 			return val

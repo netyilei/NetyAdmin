@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"NetyAdmin/internal/domain/entity"
 	storageEntity "NetyAdmin/internal/domain/entity/storage"
 	storageVO "NetyAdmin/internal/domain/vo/storage"
 	storageDto "NetyAdmin/internal/interface/admin/dto/storage"
@@ -68,7 +69,7 @@ func (s *recordService) List(ctx context.Context, req *storageDto.RecordQuery) (
 		query.Current = 1
 	}
 	if query.Size <= 0 {
-		query.Size = 10
+		query.Size = entity.DefaultPageSize
 	}
 
 	records, total, err := s.recordRepo.List(ctx, query)

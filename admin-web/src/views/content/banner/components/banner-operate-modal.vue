@@ -10,7 +10,7 @@ import {
   fetchUpdateBannerItem
 } from '@/service/api/v1/content';
 import { fetchCreateUploadRecord, fetchGetUploadCredentials } from '@/service/api/v1/storage';
-import { useFormRules } from '@/hooks/common/form';
+import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { uploadWithPresignedUrl } from '@/utils/upload';
 import type { Content } from '@/typings/api/v1/content';
 import { $t } from '@/locales';
@@ -35,6 +35,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const { defaultRequiredRule } = useFormRules();
+const { formRef, validate } = useNaiveForm();
 
 const drawerVisible = computed({
   get() {
@@ -199,18 +200,22 @@ function closeModal() {
 async function handleSubmit() {
   loading.value = true;
 
-  const params: any = {
-    ...model,
-    startTime: model.startTime ? dayjs(model.startTime).toISOString() : undefined,
-    endTime: model.endTime ? dayjs(model.endTime).toISOString() : undefined
-  };
-
   try {
+    await validate();
+
+    const params: any = {
+      ...model,
+      startTime: model.startTime ? dayjs(model.startTime).toISOString() : undefined,
+      endTime: model.endTime ? dayjs(model.endTime).toISOString() : undefined
+    };
+
     if (props.operateType === 'add') {
-      await fetchCreateBannerItem(params);
+      const { error } = await fetchCreateBannerItem(params);
+      if (error) return;
       window.$message?.success($t('common.addSuccess'));
     } else {
-      await fetchUpdateBannerItem(props.rowData!.id, params);
+      const { error } = await fetchUpdateBannerItem(props.rowData!.id, params);
+      if (error) return;
       window.$message?.success($t('common.updateSuccess'));
     }
 
@@ -235,7 +240,7 @@ watch(
 
 <template>
   <NModal v-model:show="drawerVisible" preset="card" :title="title" class="w-600px overflow-y-auto">
-    <NForm :model="model" :rules="rules" label-placement="left" :label-width="100">
+    <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="100">
       <NFormItem :label="$t('page.content.bannerItem.groupId')" path="groupId">
         <NSelect
           v-model:value="model.groupId"

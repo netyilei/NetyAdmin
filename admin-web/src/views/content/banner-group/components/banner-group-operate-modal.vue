@@ -2,7 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { ENABLE_STATUS } from '@/constants/business';
 import { fetchCreateBannerGroup, fetchUpdateBannerGroup } from '@/service/api/v1/content';
-import { useFormRules } from '@/hooks/common/form';
+import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import type { Content } from '@/typings/api/v1/content';
 import { $t } from '@/locales';
 import StorageConfigSelect from '@/components/custom/storage-config-select.vue';
@@ -26,6 +26,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const { defaultRequiredRule } = useFormRules();
+const { formRef, validate } = useNaiveForm();
 
 const drawerVisible = computed({
   get() {
@@ -133,9 +134,11 @@ function closeModal() {
 async function handleSubmit() {
   loading.value = true;
 
-  const params = { ...model };
-
   try {
+    await validate();
+
+    const params = { ...model };
+
     if (props.operateType === 'add') {
       await fetchCreateBannerGroup(params);
       window.$message?.success($t('common.addSuccess'));
@@ -164,7 +167,7 @@ watch(
 
 <template>
   <NModal v-model:show="drawerVisible" preset="card" :title="title" class="max-w-95vw w-800px overflow-y-auto">
-    <NForm :model="model" :rules="rules" label-placement="left" :label-width="100">
+    <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="100">
       <NFormItem :label="$t('page.content.bannerGroup.groupName')" path="name">
         <NInput
           v-model:value="model.name"

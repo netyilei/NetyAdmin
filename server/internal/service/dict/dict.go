@@ -57,6 +57,9 @@ func (s *dictService) DeleteType(ctx context.Context, id uint) error {
 	if err != nil {
 		return err
 	}
+	if err := s.dictRepo.DeleteDataByTypeCode(ctx, t.Code); err != nil {
+		return err
+	}
 	err = s.dictRepo.DeleteType(ctx, id)
 	if err == nil {
 		_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagDict(t.Code))

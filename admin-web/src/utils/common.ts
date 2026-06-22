@@ -58,6 +58,6 @@ export function toggleHtmlClass(className: string) {
 }
 
 // 判断role是否是超管
-export function isSuperByCode(roleCodes: string) {
-  return roleCodes === 'R_SUPER';
+export function isSuperByCode(code: string) {
+  return code === import.meta.env.VITE_STATIC_SUPER_ROLE;
 }

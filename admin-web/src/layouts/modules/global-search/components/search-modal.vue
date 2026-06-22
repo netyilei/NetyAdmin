@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, ref, shallowRef } from 'vue';
+import { computed, onUnmounted, ref, shallowRef, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { onKeyStroke, useDebounceFn } from '@vueuse/core';
 import { useRouteStore } from '@/store/modules/route';
@@ -34,12 +34,7 @@ function search() {
 }
 
 function handleClose() {
-  // handle with setTimeout to prevent user from seeing some operations
-  setTimeout(() => {
-    visible.value = false;
-    resultOptions.value = [];
-    keyword.value = '';
-  }, 200);
+  visible.value = false;
 }
 
 /** key up */
@@ -79,14 +74,46 @@ function handleEnter() {
   router.push(activePath.value);
 }
 
-function registerShortcut() {
-  onKeyStroke('Escape', handleClose);
-  onKeyStroke('Enter', handleEnter);
-  onKeyStroke('ArrowUp', handleUp);
-  onKeyStroke('ArrowDown', handleDown);
+/** cleanup after modal closed */
+function handleAfterLeave() {
+  keyword.value = '';
+  resultOptions.value = [];
+  activePath.value = '';
 }
 
-registerShortcut();
+let shortcutStops: Array<() => void> = [];
+
+function registerShortcut() {
+  if (shortcutStops.length > 0) return;
+
+  shortcutStops = [
+    onKeyStroke('Escape', handleClose),
+    onKeyStroke('Enter', handleEnter),
+    onKeyStroke('ArrowUp', handleUp),
+    onKeyStroke('ArrowDown', handleDown)
+  ];
+}
+
+function unregisterShortcut() {
+  shortcutStops.forEach(stop => stop());
+  shortcutStops = [];
+}
+
+watch(
+  visible,
+  val => {
+    if (val) {
+      registerShortcut();
+    } else {
+      unregisterShortcut();
+    }
+  },
+  { immediate: true }
+);
+
+onUnmounted(() => {
+  unregisterShortcut();
+});
 </script>
 
 <template>
@@ -99,7 +126,7 @@ registerShortcut();
     footer-style="padding: 0; margin: 0"
     class="fixed left-0 right-0"
     :class="[isMobile ? 'size-full top-0px rounded-0' : 'w-630px top-50px']"
-    @after-leave="handleClose"
+    @after-leave="handleAfterLeave"
   >
     <NInputGroup>
       <NInput v-model:value="keyword" clearable :placeholder="$t('common.keywordSearch')" @input="handleSearch">
