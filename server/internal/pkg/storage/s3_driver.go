@@ -170,15 +170,24 @@ func (d *S3Driver) DeleteMultiple(ctx context.Context, keys []string) error {
 		}
 	}
 
-	_, err := d.client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+	result, err := d.client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
 		Bucket: aws.String(d.bucket),
 		Delete: &types.Delete{
 			Objects: objects,
-			Quiet:   aws.Bool(true),
+			Quiet:   aws.Bool(false), // 返回详细删除结果，不静默吞错误
 		},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to delete objects: %w", err)
+	}
+
+	// 汇总部分删除失败的错误
+	if len(result.Errors) > 0 {
+		var errMsgs []string
+		for _, e := range result.Errors {
+			errMsgs = append(errMsgs, fmt.Sprintf("%s: %s", aws.ToString(e.Key), aws.ToString(e.Message)))
+		}
+		return fmt.Errorf("partial delete failure: %s", strings.Join(errMsgs, "; "))
 	}
 	return nil
 }

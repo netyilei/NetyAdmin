@@ -6,6 +6,9 @@ import (
 	"gorm.io/gorm"
 )
 
+// MaxPageSize 分页大小上限，防止 DoS
+const MaxPageSize = 100
+
 type Query struct {
 	Page     int `form:"page" json:"page"`
 	PageSize int `form:"pageSize" json:"pageSize"`
@@ -17,6 +20,9 @@ func (q *Query) Normalize() {
 	}
 	if q.PageSize <= 0 {
 		q.PageSize = entity.DefaultPageSize
+	}
+	if q.PageSize > MaxPageSize {
+		q.PageSize = MaxPageSize
 	}
 }
 
@@ -32,6 +38,9 @@ func Paginate(page, pageSize int) func(db *gorm.DB) *gorm.DB {
 		if pageSize <= 0 {
 			pageSize = entity.DefaultPageSize
 		}
+		if pageSize > MaxPageSize {
+			pageSize = MaxPageSize
+		}
 		return db.Offset((page - 1) * pageSize).Limit(pageSize)
 	}
 }
@@ -39,6 +48,9 @@ func Paginate(page, pageSize int) func(db *gorm.DB) *gorm.DB {
 func NormalizeSize(size int) int {
 	if size <= 0 {
 		return entity.DefaultPageSize
+	}
+	if size > MaxPageSize {
+		return MaxPageSize
 	}
 	return size
 }

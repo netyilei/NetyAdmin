@@ -62,7 +62,7 @@ func Fail(c *gin.Context, err error) {
 	if errors.As(err, &bizErr) {
 		c.JSON(http.StatusOK, Response{
 			Code:      bizErr.Code.String(),
-			Message:   "",
+			Message:   bizErr.Message,
 			RequestID: c.GetString("requestID"),
 		})
 		return
@@ -70,7 +70,7 @@ func Fail(c *gin.Context, err error) {
 
 	c.JSON(http.StatusOK, Response{
 		Code:      errorx.CodeInternalError.String(),
-		Message:   "",
+		Message:   errorx.CodeInternalError.Message(),
 		RequestID: c.GetString("requestID"),
 	})
 }
@@ -83,7 +83,7 @@ func FailWithCode(c *gin.Context, code errorx.Code, message ...string) {
 	_ = c.Error(fmt.Errorf("%s: %s", code.String(), msg)) // 注册错误
 	c.JSON(http.StatusOK, Response{
 		Code:      code.String(),
-		Message:   "",
+		Message:   msg,
 		RequestID: c.GetString("requestID"),
 	})
 }
@@ -96,7 +96,7 @@ func FailWithStatus(c *gin.Context, httpStatus int, code errorx.Code, message ..
 	_ = c.Error(fmt.Errorf("%s: %s", code.String(), msg)) // 注册错误
 	c.JSON(httpStatus, Response{
 		Code:      code.String(),
-		Message:   "",
+		Message:   msg,
 		RequestID: c.GetString("requestID"),
 	})
 }

@@ -24,6 +24,7 @@ func NewClient(cfg *config.RedisConfig) (*redis.Client, error) {
 	defer cancel()
 
 	if err := client.Ping(ctx).Err(); err != nil {
+		client.Close() // 释放连接池，防止泄漏
 		return nil, fmt.Errorf("连接Redis失败: %w", err)
 	}
 

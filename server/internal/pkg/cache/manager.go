@@ -85,6 +85,7 @@ type lazyCacheManager struct {
 	prefix       string
 	redisClient  *redis.Client
 	eventBus     pubsub.EventBus
+	eventBusMu   sync.RWMutex
 
 	localLimiters     sync.Map
 	limiterLastAccess sync.Map
@@ -542,9 +543,13 @@ func (m *lazyCacheManager) IsCacheEnabled(moduleName string) bool {
 func (m *lazyCacheManager) InvalidateByTags(ctx context.Context, tags ...string) error {
 	err := m.cacheManager.Invalidate(ctx, store.WithInvalidateTags(tags))
 
-	if m.eventBus != nil && len(tags) > 0 {
+	m.eventBusMu.RLock()
+	bus := m.eventBus
+	m.eventBusMu.RUnlock()
+
+	if bus != nil && len(tags) > 0 {
 		payload, _ := json.Marshal(tags)
-		_ = m.eventBus.Publish(ctx, pubsub.TopicCacheInvalidation, payload)
+		_ = bus.Publish(ctx, pubsub.TopicCacheInvalidation, payload)
 	}
 
 	return err
@@ -558,6 +563,8 @@ func (m *lazyCacheManager) InvalidateL1ByTags(ctx context.Context, tags ...strin
 }
 
 func (m *lazyCacheManager) SetEventBus(bus pubsub.EventBus) {
+	m.eventBusMu.Lock()
+	defer m.eventBusMu.Unlock()
 	m.eventBus = bus
 }
 
