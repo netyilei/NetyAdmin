@@ -59,11 +59,9 @@ func PermissionAuth(authVerifier AuthVerifier) gin.HandlerFunc {
 			return
 		}
 
-		for _, roleCode := range roleCodes {
-			if roleCode == systemEntity.SuperRoleCode {
-				c.Next()
-				return
-			}
+		if IsSuperAdminFromContext(c) {
+			c.Next()
+			return
 		}
 
 		if authVerifier == nil {
@@ -95,4 +93,24 @@ func PermissionAuth(authVerifier AuthVerifier) gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+// IsSuperAdminFromContext 从 gin.Context 中读取 JWT 注入的 roles，
+// 判断当前操作者是否为超级管理员。
+// 供 handler 层在需要区分操作者身份时使用，使 service 层无需依赖网络协议。
+func IsSuperAdminFromContext(c *gin.Context) bool {
+	roles, exists := c.Get("roles")
+	if !exists {
+		return false
+	}
+	roleCodes, ok := roles.([]string)
+	if !ok {
+		return false
+	}
+	for _, roleCode := range roleCodes {
+		if roleCode == systemEntity.SuperRoleCode {
+			return true
+		}
+	}
+	return false
 }

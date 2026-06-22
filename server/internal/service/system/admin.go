@@ -25,8 +25,8 @@ type AdminService interface {
 	UpdateProfile(ctx context.Context, adminID uint, req *systemDto.UpdateProfileReq) error
 	ChangePassword(ctx context.Context, adminID uint, req *systemDto.ChangePasswordReq) error
 	List(ctx context.Context, req *systemDto.AdminQuery) ([]*systemVO.AdminItemVO, int64, error)
-	Create(ctx context.Context, req *systemDto.CreateAdminReq, operatorID uint) (uint, error)
-	Update(ctx context.Context, req *systemDto.UpdateAdminReq, operatorID uint) error
+	Create(ctx context.Context, req *systemDto.CreateAdminReq, operatorID uint, operatorIsSuper bool) (uint, error)
+	Update(ctx context.Context, req *systemDto.UpdateAdminReq, operatorID uint, operatorIsSuper bool) error
 	Delete(ctx context.Context, id uint) error
 	GetByID(ctx context.Context, id uint) (*systemEntity.Admin, error)
 	GetByUsername(ctx context.Context, username string) (*systemEntity.Admin, error)
@@ -276,7 +276,7 @@ func (s *adminService) List(ctx context.Context, req *systemDto.AdminQuery) ([]*
 	return items, total, nil
 }
 
-func (s *adminService) Create(ctx context.Context, req *systemDto.CreateAdminReq, operatorID uint) (uint, error) {
+func (s *adminService) Create(ctx context.Context, req *systemDto.CreateAdminReq, operatorID uint, operatorIsSuper bool) (uint, error) {
 	exists, err := s.adminRepo.ExistsByUsername(ctx, req.Username)
 	if err != nil {
 		return 0, err
@@ -285,9 +285,12 @@ func (s *adminService) Create(ctx context.Context, req *systemDto.CreateAdminReq
 		return 0, errorx.New(errorx.CodeUserAlreadyExists)
 	}
 
-	for _, code := range req.Roles {
-		if code == systemEntity.SuperRoleCode {
-			return 0, errorx.New(errorx.CodeCannotModifySuper, "不允许创建超级管理员")
+	// 普通管理员不允许创建超级管理员；仅超级管理员可分配 R_SUPER 角色
+	if !operatorIsSuper {
+		for _, code := range req.Roles {
+			if code == systemEntity.SuperRoleCode {
+				return 0, errorx.New(errorx.CodeCannotModifySuper, "普通管理员无权创建超级管理员")
+			}
 		}
 	}
 
@@ -322,14 +325,24 @@ func (s *adminService) Create(ctx context.Context, req *systemDto.CreateAdminReq
 	return admin.ID, nil
 }
 
-func (s *adminService) Update(ctx context.Context, req *systemDto.UpdateAdminReq, operatorID uint) error {
+func (s *adminService) Update(ctx context.Context, req *systemDto.UpdateAdminReq, operatorID uint, operatorIsSuper bool) error {
 	admin, err := s.adminRepo.GetByID(ctx, req.ID)
 	if err != nil {
 		return errorx.New(errorx.CodeUserNotFound)
 	}
 
+	// 目标已是超级管理员，拒绝修改，防止篡改超管
 	if admin.IsSuperAdmin() {
 		return errorx.New(errorx.CodeCannotModifySuper)
+	}
+
+	// 普通管理员不允许分配超级管理员角色，防止越权提权
+	if !operatorIsSuper {
+		for _, code := range req.Roles {
+			if code == systemEntity.SuperRoleCode {
+				return errorx.New(errorx.CodeCannotModifySuper, "普通管理员无权分配超级管理员角色")
+			}
+		}
 	}
 
 	exists, err := s.adminRepo.ExistsByUsername(ctx, req.Username, req.ID)

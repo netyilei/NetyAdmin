@@ -7,6 +7,7 @@ import (
 
 	"NetyAdmin/internal/domain/entity"
 	systemDto "NetyAdmin/internal/interface/admin/dto/system"
+	"NetyAdmin/internal/middleware"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
 	systemService "NetyAdmin/internal/service/system"
@@ -45,6 +46,7 @@ func (h *AdminHandler) List(c *gin.Context) {
 
 func (h *AdminHandler) Create(c *gin.Context) {
 	operatorID, _ := c.Get("adminID")
+	operatorIsSuper := middleware.IsSuperAdminFromContext(c)
 
 	var req systemDto.CreateAdminReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -52,7 +54,7 @@ func (h *AdminHandler) Create(c *gin.Context) {
 		return
 	}
 
-	id, err := h.adminService.Create(c.Request.Context(), &req, operatorID.(uint))
+	id, err := h.adminService.Create(c.Request.Context(), &req, operatorID.(uint), operatorIsSuper)
 	if err != nil {
 		response.Fail(c, err)
 		return
@@ -63,6 +65,7 @@ func (h *AdminHandler) Create(c *gin.Context) {
 
 func (h *AdminHandler) Update(c *gin.Context) {
 	operatorID, _ := c.Get("adminID")
+	operatorIsSuper := middleware.IsSuperAdminFromContext(c)
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -78,7 +81,7 @@ func (h *AdminHandler) Update(c *gin.Context) {
 	}
 	req.ID = uint(id)
 
-	if err := h.adminService.Update(c.Request.Context(), &req, operatorID.(uint)); err != nil {
+	if err := h.adminService.Update(c.Request.Context(), &req, operatorID.(uint), operatorIsSuper); err != nil {
 		response.Fail(c, err)
 		return
 	}
