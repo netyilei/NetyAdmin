@@ -29,6 +29,7 @@ func (r *AuthRouter) RegisterAuth(group *gin.RouterGroup) {
 		authGroup.GET("/profile", r.handler.GetProfile)
 		authGroup.PUT("/profile", r.handler.UpdateProfile)
 		authGroup.POST("/changePassword", r.handler.ChangePassword)
+		authGroup.POST("/logout", r.handler.Logout)
 	}
 }
 

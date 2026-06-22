@@ -51,14 +51,18 @@ func (r *dictRepository) DeleteType(ctx context.Context, id uint) error {
 
 func (r *dictRepository) GetTypeById(ctx context.Context, id uint) (*dictEntity.DictType, error) {
 	var t dictEntity.DictType
-	err := r.db.WithContext(ctx).First(&t, id).Error
-	return &t, err
+	if err := r.db.WithContext(ctx).First(&t, id).Error; err != nil {
+		return nil, err
+	}
+	return &t, nil
 }
 
 func (r *dictRepository) GetTypeByCode(ctx context.Context, code string) (*dictEntity.DictType, error) {
 	var t dictEntity.DictType
-	err := r.db.WithContext(ctx).Where("code = ?", code).First(&t).Error
-	return &t, err
+	if err := r.db.WithContext(ctx).Where("code = ?", code).First(&t).Error; err != nil {
+		return nil, err
+	}
+	return &t, nil
 }
 
 func (r *dictRepository) ListType(ctx context.Context, name, code, status string, page, pageSize int) ([]dictEntity.DictType, int64, error) {
@@ -100,8 +104,10 @@ func (r *dictRepository) DeleteDataByTypeCode(ctx context.Context, typeCode stri
 
 func (r *dictRepository) GetDataById(ctx context.Context, id uint) (*dictEntity.DictData, error) {
 	var d dictEntity.DictData
-	err := r.db.WithContext(ctx).First(&d, id).Error
-	return &d, err
+	if err := r.db.WithContext(ctx).First(&d, id).Error; err != nil {
+		return nil, err
+	}
+	return &d, nil
 }
 
 func (r *dictRepository) ListData(ctx context.Context, dictCode string) ([]dictEntity.DictData, error) {

@@ -25,9 +25,10 @@ func IPACAuth(ipacSvc ipacSvcPkg.IPACService) gin.HandlerFunc {
 
 		allowed, err := ipacSvc.CheckIP(c.Request.Context(), clientIP, appID)
 		if err != nil {
-			// 如果匹配过程出错，为了安全，记录日志并放行
-			slog.Error("IPAC 校验异常，临时放行", "error", err, "clientIP", clientIP)
-			c.Next()
+			// fail-closed：IPAC 校验异常时拒绝请求，避免安全策略被绕过
+			slog.Error("IPAC 校验异常，拒绝访问", "error", err, "clientIP", clientIP)
+			response.FailWithCode(c, errorx.CodeIPBlocked, "访问校验服务异常，请稍后再试")
+			c.Abort()
 			return
 		}
 

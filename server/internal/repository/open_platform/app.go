@@ -78,14 +78,18 @@ func (r *appRepository) Delete(ctx context.Context, id string) error {
 
 func (r *appRepository) GetByID(ctx context.Context, id string) (*open_platform.App, error) {
 	var app open_platform.App
-	err := r.db.WithContext(ctx).First(&app, "id = ?", id).Error
-	return &app, err
+	if err := r.db.WithContext(ctx).First(&app, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return &app, nil
 }
 
 func (r *appRepository) GetByKey(ctx context.Context, appKey string) (*open_platform.App, error) {
 	var app open_platform.App
-	err := r.db.WithContext(ctx).Where("app_key = ?", appKey).First(&app).Error
-	return &app, err
+	if err := r.db.WithContext(ctx).Where("app_key = ?", appKey).First(&app).Error; err != nil {
+		return nil, err
+	}
+	return &app, nil
 }
 
 func (r *appRepository) List(ctx context.Context, query *AppRepoQuery) ([]*open_platform.App, int64, error) {
@@ -107,11 +111,7 @@ func (r *appRepository) List(ctx context.Context, query *AppRepoQuery) ([]*open_
 		return nil, 0, err
 	}
 
-	if query.Page > 0 && query.PageSize > 0 {
-		db = db.Scopes(pagination.Paginate(query.Page, query.PageSize))
-	}
-
-	err := db.Order("created_at DESC").Find(&list).Error
+	err := db.Order("created_at DESC").Scopes(pagination.Paginate(query.Page, query.PageSize)).Find(&list).Error
 	return list, total, err
 }
 
@@ -195,6 +195,8 @@ func (r *appRepository) DeleteScopeGroup(ctx context.Context, id uint64) error {
 
 func (r *appRepository) GetScopeGroupByID(ctx context.Context, id uint64) (*open_platform.AppScopeGroup, error) {
 	var group open_platform.AppScopeGroup
-	err := r.db.WithContext(ctx).First(&group, id).Error
-	return &group, err
+	if err := r.db.WithContext(ctx).First(&group, id).Error; err != nil {
+		return nil, err
+	}
+	return &group, nil
 }

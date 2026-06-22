@@ -64,8 +64,10 @@ func (r *openApiRepository) Delete(ctx context.Context, id uint64) error {
 
 func (r *openApiRepository) GetByID(ctx context.Context, id uint64) (*open_platform.OpenApi, error) {
 	var api open_platform.OpenApi
-	err := r.db.WithContext(ctx).First(&api, id).Error
-	return &api, err
+	if err := r.db.WithContext(ctx).First(&api, id).Error; err != nil {
+		return nil, err
+	}
+	return &api, nil
 }
 
 func (r *openApiRepository) List(ctx context.Context, query *OpenApiRepoQuery) ([]*open_platform.OpenApi, int64, error) {
@@ -93,11 +95,7 @@ func (r *openApiRepository) List(ctx context.Context, query *OpenApiRepoQuery) (
 		return nil, 0, err
 	}
 
-	if query.Page > 0 && query.PageSize > 0 {
-		db = db.Scopes(pagination.Paginate(query.Page, query.PageSize))
-	}
-
-	err := db.Order("id ASC").Find(&list).Error
+	err := db.Order("id ASC").Scopes(pagination.Paginate(query.Page, query.PageSize)).Find(&list).Error
 	return list, total, err
 }
 

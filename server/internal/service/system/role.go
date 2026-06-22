@@ -2,6 +2,7 @@ package system
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"NetyAdmin/internal/domain/entity"
@@ -23,7 +24,6 @@ type RoleService interface {
 	Delete(ctx context.Context, id uint) error
 	DeleteBatch(ctx context.Context, ids []uint) error
 	GetAll(ctx context.Context) ([]*systemVO.RoleSimpleVO, error)
-	UpdatePermissions(ctx context.Context, req *systemDto.UpdateRolePermissionsReq) error
 	GetRoleMenusWithHome(ctx context.Context, roleID uint) (map[string]interface{}, error)
 	UpdateMenus(ctx context.Context, roleID uint, menuIDs []uint, homeRouteName string) error
 	GetRoleButtons(ctx context.Context, roleID uint) ([]uint, error)
@@ -124,6 +124,11 @@ func (s *roleService) GetByID(ctx context.Context, id uint) (*systemVO.RoleVO, e
 }
 
 func (s *roleService) Create(ctx context.Context, req *systemDto.CreateRoleReq, operatorID uint) (uint, error) {
+	// 禁止创建超级管理员角色，防止越权
+	if req.Code == systemEntity.SuperRoleCode {
+		return 0, errorx.New(errorx.CodeCannotModifySuper, "不允许创建超级管理员角色")
+	}
+
 	exists, err := s.roleRepo.ExistsByCode(ctx, req.Code)
 	if err != nil {
 		return 0, err
@@ -162,6 +167,11 @@ func (s *roleService) Update(ctx context.Context, req *systemDto.UpdateRoleReq, 
 
 	if role.Code == systemEntity.SuperRoleCode {
 		return errorx.New(errorx.CodeCannotModifySuper, "不允许修改超级管理员角色")
+	}
+
+	// 禁止将普通角色编码修改为超级管理员编码，防止提权
+	if req.Code != "" && req.Code == systemEntity.SuperRoleCode {
+		return errorx.New(errorx.CodeCannotModifySuper, "不允许修改为超级管理员角色编码")
 	}
 
 	if req.Code != "" && req.Code != role.Code {
@@ -205,17 +215,28 @@ func (s *roleService) Delete(ctx context.Context, id uint) error {
 }
 
 func (s *roleService) DeleteBatch(ctx context.Context, ids []uint) error {
+	var errs []string
 	for _, id := range ids {
 		role, err := s.roleRepo.GetByID(ctx, id)
 		if err != nil {
+			errs = append(errs, fmt.Sprintf("角色 %d：不存在", id))
 			continue
 		}
 		if role.Code == systemEntity.SuperRoleCode {
+			errs = append(errs, fmt.Sprintf("角色 %d：不允许删除超级管理员角色", id))
 			continue
 		}
-		_ = s.roleRepo.Delete(ctx, id)
+		if err := s.roleRepo.Delete(ctx, id); err != nil {
+			errs = append(errs, fmt.Sprintf("角色 %d：%s", id, err.Error()))
+			continue
+		}
 	}
 	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu)
+
+	// 收集错误并返回聚合错误，避免静默吞错导致数据不一致
+	if len(errs) > 0 {
+		return errorx.New(errorx.CodeInternalError, fmt.Sprintf("部分角色删除失败：%s", strings.Join(errs, "; ")))
+	}
 	return nil
 }
 
@@ -235,34 +256,6 @@ func (s *roleService) GetAll(ctx context.Context) ([]*systemVO.RoleSimpleVO, err
 	}
 
 	return items, nil
-}
-
-func (s *roleService) UpdatePermissions(ctx context.Context, req *systemDto.UpdateRolePermissionsReq) error {
-	role, err := s.roleRepo.GetByID(ctx, req.ID)
-	if err != nil {
-		return errorx.New(errorx.CodeNotFound, "角色不存在")
-	}
-
-	role.Menus = make([]*systemEntity.Menu, 0, len(req.Menus))
-	for _, id := range req.Menus {
-		role.Menus = append(role.Menus, &systemEntity.Menu{Model: entity.Model{ID: id}})
-	}
-
-	role.Apis = make([]*systemEntity.API, 0, len(req.Apis))
-	for _, id := range req.Apis {
-		role.Apis = append(role.Apis, &systemEntity.API{Model: entity.Model{ID: id}})
-	}
-
-	role.Buttons = make([]*systemEntity.Button, 0, len(req.Buttons))
-	for _, id := range req.Buttons {
-		role.Buttons = append(role.Buttons, &systemEntity.Button{Model: entity.Model{ID: id}})
-	}
-
-	err = s.roleRepo.Update(ctx, role)
-	if err == nil {
-		_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu)
-	}
-	return err
 }
 
 func (s *roleService) GetRoleMenusWithHome(ctx context.Context, roleID uint) (map[string]interface{}, error) {
@@ -293,6 +286,10 @@ func (s *roleService) UpdateMenus(ctx context.Context, roleID uint, menuIDs []ui
 	role, err := s.roleRepo.GetByID(ctx, roleID)
 	if err != nil {
 		return errorx.New(errorx.CodeNotFound, "角色不存在")
+	}
+
+	if role.Code == systemEntity.SuperRoleCode {
+		return errorx.New(errorx.CodeCannotModifySuper, "不允许修改超级管理员角色")
 	}
 
 	role.Menus = make([]*systemEntity.Menu, 0, len(menuIDs))
@@ -336,6 +333,10 @@ func (s *roleService) UpdateButtons(ctx context.Context, roleID uint, buttonIDs 
 		return errorx.New(errorx.CodeNotFound, "角色不存在")
 	}
 
+	if role.Code == systemEntity.SuperRoleCode {
+		return errorx.New(errorx.CodeCannotModifySuper, "不允许修改超级管理员角色")
+	}
+
 	role.Buttons = make([]*systemEntity.Button, 0, len(buttonIDs))
 	for _, id := range buttonIDs {
 		role.Buttons = append(role.Buttons, &systemEntity.Button{Model: entity.Model{ID: id}})
@@ -366,6 +367,10 @@ func (s *roleService) UpdateAPIs(ctx context.Context, roleID uint, apiIDs []uint
 	role, err := s.roleRepo.GetByID(ctx, roleID)
 	if err != nil {
 		return errorx.New(errorx.CodeNotFound, "角色不存在")
+	}
+
+	if role.Code == systemEntity.SuperRoleCode {
+		return errorx.New(errorx.CodeCannotModifySuper, "不允许修改超级管理员角色")
 	}
 
 	role.Apis = make([]*systemEntity.API, 0, len(apiIDs))

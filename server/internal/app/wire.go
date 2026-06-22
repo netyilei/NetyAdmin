@@ -100,7 +100,10 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	}
 
 	// 2. JWT
-	jwtInstance := jwt.New(cfg.JWT.Secret, cfg.JWT.Expiration)
+	jwtInstance, err := jwt.New(cfg.JWT.Secret, cfg.JWT.Expiration)
+	if err != nil {
+		return nil, fmt.Errorf("JWT 初始化失败: %w", err)
+	}
 
 	// 3. Repositories
 	repos := initRepositories(db)
@@ -326,7 +329,8 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	storageMgr := storagePkg.NewManager(storagePkg.NewS3DriverFactory())
 
 	s := &serviceSet{}
-	s.admin = systemService.NewAdminService(repos.admin, repos.role, jwtInstance, lazyCacheMgr)
+	tokenStore := userServicePkg.NewTokenStoreFromConfig(configWatcher, repos.user, lazyCacheMgr)
+	s.admin = systemService.NewAdminService(repos.admin, repos.role, jwtInstance, lazyCacheMgr, tokenStore)
 	s.role = systemService.NewRoleService(repos.role, repos.menu, repos.api, repos.button, lazyCacheMgr)
 	s.menu = systemService.NewMenuService(repos.menu, repos.button, lazyCacheMgr)
 	s.api = systemService.NewAPIService(repos.api, lazyCacheMgr)
@@ -364,10 +368,9 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	s.message = msgServicePkg.NewMessageService(repos.message, taskManager, drivers, lazyCacheMgr)
 	s.msgSendJob = msgServicePkg.NewMsgSendJob(repos.message, drivers, configWatcher)
 	s.verification = userServicePkg.NewVerificationService(lazyCacheMgr, s.message, configWatcher, captchaStore)
-	tokenStore := userServicePkg.NewTokenStoreFromConfig(configWatcher, repos.user, lazyCacheMgr)
 	s.user = userServicePkg.NewUserService(repos.user, jwtInstance, s.verification, configWatcher, storageMgr, captchaStore, tokenStore, lazyCacheMgr)
 
-	middleware.InitJWT(jwtInstance, repos.user, tokenStore)
+	middleware.InitJWT(jwtInstance, repos.user, tokenStore, repos.admin)
 
 	writers := map[logEntity.LogType]logService.LogBatchWriter{
 		logEntity.LogTypeOperation: logService.NewOperationLogWriter(repos.operationLog),

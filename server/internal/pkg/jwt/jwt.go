@@ -2,6 +2,8 @@ package jwt
 
 import (
 	"errors"
+	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -44,11 +46,31 @@ type JWT struct {
 	expiration int
 }
 
-func New(secret string, expiration int) *JWT {
+func New(secret string, expiration int) (*JWT, error) {
+	// 校验 secret 强度：长度 ≥16 + 至少 2 类字符（小写、大写、数字、特殊符号）
+	if len(secret) < 16 {
+		return nil, fmt.Errorf("JWT secret 长度不足，至少需要 16 字节，当前 %d 字节", len(secret))
+	}
+	types := 0
+	if matched, _ := regexp.MatchString(`[a-z]`, secret); matched {
+		types++
+	}
+	if matched, _ := regexp.MatchString(`[A-Z]`, secret); matched {
+		types++
+	}
+	if matched, _ := regexp.MatchString(`[0-9]`, secret); matched {
+		types++
+	}
+	if matched, _ := regexp.MatchString(`[^a-zA-Z0-9]`, secret); matched {
+		types++
+	}
+	if types < 2 {
+		return nil, fmt.Errorf("JWT secret 强度不足，至少需要包含大小写字母、数字、特殊符号中的 2 类，当前 %d 类", types)
+	}
 	return &JWT{
 		secret:     secret,
 		expiration: expiration,
-	}
+	}, nil
 }
 
 func (j *JWT) GenerateToken(claims Claims) (string, error) {

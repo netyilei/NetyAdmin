@@ -77,18 +77,16 @@ func (r *openLogRepository) List(ctx context.Context, query *OpenLogRepoQuery) (
 		return nil, 0, err
 	}
 
-	if query.Page > 0 && query.PageSize > 0 {
-		db = db.Scopes(pagination.Paginate(query.Page, query.PageSize))
-	}
-
-	err := db.Order("created_at DESC").Find(&list).Error
+	err := db.Order("created_at DESC").Scopes(pagination.Paginate(query.Page, query.PageSize)).Find(&list).Error
 	return list, total, err
 }
 
 func (r *openLogRepository) GetByID(ctx context.Context, id uint64) (*open_platform.OpenPlatformLog, error) {
 	var log open_platform.OpenPlatformLog
-	err := r.db.WithContext(ctx).First(&log, id).Error
-	return &log, err
+	if err := r.db.WithContext(ctx).First(&log, id).Error; err != nil {
+		return nil, err
+	}
+	return &log, nil
 }
 
 func (r *openLogRepository) DeleteBatch(ctx context.Context, ids []uint64) error {

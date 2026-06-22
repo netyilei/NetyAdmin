@@ -13,7 +13,7 @@ type RefreshTokenReq struct {
 
 type ChangePasswordReq struct {
 	OldPassword string `json:"oldPassword" binding:"required"`
-	NewPassword string `json:"newPassword" binding:"required,min=6"`
+	NewPassword string `json:"newPassword" binding:"required,min=8,max=32"`
 }
 
 type UpdateProfileReq struct {
@@ -35,7 +35,7 @@ type AdminQuery struct {
 
 type CreateAdminReq struct {
 	Username string   `json:"username" binding:"required,min=3,max=50"`
-	Password string   `json:"password" binding:"required,min=6"`
+	Password string   `json:"password" binding:"required,min=8,max=32"`
 	Nickname string   `json:"nickname"`
 	Phone    string   `json:"phone"`
 	Email    string   `json:"email"`
@@ -47,7 +47,7 @@ type CreateAdminReq struct {
 type UpdateAdminReq struct {
 	ID       uint     `json:"id"`
 	Username string   `json:"username" binding:"required,min=3,max=50"`
-	Password string   `json:"password"`
+	Password string   `json:"password" binding:"omitempty,min=8,max=32"`
 	Nickname string   `json:"nickname"`
 	Phone    string   `json:"phone"`
 	Email    string   `json:"email"`

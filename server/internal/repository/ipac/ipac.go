@@ -53,8 +53,10 @@ func (r *ipacRepository) Delete(ctx context.Context, id uint) error {
 
 func (r *ipacRepository) GetByID(ctx context.Context, id uint) (*ipac.IPAccessControl, error) {
 	var item ipac.IPAccessControl
-	err := r.db.WithContext(ctx).First(&item, id).Error
-	return &item, err
+	if err := r.db.WithContext(ctx).First(&item, id).Error; err != nil {
+		return nil, err
+	}
+	return &item, nil
 }
 
 func (r *ipacRepository) List(ctx context.Context, query *IPACQuery) ([]*ipac.IPAccessControl, int64, error) {
@@ -84,11 +86,7 @@ func (r *ipacRepository) List(ctx context.Context, query *IPACQuery) ([]*ipac.IP
 		return nil, 0, err
 	}
 
-	if query.Page > 0 && query.PageSize > 0 {
-		db = db.Scopes(pagination.Paginate(query.Page, query.PageSize))
-	}
-
-	err := db.Order("created_at DESC").Find(&list).Error
+	err := db.Order("created_at DESC").Scopes(pagination.Paginate(query.Page, query.PageSize)).Find(&list).Error
 	return list, total, err
 }
 
@@ -101,8 +99,10 @@ func (r *ipacRepository) GetByIP(ctx context.Context, ip string, appID *string) 
 		db = db.Where("app_id IS NULL OR app_id = ''")
 	}
 
-	err := db.First(&item).Error
-	return &item, err
+	if err := db.First(&item).Error; err != nil {
+		return nil, err
+	}
+	return &item, nil
 }
 
 func (r *ipacRepository) GetAllEffective(ctx context.Context) ([]*ipac.IPAccessControl, error) {

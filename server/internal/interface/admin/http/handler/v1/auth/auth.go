@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"strings"
+
 	"github.com/gin-gonic/gin"
 
 	systemDto "NetyAdmin/internal/interface/admin/dto/system"
@@ -160,4 +162,22 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	}
 
 	response.SuccessWithMsg(c, "密码修改成功", nil)
+}
+
+func (h *AuthHandler) Logout(c *gin.Context) {
+	adminID, exists := c.Get("adminID")
+	if !exists {
+		response.FailWithCode(c, errorx.CodeUnauthorized, "未授权")
+		return
+	}
+
+	authHeader := c.GetHeader("Authorization")
+	token := strings.TrimPrefix(authHeader, "Bearer ")
+
+	if err := h.adminService.Logout(c.Request.Context(), adminID.(uint), token); err != nil {
+		response.Fail(c, err)
+		return
+	}
+
+	response.SuccessWithMsg(c, "退出登录成功", nil)
 }

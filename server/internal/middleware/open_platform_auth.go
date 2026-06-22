@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -78,9 +79,9 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 				ClientIP:      c.ClientIP(),
 				StatusCode:    statusCode,
 				Latency:       latency,
-				RequestHeader: string(headerBytes),
-				RequestBody:   string(requestBody),
-				ResponseBody:  writer.body.String(),
+				RequestHeader: sanitizeHeaderValue(string(headerBytes)),
+				RequestBody:   sanitizeBody(string(requestBody)),
+				ResponseBody:  sanitizeBody(writer.body.String()),
 				CreatedAt:     startTime,
 			}
 
@@ -124,11 +125,14 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 			return
 		}
 
-		// 4. IP 访问控制 (IPAC)
+		// 4. IP 访问控制 (IPAC) - fail-closed：校验异常时拒绝请求，避免安全策略被绕过
 		clientIP := c.ClientIP()
 		allowed, err := ipacSvc.CheckIP(c.Request.Context(), clientIP, &app.ID)
 		if err != nil {
-			slog.Error("[OpenPlatformAuth] IPAC check error", "ip", clientIP, "appID", app.ID, "err", err)
+			slog.Error("[OpenPlatformAuth] IPAC check error, deny request", "ip", clientIP, "appID", app.ID, "err", err)
+			response.FailWithCode(c, errorx.CodeIPBlocked, "访问校验服务异常，请稍后再试")
+			c.Abort()
+			return
 		} else if !allowed {
 			response.FailWithCode(c, errorx.CodeIPBlocked, "您的 IP 访问受限")
 			c.Abort()
@@ -136,8 +140,9 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 		}
 
 		// 5. Nonce 防重放 (使用缓存模块)
+		// nonce TTL 调整为 2 分钟，覆盖整个时间戳容差窗口（±60s 共 120s），防止窗口尾端的 nonce 过期后被重放
 		nonceKey := cache.KeyAppNonce(appKey, nonce)
-		set, err := appSvc.GetCacheMgr().SetNX(c.Request.Context(), nonceKey, "1", 60*time.Second)
+		set, err := appSvc.GetCacheMgr().SetNX(c.Request.Context(), nonceKey, "1", 2*time.Minute)
 		if err != nil || !set {
 			response.FailWithCode(c, errorx.CodeSignatureFailed, "重复的请求 (Nonce)")
 			c.Abort()
@@ -245,4 +250,70 @@ func computeHmacSha256(secret, data string) string {
 	h := hmac.New(sha256.New, []byte(secret))
 	h.Write([]byte(data))
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))
+}
+
+// sensitiveKeyPattern 匹配需要脱敏的敏感字段名（不区分大小写）
+var sensitiveKeyPattern = regexp.MustCompile(`(?i)(password|passwd|pwd|app_?secret|secret|signature|token|access_?token|refresh_?token|api_?key|private_?key|credit_?card|cvv|ssn)`)
+
+// sanitizeHeaderValue 对 HTTP 头部 JSON 字符串中的敏感字段值进行脱敏
+func sanitizeHeaderValue(headerJSON string) string {
+	if headerJSON == "" {
+		return ""
+	}
+	var headers map[string][]string
+	if err := json.Unmarshal([]byte(headerJSON), &headers); err != nil {
+		return "[unparseable header]"
+	}
+	for k := range headers {
+		if sensitiveKeyPattern.MatchString(k) {
+			headers[k] = []string{"***REDACTED***"}
+		}
+	}
+	out, err := json.Marshal(headers)
+	if err != nil {
+		return "[unparseable header]"
+	}
+	return string(out)
+}
+
+// sanitizeBody 对请求/响应体中的敏感字段值进行脱敏
+// 支持 JSON 对象和嵌套对象，对匹配敏感字段名的 value 替换为 ***REDACTED***
+func sanitizeBody(body string) string {
+	if body == "" {
+		return ""
+	}
+	var parsed interface{}
+	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
+		// 非 JSON 体，直接返回（避免明文密码等被记录，但无法结构化脱敏）
+		return body
+	}
+	sanitized := sanitizeValue(parsed)
+	out, err := json.Marshal(sanitized)
+	if err != nil {
+		return "[unparseable body]"
+	}
+	return string(out)
+}
+
+func sanitizeValue(v interface{}) interface{} {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		result := make(map[string]interface{}, len(val))
+		for k, vv := range val {
+			if sensitiveKeyPattern.MatchString(k) {
+				result[k] = "***REDACTED***"
+			} else {
+				result[k] = sanitizeValue(vv)
+			}
+		}
+		return result
+	case []interface{}:
+		result := make([]interface{}, len(val))
+		for i, vv := range val {
+			result[i] = sanitizeValue(vv)
+		}
+		return result
+	default:
+		return v
+	}
 }

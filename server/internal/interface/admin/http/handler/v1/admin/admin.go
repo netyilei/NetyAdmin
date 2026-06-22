@@ -90,6 +90,8 @@ func (h *AdminHandler) Update(c *gin.Context) {
 }
 
 func (h *AdminHandler) Delete(c *gin.Context) {
+	operatorID, _ := c.Get("adminID")
+
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil {
@@ -97,7 +99,7 @@ func (h *AdminHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.adminService.Delete(c.Request.Context(), uint(id)); err != nil {
+	if err := h.adminService.Delete(c.Request.Context(), uint(id), operatorID.(uint)); err != nil {
 		response.Fail(c, err)
 		return
 	}
@@ -106,6 +108,8 @@ func (h *AdminHandler) Delete(c *gin.Context) {
 }
 
 func (h *AdminHandler) DeleteBatch(c *gin.Context) {
+	operatorID, _ := c.Get("adminID")
+
 	var req struct {
 		Ids []uint `form:"ids" json:"ids" binding:"required"`
 	}
@@ -114,7 +118,7 @@ func (h *AdminHandler) DeleteBatch(c *gin.Context) {
 		return
 	}
 
-	if err := h.adminService.DeleteBatch(c.Request.Context(), req.Ids); err != nil {
+	if err := h.adminService.DeleteBatch(c.Request.Context(), req.Ids, operatorID.(uint)); err != nil {
 		response.Fail(c, err)
 		return
 	}

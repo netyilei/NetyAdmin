@@ -148,10 +148,19 @@ func (s *ipacService) CheckIP(ctx context.Context, ipStr string, appID *string) 
 				}
 			}
 			// 再检查应用放行
+			inAllow := false
 			for _, ipNet := range rules.Allow {
 				if ipNet.Contains(ip) {
-					return true, nil
+					inAllow = true
+					break
 				}
+			}
+			// 白名单语义：配置了 Allow 列表但 IP 不在其中，则拒绝（fail-closed）
+			if len(rules.Allow) > 0 && !inAllow {
+				return false, nil
+			}
+			if inAllow {
+				return true, nil
 			}
 		}
 	}

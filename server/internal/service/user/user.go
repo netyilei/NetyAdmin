@@ -114,13 +114,18 @@ func (s *userService) Register(ctx context.Context, req *clientDto.UserRegisterR
 		}
 	}
 
-	// 2. 密码加密
+	// 2. 校验密码强度
+	if err := s.validatePasswordStrength(ctx, req.Password); err != nil {
+		return "", err
+	}
+
+	// 3. 密码加密
 	hashedPassword, err := password.Hash(req.Password)
 	if err != nil {
 		return "", errorx.New(errorx.CodeInternalError, "密码加密失败")
 	}
 
-	// 3. 创建实体
+	// 4. 创建实体
 	user := &userEntity.User{
 		ID:       utils.NewULID(),
 		Username: req.Username,
@@ -396,11 +401,24 @@ func (s *userService) ChangePassword(ctx context.Context, userID string, req *cl
 		return errorx.New(errorx.CodePasswordWrong, "原密码错误")
 	}
 
+	// 新旧密码不能相同，防止用户设置相同密码降低安全性
+	if req.NewPassword == req.OldPassword {
+		return errorx.New(errorx.CodeInvalidParams, "新密码不能与旧密码相同")
+	}
+
+	// 校验密码强度
+	if err := s.validatePasswordStrength(ctx, req.NewPassword); err != nil {
+		return err
+	}
+
 	hashedPassword, err := password.Hash(req.NewPassword)
 	if err != nil {
 		return errorx.New(errorx.CodeInternalError, "密码加密失败")
 	}
 	user.Password = hashedPassword
+
+	// 密码修改成功后，强制清除该用户所有 token，使旧 access/refresh token 立即失效
+	_ = s.tokenStore.DeleteAll(ctx, userID)
 
 	return s.repo.Update(ctx, user)
 }
@@ -436,6 +454,11 @@ func (s *userService) ResetPassword(ctx context.Context, req *clientDto.UserRese
 
 	if user.Status == entity.StatusDisabled {
 		return errorx.New(errorx.CodeUserDisabled, "账户已禁用，无法找回密码")
+	}
+
+	// 校验密码强度
+	if err := s.validatePasswordStrength(ctx, req.NewPassword); err != nil {
+		return err
 	}
 
 	hashedPassword, err := password.Hash(req.NewPassword)
@@ -557,8 +580,19 @@ func (s *userService) Update(ctx context.Context, user *userEntity.User) error {
 	if user.Gender != "" {
 		oldUser.Gender = user.Gender
 	}
-	if user.Status != "" {
+	if user.Status != "" && user.Status != oldUser.Status {
 		oldUser.Status = user.Status
+		// 状态变更时同步处理 Token 与登录锁定缓存：
+		// - 禁用：立即拉黑所有 Token，防止被冻结用户继续访问
+		// - 启用：清理历史登录失败计数与锁定状态，避免恢复后仍被拦截
+		if user.Status == entity.StatusDisabled {
+			_ = s.tokenStore.DeleteAll(ctx, user.ID)
+			_ = s.cacheMgr.Delete(ctx, cache.KeyLoginLock(user.ID))
+			_ = s.cacheMgr.Delete(ctx, cache.KeyLoginRetryCount(user.ID))
+		} else if user.Status == entity.StatusEnabled {
+			_ = s.cacheMgr.Delete(ctx, cache.KeyLoginLock(user.ID))
+			_ = s.cacheMgr.Delete(ctx, cache.KeyLoginRetryCount(user.ID))
+		}
 	}
 
 	return s.repo.Update(ctx, oldUser)
@@ -569,10 +603,22 @@ func (s *userService) UpdateStatus(ctx context.Context, id string, status string
 	if err != nil {
 		return err
 	}
+
+	// 状态未变更，直接返回，避免重复清理 Token 与缓存
+	if user.Status == status {
+		return nil
+	}
+
 	user.Status = status
 
+	// 状态变更时同步处理 Token 与登录锁定缓存：
+	// - 禁用：立即拉黑所有 Token，防止被冻结用户继续访问
+	// - 启用：清理历史登录失败计数与锁定状态，避免恢复后仍被拦截
 	if status == entity.StatusDisabled {
 		_ = s.tokenStore.DeleteAll(ctx, id)
+		_ = s.cacheMgr.Delete(ctx, cache.KeyLoginLock(id))
+		_ = s.cacheMgr.Delete(ctx, cache.KeyLoginRetryCount(id))
+	} else if status == entity.StatusEnabled {
 		_ = s.cacheMgr.Delete(ctx, cache.KeyLoginLock(id))
 		_ = s.cacheMgr.Delete(ctx, cache.KeyLoginRetryCount(id))
 	}
@@ -581,6 +627,8 @@ func (s *userService) UpdateStatus(ctx context.Context, id string, status string
 }
 
 func (s *userService) Delete(ctx context.Context, id string) error {
+	// 删除用户后，清除其所有 token，防止被删除用户继续访问
+	_ = s.tokenStore.DeleteAll(ctx, id)
 	_ = s.cacheMgr.Delete(ctx, cache.KeyLoginLock(id))
 	_ = s.cacheMgr.Delete(ctx, cache.KeyLoginRetryCount(id))
 	return s.repo.Delete(ctx, id)
@@ -588,6 +636,8 @@ func (s *userService) Delete(ctx context.Context, id string) error {
 
 func (s *userService) DeleteBatch(ctx context.Context, ids []string) error {
 	for _, id := range ids {
+		// 批量删除后，清除对应用户所有 token
+		_ = s.tokenStore.DeleteAll(ctx, id)
 		_ = s.cacheMgr.Delete(ctx, cache.KeyLoginLock(id))
 		_ = s.cacheMgr.Delete(ctx, cache.KeyLoginRetryCount(id))
 	}

@@ -16,8 +16,8 @@ type AdminRepository interface {
 	ExistsByUsername(ctx context.Context, username string, excludeID ...uint) (bool, error)
 	List(ctx context.Context, query *AdminRepoQuery) ([]systemEntity.Admin, int64, error)
 	Update(ctx context.Context, admin *systemEntity.Admin) error
+	UpdateLastLoginAt(ctx context.Context, id uint, lastLoginAt string) error
 	Delete(ctx context.Context, id uint) error
-	DeleteBatch(ctx context.Context, ids []uint) error
 	UpdateRoles(ctx context.Context, adminID uint, roleIDs []uint) error
 }
 
@@ -100,7 +100,11 @@ func (r *adminRepository) List(ctx context.Context, query *AdminRepoQuery) ([]sy
 		return nil, 0, err
 	}
 
-	if err := db.Order("id DESC").Scopes(pagination.Paginate(query.Current, query.Size)).Find(&admins).Error; err != nil {
+	if err := db.Order("id DESC").Scopes(pagination.Paginate(query.Current, query.Size)).
+		Preload("Roles").
+		Preload("CreatedByUser").
+		Preload("UpdatedByUser").
+		Find(&admins).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -111,12 +115,24 @@ func (r *adminRepository) Update(ctx context.Context, admin *systemEntity.Admin)
 	return r.db.WithContext(ctx).Save(admin).Error
 }
 
-func (r *adminRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&systemEntity.Admin{}, id).Error
+func (r *adminRepository) UpdateLastLoginAt(ctx context.Context, id uint, lastLoginAt string) error {
+	return r.db.WithContext(ctx).Model(&systemEntity.Admin{}).
+		Where("id = ?", id).
+		UpdateColumn("last_login_at", lastLoginAt).Error
 }
 
-func (r *adminRepository) DeleteBatch(ctx context.Context, ids []uint) error {
-	return r.db.WithContext(ctx).Delete(&systemEntity.Admin{}, ids).Error
+func (r *adminRepository) Delete(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 先清理 many2many 角色关联，避免关联表残留数据
+		var admin systemEntity.Admin
+		if err := tx.First(&admin, id).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&admin).Association("Roles").Clear(); err != nil {
+			return err
+		}
+		return tx.Delete(&systemEntity.Admin{}, id).Error
+	})
 }
 
 func (r *adminRepository) UpdateRoles(ctx context.Context, adminID uint, roleIDs []uint) error {

@@ -81,8 +81,10 @@ func (r *msgRepository) DeleteTemplate(ctx context.Context, id uint64) error {
 
 func (r *msgRepository) GetTemplateByCode(ctx context.Context, code string) (*msgEntity.MsgTemplate, error) {
 	var tpl msgEntity.MsgTemplate
-	err := r.db.WithContext(ctx).Where("code = ? AND status = ?", code, msgEntity.MsgTplStatusEnabled).First(&tpl).Error
-	return &tpl, err
+	if err := r.db.WithContext(ctx).Where("code = ? AND status = ?", code, msgEntity.MsgTplStatusEnabled).First(&tpl).Error; err != nil {
+		return nil, err
+	}
+	return &tpl, nil
 }
 
 func (r *msgRepository) ListTemplates(ctx context.Context, query *MsgRepoQuery) ([]*msgEntity.MsgTemplate, int64, error) {
@@ -107,11 +109,7 @@ func (r *msgRepository) ListTemplates(ctx context.Context, query *MsgRepoQuery) 
 		return nil, 0, err
 	}
 
-	if query.Page > 0 && query.PageSize > 0 {
-		db = db.Scopes(pagination.Paginate(query.Page, query.PageSize))
-	}
-
-	err := db.Order("created_at DESC").Find(&list).Error
+	err := db.Order("created_at DESC").Scopes(pagination.Paginate(query.Page, query.PageSize)).Find(&list).Error
 	return list, total, err
 }
 
@@ -152,9 +150,7 @@ func (r *msgRepository) ListUserInternalMsgs(ctx context.Context, userID string,
 		}
 	}
 
-	if page > 0 && pageSize > 0 {
-		queryDB = queryDB.Scopes(pagination.Paginate(page, pageSize))
-	}
+	queryDB = queryDB.Scopes(pagination.Paginate(page, pageSize))
 
 	if err := queryDB.Order("mr.created_at DESC").Scan(&results).Error; err != nil {
 		return nil, 0, err
@@ -250,8 +246,10 @@ func (r *msgRepository) UpdateRecord(ctx context.Context, rec *msgEntity.MsgReco
 
 func (r *msgRepository) GetRecordByID(ctx context.Context, id uint64) (*msgEntity.MsgRecord, error) {
 	var rec msgEntity.MsgRecord
-	err := r.db.WithContext(ctx).First(&rec, id).Error
-	return &rec, err
+	if err := r.db.WithContext(ctx).First(&rec, id).Error; err != nil {
+		return nil, err
+	}
+	return &rec, nil
 }
 
 func (r *msgRepository) ListRecords(ctx context.Context, query *MsgRepoQuery) ([]*msgEntity.MsgRecord, int64, error) {
@@ -276,10 +274,6 @@ func (r *msgRepository) ListRecords(ctx context.Context, query *MsgRepoQuery) ([
 		return nil, 0, err
 	}
 
-	if query.Page > 0 && query.PageSize > 0 {
-		db = db.Scopes(pagination.Paginate(query.Page, query.PageSize))
-	}
-
-	err := db.Order("created_at DESC").Find(&list).Error
+	err := db.Order("created_at DESC").Scopes(pagination.Paginate(query.Page, query.PageSize)).Find(&list).Error
 	return list, total, err
 }

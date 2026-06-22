@@ -66,7 +66,12 @@ func (r *roleRepository) GetByID(ctx context.Context, id uint) (*systemEntity.Ro
 
 func (r *roleRepository) GetByCode(ctx context.Context, code string) (*systemEntity.Role, error) {
 	var role systemEntity.Role
-	err := r.db.WithContext(ctx).Where("code = ?", code).First(&role).Error
+	err := r.db.WithContext(ctx).
+		Preload("Menus").
+		Preload("Buttons").
+		Preload("Apis").
+		Preload("HomeMenu").
+		Where("code = ?", code).First(&role).Error
 	if err != nil {
 		return nil, err
 	}

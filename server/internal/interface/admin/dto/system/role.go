@@ -28,10 +28,3 @@ type UpdateRoleReq struct {
 	Buttons []uint `json:"buttons"`
 	Apis    []uint `json:"apis"`
 }
-
-type UpdateRolePermissionsReq struct {
-	ID      uint   `json:"id" binding:"required"`
-	Menus   []uint `json:"menus"`
-	Buttons []uint `json:"buttons"`
-	Apis    []uint `json:"apis"`
-}

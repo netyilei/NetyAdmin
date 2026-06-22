@@ -18,9 +18,6 @@ type AuthVerifier interface {
 var whiteListPaths = []string{
 	"/admin/v1/auth/login",
 	"/admin/v1/auth/refreshToken",
-	"/admin/v1/auth/getUserInfo",
-	"/admin/v1/auth/profile",
-	"/admin/v1/auth/changePassword",
 }
 
 func isWhiteListPath(path string) bool {
