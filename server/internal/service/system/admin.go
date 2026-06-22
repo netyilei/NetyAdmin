@@ -493,6 +493,7 @@ func (s *adminService) Update(ctx context.Context, req *systemDto.UpdateAdminReq
 
 	// 记录是否发生角色变更，用于后续失效 Token
 	rolesChanged := false
+	var newRoleIDs []uint
 	if len(req.Roles) > 0 {
 		roles, err := s.roleRepo.GetByCodes(ctx, req.Roles)
 		if err != nil {
@@ -516,20 +517,36 @@ func (s *adminService) Update(ctx context.Context, req *systemDto.UpdateAdminReq
 		if len(roles) != len(admin.Roles) {
 			rolesChanged = true
 		}
-		admin.Roles = roles
+		// 收集新角色 ID，后续用 UpdateRoles 更新 many2many 关联
+		newRoleIDs = make([]uint, 0, len(roles))
+		for _, r := range roles {
+			newRoleIDs = append(newRoleIDs, r.ID)
+		}
 	}
 	// 空 Roles 保持原有角色不变，避免误清空导致权限丢失
 
+	// 先更新管理员基础字段（Save 不会更新 many2many 关联）
+	// 清空 Roles 避免 Save 尝试处理关联
+	admin.Roles = nil
 	err = s.adminRepo.Update(ctx, admin)
-	if err == nil {
-		_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagAdminInfo)
-		// 若修改了密码、禁用了账户或变更了角色，强制清除该管理员所有 token
-		// 角色变更后旧 Token 仍有效会导致被移除权限的管理员继续访问
-		if s.tokenStore != nil && (req.Password != "" || admin.Status != entity.StatusEnabled || rolesChanged) {
-			_ = s.tokenStore.DeleteAll(ctx, adminTokenUserID(req.ID))
+	if err != nil {
+		return err
+	}
+
+	// 若角色变更，使用 UpdateRoles 更新 many2many 关联
+	if len(newRoleIDs) > 0 {
+		if err := s.adminRepo.UpdateRoles(ctx, req.ID, newRoleIDs); err != nil {
+			return err
 		}
 	}
-	return err
+
+	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagAdminInfo)
+	// 若修改了密码、禁用了账户或变更了角色，强制清除该管理员所有 token
+	// 角色变更后旧 Token 仍有效会导致被移除权限的管理员继续访问
+	if s.tokenStore != nil && (req.Password != "" || admin.Status != entity.StatusEnabled || rolesChanged) {
+		_ = s.tokenStore.DeleteAll(ctx, adminTokenUserID(req.ID))
+	}
+	return nil
 }
 
 func (s *adminService) Delete(ctx context.Context, id uint, operatorID uint) error {

@@ -12,7 +12,7 @@ type UserLoginReq struct {
 
 type UserRegisterReq struct {
 	Username string `json:"userName" binding:"required,min=4,max=20"`
-	Password string `json:"password" binding:"required,min=6,max=20"`
+	Password string `json:"password" binding:"required,min=8,max=20"`
 	Nickname string `json:"nickName" binding:"required"`
 	Phone    string `json:"phone"`
 	Email    string `json:"email"`
@@ -23,7 +23,7 @@ type UserRegisterReq struct {
 type UserResetPasswordReq struct {
 	Target      string `json:"target" binding:"required"` // phone or email
 	Code        string `json:"code" binding:"required"`
-	NewPassword string `json:"newPassword" binding:"required,min=6,max=20"`
+	NewPassword string `json:"newPassword" binding:"required,min=8,max=20"`
 }
 
 // UserUpdateProfileReq 更新个人资料请求
@@ -38,7 +38,7 @@ type UserUpdateProfileReq struct {
 // UserChangePasswordReq 修改密码请求
 type UserChangePasswordReq struct {
 	OldPassword string `json:"oldPassword" binding:"required"`
-	NewPassword string `json:"newPassword" binding:"required,min=6,max=20"`
+	NewPassword string `json:"newPassword" binding:"required,min=8,max=20"`
 }
 
 // UserTokenVO 登录返回的 Token

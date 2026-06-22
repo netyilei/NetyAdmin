@@ -134,7 +134,7 @@ Content-Type: application/json
 
 {
   "username": "admin",
-  "password": "admin123",
+  "password": "Admin@123",
   "captcha_id": "abc123",
   "captcha_code": "a1b2"
 }

@@ -1,6 +1,8 @@
 BEGIN;
 
 -- 默认超级管理员及权限分配
+-- 默认密码: Admin@123 （包含大小写字母、数字、特殊符号，符合密码强度要求）
+-- 部署后请立即修改默认密码！
 INSERT INTO admin_role (name, code, description, status)
 SELECT '超级管理员', 'R_SUPER', '系统顶级角色', '1'
 WHERE NOT EXISTS (SELECT 1 FROM admin_role WHERE code = 'R_SUPER' AND deleted_at = 0);
@@ -10,7 +12,7 @@ SELECT '管理员', 'R_ADMIN', '普通管理员，拥有部分权限', '1'
 WHERE NOT EXISTS (SELECT 1 FROM admin_role WHERE code = 'R_ADMIN' AND deleted_at = 0);
 
 INSERT INTO admin_user (username, password, nickname, status, created_at, updated_at)
-SELECT 'admin', '$2a$10$QJgEZIAq8nlUi8jRftfKtu.RQ0Z8CV/YNBRIpOBA9YPJ7HaB5uj8C', '超级管理员', '1', NOW(), NOW()
+SELECT 'admin', '$2a$10$tEHhtIspKo9NFwNUUizjRut6lTpFsW0UXCn8evfkWHALU61Xc14km', '超级管理员', '1', NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM admin_user WHERE username = 'admin' AND deleted_at = 0);
 
 -- 关联用户与角色
