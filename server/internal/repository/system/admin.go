@@ -46,7 +46,10 @@ func (r *adminRepository) Create(ctx context.Context, admin *systemEntity.Admin)
 
 func (r *adminRepository) GetByID(ctx context.Context, id uint) (*systemEntity.Admin, error) {
 	var admin systemEntity.Admin
-	if err := r.db.WithContext(ctx).Preload("Roles").Preload("Roles.Buttons").First(&admin, id).Error; err != nil {
+	if err := r.db.WithContext(ctx).
+		Preload("Roles").Preload("Roles.Buttons").
+		Preload("CreatedByUser").Preload("UpdatedByUser").
+		First(&admin, id).Error; err != nil {
 		return nil, err
 	}
 	return &admin, nil
