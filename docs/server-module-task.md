@@ -13,6 +13,7 @@
 - **多触发类型**：once（启动执行）、interval（固定间隔）、cron（Cron表达式）
 - **优先级队列**：支持多级优先级（System/Essential/Normal/Low），确保核心任务优先处理
 - **弹性队列**：单机使用多级 Channel，集群使用 Redis 多级 List (BRPop 实现)
+- **多机防重**：Redis 启用时，生产者侧（定时触发）通过分布式锁确保同一任务在同一时刻仅由一个实例执行
 - **后台管理**：支持启停、重载、立即执行
 - **日志持久化**：任务执行记录自动落库
 
@@ -79,6 +80,57 @@ type Task interface {
 - **结构**: 对应三个 Redis List Key: `task:queue:high`, `normal`, `low`。
 - **算法**: 调用 Redis 原生的 `BRPOP` 指令，参数顺序为 `[high, normal, low]`。Redis 保证按参数顺序检查 List，弹出第一个非空列表的元素。
 - **优点**: 分布式环境下完美支持优先级抢占，零额外开销。
+
+### 3.3 多机防重与分布式锁
+
+在多实例部署场景下，定时任务（once/interval/cron）会在每个实例上独立触发，若不加控制会导致同一任务被多个实例重复执行。NetyAdmin 任务引擎通过 **Redis 分布式锁** 解决此问题。
+
+#### 3.3.1 触发条件
+
+分布式锁**仅在 Redis 启用时**自动生效（`redis.enabled = true` 且 Redis 客户端可用）。未启用 Redis 时，任务引擎退化为单机模式，不进行跨实例防重。
+
+#### 3.3.2 锁机制实现
+
+锁逻辑位于 `Manager.execute()` 方法中，覆盖所有由调度引擎触发的任务执行路径（once 同步执行、interval 周期触发、cron 定时触发、ManualRun 手动触发）。
+
+| 维度 | 实现细节 |
+|------|----------|
+| **锁 Key** | 由 `cache.KeyTaskLock(prefix, taskName)` 生成，格式为 `{prefix}:task:lock:{taskName}` |
+| **加锁方式** | `redis.SetArgs` + `NX` 模式（仅当 Key 不存在时设置成功） |
+| **TTL 兜底** | 1 小时，防止实例宕机导致死锁 |
+| **抢锁失败** | 返回 `redis.Nil`，本实例跳过本次执行并记录日志 |
+| **锁释放** | `defer m.redis.Del(ctx, lockKey)`，任务执行完毕（无论成功或失败）后立即释放 |
+
+```go
+// 核心逻辑示意 (manager.go)
+if m.redisCfg != nil && m.redisCfg.Enabled && m.redis != nil {
+    lockKey := cache.KeyTaskLock(m.redisCfg.Prefix, name)
+    err := m.redis.SetArgs(ctx, lockKey, "locked", redis.SetArgs{
+        Mode: "NX",
+        TTL:  1 * time.Hour,
+    }).Err()
+    if err == redis.Nil {
+        // 未抢到锁，其他实例正在执行，本实例跳过
+        return
+    }
+    defer func() { _ = m.redis.Del(ctx, lockKey) }()
+}
+```
+
+#### 3.3.3 消费者侧为何不需要锁
+
+队列消费者（`executePayload`）**不需要分布式锁**，因为：
+- 集群模式下使用 Redis `BRPop` 弹出消息，该操作是**原子**的，同一条消息只会被一个 Worker 取到
+- 单机模式下使用本地 Channel，天然不存在跨实例竞争
+
+因此防重负担全部由生产者侧（定时触发入口）的分布式锁承担，消费者侧零额外开销。
+
+#### 3.3.4 注意事项
+
+1. **TTL 选择**：当前固定为 1 小时，适用于绝大多数业务任务。若任务执行时间可能超过 1 小时，需评估是否需要引入锁续期（Watchdog）机制。
+2. **手动触发（ManualRun）**：同样会走加锁流程，多实例环境下手动触发也只会由一个实例实际执行。
+3. **Redis 故障**：若 Redis 不可用导致加锁失败（非 `redis.Nil` 的其他错误），任务引擎出于安全考虑**不会执行**该次任务，避免重复执行风险。
+4. **单机部署**：未启用 Redis 时无分布式锁，但单机本身不存在多实例问题，无需防重。
 
 ---
 

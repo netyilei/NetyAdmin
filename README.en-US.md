@@ -32,7 +32,7 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 - **Unified Event Bus**: PubSubBus consolidates Redis Pub/Sub, driver-based design supports standalone/cluster switching
 - **Unified Log Buffer**: LogBus asynchronously aggregates all system logs, tiered backpressure (P0/P1/P2), dual-trigger batch writing
 - **Hot Config Sync**: Real-time configuration synchronization across the network via PubSubBus
-- **Task Scheduling**: Built-in task engine, supporting scheduled tasks, backend management, and log persistence
+- **Task Scheduling**: Built-in task engine, supporting scheduled tasks, backend management, and log persistence; automatically enables distributed lock for multi-instance deduplication when Redis is enabled
 - **Database Migration**: Automatically executes SQL migration scripts during startup
 - **Email Driver**: Based on go-simple-mail, supporting SSL/TLS, STARTTLS, and multiple SMTP authentication methods
 
