@@ -37,7 +37,6 @@ type UserService interface {
 	Logout(ctx context.Context, userID string, token string) error
 	ResetPassword(ctx context.Context, req *clientDto.UserResetPasswordReq) error
 	DeleteAccount(ctx context.Context, userID string) error
-	GetUploadToken(ctx context.Context, userID string, storageID uint) (*userVO.UploadTokenVO, error)
 
 	// Admin API
 	List(ctx context.Context, current, size int, query *userRepo.UserRepoQuery) ([]userEntity.User, int64, error)
@@ -655,28 +654,6 @@ func (s *userService) DeleteAccount(ctx context.Context, userID string) error {
 	_ = s.cacheMgr.Delete(ctx, cache.KeyLoginLock(userID))
 	_ = s.cacheMgr.Delete(ctx, cache.KeyLoginRetryCount(userID))
 	return s.repo.Delete(ctx, userID)
-}
-
-func (s *userService) GetUploadToken(ctx context.Context, userID string, storageID uint) (*userVO.UploadTokenVO, error) {
-	if storageID > 0 {
-		presignedURL, err := s.storageMgr.GetPresignedUploadURL(ctx, storageID, "user/"+userID+"/", "application/octet-stream", 15*time.Minute)
-		if err != nil {
-			return nil, errorx.New(errorx.CodeInternalError, "获取上传凭证失败")
-		}
-		return &userVO.UploadTokenVO{UploadURL: presignedURL, StorageConfigID: storageID}, nil
-	}
-
-	driver, config, err := s.storageMgr.GetDefaultDriver()
-	if err != nil {
-		return nil, errorx.New(errorx.CodeInternalError, "未配置默认存储源")
-	}
-
-	presignedURL, err := driver.GetPresignedUploadURL(ctx, "user/"+userID+"/", "application/octet-stream", 15*time.Minute)
-	if err != nil {
-		return nil, errorx.New(errorx.CodeInternalError, "获取上传凭证失败")
-	}
-
-	return &userVO.UploadTokenVO{UploadURL: presignedURL, StorageConfigID: config.ID}, nil
 }
 
 func (s *userService) validatePasswordStrength(ctx context.Context, password string) error {

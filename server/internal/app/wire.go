@@ -205,6 +205,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		repos.errorLog,
 		repos.message,
 		repos.openLog,
+		repos.uploadRecord,
 		configWatcher,
 	)...)
 	taskManager.Register(services.msgSendJob)
@@ -391,7 +392,7 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	s.operationLog = logService.NewOperationService(repos.operationLog)
 	s.errorLog = logService.NewErrorService(repos.errorLog, configWatcher, lazyCacheMgr, s.logBus)
 	s.storageConfig = storageService.NewConfigService(repos.storageConfig, repos.uploadRecord, storageMgr, lazyCacheMgr, eventBus, cfg.Security.AESKey)
-	s.uploadRecord = storageService.NewRecordService(repos.uploadRecord, s.storageConfig, storageMgr, s.app)
+	s.uploadRecord = storageService.NewRecordService(repos.uploadRecord, s.storageConfig, storageMgr, s.app, cfg.JWT.Secret)
 	s.contentCategory = contentService.NewCategoryService(repos.contentCategory, s.storageConfig, lazyCacheMgr, configWatcher)
 	s.contentArticle = contentService.NewArticleService(repos.contentArticle, repos.contentCategory, lazyCacheMgr, configWatcher)
 	s.contentBannerGroup = contentService.NewBannerGroupService(repos.contentBannerGroup, s.storageConfig, lazyCacheMgr, configWatcher)

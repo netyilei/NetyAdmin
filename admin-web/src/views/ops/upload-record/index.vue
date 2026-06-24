@@ -23,6 +23,12 @@ const uploadSourceRecord: Record<Storage.UploadSource, { label: string; type: Na
   system: { label: $t('page.manage.upload.sourceSystem'), type: 'default' }
 };
 
+const uploadStatusRecord: Record<Storage.UploadRecordStatus, { label: string; type: NaiveUI.ThemeColor }> = {
+  pending: { label: $t('page.manage.upload.statusPending'), type: 'warning' },
+  uploaded: { label: $t('page.manage.upload.statusUploaded'), type: 'success' },
+  expired: { label: $t('page.manage.upload.statusExpired'), type: 'error' }
+};
+
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 B';
   const k = 1024;
@@ -147,6 +153,17 @@ const {
       align: 'center',
       width: 170,
       render: row => (row.uploadedAt ? dayjs(row.uploadedAt).format('YYYY-MM-DD HH:mm:ss') : '-')
+    },
+    {
+      key: 'status',
+      title: $t('page.manage.upload.status'),
+      align: 'center',
+      width: 100,
+      render: row => {
+        const item = uploadStatusRecord[row.status as Storage.UploadRecordStatus];
+        if (!item) return <span>{row.status}</span>;
+        return <NTag type={item.type}>{item.label}</NTag>;
+      }
     },
     {
       key: 'operate',

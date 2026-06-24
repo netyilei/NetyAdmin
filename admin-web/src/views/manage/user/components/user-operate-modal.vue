@@ -2,7 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue';
 import type { UploadFileInfo } from 'naive-ui';
 import { fetchAddUser, fetchGetSysConfigs, fetchUpdateUser } from '@/service/api/v1/system-manage';
-import { fetchCreateUploadRecord, fetchGetUploadCredentials } from '@/service/api/v1/storage';
+import { fetchCompleteUpload, fetchGetUploadCredentials } from '@/service/api/v1/storage';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { useOperation } from '@/hooks/common/operation';
 import { uploadWithPresignedUrl } from '@/utils/upload';
@@ -140,13 +140,13 @@ async function handleAvatarUpload(options: { file: UploadFileInfo }) {
       const fileUrl = await uploadWithPresignedUrl(data, options.file.file);
       model.avatar = fileUrl;
 
-      await fetchCreateUploadRecord({
-        configId: data.configId,
-        fileName: options.file.name,
+      await fetchCompleteUpload({
+        recordId: data.recordId,
+        secret: data.secret,
         objectKey: data.objectKey,
+        fileUrl: data.finalUrl,
         fileSize: options.file.file.size,
-        mimeType: options.file.file.type || 'image/jpeg',
-        businessType: 'user_avatar'
+        mimeType: options.file.file.type || 'image/jpeg'
       });
 
       window.$message?.success($t('common.updateSuccess'));

@@ -99,7 +99,8 @@ export function fetchGetUploadCredentials(data: Storage.UploadCredentialsParams)
   });
 }
 
-export function fetchCreateUploadRecord(data: Storage.CreateUploadRecordParams) {
+// 上传成功通知：回传 recordId + secret 完成上传闭环
+export function fetchCompleteUpload(data: Storage.CompleteUploadParams) {
   return request<Storage.UploadRecord>({
     url: '/admin/v1/storage/upload-record',
     method: 'post',

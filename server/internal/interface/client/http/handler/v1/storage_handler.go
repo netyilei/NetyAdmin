@@ -42,7 +42,7 @@ func (h *ClientStorageHandler) GetUploadCredentials(c *gin.Context) {
 		BusinessID:   req.BusinessID,
 	}
 
-	result, err := h.recordSvc.GetUploadCredentials(c.Request.Context(), credReq, app.AppKey)
+	result, err := h.recordSvc.GetUploadCredentials(c.Request.Context(), credReq, app.AppKey, storageEntity.UploadSourceClient, app.ID)
 	if err != nil {
 		response.Fail(c, err)
 		return
@@ -62,46 +62,33 @@ func (h *ClientStorageHandler) GetUploadCredentials(c *gin.Context) {
 		Endpoint:    result.Endpoint,
 		PathPrefix:  result.PathPrefix,
 		MaxFileSize: result.MaxFileSize,
+		RecordID:    result.RecordID,
+		Secret:      result.Secret,
 	})
 }
 
+// CreateUploadRecord 上传成功通知：根据 recordId + secret 校验后将 pending 记录置为 uploaded。
 func (h *ClientStorageHandler) CreateUploadRecord(c *gin.Context) {
-	var req clientDto.CreateClientRecordReq
+	var req clientDto.CompleteClientUploadReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithCode(c, errorx.CodeInvalidParams)
 		return
 	}
 
-	appObj, exists := c.Get("currentOpenApp")
-	if !exists {
-		response.FailWithCode(c, errorx.CodeUnauthorized)
-		return
-	}
-	app := appObj.(*openEntity.App)
-
-	err := h.recordSvc.RecordUpload(
+	result, err := h.recordSvc.CompleteUpload(
 		c.Request.Context(),
-		req.StorageConfigID,
-		req.FileName,
-		req.FileName,
+		req.RecordID,
+		req.Secret,
 		req.ObjectKey,
-		"",
+		req.FileURL,
 		req.FileSize,
 		req.MimeType,
 		req.MD5,
-		storageEntity.UploadSourceClient,
-		app.ID,
-		nil,
-		c.ClientIP(),
-		c.GetHeader("User-Agent"),
-		req.BusinessType,
-		req.BusinessID,
-		app.AppKey,
 	)
 	if err != nil {
 		response.Fail(c, err)
 		return
 	}
 
-	response.Success(c, nil)
+	response.Success(c, result)
 }

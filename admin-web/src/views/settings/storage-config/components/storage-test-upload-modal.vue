@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import type { FormRules, UploadFileInfo } from 'naive-ui';
-import { fetchCreateUploadRecord, fetchGetUploadCredentials } from '@/service/api/v1/storage';
+import { fetchCompleteUpload, fetchGetUploadCredentials } from '@/service/api/v1/storage';
 import { useNaiveForm } from '@/hooks/common/form';
 import { uploadWithPresignedUrl } from '@/utils/upload';
 import { $t } from '@/locales';
@@ -86,13 +86,14 @@ async function handleSubmit() {
       uploadProgress.value = progress.percent;
     });
 
-    await fetchCreateUploadRecord({
-      configId: credentials.configId,
-      fileName: file.name,
+    // 上传成功通知：回传 recordId + secret，由后端验签后置为 uploaded
+    await fetchCompleteUpload({
+      recordId: credentials.recordId,
+      secret: credentials.secret,
       objectKey: credentials.objectKey,
+      fileUrl: credentials.finalUrl,
       fileSize: file.size,
-      mimeType: file.type,
-      businessType: 'storage_test'
+      mimeType: file.type
     });
 
     resultUrl.value = uploadUrl;

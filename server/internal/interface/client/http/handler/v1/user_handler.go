@@ -1,13 +1,17 @@
 package v1
 
 import (
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
 	openEntity "NetyAdmin/internal/domain/entity/open_platform"
 	storageEntity "NetyAdmin/internal/domain/entity/storage"
+	userVO "NetyAdmin/internal/domain/vo/user"
 	clientDto "NetyAdmin/internal/interface/client/dto/v1"
+	storageDto "NetyAdmin/internal/interface/admin/dto/storage"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
 	storageService "NetyAdmin/internal/service/storage"
@@ -138,65 +142,75 @@ func (h *UserHandler) DeleteAccount(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// GetUploadToken 获取上传凭证
+// GetUploadToken 获取上传凭证：签发 presigned URL 并落 pending 记录，返回 recordId + secret。
+// fileName 建议传入；未传时用时间戳兜底以保证 objectKey 合法。
 func (h *UserHandler) GetUploadToken(c *gin.Context) {
 	userID := c.GetString("userID")
 
-	var storageID uint
-	if appObj, exists := c.Get("currentOpenApp"); exists {
-		app := appObj.(*openEntity.App)
-		storageID = app.StorageID
+	fileName := c.Query("fileName")
+	if fileName == "" {
+		fileName = c.Query("filename")
+	}
+	if fileName == "" {
+		fileName = fmt.Sprintf("upload-%d.bin", time.Now().UnixNano())
 	}
 
-	token, err := h.userSvc.GetUploadToken(c.Request.Context(), userID, storageID)
+	var appKey string
+	var configID uint
+	if appObj, exists := c.Get("currentOpenApp"); exists {
+		app := appObj.(*openEntity.App)
+		appKey = app.AppKey
+		configID = app.StorageID
+	}
+
+	credReq := &storageDto.GetCredentialsReq{
+		ConfigID:     configID,
+		FileName:     fileName,
+		ContentType:  c.Query("contentType"),
+		BusinessType: c.Query("businessType"),
+		BusinessID:   c.Query("businessId"),
+	}
+
+	cred, err := h.recordSvc.GetUploadCredentials(c.Request.Context(), credReq, appKey, storageEntity.UploadSourceUser, userID)
 	if err != nil {
 		response.Fail(c, err)
 		return
 	}
-	response.Success(c, token)
+
+	response.Success(c, &userVO.UploadTokenVO{
+		UploadURL:       cred.URL,
+		StorageConfigID: cred.ConfigID,
+		ObjectKey:       cred.ObjectKey,
+		FinalURL:        cred.FinalURL,
+		RecordID:        cred.RecordID,
+		Secret:          cred.Secret,
+	})
 }
 
-// RecordUpload 记录用户上传结果
+// RecordUpload 上传成功通知：根据 recordId + secret 校验后将 pending 记录置为 uploaded。
 func (h *UserHandler) RecordUpload(c *gin.Context) {
-	userID := c.GetString("userID")
 	var req clientDto.CreateUserUploadRecordReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithCode(c, errorx.CodeInvalidParams)
 		return
 	}
 
-	appObj, exists := c.Get("currentOpenApp")
-	var appKey string
-	if exists {
-		app := appObj.(*openEntity.App)
-		appKey = app.AppKey
-	}
-
-	err := h.recordSvc.RecordUpload(
+	result, err := h.recordSvc.CompleteUpload(
 		c.Request.Context(),
-		req.StorageConfigID,
-		req.FileName,
-		req.FileName,
+		req.RecordID,
+		req.Secret,
 		req.ObjectKey,
-		"",
+		req.FileURL,
 		req.FileSize,
 		req.MimeType,
 		req.MD5,
-		storageEntity.UploadSourceUser,
-		userID,
-		nil,
-		c.ClientIP(),
-		c.GetHeader("User-Agent"),
-		req.BusinessType,
-		req.BusinessID,
-		appKey,
 	)
 	if err != nil {
 		response.Fail(c, err)
 		return
 	}
 
-	response.Success(c, nil)
+	response.Success(c, result)
 }
 
 // Logout 退出登录

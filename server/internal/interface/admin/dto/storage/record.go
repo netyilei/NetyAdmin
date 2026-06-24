@@ -17,6 +17,7 @@ type RecordQuery struct {
 	Size            int    `form:"size"`
 }
 
+// Credentials 上传凭证响应（含 recordId + secret 用于上传成功通知验签）
 type Credentials struct {
 	URL         string            `json:"url"`
 	Method      string            `json:"method"`
@@ -31,6 +32,8 @@ type Credentials struct {
 	Endpoint    string            `json:"endpoint"`
 	PathPrefix  string            `json:"pathPrefix"`
 	MaxFileSize int64             `json:"maxFileSize"`
+	RecordID    uint              `json:"recordId"`
+	Secret      string            `json:"secret"`
 }
 
 type GetCredentialsReq struct {
@@ -43,14 +46,13 @@ type GetCredentialsReq struct {
 	SourceInfo   map[string]interface{} `json:"sourceInfo"`
 }
 
-type CreateRecordReq struct {
-	ConfigID     uint   `json:"configId"`
-	FileName     string `json:"fileName"`
-	ObjectKey    string `json:"objectKey"`
-	FileSize     int64  `json:"fileSize"`
-	MimeType     string `json:"mimeType"`
-	MD5          string `json:"md5"`
-	BusinessType string `json:"businessType"`
-	BusinessID   string `json:"businessId"`
-	SourceInfo   string `json:"sourceInfo"`
+// CompleteUploadReq 上传成功通知请求：必须带上凭证签发时返回的 recordId + secret
+type CompleteUploadReq struct {
+	RecordID  uint   `json:"recordId" binding:"required"`
+	Secret    string `json:"secret" binding:"required"`
+	ObjectKey string `json:"objectKey"`
+	FileURL   string `json:"fileUrl"`
+	FileSize  int64  `json:"fileSize"`
+	MimeType  string `json:"mimeType"`
+	MD5       string `json:"md5"`
 }

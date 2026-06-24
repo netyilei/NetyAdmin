@@ -74,6 +74,13 @@ const (
 	CodeIPInvalid     Code = 101402
 	CodeWhitelistMode Code = 101403
 
+	// 存储上传 (1015xx)
+	CodeUploadRecordNotFound   Code = 101501
+	CodeUploadSignatureInvalid Code = 101502
+	CodeUploadRecordCompleted  Code = 101503
+	CodeUploadRecordExpired    Code = 101504
+	CodeUploadRecordMismatch   Code = 101505
+
 	// 任务调度模块 (109xxx)
 	CodeTaskNotFound       Code = 109005
 	CodeTaskAlreadyRunning Code = 109006
@@ -155,9 +162,16 @@ var codeMessages = map[Code]string{
 	CodeAppDisabled:     "应用已被禁用",
 
 	// IP 访问控制 (1014xx)
-	CodeIPBlocked:     "访问受限 (您的 IP 已被封禁)",
+	CodeIPBlocked:     "访问受限 (您的 IP 已被封锁)",
 	CodeIPInvalid:     "非法 IP/CIDR 格式",
 	CodeWhitelistMode: "系统处于白名单模式，您的 IP 未被授权",
+
+	// 存储上传 (1015xx)
+	CodeUploadRecordNotFound:   "上传记录不存在",
+	CodeUploadSignatureInvalid: "上传凭证校验失败",
+	CodeUploadRecordCompleted:  "该上传记录已完成，不可重复提交",
+	CodeUploadRecordExpired:    "上传凭证已过期",
+	CodeUploadRecordMismatch:   "上传记录与请求不匹配",
 
 	// 用户模块集成 (2006xx)
 	CodeCaptchaExpired:          "验证码已过期",

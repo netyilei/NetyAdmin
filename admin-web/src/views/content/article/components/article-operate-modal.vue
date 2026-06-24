@@ -8,7 +8,7 @@ import {
   fetchGetCategoryTree,
   fetchUpdateArticle
 } from '@/service/api/v1/content';
-import { fetchCreateUploadRecord, fetchGetUploadCredentials } from '@/service/api/v1/storage';
+import { fetchCompleteUpload, fetchGetUploadCredentials } from '@/service/api/v1/storage';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { uploadWithPresignedUrl } from '@/utils/upload';
 import type { Content } from '@/typings/api/v1/content';
@@ -227,13 +227,13 @@ async function handleCoverUpload(options: { file: UploadFileInfo }) {
       const fileUrl = await uploadWithPresignedUrl(data, options.file.file);
       model.value.coverImage = fileUrl;
 
-      await fetchCreateUploadRecord({
-        configId: data.configId,
-        fileName: options.file.name,
+      await fetchCompleteUpload({
+        recordId: data.recordId,
+        secret: data.secret,
         objectKey: data.objectKey,
+        fileUrl: data.finalUrl,
         fileSize: options.file.file.size,
-        mimeType: options.file.file.type || 'image/jpeg',
-        businessType: 'article_cover'
+        mimeType: options.file.file.type || 'image/jpeg'
       });
 
       window.$message?.success($t('common.updateSuccess'));

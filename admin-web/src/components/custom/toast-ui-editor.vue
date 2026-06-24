@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import Editor from '@toast-ui/editor';
 import '@toast-ui/editor/dist/toastui-editor.css';
 import '@toast-ui/editor/dist/theme/toastui-editor-dark.css';
-import { fetchCreateUploadRecord, fetchGetUploadCredentials } from '@/service/api/v1/storage';
+import { fetchCompleteUpload, fetchGetUploadCredentials } from '@/service/api/v1/storage';
 import { useThemeStore } from '@/store/modules/theme';
 import { uploadWithPresignedUrl } from '@/utils/upload';
 
@@ -61,13 +61,13 @@ async function handleImageUpload(blob: Blob | File, callback: (url: string, text
     const fileUrl = await uploadWithPresignedUrl(credentials, file, () => {});
     loadingMsg?.destroy();
 
-    await fetchCreateUploadRecord({
-      configId: credentials.configId,
-      fileName: file.name,
+    await fetchCompleteUpload({
+      recordId: credentials.recordId,
+      secret: credentials.secret,
       objectKey: credentials.objectKey,
+      fileUrl: credentials.finalUrl,
       fileSize: file.size,
-      mimeType: file.type,
-      businessType: 'editor_image'
+      mimeType: file.type
     });
 
     callback(fileUrl, file.name);

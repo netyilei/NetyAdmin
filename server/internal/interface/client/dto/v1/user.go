@@ -62,12 +62,11 @@ type UserInfoVO struct {
 }
 
 type CreateUserUploadRecordReq struct {
-	FileName        string `json:"fileName" binding:"required"`
-	ObjectKey       string `json:"objectKey" binding:"required"`
-	FileSize        int64  `json:"fileSize"`
-	MimeType        string `json:"mimeType"`
-	MD5             string `json:"md5"`
-	StorageConfigID uint   `json:"storageConfigId"`
-	BusinessType    string `json:"businessType"`
-	BusinessID      string `json:"businessId"`
+	RecordID  uint   `json:"recordId" binding:"required"`
+	Secret    string `json:"secret" binding:"required"`
+	ObjectKey string `json:"objectKey"`
+	FileURL   string `json:"fileUrl"`
+	FileSize  int64  `json:"fileSize"`
+	MimeType  string `json:"mimeType"`
+	MD5       string `json:"md5"`
 }

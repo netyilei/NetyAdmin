@@ -9,7 +9,7 @@ import {
   fetchGetBannerItem,
   fetchUpdateBannerItem
 } from '@/service/api/v1/content';
-import { fetchCreateUploadRecord, fetchGetUploadCredentials } from '@/service/api/v1/storage';
+import { fetchCompleteUpload, fetchGetUploadCredentials } from '@/service/api/v1/storage';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { uploadWithPresignedUrl } from '@/utils/upload';
 import type { Content } from '@/typings/api/v1/content';
@@ -175,13 +175,13 @@ async function handleImageUpload(options: { file: UploadFileInfo }) {
       const fileUrl = await uploadWithPresignedUrl(data, options.file.file);
       model.imageUrl = fileUrl;
 
-      await fetchCreateUploadRecord({
-        configId: data.configId,
-        fileName: options.file.name,
+      await fetchCompleteUpload({
+        recordId: data.recordId,
+        secret: data.secret,
         objectKey: data.objectKey,
+        fileUrl: data.finalUrl,
         fileSize: options.file.file.size,
-        mimeType: options.file.file.type || 'image/jpeg',
-        businessType: 'banner_image'
+        mimeType: options.file.file.type || 'image/jpeg'
       });
 
       window.$message?.success($t('common.addSuccess'));

@@ -35,4 +35,8 @@ type UserItemVO struct {
 type UploadTokenVO struct {
 	UploadURL       string `json:"uploadUrl"`
 	StorageConfigID uint   `json:"storageConfigId"`
+	ObjectKey       string `json:"objectKey"`
+	FinalURL        string `json:"finalUrl"`
+	RecordID        uint   `json:"recordId"`
+	Secret          string `json:"secret"`
 }

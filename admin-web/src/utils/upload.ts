@@ -12,6 +12,8 @@ export interface UploadCredentials {
   domain: string;
   finalUrl: string;
   configId: number;
+  recordId: number;
+  secret: string;
 }
 
 export interface UploadProgress {

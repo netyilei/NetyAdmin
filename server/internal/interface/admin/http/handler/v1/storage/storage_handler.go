@@ -229,7 +229,13 @@ func (h *StorageHandler) GetUploadCredentials(c *gin.Context) {
 		return
 	}
 
-	result, err := h.recordService.GetUploadCredentials(c.Request.Context(), &req, "")
+	adminID, exists := c.Get("adminID")
+	var sourceID string
+	if exists {
+		sourceID = fmt.Sprintf("%d", adminID.(uint))
+	}
+
+	result, err := h.recordService.GetUploadCredentials(c.Request.Context(), &req, "", storageEntity.UploadSourceAdmin, sourceID)
 	if err != nil {
 		response.Fail(c, err)
 		return
@@ -238,27 +244,23 @@ func (h *StorageHandler) GetUploadCredentials(c *gin.Context) {
 	response.Success(c, result)
 }
 
+// CreateUploadRecord 上传成功通知：根据 recordId + secret 校验后将 pending 记录置为 uploaded。
 func (h *StorageHandler) CreateUploadRecord(c *gin.Context) {
-	var req storageDto.CreateRecordReq
+	var req storageDto.CompleteUploadReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithCode(c, errorx.CodeInvalidParams)
 		return
 	}
 
-	adminID, exists := c.Get("adminID")
-	if !exists {
-		response.FailWithCode(c, errorx.CodeUnauthorized)
-		return
-	}
-	source := storageEntity.UploadSourceAdmin
-
-	result, err := h.recordService.CreateUploadRecord(
+	result, err := h.recordService.CompleteUpload(
 		c.Request.Context(),
-		&req,
-		source,
-		fmt.Sprintf("%d", adminID.(uint)),
-		c.ClientIP(),
-		c.GetHeader("User-Agent"),
+		req.RecordID,
+		req.Secret,
+		req.ObjectKey,
+		req.FileURL,
+		req.FileSize,
+		req.MimeType,
+		req.MD5,
 	)
 	if err != nil {
 		response.Fail(c, err)

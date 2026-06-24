@@ -62,6 +62,8 @@ export namespace Storage {
 
   type UploadSource = 'admin' | 'client' | 'api' | 'system';
 
+  type UploadRecordStatus = 'pending' | 'uploaded' | 'expired';
+
   type UploadRecord = {
     id: number;
     storageConfigId: number;
@@ -81,7 +83,9 @@ export namespace Storage {
     businessType: string;
     businessId: string;
     appId: string;
-    uploadedAt: string;
+    status: UploadRecordStatus;
+    expiresAt?: string;
+    uploadedAt?: string;
     createdAt: string;
   };
 
@@ -123,17 +127,21 @@ export namespace Storage {
     endpoint: string;
     pathPrefix: string;
     maxFileSize: number;
+    recordId: number;
+    secret: string;
   };
 
-  type CreateUploadRecordParams = {
-    configId: number;
-    fileName: string;
-    objectKey: string;
-    fileSize: number;
+  // 上传成功通知：必须带回凭证签发时返回的 recordId + secret
+  type CompleteUploadParams = {
+    recordId: number;
+    secret: string;
+    objectKey?: string;
+    fileUrl?: string;
+    fileSize?: number;
     mimeType?: string;
     md5?: string;
-    businessType?: string;
-    businessId?: string;
-    sourceInfo?: string;
   };
+
+  // 保留旧别名以兼容可能的引用，等价于 CompleteUploadParams（旧字段已废弃）
+  type CreateUploadRecordParams = CompleteUploadParams;
 }
