@@ -7,4 +7,5 @@ const (
 	TopicStorageSync       = "storage_sync"
 	TopicCacheInvalidation = "cache_invalidation"
 	TopicIPACReload        = "ipac_reload"
+	TopicCacheDelete       = "cache_delete" // payload: 完整缓存 key（已带 prefix），用于跨节点删 L1
 )

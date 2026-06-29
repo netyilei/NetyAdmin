@@ -22,6 +22,7 @@ type Message struct {
 	Topic     string          `json:"topic"`
 	Payload   json.RawMessage `json:"payload"`
 	Timestamp int64           `json:"timestamp"`
+	SenderID  string          `json:"senderId,omitempty"` // 发布节点 ID，driver 接收层据此过滤本节点回环
 }
 
 // NewMessage 创建消息
@@ -39,14 +40,32 @@ func NewMessage(topic string, payload interface{}) (*Message, error) {
 
 // baseBus 基础实现，包含公共逻辑
 type baseBus struct {
+	nodeID   string // 本节点唯一标识，用于过滤自身广播回环
 	handlers map[string][]func(msg []byte)
 	mu       sync.RWMutex
 }
 
-func newBaseBus() *baseBus {
+func newBaseBus(nodeID string) *baseBus {
 	return &baseBus{
+		nodeID:   nodeID,
 		handlers: make(map[string][]func(msg []byte)),
 	}
+}
+
+// buildMessage 构造带 SenderID 的消息
+func (b *baseBus) buildMessage(topic string, payload interface{}) (*Message, error) {
+	m, err := NewMessage(topic, payload)
+	if err != nil {
+		return nil, err
+	}
+	m.SenderID = b.nodeID
+	return m, nil
+}
+
+// isFromSelf 判断消息是否由本节点发出（用于过滤回环，避免双重处理）
+// 兼容旧版本：若 SenderID 为空（旧节点发布），返回 false 不误过滤
+func (b *baseBus) isFromSelf(m *Message) bool {
+	return b.nodeID != "" && m.SenderID == b.nodeID
 }
 
 func (b *baseBus) Subscribe(topic string, handler func(msg []byte)) error {
@@ -83,9 +102,9 @@ type MemoryDriver struct {
 	closeMu  sync.Mutex
 }
 
-func NewMemoryDriver() EventBus {
+func NewMemoryDriver(nodeID string) EventBus {
 	d := &MemoryDriver{
-		baseBus:  newBaseBus(),
+		baseBus:  newBaseBus(nodeID),
 		stopChan: make(chan struct{}),
 		msgChan:  make(chan *Message, 1000),
 	}
@@ -101,7 +120,7 @@ func (d *MemoryDriver) Publish(ctx context.Context, topic string, msg interface{
 	}
 	d.closeMu.Unlock()
 
-	m, err := NewMessage(topic, msg)
+	m, err := d.buildMessage(topic, msg)
 	if err != nil {
 		return err
 	}
@@ -122,6 +141,10 @@ func (d *MemoryDriver) loop() {
 		case msg, ok := <-d.msgChan:
 			if !ok {
 				return
+			}
+			// 过滤本节点发出的回环消息，避免双重处理（与 RedisDriver 行为一致）
+			if d.isFromSelf(msg) {
+				continue
 			}
 			d.dispatch(msg.Topic, msg.Payload)
 		}
@@ -151,13 +174,13 @@ type RedisDriver struct {
 	closeMu     sync.Mutex
 }
 
-func NewRedisDriver(redisClient *redis.Client, prefix string) EventBus {
+func NewRedisDriver(redisClient *redis.Client, prefix string, nodeID string) EventBus {
 	if prefix == "" {
 		prefix = "netyadmin"
 	}
 
 	d := &RedisDriver{
-		baseBus:     newBaseBus(),
+		baseBus:     newBaseBus(nodeID),
 		redisClient: redisClient,
 		prefix:      prefix,
 		channel:     fmt.Sprintf("%s:channel:system_bus", prefix),
@@ -184,7 +207,7 @@ func (d *RedisDriver) Publish(ctx context.Context, topic string, msg interface{}
 		return fmt.Errorf("redis client is nil")
 	}
 
-	m, err := NewMessage(topic, msg)
+	m, err := d.buildMessage(topic, msg)
 	if err != nil {
 		return err
 	}
@@ -227,6 +250,10 @@ func (d *RedisDriver) subscribeLoop() {
 					}
 					var m Message
 					if err := json.Unmarshal([]byte(msg.Payload), &m); err != nil {
+						continue
+					}
+					// 过滤本节点发出的回环消息（Redis Pub/Sub 不区分发布者）
+					if d.isFromSelf(&m) {
 						continue
 					}
 					d.dispatch(m.Topic, m.Payload)

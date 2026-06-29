@@ -54,11 +54,17 @@ type LazyCacheManager interface {
 	Delete(ctx context.Context, key string) error
 	// DeleteFast 强制删除 L1+L2（模式A）
 	DeleteFast(ctx context.Context, key string) error
+	// DeleteAndBroadcast 删除本节点缓存并广播给其他节点删 L1（用于时序敏感场景：登录锁、验证码等）
+	// 当前 L1 关闭时仅删 L2；开启 L1 时本节点删 L1+L2 并广播 fullKey，其他节点收到后删各自 L1
+	DeleteAndBroadcast(ctx context.Context, key string) error
 	// Exists 判断一个缓存项是否存在（模式B）
 	Exists(ctx context.Context, key string) (bool, error)
 
 	// InvalidateL1ByTags 仅失效本地 L1 缓存（由 PubSubBus 订阅者调用，避免递归）
 	InvalidateL1ByTags(ctx context.Context, tags ...string) error
+	// InvalidateL1ByKey 按完整 key（已带 prefix）失效本地 L1 缓存
+	// 由 TopicCacheDelete 订阅者调用，fullKey 必须是 buildKey 后的完整 key
+	InvalidateL1ByKey(ctx context.Context, fullKey string) error
 
 	// SetEventBus 注入 PubSubBus 实例（解决循环依赖：CacheManager 先于 EventBus 创建）
 	SetEventBus(bus pubsub.EventBus)
@@ -151,13 +157,13 @@ func NewLazyCacheManager(cfg *config.RedisConfig, redisClient *redis.Client, che
 	}
 
 	mgr := &lazyCacheManager{
-		cacheManager:  cacheMgr,
-		l1Cache:       l1Cache,
-		l2Cache:       l2Cache,
-		l1Enabled:     cfg.L1Enabled,
-		switches:      checker,
-		prefix:        cfg.Prefix,
-		redisClient:   redisClient,
+		cacheManager:      cacheMgr,
+		l1Cache:           l1Cache,
+		l2Cache:           l2Cache,
+		l1Enabled:         cfg.L1Enabled,
+		switches:          checker,
+		prefix:            cfg.Prefix,
+		redisClient:       redisClient,
 		localLimiters:     sync.Map{},
 		limiterLastAccess: sync.Map{},
 		localNX:           sync.Map{},
@@ -298,6 +304,33 @@ func (m *lazyCacheManager) Get(ctx context.Context, key string, v interface{}) e
 func (m *lazyCacheManager) Delete(ctx context.Context, key string) error {
 	fullKey := m.buildKey(key)
 	return m.cacheManager.Delete(ctx, fullKey)
+}
+
+// DeleteAndBroadcast 删除本节点缓存（L1+L2 或 L2），并广播 fullKey 让其他节点删各自 L1
+// 注意：广播的是 buildKey 后的 fullKey，因为各节点 prefix 相同
+func (m *lazyCacheManager) DeleteAndBroadcast(ctx context.Context, key string) error {
+	fullKey := m.buildKey(key)
+	if err := m.cacheManager.Delete(ctx, fullKey); err != nil {
+		return err
+	}
+
+	m.eventBusMu.RLock()
+	bus := m.eventBus
+	m.eventBusMu.RUnlock()
+
+	if bus != nil {
+		payload, _ := json.Marshal(fullKey)
+		_ = bus.Publish(ctx, pubsub.TopicCacheDelete, payload)
+	}
+	return nil
+}
+
+// InvalidateL1ByKey 按完整 key 失效本地 L1（由 TopicCacheDelete 订阅者调用）
+func (m *lazyCacheManager) InvalidateL1ByKey(ctx context.Context, fullKey string) error {
+	if m.l1Cache != nil {
+		return m.l1Cache.Delete(ctx, fullKey)
+	}
+	return nil
 }
 
 func (m *lazyCacheManager) Exists(ctx context.Context, key string) (bool, error) {

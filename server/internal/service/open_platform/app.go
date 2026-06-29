@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -224,7 +225,9 @@ func (s *appService) UpdateApp(ctx context.Context, app *open_platform.App, scop
 	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagAppID(app.ID))
 	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagAppKey(oldApp.AppKey))
 
-	_ = s.ipacSvc.ReloadCache(ctx)
+	if err := s.ipacSvc.NotifyAndReload(ctx); err != nil {
+		return fmt.Errorf("notify ipac reload after update app: %w", err)
+	}
 	return nil
 }
 
@@ -283,7 +286,9 @@ func (s *appService) DeleteApp(ctx context.Context, id string) error {
 	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagAppID(id))
 
 	// 应用删除后，IPAC缓存中的应用规则也应清除
-	_ = s.ipacSvc.ReloadCache(ctx)
+	if err := s.ipacSvc.NotifyAndReload(ctx); err != nil {
+		return fmt.Errorf("notify ipac reload after delete app: %w", err)
+	}
 	return nil
 }
 
@@ -356,7 +361,9 @@ func (s *appService) LinkIPRules(ctx context.Context, appID string, ruleIDs []ui
 	if err := s.ipacRepo.LinkRulesToApp(ctx, appID, ruleIDs); err != nil {
 		return err
 	}
-	_ = s.ipacSvc.ReloadCache(ctx)
+	if err := s.ipacSvc.NotifyAndReload(ctx); err != nil {
+		return fmt.Errorf("notify ipac reload after link ip rules: %w", err)
+	}
 	return nil
 }
 

@@ -2,6 +2,7 @@ package ipac
 
 import (
 	"context"
+	"log"
 	"net"
 	"sync"
 
@@ -13,6 +14,10 @@ import (
 type IPACService interface {
 	CheckIP(ctx context.Context, ip string, appID *string) (bool, error)
 	ReloadCache(ctx context.Context) error
+	// NotifyAndReload 先本地 reload，成功后再广播让其他节点 reload
+	// 顺序：本地成功 → 广播；本地失败 → error 冒泡，不广播
+	// 广播失败仅记录日志，不阻断本机主流程（最终一致性可接受）
+	NotifyAndReload(ctx context.Context) error
 
 	// CRUD
 	List(ctx context.Context, query *ipacRepo.IPACQuery) ([]*ipac.IPAccessControl, int64, error)
@@ -173,40 +178,50 @@ func (s *ipacService) List(ctx context.Context, query *ipacRepo.IPACQuery) ([]*i
 	return s.repo.List(ctx, query)
 }
 
+// notifyReload 广播 reload 通知给其他节点。失败仅记录日志，不阻断主流程
 func (s *ipacService) notifyReload(ctx context.Context) {
 	if s.eventBus != nil {
-		_ = s.eventBus.Publish(ctx, pubsub.TopicIPACReload, "reload")
+		if err := s.eventBus.Publish(ctx, pubsub.TopicIPACReload, "reload"); err != nil {
+			log.Printf("[IPAC] 广播 reload 失败: %v", err)
+		}
 	}
+}
+
+// NotifyAndReload 先本地 reload，成功后再广播。
+// 顺序纠正：先本地后广播，避免本地失败但其他节点已 reload 导致集群行为分裂。
+// 防回环：driver 层基于 SenderID 过滤本节点消息，本节点不会收到自己发出的广播
+func (s *ipacService) NotifyAndReload(ctx context.Context) error {
+	if err := s.ReloadCache(ctx); err != nil {
+		return err
+	}
+	s.notifyReload(ctx)
+	return nil
 }
 
 func (s *ipacService) Create(ctx context.Context, item *ipac.IPAccessControl) error {
 	if err := s.repo.Create(ctx, item); err != nil {
 		return err
 	}
-	s.notifyReload(ctx)
-	return s.ReloadCache(ctx)
+	return s.NotifyAndReload(ctx)
 }
 
 func (s *ipacService) Update(ctx context.Context, item *ipac.IPAccessControl) error {
 	if err := s.repo.Update(ctx, item); err != nil {
 		return err
 	}
-	s.notifyReload(ctx)
-	return s.ReloadCache(ctx)
+	return s.NotifyAndReload(ctx)
 }
 
 func (s *ipacService) Delete(ctx context.Context, id uint) error {
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
-	s.notifyReload(ctx)
-	return s.ReloadCache(ctx)
+	return s.NotifyAndReload(ctx)
 }
 
 func (s *ipacService) DeleteBatch(ctx context.Context, ids []uint) error {
 	if err := s.repo.DeleteBatch(ctx, ids); err != nil {
 		return err
 	}
-	s.notifyReload(ctx)
-	return s.ReloadCache(ctx)
+	return s.NotifyAndReload(ctx)
 }

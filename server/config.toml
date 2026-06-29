@@ -3,6 +3,9 @@ port = 8010
 mode = "debug"
 read_timeout = 120
 write_timeout = 120
+# 多机部署时设为 true：启动时会校验 [bus] driver 是否为 "redis"，
+# 若仍为 memory 模式会打印 WARN（缓存/IPAC/配置失效不会跨节点同步）。
+multi_node = false
 
 [database]
 host = "localhost"

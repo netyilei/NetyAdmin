@@ -71,6 +71,7 @@ type ServerConfig struct {
 	Mode         string `toml:"mode"`
 	ReadTimeout  int    `toml:"read_timeout"`
 	WriteTimeout int    `toml:"write_timeout"`
+	MultiNode    bool   `toml:"multi_node"` // 多机部署设为 true：会校验事件总线是否为 redis 模式
 }
 
 type DatabaseConfig struct {

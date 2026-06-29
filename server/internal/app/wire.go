@@ -41,6 +41,7 @@ import (
 	pkgredis "NetyAdmin/internal/pkg/redis"
 	storagePkg "NetyAdmin/internal/pkg/storage"
 	"NetyAdmin/internal/pkg/task"
+	"NetyAdmin/internal/pkg/utils"
 
 	logEntity "NetyAdmin/internal/domain/entity/log"
 	openEntity "NetyAdmin/internal/domain/entity/open_platform"
@@ -109,21 +110,33 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	repos := initRepositories(db)
 
 	// 4. PubSubBus
+	nodeID := generateNodeID()
 	var eventBus pubsub.EventBus
+	busDriver := "memory" // 默认值，根据下方分支更新
 	switch cfg.Bus.Driver {
 	case "memory":
-		eventBus = pubsub.NewMemoryDriver()
+		busDriver = "memory"
+		eventBus = pubsub.NewMemoryDriver(nodeID)
 	case "redis":
 		if redisClient == nil {
 			return nil, fmt.Errorf("bus driver 设置为 redis 但 Redis 未启用")
 		}
-		eventBus = pubsub.NewRedisDriver(redisClient, cfg.Redis.Prefix)
+		busDriver = "redis"
+		eventBus = pubsub.NewRedisDriver(redisClient, cfg.Redis.Prefix, nodeID)
 	default:
 		if cfg.Redis.Enabled && redisClient != nil {
-			eventBus = pubsub.NewRedisDriver(redisClient, cfg.Redis.Prefix)
+			busDriver = "redis"
+			eventBus = pubsub.NewRedisDriver(redisClient, cfg.Redis.Prefix, nodeID)
 		} else {
-			eventBus = pubsub.NewMemoryDriver()
+			busDriver = "memory"
+			eventBus = pubsub.NewMemoryDriver(nodeID)
 		}
+	}
+
+	// 多机部署校验：multi_node=true 但 bus 为 memory 模式时告警（缓存/IPAC/配置失效不会跨节点同步）
+	if cfg.Server.MultiNode && busDriver == "memory" {
+		log.Printf("[WARN] 检测到多节点部署(multi_node=true)但事件总线为 memory 模式，" +
+			"缓存/IPAC/配置失效不会跨节点同步。请设置 [bus] driver = \"redis\"")
 	}
 
 	// 5. Config Sync & Cache Manager
@@ -169,6 +182,15 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	// IPACReload
 	_ = eventBus.Subscribe(pubsub.TopicIPACReload, func(msg []byte) {
 		_ = services.ipac.ReloadCache(context.Background())
+	})
+
+	// CacheDelete: 跨节点删 L1（payload 为 buildKey 后的完整 key）
+	// 仅 L1 开启时有实际效果；当前 L1 关闭，订阅存在但 InvalidateL1ByKey 是 no-op
+	_ = eventBus.Subscribe(pubsub.TopicCacheDelete, func(msg []byte) {
+		var fullKey string
+		if err := json.Unmarshal(msg, &fullKey); err == nil {
+			_ = lazyCacheMgr.InvalidateL1ByKey(context.Background(), fullKey)
+		}
 	})
 
 	// 8. Router
@@ -243,6 +265,20 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	gin.DefaultWriter = os.Stdout
 
 	return NewApp(cfg, db, engine, dbHealthChecker, taskManager, services.logBus, eventBus), nil
+}
+
+// generateNodeID 生成进程级唯一节点标识，用于事件总线过滤本节点回环消息
+// 格式: hostname-ULID后8位（hostname 提供主机维度，ULID 后缀提供进程维度）
+func generateNodeID() string {
+	host, err := os.Hostname()
+	if err != nil || host == "" {
+		host = "unknown"
+	}
+	ulid := utils.NewULID()
+	if len(ulid) > 8 {
+		ulid = ulid[len(ulid)-8:]
+	}
+	return fmt.Sprintf("%s-%s", host, ulid)
 }
 
 type repositorySet struct {
