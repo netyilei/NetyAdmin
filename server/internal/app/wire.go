@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"time"
 
@@ -274,6 +275,20 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	// /health 标准健康检查端点（供 K8s liveness/readiness 探针或负载均衡探测）
 	// 不走鉴权与限流，直接返回 DB/Redis 探活结果。
 	engine.GET("/health", dbHealthChecker.Handler())
+
+	// 静态文件服务：提供前端 SPA 页面（admin-web/dist/）
+	// 使 http://localhost:8010/ 直接访问管理后台
+	engine.Static("/assets", "../admin-web/dist/assets")
+	engine.StaticFile("/favicon.svg", "../admin-web/dist/favicon.svg")
+
+	// SPA 兜底：未匹配 API 的 GET 请求返回 index.html（支持 Vue Router history 模式）
+	engine.NoRoute(func(c *gin.Context) {
+		if c.Request.Method == "GET" {
+			c.File("../admin-web/dist/index.html")
+			return
+		}
+		c.Status(http.StatusNotFound)
+	})
 
 	return NewApp(cfg, db, engine, dbHealthChecker, taskManager, services.logBus, eventBus), nil
 }
