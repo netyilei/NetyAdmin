@@ -19,3 +19,6 @@ logo.png
 test.txt
 .trae/rules/project_rules.md
 nul
+
+# MCP 图谱缓存（由 AI 在本地重建，不上传）
+.codebase-memory/
