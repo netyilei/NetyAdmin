@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"sort"
 	"sync"
 	"time"
@@ -54,10 +54,10 @@ func NewManager(cfg *config.TaskConfig, redisCfg *config.RedisConfig, redisCli *
 	// 初始化队列驱动
 	if redisCfg != nil && redisCfg.Enabled && redisCli != nil {
 		m.queue = NewRedisQueue(redisCli, redisCfg.Prefix)
-		log.Println("[任务引擎] 已启用 Redis 分布式队列驱动")
+		slog.Info("任务引擎已启用 Redis 分布式队列驱动")
 	} else {
 		m.queue = NewLocalQueue(1000)
-		log.Println("[任务引擎] 已启用本地 Channel 队列驱动")
+		slog.Info("任务引擎已启用本地 Channel 队列驱动")
 	}
 
 	return m
@@ -75,7 +75,7 @@ func (m *Manager) Register(tasks ...Task) {
 	for _, t := range tasks {
 		name := t.Name()
 		if _, exists := m.tasks[name]; exists {
-			log.Printf("[任务引擎] 警告: 任务 [%s] 重复注册，将使用最新实例", name)
+			slog.Warn("任务重复注册，将使用最新实例", "name", name)
 		}
 		m.tasks[name] = t
 	}
@@ -84,7 +84,7 @@ func (m *Manager) Register(tasks ...Task) {
 // Start 启动调度引擎
 func (m *Manager) Start(ctx context.Context) {
 	if m.cfg == nil || !m.cfg.Enabled {
-		log.Println("[任务引擎] 未启用，跳过启动")
+		slog.Info("任务引擎未启用，跳过启动")
 		return
 	}
 
@@ -113,16 +113,16 @@ func (m *Manager) Start(ctx context.Context) {
 		return enabledTasks[i].metadata.Weight > enabledTasks[j].metadata.Weight
 	})
 
-	log.Printf("[任务引擎] 启动中，共激活 %d 个任务", len(enabledTasks))
+	slog.Info("任务引擎启动中", "count", len(enabledTasks))
 
 	// 3. 分类处理
 	for _, tc := range enabledTasks {
 		switch tc.metadata.Type {
 		case TypeOnce:
 			// Once 任务同步顺序执行 (生产者级别：必须等待系统任务完成)
-			log.Printf("[任务引擎] 执行同步启动任务: %s (权重: %d)", tc.metadata.Name, tc.metadata.Weight)
+			slog.Info("任务引擎执行同步启动任务", "name", tc.metadata.Name, "weight", tc.metadata.Weight)
 			if err := tc.task.Run(ctx); err != nil {
-				log.Printf("[任务引擎] 启动任务 [%s] 执行失败: %v", tc.metadata.Name, err)
+				slog.Error("启动任务执行失败", "name", tc.metadata.Name, "error", err)
 			}
 		case TypeInterval:
 			m.wg.Add(1)
@@ -166,7 +166,7 @@ func (m *Manager) startWorkers(ctx context.Context) {
 	if workerCount <= 0 {
 		workerCount = 5
 	}
-	log.Printf("[任务引擎] 启动 %d 个后台 Worker 处理队列任务", workerCount)
+	slog.Info("任务引擎启动后台 Worker 处理队列任务", "count", workerCount)
 
 	for i := 0; i < workerCount; i++ {
 		m.wg.Add(1)
@@ -181,7 +181,7 @@ func (m *Manager) startWorkers(ctx context.Context) {
 				default:
 					msg, err := m.queue.Pop(ctx)
 					if err != nil {
-						log.Printf("[任务引擎] Worker-%d Pop 消息失败: %v", workerID, err)
+						slog.Error("任务引擎 Worker Pop 消息失败", "worker", workerID, "error", err)
 						time.Sleep(time.Second) // 发生错误稍后重试
 						continue
 					}
@@ -202,7 +202,7 @@ func (m *Manager) executePayload(ctx context.Context, msg *Message) {
 	m.mu.RUnlock()
 
 	if !exists {
-		log.Printf("[任务引擎] 消费者执行失败: 任务 [%s] 未注册", msg.TaskName)
+		slog.Error("任务引擎消费者执行失败: 任务未注册", "name", msg.TaskName)
 		return
 	}
 
@@ -230,7 +230,7 @@ func (m *Manager) executePayload(ctx context.Context, msg *Message) {
 	if err != nil {
 		info.Status = "error"
 		info.Message = err.Error()
-		log.Printf("[任务引擎] 任务 [%s] 载荷执行失败: %v", msg.TaskName, err)
+		slog.Error("任务载荷执行失败", "name", msg.TaskName, "error", err)
 	}
 
 	m.mu.Lock()
@@ -297,7 +297,7 @@ func (m *Manager) StopTask(name string) error {
 	if stopChan, exists := m.intervals[name]; exists {
 		close(stopChan)
 		delete(m.intervals, name)
-		log.Printf("[任务引擎] 间隔任务 [%s] 已发出停止信号", name)
+		slog.Info("任务引擎间隔任务已发出停止信号", "name", name)
 		return nil
 	}
 
@@ -305,7 +305,7 @@ func (m *Manager) StopTask(name string) error {
 	if entryID, exists := m.cronIDs[name]; exists {
 		m.cron.Remove(entryID)
 		delete(m.cronIDs, name)
-		log.Printf("[任务引擎] 定时任务 [%s] 已从调度器移除", name)
+		slog.Info("任务引擎定时任务已从调度器移除", "name", name)
 		return nil
 	}
 
@@ -358,7 +358,7 @@ func (m *Manager) ReloadTask(ctx context.Context, name string) error {
 		return m.StartTask(ctx, name)
 	}
 
-	log.Printf("[任务引擎] 任务 [%s] 已处于禁用状态，无需启动", name)
+	slog.Info("任务已处于禁用状态，无需启动", "name", name)
 	return nil
 }
 
@@ -443,7 +443,7 @@ func (m *Manager) execute(ctx context.Context, t Task) {
 		}).Err()
 		if err == redis.Nil {
 			// 未抢到锁，说明其他实例正在执行
-			log.Printf("[任务引擎] 任务 [%s] 在其他实例中执行，本实例跳过", name)
+			slog.Info("任务在其他实例中执行，本实例跳过", "name", name)
 
 			// 把状态改回未运行
 			m.mu.Lock()
@@ -451,7 +451,7 @@ func (m *Manager) execute(ctx context.Context, t Task) {
 			m.mu.Unlock()
 			return
 		} else if err != nil {
-			log.Printf("[任务引擎] 任务 [%s] 尝试获取分布式锁失败: %v", name, err)
+			slog.Error("任务尝试获取分布式锁失败", "name", name, "error", err)
 			m.mu.Lock()
 			state.IsRunning = false
 			m.mu.Unlock()
@@ -496,7 +496,7 @@ func (m *Manager) Stop() {
 	if m.cfg == nil || !m.cfg.Enabled {
 		return
 	}
-	log.Println("[任务引擎] 正在发出停止信号...")
+	slog.Info("任务引擎正在发出停止信号...")
 	m.cron.Stop() // 停止新的 Cron 调度
 	if m.cancel != nil {
 		m.cancel() // 取消 Worker 上下文，Worker 的 Pop 阻塞会立刻退出
@@ -508,7 +508,7 @@ func (m *Manager) Stop() {
 
 	// 等待所有正在执行的任务完成 (包括 Interval 和正在跑的 Cron)
 	m.wg.Wait()
-	log.Println("[任务引擎] 所有任务已安全退出")
+	slog.Info("任务引擎所有任务已安全退出")
 }
 
 // getTaskMetadata 合并默认元数据与配置文件设置
@@ -554,14 +554,14 @@ func (m *Manager) runIntervalTask(ctx context.Context, t Task, meta TaskMetadata
 
 	d, err := time.ParseDuration(meta.Spec)
 	if err != nil {
-		log.Printf("[任务引擎] 任务 [%s] 间隔参数无效 [%s]: %v", meta.Name, meta.Spec, err)
+		slog.Error("任务间隔参数无效", "name", meta.Name, "spec", meta.Spec, "error", err)
 		return
 	}
 
 	ticker := time.NewTicker(d)
 	defer ticker.Stop()
 
-	log.Printf("[任务引擎] 间隔任务 [%s] 已启动，周期: %s", meta.Name, meta.Spec)
+	slog.Info("间隔任务已启动", "name", meta.Name, "spec", meta.Spec)
 
 	for {
 		select {
@@ -587,7 +587,7 @@ func (m *Manager) registerCronTask(ctx context.Context, t Task, meta TaskMetadat
 		m.execute(ctx, t)
 	})
 	if err != nil {
-		log.Printf("[任务引擎] 任务 [%s] Cron 表达式无效 [%s]: %v", meta.Name, meta.Spec, err)
+		slog.Error("任务 Cron 表达式无效", "name", meta.Name, "spec", meta.Spec, "error", err)
 		return
 	}
 
@@ -595,5 +595,5 @@ func (m *Manager) registerCronTask(ctx context.Context, t Task, meta TaskMetadat
 	m.cronIDs[meta.Name] = entryID
 	m.mu.Unlock()
 
-	log.Printf("[任务引擎] 定时任务 [%s] 已注册，表达式: %s", meta.Name, meta.Spec)
+	slog.Info("定时任务已注册", "name", meta.Name, "spec", meta.Spec)
 }

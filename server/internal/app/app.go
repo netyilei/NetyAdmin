@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -44,11 +44,20 @@ func NewApp(cfg *config.Config, db *gorm.DB, engine *gin.Engine, dbHealthChecker
 
 func (a *App) Run() error {
 	addr := fmt.Sprintf(":%d", a.cfg.Server.Port)
+	// 超时值从配置读取，避免硬编码（config.toml: read_timeout/write_timeout，单位秒）
+	readTimeout := time.Duration(a.cfg.Server.ReadTimeout) * time.Second
+	writeTimeout := time.Duration(a.cfg.Server.WriteTimeout) * time.Second
+	if readTimeout <= 0 {
+		readTimeout = 30 * time.Second
+	}
+	if writeTimeout <= 0 {
+		writeTimeout = 30 * time.Second
+	}
 	srv := &http.Server{
 		Addr:         addr,
 		Handler:      a.engine,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		ReadTimeout:  readTimeout,
+		WriteTimeout: writeTimeout,
 		IdleTimeout:  60 * time.Second,
 	}
 
@@ -57,11 +66,17 @@ func (a *App) Run() error {
 		a.taskManager.Start(context.Background())
 	}
 
+	// 1.1 启动健康检查：启动期主动探活一次（依赖未就绪仅告警，不阻断启动）
+	if a.dbHealthChecker != nil {
+		a.dbHealthChecker.Start()
+	}
+
 	// 2. Start Web Server
 	go func() {
-		log.Printf("服务器启动在 %s", addr)
+		slog.Info("服务器启动", "addr", addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("启动服务器失败: %v", err)
+			slog.Error("启动服务器失败", "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -69,7 +84,7 @@ func (a *App) Run() error {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("正在关闭服务器...")
+	slog.Info("正在关闭服务器...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -98,6 +113,6 @@ func (a *App) Run() error {
 		_ = a.eventBus.Close()
 	}
 
-	log.Println("服务器已安全关闭")
+	slog.Info("服务器已安全关闭")
 	return nil
 }

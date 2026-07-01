@@ -23,10 +23,9 @@ const (
 
 // 系统预定义的优先级权重
 const (
-	WeightSystem    = 100 // 最高优先级，涉及数据库迁移等基础环境
-	WeightEssential = 80  // 核心功能优先级
-	WeightNormal    = 50  // 普通业务优先级
-	WeightLow       = 10  // 低优先级
+	WeightEssential = 80 // 核心功能优先级
+	WeightNormal    = 50 // 普通业务优先级
+	WeightLow       = 10 // 低优先级
 )
 
 // TaskMetadata 任务元数据

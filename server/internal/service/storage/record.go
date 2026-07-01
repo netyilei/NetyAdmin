@@ -225,7 +225,7 @@ func (s *recordService) GetUploadCredentials(ctx context.Context, req *storageDt
 		Domain:      config.Domain,
 		FinalURL:    finalURL,
 		ConfigID:    config.ID,
-		Region:      storage.GetProviderRegion(storage.Provider(config.Provider), config.Region),
+		Region:      config.Region,
 		Bucket:      config.Bucket,
 		Endpoint:    config.Endpoint,
 		PathPrefix:  config.PathPrefix,

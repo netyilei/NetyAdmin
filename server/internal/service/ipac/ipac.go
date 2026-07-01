@@ -2,7 +2,7 @@ package ipac
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net"
 	"sync"
 
@@ -182,7 +182,7 @@ func (s *ipacService) List(ctx context.Context, query *ipacRepo.IPACQuery) ([]*i
 func (s *ipacService) notifyReload(ctx context.Context) {
 	if s.eventBus != nil {
 		if err := s.eventBus.Publish(ctx, pubsub.TopicIPACReload, "reload"); err != nil {
-			log.Printf("[IPAC] 广播 reload 失败: %v", err)
+			slog.Error("IPAC 广播 reload 失败", "error", err)
 		}
 	}
 }

@@ -10,13 +10,12 @@
 
 ### 1.1 核心特性
 
-- **多存储源**：支持多个S3兼容的对象存储配置
-- **默认配置**：可设置默认存储源
-- **上传凭证**：为前端直传提供临时凭证
-- **上传记录**：记录所有上传操作
-- **驱动扩展**：支持自定义存储驱动
-- **应用级存储绑定**：开放平台应用可绑定独立存储配置，未绑定时自动回退到全局默认
-- **Client端上传**：开放平台应用可通过签名验证后获取上传凭证和创建上传记录
+- **统一 S3 协议**：基于 [minio-go v7.2.1](https://github.com/minio/minio-go) 实现，天然兼容所有 S3 协议存储（AWS S3 / 阿里云 OSS / 腾讯云 COS / 华为云 OBS / 七牛云 / MinIO / Cloudflare R2 等），无需为每个云厂商维护适配代码。
+- **多存储源**：支持同时配置多个存储源，可设置默认源。
+- **预签名直传**：为前端提供预签名 URL 直传，减轻服务端流量。
+- **上传记录**：记录所有上传操作，含状态机闭环（凭证签发→上传成功通知）。
+- **驱动扩展**：面向接口设计，支持自定义驱动。
+- **应用级存储绑定**：开放平台应用可绑定独立存储配置，未绑定时回退到全局默认。
 
 ---
 
@@ -24,142 +23,115 @@
 
 ```
 server/internal/domain/entity/storage/
-├── config.go           # 存储配置实体
-└── record.go           # 上传记录实体（含AppID字段）
+├── config.go           # 存储配置实体（含 Provider 字段标识云厂商）
+└── record.go           # 上传记录实体（含状态机字段 status/secret/expires_at）
 
 server/internal/repository/storage/
 ├── config.go           # 存储配置仓储
 └── record.go           # 上传记录仓储
 
 server/internal/service/storage/
-├── config.go           # 存储配置服务
-└── record.go           # 上传记录服务（含应用存储配置解析）
+├── config.go           # 存储配置服务（创建/更新/测试上传）
+└── record.go           # 上传记录服务（凭证签发/上传通知闭环）
 
 server/internal/pkg/storage/
-├── driver.go           # 存储驱动接口
-├── manager.go          # 存储管理器
-└── s3_driver.go        # S3驱动实现
+├── driver.go           # Driver 接口、Config、Provider 类型定义
+├── minio_driver.go     # 基于 minio-go 的 S3 兼容驱动实现（唯一实现）
+└── manager.go          # 存储管理器（多驱动注册/查找）+ 工具函数
 
 server/internal/interface/admin/http/handler/v1/storage/
-└── storage_handler.go  # Admin端存储Handler
+└── storage_handler.go  # Admin 端存储 Handler
 
 server/internal/interface/client/http/handler/v1/
-└── storage_handler.go  # Client端存储上传Handler
-
-server/internal/interface/client/http/router/v1/
-└── storage_router.go   # Client端存储路由
-
-server/internal/interface/client/dto/v1/
-└── storage.go          # Client端存储DTO
+└── storage_handler.go  # Client 端存储上传 Handler
 ```
 
 ---
 
-## 三、数据模型
+## 三、存储驱动架构
 
-### 3.1 存储配置（storage_configs）
-
-```go
-type StorageConfig struct {
-    ID            uint           `gorm:"primarykey"`
-    Name          string         `gorm:"size:128;not null"`             // 配置名称
-    Type          string         `gorm:"size:32;not null"`              // 存储类型：s3
-    Endpoint      string         `gorm:"size:512;not null"`             // 服务端点
-    Region        string         `gorm:"size:64"`                       // 区域
-    Bucket        string         `gorm:"size:128;not null"`             // 存储桶
-    AccessKey     string         `gorm:"size:256;not null"`             // AccessKey
-    SecretKey     string         `gorm:"size:256;not null"`             // SecretKey
-    BaseURL       string         `gorm:"size:512"`                      // 基础URL（CDN地址）
-    IsDefault     bool           `gorm:"default:false"`                 // 是否默认
-    Status        int8           `gorm:"default:1"`                     // 状态：1启用 2禁用
-    CreatedAt     int64          `gorm:"autoCreateTime"`
-    UpdatedAt     int64          `gorm:"autoUpdateTime"`
-    DeletedAt     gorm.DeletedAt `gorm:"index"`
-}
-```
-
-### 3.2 上传记录（upload_records）
+### 3.1 驱动接口
 
 ```go
-type UploadRecord struct {
-    ID           uint           `gorm:"primarykey"`
-    StorageID    uint           `gorm:"not null;index"`                // 存储配置ID
-    FileName     string         `gorm:"size:256;not null"`             // 原始文件名
-    FileKey      string         `gorm:"size:512;not null"`             // 存储Key
-    FileURL      string         `gorm:"size:512;not null"`             // 访问URL
-    FileSize     int64          `gorm:"not null"`                      // 文件大小（字节）
-    FileType     string         `gorm:"size:64"`                       // 文件类型
-    MimeType     string         `gorm:"size:128"`                      // MIME类型
-    UploaderID   uint           `gorm:"index"`                         // 上传者ID
-    UploaderType string         `gorm:"size:32"`                       // 上传者类型
-    AppID        string         `gorm:"size:26;index"`                 // 开放平台应用ID
-    CreatedAt    int64          `gorm:"autoCreateTime"`
-    UpdatedAt    int64          `gorm:"autoUpdateTime"`
-    DeletedAt    gorm.DeletedAt `gorm:"index"`
-}
-```
-
-> **AppID 字段**：当上传来自开放平台应用时，`AppID` 记录来源应用的 `AppKey`，便于按应用统计和审计上传记录。非应用上传时该字段为空字符串。
-
----
-
-## 四、存储驱动架构
-
-### 4.1 驱动接口
-
-```go
-// Driver 存储驱动接口
+// Driver 对象存储驱动接口（面向 S3 兼容协议抽象）。
+// 当前唯一实现为基于 minio-go 的 minioDriver。
 type Driver interface {
-    // 获取临时上传凭证（前端直传）
-    GetUploadCredentials(ctx context.Context, key string, expire time.Duration) (*Credentials, error)
-    
-    // 生成访问URL
-    GetURL(key string) string
-    
-    // 删除文件
-    Delete(ctx context.Context, key string) error
-    
-    // 检查文件是否存在
-    Exists(ctx context.Context, key string) (bool, error)
-}
-
-// Credentials 上传凭证
-type Credentials struct {
-    Endpoint  string            `json:"endpoint"`
-    Bucket    string            `json:"bucket"`
-    Region    string            `json:"region"`
-    AccessKey string            `json:"access_key"`
-    SecretKey string            `json:"secret_key"`
-    Token     string            `json:"token"`
-    Key       string            `json:"key"`
-    Expires   int64             `json:"expires"`
-    URL       string            `json:"url"`
+    Upload(ctx, key, reader, size, contentType) (*UploadResult, error)
+    UploadFile(ctx, key, filePath, contentType) (*UploadResult, error)
+    Download(ctx, key) (io.ReadCloser, *ObjectInfo, error)
+    Delete(ctx, key) error
+    DeleteMultiple(ctx, keys) error
+    Exists(ctx, key) (bool, error)
+    GetObjectInfo(ctx, key) (*ObjectInfo, error)
+    GetPresignedUploadURL(ctx, key, contentType, expires) (string, error)
+    GetPresignedDownloadURL(ctx, key, expires) (string, error)
+    ListObjects(ctx, prefix, maxKeys) ([]*ObjectInfo, error)
+    Copy(ctx, srcKey, destKey) error
 }
 ```
 
-### 4.2 驱动注册
+### 3.2 Provider 类型
+
+`Provider` 仅用于路径风格判断（MinIO/自定义 endpoint 需 path-style 寻址），**不再硬编码各云厂商的 endpoint**。用户在存储配置中直接填写完整 endpoint（如 `https://oss-cn-hangzhou.aliyuncs.com`），minio-go 自动处理兼容性。
 
 ```go
-// 注册S3驱动
-func init() {
-    RegisterDriver("s3", func(config map[string]string) (Driver, error) {
-        return NewS3Driver(config)
-    })
-}
+const (
+    ProviderMinio  Provider = "minio"  // 需 path-style 寻址
+    ProviderCustom Provider = "custom" // 需 path-style 寻址
+)
+
+// 其他云厂商（aws/aliyun/tencent 等）使用 BucketLookupAuto，
+// 由 minio-go 根据 endpoint 自动判断寻址方式。
+```
+
+> **注意**：云厂商的完整清单（aliyun/tencent/huawei/qiniu/aws/cloudflare）由 entity 层 `StorageProvider` 常量维护，用于前端展示和校验，避免与 pkg/storage 重复定义。
+
+### 3.3 驱动工厂
+
+```go
+// wire.go 中注册
+storageMgr := storagePkg.NewManager(storagePkg.NewMinioDriverFactory())
 ```
 
 ---
 
-## 五、API接口
+## 四、配置说明
 
-### 5.1 存储配置管理
+### 4.1 存储配置字段（storage_config 表）
+
+创建存储配置时，**Endpoint 为必填**（用户需知道自己的存储端点地址）：
+
+| 字段 | 说明 | 示例 |
+|------|------|------|
+| Provider | 云厂商标识（用于前端展示） | aws / aliyun / tencent / minio / custom |
+| Endpoint | **完整端点（含协议）** | `https://s3.amazonaws.com` |
+| Region | 区域（可为空，minio-go 自动处理） | `us-east-1` |
+| Bucket | 存储桶名 | `my-bucket` |
+| AccessKey | 访问密钥 ID | — |
+| SecretKey | 访问密钥（加密存储） | — |
+| Domain | 自定义域名（可选，用于生成访问 URL） | `https://cdn.example.com` |
+
+### 4.2 常见云厂商 Endpoint 参考
+
+| 云厂商 | Endpoint 格式 |
+|--------|--------------|
+| AWS S3 | `https://s3.<region>.amazonaws.com` |
+| 阿里云 OSS | `https://oss-<region>.aliyuncs.com` |
+| 腾讯云 COS | `https://cos.<region>.myqcloud.com` |
+| 华为云 OBS | `https://obs.<region>.myhuaweicloud.com` |
+| Cloudflare R2 | `https://<account>.r2.cloudflarestorage.com` |
+| MinIO | `http://localhost:9000`（自建） |
+
+---
+
+## 五、API 接口
+
+### 5.1 存储配置管理（Admin）
 
 | Method | Path | 说明 |
 |--------|------|------|
 | GET | /admin/v1/storage-configs | 配置列表 |
-| GET | /admin/v1/storage-configs/:id | 配置详情 |
-| GET | /admin/v1/storage-configs/all-enabled | 所有启用配置 |
-| POST | /admin/v1/storage-configs | 创建配置 |
+| POST | /admin/v1/storage-configs | 创建配置（endpoint 必填） |
 | PUT | /admin/v1/storage-configs | 更新配置 |
 | DELETE | /admin/v1/storage-configs/:id | 删除配置 |
 | PUT | /admin/v1/storage-configs/:id/default | 设为默认 |
@@ -169,218 +141,68 @@ func init() {
 
 | Method | Path | 说明 |
 |--------|------|------|
-| POST | /admin/v1/storage/upload-credentials | 获取上传凭证 |
-| POST | /admin/v1/storage/upload-record | 记录上传 |
+| POST | /admin/v1/storage/upload-credentials | 获取预签名上传 URL |
+| POST | /admin/v1/storage/upload-record | 上传成功通知（状态机闭环） |
 | GET | /admin/v1/upload-records | 上传记录列表 |
-| GET | /admin/v1/upload-records/:id | 记录详情 |
 | DELETE | /admin/v1/upload-records/:id | 删除记录 |
-| POST | /admin/v1/upload-records/batch-delete | 批量删除 |
 
-### 5.3 Client 端上传接口（需开放平台签名）
+### 5.3 Client 端上传（需开放平台签名）
 
 | Method | Path | 说明 |
 |--------|------|------|
-| POST | /client/v1/storage/credentials | 获取上传凭证（自动使用应用绑定的存储配置） |
+| POST | /client/v1/storage/credentials | 获取上传凭证（应用绑定存储优先） |
 | POST | /client/v1/storage/records | 创建上传记录 |
 
-> **存储配置解析逻辑**：Client 端接口通过签名验证中间件获取应用身份，然后按以下优先级选择存储配置：
->
-> 1. 应用绑定的 `StorageID`（若 > 0）
-> 2. 请求中指定的 `ConfigID`（若 > 0）
-> 3. 全局默认存储配置
+---
+
+## 六、上传凭证状态机闭环
+
+为防止前端只传 recordID 伪造上传成功，上传记录采用状态机 + HMAC 签名校验：
+
+```
+[凭证签发] pending → 前端持签名直传 → [上传通知] uploaded
+                                        ↓（超期未通知）
+                                     expired（定时任务标记）
+```
+
+- 凭证签发时生成 HMAC 签名（`secret` 字段），与 recordID/objectKey/source 等绑定
+- 上传通知时校验签名，任一字段篡改都会失败
+- 超期未通知的 pending 记录由定时任务标记为 expired
 
 ---
 
-## 六、使用示例
+## 七、二次开发
 
-### 6.1 获取上传凭证（前端直传）
+### 7.1 自定义存储驱动
+
+实现 `Driver` 接口并注册工厂即可：
 
 ```go
-// Handler
-func (h *StorageHandler) GetUploadCredentials(c *gin.Context) {
-    var req dto.GetUploadCredentialsReq
-    if err := c.ShouldBindJSON(&req); err != nil {
-        response.Error(c, errorx.CodeInvalidParams)
-        return
-    }
-    
-    // 生成唯一Key
-    key := generateFileKey(req.FileName)
-    
-    // 获取凭证
-    credentials, err := h.storageService.GetUploadCredentials(c.Request.Context(), key)
-    if err != nil {
-        response.Error(c, errorx.CodeInternalError)
-        return
-    }
-    
-    response.Success(c, credentials)
+// internal/pkg/storage/my_driver.go
+
+type MyDriver struct { /* ... */ }
+
+func (d *MyDriver) Upload(ctx context.Context, key string, reader io.Reader, size int64, contentType string) (*UploadResult, error) {
+    // 实现上传逻辑
+}
+
+// ... 实现其余 Driver 接口方法
+
+type MyDriverFactory struct{}
+func (f *MyDriverFactory) Create(config *Config) (Driver, error) {
+    return NewMyDriver(config)
 }
 ```
 
-### 6.2 前端直传流程
-
-```typescript
-// 1. 获取上传凭证
-const { data: credentials } = await fetchGetUploadCredentials({
-  file_name: 'image.jpg',
-  file_size: 1024000
-})
-
-// 2. 直传到对象存储
-const formData = new FormData()
-formData.append('key', credentials.key)
-formData.append('policy', credentials.policy)
-formData.append('signature', credentials.signature)
-formData.append('file', file)
-
-await fetch(credentials.endpoint, {
-  method: 'POST',
-  body: formData
-})
-
-// 3. 记录上传
-await fetchRecordUpload({
-  storage_id: credentials.storage_id,
-  file_name: file.name,
-  file_key: credentials.key,
-  file_url: credentials.url,
-  file_size: file.size
-})
+在 `wire.go` 中替换工厂：
+```go
+storageMgr := storagePkg.NewManager(storagePkg.NewMyDriverFactory())
 ```
 
 ---
 
-## 七、二次开发示例
+## 八、相关文档
 
-### 7.1 新增存储驱动（以阿里云OSS为例）
-
-```go
-// internal/pkg/storage/oss_driver.go
-
-package storage
-
-import (
-    "context"
-    "time"
-    
-    "github.com/aliyun/aliyun-oss-go-sdk/oss"
-)
-
-type OSSDriver struct {
-    client *oss.Client
-    bucket *oss.Bucket
-    config map[string]string
-}
-
-func NewOSSDriver(config map[string]string) (*OSSDriver, error) {
-    client, err := oss.New(
-        config["endpoint"],
-        config["access_key"],
-        config["secret_key"],
-    )
-    if err != nil {
-        return nil, err
-    }
-    
-    bucket, err := client.Bucket(config["bucket"])
-    if err != nil {
-        return nil, err
-    }
-    
-    return &OSSDriver{
-        client: client,
-        bucket: bucket,
-        config: config,
-    }, nil
-}
-
-func (d *OSSDriver) GetUploadCredentials(ctx context.Context, key string, expire time.Duration) (*Credentials, error) {
-    // 生成临时凭证
-    // ...
-}
-
-func (d *OSSDriver) GetURL(key string) string {
-    baseURL := d.config["base_url"]
-    if baseURL == "" {
-        baseURL = d.config["endpoint"]
-    }
-    return baseURL + "/" + key
-}
-
-func (d *OSSDriver) Delete(ctx context.Context, key string) error {
-    return d.bucket.DeleteObject(key)
-}
-
-func (d *OSSDriver) Exists(ctx context.Context, key string) (bool, error) {
-    return d.bucket.IsObjectExist(key)
-}
-```
-
-### 7.2 注册新驱动
-
-```go
-// internal/pkg/storage/oss_driver.go
-
-func init() {
-    RegisterDriver("oss", func(config map[string]string) (Driver, error) {
-        return NewOSSDriver(config)
-    })
-}
-```
-
-### 7.3 文件Key生成策略
-
-```go
-// internal/pkg/storage/manager.go
-
-func generateFileKey(originalName string) string {
-    ext := filepath.Ext(originalName)
-    date := time.Now().Format("2006/01/02")
-    uuid := uuid.New().String()
-    
-    return fmt.Sprintf("uploads/%s/%s%s", date, uuid, ext)
-}
-```
-
----
-
-## 八、安全配置
-
-### 8.1 敏感信息处理
-
-- SecretKey 数据库加密存储
-- API返回时脱敏处理
-- 临时凭证有效期限制（建议5分钟）
-
-### 8.2 上传限制
-
-```go
-// 文件类型白名单
-var AllowedMimeTypes = []string{
-    "image/jpeg",
-    "image/png",
-    "image/gif",
-    "application/pdf",
-}
-
-// 文件大小限制（10MB）
-const MaxFileSize = 10 * 1024 * 1024
-```
-
----
-
-## 九、最佳实践
-
-1. **CDN加速**：生产环境配置CDN域名作为BaseURL
-2. **文件命名**：使用UUID避免文件名冲突
-3. **目录组织**：按日期组织上传文件，便于管理
-4. **定期清理**：结合任务系统清理无效上传记录
-5. **监控告警**：监控存储桶容量和流量
-
----
-
-## 十、相关文档
-
-- [Server架构设计](./server-architecture.md)
+- [Server 架构设计](./server-architecture.md)
 - [任务系统详解](./server-module-task.md)
+- minio-go 官方文档：https://github.com/minio/minio-go

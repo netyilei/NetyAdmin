@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	systemDto "NetyAdmin/internal/interface/admin/dto/system"
+	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/errorx"
 	msgPkg "NetyAdmin/internal/pkg/message"
 	"NetyAdmin/internal/pkg/response"
@@ -38,7 +39,7 @@ func (h *ConfigHandler) ListByGroup(c *gin.Context) {
 	}
 
 	if req.GroupName == "" {
-		req.GroupName = "cache_switches"
+		req.GroupName = configsync.GroupCacheSwitches
 	}
 
 	configs, err := h.configSvc.ListByGroup(c.Request.Context(), req.GroupName)

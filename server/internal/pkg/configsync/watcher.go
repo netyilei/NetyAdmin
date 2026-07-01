@@ -2,11 +2,19 @@ package configsync
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"strings"
 	"sync"
 
 	systemRepo "NetyAdmin/internal/repository/system"
+)
+
+// 配置组与键名常量（消除魔法字符串，集中管理）。
+// configsync 是底层包，不能反向依赖 cache 包，因此与缓存开关相关的
+// 组名常量定义在此处，供 cache 包与 handler 层统一引用。
+const (
+	// GroupCacheSwitches 缓存开关配置组名。
+	GroupCacheSwitches = "cache_switches"
 )
 
 type ConfigWatcher interface {
@@ -30,7 +38,7 @@ func NewConfigWatcher(repo systemRepo.ConfigRepository) ConfigWatcher {
 	}
 
 	if err := w.ForceReload(context.Background()); err != nil {
-		log.Printf("[ConfigWatcher] 首次加载全局配置失败: %v", err)
+		slog.Error("首次加载全局配置失败", "error", err)
 	}
 	return w
 }
@@ -54,7 +62,7 @@ func (w *configWatcher) ForceReload(ctx context.Context) error {
 	w.memory = newMem
 	w.Unlock()
 
-	log.Printf("[Config Watcher] 成功从 DB 同步 %d 条配置记录", len(configs))
+	slog.Info("成功从 DB 同步配置记录", "count", len(configs))
 	return nil
 }
 
@@ -83,7 +91,7 @@ func (w *configWatcher) GetGroupConfigs(groupName string) map[string]string {
 
 // IsCacheEnabled 实现 SwitchChecker 接口
 func (w *configWatcher) IsCacheEnabled(moduleName string) bool {
-	val, exists := w.GetConfig("cache_switches", moduleName)
+	val, exists := w.GetConfig(GroupCacheSwitches, moduleName)
 	if !exists {
 		// 默认保险策略：查不到配置默认允许缓存（以保持旧逻辑兼容性）
 		return true

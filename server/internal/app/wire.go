@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"time"
 
@@ -39,6 +39,7 @@ import (
 	msgPkg "NetyAdmin/internal/pkg/message"
 	"NetyAdmin/internal/pkg/pubsub"
 	pkgredis "NetyAdmin/internal/pkg/redis"
+	ratelimitPkg "NetyAdmin/internal/pkg/ratelimit"
 	storagePkg "NetyAdmin/internal/pkg/storage"
 	"NetyAdmin/internal/pkg/task"
 	"NetyAdmin/internal/pkg/utils"
@@ -73,43 +74,41 @@ import (
 )
 
 func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
-	// 0. DB Migration (Separate startup step, independent of Task Manager)
+	// 0. DB Migration（基于 golang-migrate，SQL 文件 embed 进二进制）
+	//    使用独立连接执行迁移，避免与 GORM 连接池的 advisory lock 冲突。
 	if cfg.Migration.Enabled {
-		migrator := migration.NewMigrator(db, cfg.Migration.Dir)
-		if err := migrator.Run(); err != nil {
-			return nil, fmt.Errorf("数据库同步迁移失败: %w", err)
+		if err := migration.Run(cfg.Database.DSN()); err != nil {
+			return nil, fmt.Errorf("数据库迁移失败: %w", err)
 		}
 	}
 
-	// 1. DB Health Checker
-	dbHealthChecker := database.NewHealthChecker(db,
-		database.WithCheckInterval(30*time.Second),
-		database.WithRetryInterval(5*time.Second),
-		database.WithMaxRetries(5),
-		database.WithOnReconnect(func() {
-			log.Println("[数据库] 连接已恢复")
-		}),
-		database.WithOnDisconnect(func(err error) {
-			log.Printf("[数据库] 连接断开: %v", err)
-		}),
-	)
-
-	// 1. Redis & Cache
+	// 1. Redis & Cache（先于健康检查器：后者需复用 Redis 连接做探活）
 	redisClient, err := pkgredis.NewClient(&cfg.Redis)
 	if err != nil {
 		return nil, err
 	}
 
-	// 2. JWT
+	// 2. DB & Redis Health Checker（基于 hellofresh/health-go v5）
+	//    复用已建立的 DB / Redis 连接池，仅在 Redis 启用时注册其探活检查。
+	var redisHealthOpt database.HealthCheckerOption
+	if redisClient != nil {
+		redisHealthOpt = database.WithRedis(redisClient)
+	}
+	dbHealthChecker, err := database.NewHealthChecker(db, redisHealthOpt)
+	if err != nil {
+		return nil, fmt.Errorf("健康检查器初始化失败: %w", err)
+	}
+
+	// 3. JWT
 	jwtInstance, err := jwt.New(cfg.JWT.Secret, cfg.JWT.Expiration)
 	if err != nil {
 		return nil, fmt.Errorf("JWT 初始化失败: %w", err)
 	}
 
-	// 3. Repositories
+	// 4. Repositories
 	repos := initRepositories(db)
 
-	// 4. PubSubBus
+	// 5. PubSubBus
 	nodeID := generateNodeID()
 	var eventBus pubsub.EventBus
 	busDriver := "memory" // 默认值，根据下方分支更新
@@ -135,7 +134,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 
 	// 多机部署校验：multi_node=true 但 bus 为 memory 模式时告警（缓存/IPAC/配置失效不会跨节点同步）
 	if cfg.Server.MultiNode && busDriver == "memory" {
-		log.Printf("[WARN] 检测到多节点部署(multi_node=true)但事件总线为 memory 模式，" +
+		slog.Warn("检测到多节点部署(multi_node=true)但事件总线为 memory 模式，" +
 			"缓存/IPAC/配置失效不会跨节点同步。请设置 [bus] driver = \"redis\"")
 	}
 
@@ -254,7 +253,15 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	engine.Use(middleware.SecurityHeaders())
 	engine.Use(middleware.Recovery(services.errorLog))
 	engine.Use(middleware.ErrorLogger(services.errorLog))
-	engine.Use(middleware.Timeout(120 * time.Second))
+	// 中间件超时与 HTTP server 保持一致（取 read_timeout 和 write_timeout 的较大值）
+	middlewareTimeout := time.Duration(cfg.Server.ReadTimeout) * time.Second
+	if wt := time.Duration(cfg.Server.WriteTimeout) * time.Second; wt > middlewareTimeout {
+		middlewareTimeout = wt
+	}
+	if middlewareTimeout <= 0 {
+		middlewareTimeout = 120 * time.Second
+	}
+	engine.Use(middleware.Timeout(middlewareTimeout))
 	engine.Use(middleware.Logger())
 	engine.Use(middleware.OperationLogger(services.logBus))
 
@@ -263,6 +270,10 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	router.Register(engine)
 	cRouter.Register(engine)
 	gin.DefaultWriter = os.Stdout
+
+	// /health 标准健康检查端点（供 K8s liveness/readiness 探针或负载均衡探测）
+	// 不走鉴权与限流，直接返回 DB/Redis 探活结果。
+	engine.GET("/health", dbHealthChecker.Handler())
 
 	return NewApp(cfg, db, engine, dbHealthChecker, taskManager, services.logBus, eventBus), nil
 }
@@ -363,7 +374,9 @@ type serviceSet struct {
 }
 
 func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache.LazyCacheManager, taskManager *task.Manager, configWatcher configsync.ConfigWatcher, cfg *config.Config, captchaStore base64Captcha.Store, eventBus pubsub.EventBus) *serviceSet {
-	storageMgr := storagePkg.NewManager(storagePkg.NewS3DriverFactory())
+	storageMgr := storagePkg.NewManager(storagePkg.NewMinioDriverFactory())
+	// 限流器：复用缓存层的 Redis 连接，Redis 不可用时自动降级为进程内内存限流
+	rateLimiter := ratelimitPkg.New(lazyCacheMgr.GetRedisClient(), cfg.Redis.Prefix)
 
 	s := &serviceSet{}
 	tokenStore := userServicePkg.NewTokenStoreFromConfig(configWatcher, repos.user, lazyCacheMgr)
@@ -378,7 +391,7 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	s.sysConfig = systemService.NewConfigService(repos.systemConfig, configWatcher, eventBus)
 	s.dict = dictServicePkg.NewDictService(repos.dict, lazyCacheMgr)
 	s.ipac = ipacServicePkg.NewIPACService(repos.ipac, eventBus)
-	s.app = openServicePkg.NewAppService(repos.app, lazyCacheMgr, cfg.Security.AESKey, s.ipac, repos.ipac, storageMgr, configWatcher)
+	s.app = openServicePkg.NewAppService(repos.app, lazyCacheMgr, cfg.Security.AESKey, s.ipac, repos.ipac, storageMgr, configWatcher, rateLimiter)
 	s.openApi = openServicePkg.NewOpenApiService(repos.openApi, repos.app, lazyCacheMgr)
 	s.openLog = openServicePkg.NewOpenLogService(repos.openLog, func(ctx context.Context, logRecord *openEntity.OpenPlatformLog) error {
 		return s.logBus.Record(ctx, logRecord)
@@ -387,7 +400,6 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	// Message Drivers
 	configProvider := msgPkg.NewWatcherConfigProvider(configWatcher)
 	drivers := make(map[string]msgPkg.Driver)
-	drivers["sms"] = msgPkg.NewMockSmsDriver()
 	drivers["email"] = msgPkg.NewEmailDriver(msgPkg.EmailConfig{
 		Host:           cfg.Email.Host,
 		Port:           cfg.Email.Port,

@@ -6,126 +6,167 @@
 
 ## 一、模块概述
 
-数据迁移模块是 NetyAdmin 的核心基础设施之一，负责在系统启动阶段自动执行数据库初始化与结构更新。它确保了不同环境（开发、测试、生产）下的数据库一致性。
+数据迁移模块是 NetyAdmin 的核心基础设施之一，负责在系统启动阶段自动执行数据库初始化与结构更新，确保不同环境（开发、测试、生产）下的数据库一致性。
 
 ### 1.1 核心特性
 
-- **启动即同步**：在后端服务 Bootstrap 阶段自动触发，无需手动维护 SQL 脚本执行顺序。
-- **目录化管理**：通过物理文件夹区分脚本类型，结构清晰。
-- **阶段化执行**：严格按照 `结构 -> 约束 -> 数据 -> 其他` 的顺序执行，完美解决外键依赖问题。
-- **幂等性保证**：采用“全量扫描+幂等执行”策略，支持脚本重复执行而不报错。
-- **智能识别**：支持通过文件夹名称或文件前缀两种方式自动识别脚本类型。
+- **基于 golang-migrate v4.18.2**：采用社区主流迁移框架，自带版本追踪、脏锁检测、增量迁移能力。
+- **编译期嵌入**：迁移 SQL 通过 `go:embed` 编译进二进制，部署时无需携带外部迁移文件。
+- **扁平化版本管理**：采用 golang-migrate 标准的 `NNNN_name.up.sql` / `NNNN_name.down.sql` 格式，全局唯一递增版本号。
+- **历史压扁**：将历史增量变更（ALTER、补充数据）合并为"建表即最终形态、种子即最终数据"，避免冗余的回放历史。
+- **幂等安全**：全量脚本保留 `IF NOT EXISTS` / `ON CONFLICT DO NOTHING`，重复执行不报错。
 
 ---
 
 ## 二、目录结构
 
-迁移脚本存放在 [server/migrations/](file:///d:/NetyAdmin/server/migrations) 目录下，按以下子目录组织，并使用 **3 位数字前缀** 严格控制执行顺序：
+迁移脚本存放在 [server/internal/pkg/migration/migrations/](file:///d:/NetyAdmin/server/internal/pkg/migration/migrations) 目录下（与迁移器代码同包，便于 `go:embed`），采用扁平化的 4 位全局序号：
 
 ```text
-server/migrations/
-├── table/                  # 1. 表结构定义阶段 (001-999)
-│   ├── 001_sys_dict_type.sql
-│   ├── 011_admin_user.sql
-│   └── 031_users.sql
-├── constraint/             # 2. 约束与关联阶段 (001-999)
-│   ├── 001_storage.sql
-│   └── 002_open_platform.sql
-├── data/                   # 3. 基础数据填充阶段 (001-999)
-│   ├── 001_sys_dict_type.sql
-│   ├── 021_admin_menu.sql
-│   └── 901_admin_auth.sql
-└── (root)                  # 4. 其他/兜底阶段
-    └── custom_patch.sql
+server/internal/pkg/migration/
+├── migration.go                 # 迁移器代码（基于 golang-migrate）
+└── migrations/                  # 迁移 SQL 文件（go:embed 编译进二进制）
+    ├── 0001_sys_dict_type.up.sql
+    ├── 0001_sys_dict_type.down.sql
+    ├── 0002_sys_dict_data.up.sql
+    ├── 0002_sys_dict_data.down.sql
+    ├── ...
+    ├── 0036_upload_record.up.sql       # 含历史 ALTER 合并后的最终表结构
+    ├── 0037_fk_storage.up.sql          # 外键约束阶段
+    ├── ...
+    ├── 0040_seed_sys_dict_type.up.sql   # 种子数据阶段（无 down 文件）
+    ├── ...
+    └── 0057_seed_admin_auth.up.sql      # 必须最后执行（依赖前置 menu/api/button）
+
+server/scripts/
+└── sequence_sync.sql            # 运维工具：dump 导入后修复主键序列（不计入迁移版本）
 ```
+
+### 文件编号规则
+
+| 序号范围 | 阶段 | 说明 |
+|---------|------|------|
+| 0001-0036 | 表结构 | `CREATE TABLE`，每个表一个文件 |
+| 0037-0039 | 外键约束 | `ALTER TABLE ADD CONSTRAINT`，跨表依赖独立成文件 |
+| 0040-0057 | 种子数据 | `INSERT`，无 down 文件（清库重建即恢复） |
+
+> **关键约束**：`0057_seed_admin_auth` 必须排在所有种子数据最后，因为它依赖前置的 menu/api/button 全部就绪后做超级管理员的全量授权。
 
 ---
 
 ## 三、执行顺序逻辑
 
-迁移引擎 [migrator.go](file:///d:/NetyAdmin/server/internal/pkg/migration/migrator.go) 会递归扫描目录并按以下顺序排序执行：
+迁移器 [migration.go](file:///d:/NetyAdmin/server/internal/pkg/migration/migration.go) 的工作原理：
 
-1.  **Table 阶段**：执行 `table/` 目录或以 `table_` 开头的文件。
-2.  **Constraint 阶段**：执行 `constraint/` 目录或以 `constraint_` / `fk_` 开头的文件。
-3.  **Data 阶段**：执行 `data/` 目录或以 `data_` 开头的文件。
-4.  **Other 阶段**：执行补丁、兼容性补丁和其他所有 `.sql` 文件。
+1. **嵌入加载**：`go:embed migrations/*.sql` 将所有 SQL 编译进二进制。
+2. **iofs source**：用 `iofs.New(embedFS, "migrations")` 创建内存文件源。
+3. **版本追踪**：golang-migrate 在数据库中创建 `schema_migrations` 表，记录当前版本号。
+4. **增量迁移**：`m.Up()` 自动比对数据库当前版本与文件最新版本，仅执行缺失的迁移。
+5. **字典序执行**：文件按文件名字典序执行，4 位数字零填充确保数值序 = 字典序。
 
-> **核心规则**：在同一阶段内部，文件按**文件名的数字前缀**顺序执行。因此所有脚本必须以 `NNN_` 格式开头。
+### ErrNoChange 处理
+
+当数据库已是最新版本时，`m.Up()` 返回 `migrate.ErrNoChange`，迁移器将其视为成功（无变更需要执行）。
 
 ---
 
 ## 四、脚本编写规范
 
-为了确保迁移模块正常工作，开发者必须遵循以下规范：
-
 ### 4.1 命名规范
 
-所有脚本文件必须遵循以下命名格式：
-`数字前缀_描述.sql`
+新增迁移文件必须遵循 golang-migrate 标准：
 
-- **数字前缀**：3 位数字（如 `001`, `010`, `100`），决定了同一目录下的执行先后。
-- **描述**：简短的英文描述（如 `sys_user`, `add_column_age`）。
+```
+NNNN_descriptive_name.up.sql    # 正向迁移
+NNNN_descriptive_name.down.sql  # 回滚迁移（表/约束必须提供，种子数据可不提供）
+```
 
-**推荐的数字分配**：
-- `001-099`: 核心基础模块
-- `100-499`: 业务模块
-- `900-999`: 权限分配、数据同步、清理脚本
+- **NNNN**：4 位全局唯一递增数字，紧接当前最大序号（当前最大为 0057，下一个用 0001 不对，用 0058）。
+- **descriptive_name**：简短英文描述，蛇形命名。
 
-脚本必须支持多次执行。
-- **创建表**：使用 `CREATE TABLE IF NOT EXISTS`。
-- **插入数据**：使用 `INSERT INTO ... ON CONFLICT DO NOTHING` 或 `ON CONFLICT (...) DO UPDATE`。
-- **修改字段**：使用 `DO` 块检查列是否存在。
+推荐用 golang-migrate CLI 生成（自动分配序号）：
 
-### 4.2 约束分离
+```bash
+migrate create -ext sql -dir internal/pkg/migration/migrations -seq add_user_avatar_column
+```
 
-**严禁**在 `table/` 脚本中使用内联外键（Inline Foreign Keys）。所有的外键关联必须写在 `constraint/` 目录下，使用 `ALTER TABLE` 语句添加。这样可以避免“循环依赖”导致的表创建失败。
+### 4.2 事务管理
 
-### 4.3 示例：添加外键
+**不要**在 SQL 文件内写 `BEGIN;` / `COMMIT;`。golang-migrate 默认每个文件作为一个事务执行，内部事务包裹会导致嵌套事务警告。
+
+`DO $$ ... $$` 的 PL/pgSQL 块内部的 `BEGIN/END` 是语法必需，保留不动。
+
+### 4.3 up 文件规范
 
 ```sql
--- server/migrations/constraint/example.sql
-BEGIN;
-DO $$ 
-BEGIN 
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.table_constraints 
-        WHERE constraint_name = 'fk_user_profile_user'
-    ) THEN
-        ALTER TABLE user_profiles 
-        ADD CONSTRAINT fk_user_profile_user 
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-    END IF;
-END $$;
-COMMIT;
+-- 0058_add_user_avatar.up.sql
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar VARCHAR(500);
+CREATE INDEX IF NOT EXISTS idx_users_avatar ON users(avatar) WHERE avatar IS NOT NULL;
 ```
+
+### 4.4 down 文件规范
+
+down 文件用于回滚，必须可安全执行：
+
+```sql
+-- 0058_add_user_avatar.down.sql
+ALTER TABLE users DROP COLUMN IF EXISTS avatar;
+```
+
+> **生产环境警告**：down 文件会删除数据/结构，生产环境慎用。主要用于开发环境重置。
+
+### 4.5 种子数据规范
+
+种子数据文件（0040-0057）**不需要 down 文件**。原因：清空数据库后 `m.Up()` 会重新建表并插入种子数据，无需回滚。如需修改种子数据，直接修改对应的 up 文件（用 `ON CONFLICT DO UPDATE` 保证幂等）。
 
 ---
 
 ## 五、系统集成
 
-### 5.1 初始化执行
+### 5.1 配置
 
-在 [wire.go](file:///d:/NetyAdmin/server/internal/app/wire.go) 的 `Bootstrap` 函数中，系统会自动调用迁移引擎：
+```toml
+# config.toml
+[migration]
+enabled = true
+# 迁移文件已通过 go:embed 编译进二进制，无需配置 dir。
+```
+
+### 5.2 启动执行
+
+在 [wire.go](file:///d:/NetyAdmin/server/internal/app/wire.go) 的 `Bootstrap` 函数中：
 
 ```go
-// Run 执行迁移
-if err := migrator.Run(); err != nil {
-    return fmt.Errorf("database migration failed: %w", err)
+if cfg.Migration.Enabled {
+    if err := migration.Run(cfg.Database.DSN()); err != nil {
+        return nil, fmt.Errorf("数据库迁移失败: %w", err)
+    }
 }
 ```
 
-### 5.2 事务保证
-
-迁移引擎会将所有待执行的 SQL 文件包裹在一个大的数据库事务中。如果其中任何一个脚本执行失败，整个迁移过程将回滚，确保数据库状态的一致性。
+迁移器使用**独立的数据库连接**（不复用 GORM 连接池），以避免 golang-migrate 的 advisory lock 与业务查询相互阻塞。
 
 ---
 
-## 六、最佳实践
+## 六、生产库基线建立（重要）
 
-1.  **一表一文件**：为每个表创建独立的 `table/xxx.sql`，便于管理和追踪变更。
-2.  **数据与结构分离**：不要在建表脚本里写 `INSERT` 语句。
-3.  **事务控制**：建议在 SQL 脚本内部也使用 `BEGIN;` 和 `COMMIT;` 包裹（虽然引擎已有外层事务）。
-4.  **日志观察**：服务启动时，通过控制台日志确认每个迁移脚本的执行状态。
+### 全新部署（空数据库）
+
+直接启动服务，`m.Up()` 从版本 0001 顺序执行全部 57 个迁移，自动建表 + 种子数据。
+
+### 已有数据库升级到 golang-migrate
+
+现有生产库已有全部表和数据，但无 `schema_migrations` 表。**必须在部署新版二进制前**，在生产库手动建立版本基线：
+
+```sql
+-- 告诉 golang-migrate 当前库已是版本 57 的状态
+CREATE TABLE IF NOT EXISTS schema_migrations (version bigint PRIMARY KEY, dirty boolean NOT NULL DEFAULT false);
+INSERT INTO schema_migrations (version, dirty) VALUES (57, false);
+```
+
+建立基线后，新版二进制启动时 `m.Up()` 检测到已是最新版本，跳过所有迁移，**零数据变更**。
+
+> **不丢数据保证**：up 文件全部用 `IF NOT EXISTS` / `ON CONFLICT DO NOTHING`；基线 force 到 57 后 Up 不会执行任何 DDL。
 
 ---
 
@@ -133,3 +174,4 @@ if err := migrator.Run(); err != nil {
 
 - [Server 架构设计](./server-architecture.md)
 - [API 管理指南](./api-management.md)
+- golang-migrate 官方文档：https://github.com/golang-migrate/migrate

@@ -14,7 +14,6 @@ const (
 	TTL_RBAC = 3 * time.Hour
 
 	// Tags
-	TagSystemConfig = "sys:config"
 	TagRBACMenu     = "rbac:menu"
 	TagRBACRole     = "rbac:role"
 	TagRBACAPI      = "rbac:api"
@@ -31,8 +30,6 @@ const (
 	TagContentBanner = "content:banner"
 	// TagMsgTemplate 消息模板缓存标签
 	TagMsgTemplate = "msg:template"
-	// TagIPAC IPAC 缓存标签
-	TagIPAC    = "ipac"
 	TagApp     = "open:app"
 	TagOpenApi = "open:api"
 
@@ -43,13 +40,6 @@ const (
 	ConfigKeyBannerCacheTTL   = "banner_cache_ttl"
 	ConfigKeyCategoryCacheTTL = "category_cache_ttl"
 	ConfigKeyArticleCacheTTL  = "article_cache_ttl"
-
-	// SysConfig Group: 缓存开关
-	ConfigGroupCacheSwitches = "cache_switches"
-
-	// SysConfig Keys: 内容缓存开关
-	ConfigKeyContentArticleCache = "content_article_cache"
-	ConfigKeyContentBannerCache  = "content_banner_cache"
 )
 
 // 定义系统统一的缓存 Key 生成函数
@@ -108,36 +98,11 @@ func KeyAdminInfo(adminID uint) string {
 	return fmt.Sprintf("admin:%d:info", adminID)
 }
 
-// KeySystemConfigs 按组获取配置
-func KeySystemConfigs(group string) string {
-	return fmt.Sprintf("sys:config:group:%s", group)
-}
-
-// KeySystemConfig 系统配置缓存 Key
-func KeySystemConfig() string {
-	return "cache:sys:config"
-}
-
 // KeyVerificationCode 验证码缓存 Key
 // type: register, reset_password, etc.
 // target: phone or email
 func KeyVerificationCode(scene, target string) string {
 	return fmt.Sprintf("auth:verify:%s:%s", scene, target)
-}
-
-// KeyRBACMenu 路由菜单树缓存 Key
-func KeyRBACMenu(roleID uint) string {
-	return fmt.Sprintf("cache:rbac:menu:%d", roleID)
-}
-
-// KeyRBACAPI API 权限白名单缓存 Key
-func KeyRBACAPI(roleID uint) string {
-	return fmt.Sprintf("cache:rbac:api:%d", roleID)
-}
-
-// KeyRBACRole 角色信息缓存 Key
-func KeyRBACRole(roleID uint) string {
-	return fmt.Sprintf("cache:rbac:role:%d", roleID)
 }
 
 // KeyAuthBlacklistRefreshToken RefreshToken 黑名单 Key
@@ -214,11 +179,6 @@ func KeyTaskLock(prefix, taskName string) string {
 // KeyMsgTemplate 消息模板缓存 Key
 func KeyMsgTemplate(code string) string {
 	return fmt.Sprintf("msg:template:%s", code)
-}
-
-// KeyAppRateLimit 开放平台限流 Key
-func KeyAppRateLimit(appKey string) string {
-	return fmt.Sprintf("open:ratelimit:%s", appKey)
 }
 
 // KeyAppNonce 开放平台 Nonce 防重放 Key

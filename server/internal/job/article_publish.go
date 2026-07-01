@@ -3,7 +3,7 @@ package job
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"time"
 
 	"NetyAdmin/internal/pkg/task"
@@ -36,7 +36,7 @@ func (j *ArticlePublishJob) Run(ctx context.Context) error {
 	}
 
 	if count > 0 {
-		log.Printf("[任务:文章发布] 成功发布 %d 篇文章", count)
+		slog.Info("文章发布任务完成", "count", count)
 	}
 
 	return nil

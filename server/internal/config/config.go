@@ -61,9 +61,10 @@ type JobConfig struct {
 	Weight  *int    `toml:"weight"`  // 权重覆盖 (0-100)
 }
 
+// MigrationConfig 数据库迁移配置。
+// Dir 字段已移除：迁移文件以 go:embed 编译进二进制，不再从外部目录读取。
 type MigrationConfig struct {
-	Enabled bool   `toml:"enabled"`
-	Dir     string `toml:"dir"`
+	Enabled bool `toml:"enabled"`
 }
 
 type ServerConfig struct {
@@ -83,6 +84,13 @@ type DatabaseConfig struct {
 	SSLMode  string `toml:"sslmode"`
 	MaxIdle  int    `toml:"max_idle"`
 	MaxOpen  int    `toml:"max_open"`
+}
+
+// DSN 返回 PostgreSQL 的 keyword=value 格式 DSN（lib/pq / pgx / golang-migrate 通用）。
+// 抽到此处统一管理，避免在多个调用点重复拼接 DSN 造成不一致。
+func (c DatabaseConfig) DSN() string {
+	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		c.Host, c.Port, c.User, c.Password, c.DBName, c.SSLMode)
 }
 
 type RedisConfig struct {

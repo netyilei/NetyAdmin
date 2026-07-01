@@ -1,0 +1,95 @@
+INSERT INTO sys_configs (group_name, config_key, config_value, value_type, description, is_system, created_by, updated_by)
+VALUES
+('email_config', 'enabled', 'false', 'boolean', '邮件服务开关', FALSE, 1, 1),
+('email_config', 'host', '', 'string', 'SMTP 服务器地址', FALSE, 1, 1),
+('email_config', 'port', '465', 'number', 'SMTP 服务器端口', FALSE, 1, 1),
+('email_config', 'user', '', 'string', '发件人账号', FALSE, 1, 1),
+('email_config', 'password', '', 'string', '发件人密码/授权码', FALSE, 1, 1),
+('email_config', 'from', '', 'string', '发件人地址', FALSE, 1, 1),
+('sms_config', 'enabled', 'false', 'boolean', '短信服务开关', FALSE, 1, 1),
+('sms_config', 'driver', 'tencent', 'string', '短信驱动 (tencent)', FALSE, 1, 1),
+('sms_config', 'secret_id', '', 'string', 'SecretId', FALSE, 1, 1),
+('sms_config', 'secret_key', '', 'string', 'SecretKey', FALSE, 1, 1),
+('sms_config', 'app_id', '', 'string', 'AppId', FALSE, 1, 1),
+('sms_config', 'sign_name', '', 'string', '短信签名', FALSE, 1, 1),
+('msg_record_config', 'retention_days', '30', 'number', '发送记录保留天数', FALSE, 1, 1),
+('captcha_config', 'admin_login_enabled', 'false', 'string', '管理员登录是否开启验证码', TRUE, 1, 1),
+('captcha_config', 'user_register_enabled', 'false', 'string', '用户注册是否开启验证码', TRUE, 1, 1),
+('captcha_config', 'user_login_enabled', 'false', 'string', '用户登录是否开启验证码', TRUE, 1, 1),
+('captcha_config', 'captcha_length', '4', 'string', '验证码字符长度', TRUE, 1, 1),
+('captcha_config', 'captcha_width', '240', 'string', '验证码图片宽度(px)', TRUE, 1, 1),
+('captcha_config', 'captcha_height', '80', 'string', '验证码图片高度(px)', TRUE, 1, 1),
+('captcha_config', 'captcha_type', 'digit', 'string', '验证码类型 (digit/string/math)', TRUE, 1, 1),
+('captcha_config', 'captcha_expire', '600', 'string', '验证码过期时间(秒)', TRUE, 1, 1),
+('captcha_config', 'user_reset_pwd_captcha_enabled', 'true', 'boolean', '用户重置密码是否启用验证码', FALSE, 1, 1),
+('cache_switches', 'captcha', 'true', 'string', '验证码缓存开关 (true:走缓存模块, false:走数据库)', TRUE, 1, 1),
+('cache_switches', 'rbac_auth', 'true', 'boolean', '权限认证缓存开关', TRUE, 1, 1),
+('cache_switches', 'sys_config', 'true', 'boolean', '系统配置缓存开关', TRUE, 1, 1),
+('cache_switches', 'rbac_menu', 'true', 'boolean', '菜单权限缓存开关', TRUE, 1, 1),
+('cache_switches', 'admin', 'true', 'boolean', '管理员数据缓存开关', TRUE, 1, 1),
+('cache_switches', 'dict', 'true', 'boolean', '字典数据缓存开关', TRUE, 1, 1),
+('cache_switches', 'storage', 'true', 'boolean', '存储配置缓存开关', TRUE, 1, 1),
+('cache_switches', 'err_log_cache', 'true', 'boolean', '错误日志缓存开关', TRUE, 1, 1),
+('cache_switches', 'content_category_cache', 'true', 'boolean', '内容分类树缓存开关', TRUE, 1, 1),
+('task_config', 'log_enabled', 'true', 'boolean', '日志记录开关', TRUE, 1, 1),
+('task_config', 'retention_days', '30', 'number', '日志保留天数', TRUE, 1, 1),
+('task_config', 'task:article_publish:enabled', 'true', 'boolean', '文章自动发布任务开关', TRUE, 1, 1),
+('ops_config', 'retention_days', '30', 'number', '操作日志保留天数', TRUE, 1, 1),
+('error_config', 'retention_days', '30', 'number', '错误日志保留天数', TRUE, 1, 1),
+('user_config', 'storage_module', '', 'string', '用户文件存储驱动 (留空使用默认)', FALSE, 1, 1),
+('user_config', 'login_storage', 'db', 'string', '用户登录态存储介质 (cache/db)，cache=缓存模块(支持Redis)，db=仅数据库', FALSE, 1, 1),
+('user_config', 'token_expire', '86400', 'number', '用户 Token 过期时间 (秒)', FALSE, 1, 1),
+('user_config', 'login_max_retry', '5', 'number', '用户登录最大重试次数', FALSE, 1, 1),
+('user_config', 'login_lock_duration', '3600', 'number', '用户登录锁定时间 (秒)', FALSE, 1, 1),
+('user_config', 'password_min_length', '6', 'number', '用户密码最小长度', FALSE, 1, 1),
+('user_config', 'password_require_types', '2', 'number', '用户密码复杂度要求类型数 (1-4)', FALSE, 1, 1),
+('user_config', 'user_register_verify', 'false', 'boolean', '用户注册是否需要验证', FALSE, 1, 1),
+('user_config', 'user_register_verify_type', 'email', 'string', '用户注册验证方式 (email/sms)', FALSE, 1, 1),
+('user_config', 'user_login_verify', 'false', 'boolean', '用户登录是否需要消息验证', FALSE, 1, 1),
+('user_config', 'user_login_verify_type', 'email', 'string', '用户登录验证方式 (email/sms)', FALSE, 1, 1),
+('user_config', 'user_reset_pwd_verify', 'true', 'boolean', '用户找回密码是否需要验证', FALSE, 1, 1),
+('user_config', 'user_reset_pwd_verify_type', 'email', 'string', '用户找回密码验证方式 (email/sms)', FALSE, 1, 1),
+('open_platform_config', 'log_retention_days', '30', 'number', '开放平台日志保留天数', FALSE, 1, 1),
+('open_platform_config', 'default_rate', '100', 'number', '应用默认限流：每秒请求数', FALSE, 1, 1),
+('open_platform_config', 'default_capacity', '200', 'number', '应用默认限流：突发上限', FALSE, 1, 1),
+('email_config', 'ssl_enabled', 'true', 'boolean', '是否启用 SSL/TLS 加密连接', FALSE, 1, 1),
+('email_config', 'auth_type', 'plain', 'string', 'SMTP 认证方式 (plain/login/crammd5/auto)', FALSE, 1, 1),
+('email_config', 'starttls_enabled', 'false', 'boolean', '是否启用 STARTTLS 加密连接 (适用于端口587)', FALSE, 1, 1),
+('email_config', 'connect_timeout', '30', 'number', 'SMTP 连接超时时间(秒)', FALSE, 1, 1),
+('email_config', 'send_timeout', '30', 'number', 'SMTP 发送超时时间(秒)', FALSE, 1, 1),
+('logbus_config', 'global_max_entries', '2000', 'number', '全局缓冲上限（条）', TRUE, 1, 1),
+('logbus_config', 'global_max_bytes_mb', '10', 'number', '全局内存上限（MB）', TRUE, 1, 1),
+('logbus_config', 'default_batch_size', '200', 'number', '默认批量大小（条）', TRUE, 1, 1),
+('logbus_config', 'default_time_threshold', '5', 'number', '默认时间阈值（秒）', TRUE, 1, 1),
+('logbus_config', 'operation_batch_size', '200', 'number', '操作日志批量大小（条）', TRUE, 1, 1),
+('logbus_config', 'operation_time_threshold', '5', 'number', '操作日志时间阈值（秒）', TRUE, 1, 1),
+('logbus_config', 'error_batch_size', '100', 'number', '错误日志批量大小（条）', TRUE, 1, 1),
+('logbus_config', 'error_time_threshold', '1', 'number', '错误日志时间阈值（秒）', TRUE, 1, 1),
+('logbus_config', 'open_batch_size', '500', 'number', '开放平台日志批量大小（条）', TRUE, 1, 1),
+('logbus_config', 'open_time_threshold', '5', 'number', '开放平台日志时间阈值（秒）', TRUE, 1, 1),
+('logbus_config', 'task_batch_size', '200', 'number', '任务日志批量大小（条）', TRUE, 1, 1),
+('logbus_config', 'task_time_threshold', '5', 'number', '任务日志时间阈值（秒）', TRUE, 1, 1),
+('logbus_config', 'force_sync', 'false', 'boolean', '强制同步写入（调试用）', TRUE, 1, 1)
+ON CONFLICT (group_name, config_key) WHERE deleted_at = 0 DO UPDATE SET
+    description = EXCLUDED.description,
+    is_system = EXCLUDED.is_system;
+
+
+
+INSERT INTO sys_configs (group_name, config_key, config_value, value_type, description, is_system, created_by, updated_by)
+VALUES
+('content_cache', 'banner_cache_ttl', '30', 'number', 'Banner组/Banner缓存时间(分钟)', FALSE, 1, 1),
+('content_cache', 'category_cache_ttl', '60', 'number', '文章分类缓存时间(分钟)', FALSE, 1, 1),
+('content_cache', 'article_cache_ttl', '30', 'number', '文章详情缓存时间(分钟)', FALSE, 1, 1)
+ON CONFLICT (group_name, config_key) WHERE deleted_at = 0 DO UPDATE SET
+    description = EXCLUDED.description,
+    is_system = EXCLUDED.is_system;
+
+INSERT INTO sys_configs (group_name, config_key, config_value, value_type, description, is_system, created_by, updated_by)
+VALUES
+('cache_switches', 'content_article_cache', 'true', 'boolean', '内容文章缓存开关', TRUE, 1, 1),
+('cache_switches', 'content_banner_cache', 'true', 'boolean', '内容Banner缓存开关', TRUE, 1, 1)
+ON CONFLICT (group_name, config_key) WHERE deleted_at = 0 DO UPDATE SET
+    description = EXCLUDED.description,
+    is_system = EXCLUDED.is_system;
+

@@ -76,7 +76,7 @@ func NewRouter(
 
 func (r *Router) Register(engine *gin.Engine) {
 	// 注册全局中间件
-	engine.Use(middleware.TraceID())
+	// 注：请求 ID 由 wire.go 中全局注册的 RequestID() 中间件统一注入，此处不再重复注册。
 	engine.Use(middleware.IPACAuth(r.ipacSvc))
 
 	r.registerV1(engine)

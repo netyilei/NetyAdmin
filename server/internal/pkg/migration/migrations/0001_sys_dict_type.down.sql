@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS sys_dict_type CASCADE;

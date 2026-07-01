@@ -15,12 +15,3 @@ func NewULID() string {
 	id := ulid.MustNew(ulid.Timestamp(t), entropy)
 	return id.String()
 }
-
-// ULIDToTime 从 ULID 字符串中提取时间戳
-func ULIDToTime(idStr string) (time.Time, error) {
-	id, err := ulid.Parse(idStr)
-	if err != nil {
-		return time.Time{}, err
-	}
-	return ulid.Time(id.Time()), nil
-}

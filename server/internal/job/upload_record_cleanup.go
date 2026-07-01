@@ -3,7 +3,7 @@ package job
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"time"
 
 	"NetyAdmin/internal/pkg/task"
@@ -32,11 +32,11 @@ func (j *UploadRecordCleanupJob) DisplayName() string {
 func (j *UploadRecordCleanupJob) Run(ctx context.Context) error {
 	affected, err := j.recordRepo.CleanupExpiredPending(ctx, time.Now())
 	if err != nil {
-		log.Printf("[UploadRecordCleanup] 标记过期 pending 记录失败: %v", err)
+		slog.Error("标记过期 pending 记录失败", "error", err)
 		return err
 	}
 	if affected > 0 {
-		log.Printf("[UploadRecordCleanup] 已标记 %d 条过期上传记录为 expired", affected)
+		slog.Info("已标记过期上传记录为 expired", "count", affected)
 	}
 	return nil
 }

@@ -149,7 +149,7 @@ func (s *configService) Create(ctx context.Context, req *storageDto.CreateConfig
 	}
 
 	if req.Endpoint == "" {
-		req.Endpoint = storage.GetProviderEndpoint(storage.Provider(provider), req.Region)
+		return 0, errorx.New(errorx.CodeInvalidParams, "服务端点(endpoint)不能为空")
 	}
 
 	if req.MaxFileSize <= 0 {
@@ -334,7 +334,7 @@ func (s *configService) TestUpload(ctx context.Context, req *storageDto.TestUplo
 	}
 
 	pkgConfig := s.toPkgConfig(config)
-	driver, err := storage.NewS3Driver(pkgConfig)
+	driver, err := storage.NewMinioDriver(pkgConfig)
 	if err != nil {
 		return "", errorx.New(errorx.CodeInternalError, "创建存储驱动失败: "+err.Error())
 	}

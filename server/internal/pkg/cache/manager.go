@@ -15,7 +15,6 @@ import (
 	bigcacheStore "github.com/eko/gocache/store/bigcache/v4"
 	redisStore "github.com/eko/gocache/store/redis/v4"
 	"github.com/redis/go-redis/v9"
-	"golang.org/x/time/rate"
 
 	"NetyAdmin/internal/config"
 	"NetyAdmin/internal/pkg/pubsub"
@@ -72,9 +71,6 @@ type LazyCacheManager interface {
 	// IsCacheEnabled 检查指定模块的缓存开关是否开启
 	IsCacheEnabled(moduleName string) bool
 
-	// RateLimit 限流校验
-	RateLimit(ctx context.Context, key string, rate int, capacity int) (bool, error)
-
 	// GetRedisClient 获取底层 Redis 客户端
 	GetRedisClient() *redis.Client
 }
@@ -93,11 +89,8 @@ type lazyCacheManager struct {
 	eventBus     pubsub.EventBus
 	eventBusMu   sync.RWMutex
 
-	localLimiters     sync.Map
-	limiterLastAccess sync.Map
-	localNX           sync.Map
-	stopChan          chan struct{}
-	l2Cache           *cache.Cache[any]
+	localNX sync.Map
+	l2Cache *cache.Cache[any]
 }
 
 // DefaultSwitchChecker 给一个总是返回 True 的默认校验器，直到我们实现 configsync
@@ -157,74 +150,17 @@ func NewLazyCacheManager(cfg *config.RedisConfig, redisClient *redis.Client, che
 	}
 
 	mgr := &lazyCacheManager{
-		cacheManager:      cacheMgr,
-		l1Cache:           l1Cache,
-		l2Cache:           l2Cache,
-		l1Enabled:         cfg.L1Enabled,
-		switches:          checker,
-		prefix:            cfg.Prefix,
-		redisClient:       redisClient,
-		localLimiters:     sync.Map{},
-		limiterLastAccess: sync.Map{},
-		localNX:           sync.Map{},
-		stopChan:          make(chan struct{}),
+		cacheManager: cacheMgr,
+		l1Cache:      l1Cache,
+		l2Cache:      l2Cache,
+		l1Enabled:    cfg.L1Enabled,
+		switches:     checker,
+		prefix:       cfg.Prefix,
+		redisClient:  redisClient,
+		localNX:      sync.Map{},
 	}
-
-	go mgr.cleanupLimiters()
 
 	return mgr, nil
-}
-
-func (m *lazyCacheManager) RateLimit(ctx context.Context, key string, r int, capacity int) (bool, error) {
-	if r <= 0 || capacity <= 0 {
-		return true, nil
-	}
-
-	// 1. 如果 Redis 开启，使用 Redis 脚本限流 (分布式准确)
-	if m.redisClient != nil {
-		// 这里借用一下我们现有的 Lua 脚本逻辑，但直接写在 manager 里以减少依赖
-		script := `
-local bucket_key = KEYS[1]
-local rate = tonumber(ARGV[1])
-local capacity = tonumber(ARGV[2])
-local now = tonumber(ARGV[3])
-local requested = tonumber(ARGV[4])
-
-local last_tokens = tonumber(redis.call("HGET", bucket_key, "tokens"))
-local last_time = tonumber(redis.call("HGET", bucket_key, "last_time"))
-
-if last_tokens == nil then
-    last_tokens = capacity
-    last_time = now
-end
-
-local delta = math.max(0, now - last_time)
-local generated = delta * rate
-local current_tokens = math.min(capacity, last_tokens + generated)
-
-local allowed = false
-if current_tokens >= requested then
-    current_tokens = current_tokens - requested
-    allowed = true
-end
-
-redis.call("HSET", bucket_key, "tokens", current_tokens, "last_time", now)
-redis.call("EXPIRE", bucket_key, 86400)
-
-return allowed and 1 or 0
-`
-		fullKey := m.buildKey("ratelimit:" + key)
-		res, err := m.redisClient.Eval(ctx, script, []string{fullKey}, r, capacity, time.Now().Unix(), 1).Result()
-		if err != nil {
-			return false, err
-		}
-		return res.(int64) == 1, nil
-	}
-
-	// 2. 如果 Redis 未开启，降级为本地令牌桶限流
-	limiter, _ := m.localLimiters.LoadOrStore(key, rate.NewLimiter(rate.Limit(r), capacity))
-	m.limiterLastAccess.Store(key, time.Now())
-	return limiter.(*rate.Limiter).Allow(), nil
 }
 
 func (m *lazyCacheManager) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
@@ -615,26 +551,4 @@ func (m *lazyCacheManager) assign(src interface{}, dest interface{}) error {
 		return err
 	}
 	return json.Unmarshal(b, dest)
-}
-
-func (m *lazyCacheManager) cleanupLimiters() {
-	ticker := time.NewTicker(10 * time.Minute)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			cutoff := time.Now().Add(-30 * time.Minute)
-			m.localLimiters.Range(func(key, val any) bool {
-				if lastAccess, ok := m.limiterLastAccess.Load(key); ok {
-					if lastAccess.(time.Time).Before(cutoff) {
-						m.localLimiters.Delete(key)
-						m.limiterLastAccess.Delete(key)
-					}
-				}
-				return true
-			})
-		case <-m.stopChan:
-			return
-		}
-	}
 }

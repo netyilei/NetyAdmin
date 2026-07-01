@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"time"
 
 	"gorm.io/driver/postgres"
@@ -12,15 +11,7 @@ import (
 )
 
 func InitDB(cfg *config.Config) (*gorm.DB, error) {
-	dsn := fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		cfg.Database.Host,
-		cfg.Database.Port,
-		cfg.Database.User,
-		cfg.Database.Password,
-		cfg.Database.DBName,
-		cfg.Database.SSLMode,
-	)
+	dsn := cfg.Database.DSN()
 
 	// 设置 GORM 日志级别，生产级别默认只记录错误，开发调试模式记录警告和错误
 	newLogger := logger.Default.LogMode(logger.Error)

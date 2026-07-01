@@ -19,7 +19,7 @@ type ChangePasswordReq struct {
 type UpdateProfileReq struct {
 	Nickname string `json:"nickname"`
 	Phone    string `json:"phone"`
-	Email    string `json:"email"`
+	Email    string `json:"email" binding:"omitempty,email,max=100"`
 	Gender   string `json:"gender" binding:"omitempty,oneof=0 1 2"`
 }
 
@@ -28,7 +28,7 @@ type AdminQuery struct {
 	Username string  `form:"username" json:"username"`
 	Nickname string  `form:"nickname" json:"nickname"`
 	Phone    string  `form:"phone" json:"phone"`
-	Email    string  `form:"email" json:"email"`
+	Email    string  `form:"email" json:"email" binding:"omitempty,email,max=100"`
 	Status   *string `form:"status" json:"status"`
 	Gender   *string `form:"gender" json:"gender" binding:"omitempty,oneof=0 1 2"`
 }
@@ -38,7 +38,7 @@ type CreateAdminReq struct {
 	Password string   `json:"password" binding:"required,min=8,max=32"`
 	Nickname string   `json:"nickname"`
 	Phone    string   `json:"phone"`
-	Email    string   `json:"email"`
+	Email    string   `json:"email" binding:"omitempty,email,max=100"`
 	Gender   string   `json:"gender" binding:"omitempty,oneof=0 1 2"`
 	Status   string   `json:"status" binding:"required,oneof=0 1"`
 	Roles    []string `json:"roles"`
@@ -50,7 +50,7 @@ type UpdateAdminReq struct {
 	Password string   `json:"password" binding:"omitempty,min=8,max=32"`
 	Nickname string   `json:"nickname"`
 	Phone    string   `json:"phone"`
-	Email    string   `json:"email"`
+	Email    string   `json:"email" binding:"omitempty,email,max=100"`
 	Gender   string   `json:"gender" binding:"omitempty,oneof=0 1 2"`
 	Status   string   `json:"status" binding:"required,oneof=0 1"`
 	Roles    []string `json:"roles"`

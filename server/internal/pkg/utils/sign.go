@@ -16,12 +16,6 @@ func HMACSHA256Hex(key, data string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// VerifyHMACSHA256Hex 在恒定时间下校验 HMAC-SHA256(hex) 签名是否匹配。
-func VerifyHMACSHA256Hex(key, data, expectHex string) bool {
-	actual := HMACSHA256Hex(key, data)
-	return hmac.Equal([]byte(actual), []byte(expectHex))
-}
-
 // SignUploadRecord 拼装上传凭证签名原文并计算 HMAC。
 // 字段顺序固定，包含 recordID/objectKey/source/sourceID/expiresAtUnix，
 // 任一字段被篡改都会破坏签名。

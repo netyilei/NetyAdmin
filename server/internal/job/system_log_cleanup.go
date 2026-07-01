@@ -3,7 +3,7 @@ package job
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"strconv"
 	"time"
 
@@ -58,9 +58,9 @@ func (j *SystemLogCleanupJob) Run(ctx context.Context) error {
 		// 注意: 我们之前 TaskLogRepository.DeleteBefore 使用的是 gorm.DeletedAt，
 		// 这里由于我们改成了通用 time.Time 处理，稍后我会去同步修改 repository 的参数类型以保持一致。
 		if err := j.taskLogRepo.DeleteBefore(ctx, before); err != nil {
-			log.Printf("[Cleaner] Clean task logs failed: %v", err)
+			slog.Error("Clean task logs failed", "error", err)
 		} else {
-			log.Printf("[Cleaner] Clean task logs older than %d days success", days)
+			slog.Info("Clean task logs older than days success", "days", days)
 		}
 	}
 
@@ -68,9 +68,9 @@ func (j *SystemLogCleanupJob) Run(ctx context.Context) error {
 	if days, ok := j.getRetentionDays("ops_config", "retention_days"); ok && days > 0 {
 		before := time.Now().AddDate(0, 0, -days)
 		if err := j.opsLogRepo.DeleteBefore(ctx, before); err != nil {
-			log.Printf("[Cleaner] Clean ops logs failed: %v", err)
+			slog.Error("Clean ops logs failed", "error", err)
 		} else {
-			log.Printf("[Cleaner] Clean ops logs older than %d days success", days)
+			slog.Info("Clean ops logs older than days success", "days", days)
 		}
 	}
 
@@ -78,9 +78,9 @@ func (j *SystemLogCleanupJob) Run(ctx context.Context) error {
 	if days, ok := j.getRetentionDays("error_config", "retention_days"); ok && days > 0 {
 		before := time.Now().AddDate(0, 0, -days)
 		if err := j.errLogRepo.DeleteBefore(ctx, before); err != nil {
-			log.Printf("[Cleaner] Clean error logs failed: %v", err)
+			slog.Error("Clean error logs failed", "error", err)
 		} else {
-			log.Printf("[Cleaner] Clean error logs older than %d days success", days)
+			slog.Info("Clean error logs older than days success", "days", days)
 		}
 	}
 
@@ -88,18 +88,18 @@ func (j *SystemLogCleanupJob) Run(ctx context.Context) error {
 	if days, ok := j.getRetentionDays("msg_record_config", "retention_days"); ok && days > 0 {
 		before := time.Now().AddDate(0, 0, -days)
 		if err := j.msgRepo.DeleteRecordsBefore(ctx, before); err != nil {
-			log.Printf("[Cleaner] Clean message records failed: %v", err)
+			slog.Error("Clean message records failed", "error", err)
 		} else {
-			log.Printf("[Cleaner] Clean message records older than %d days success", days)
+			slog.Info("Clean message records older than days success", "days", days)
 		}
 	}
 
 	// 5. Open Platform Logs
 	if days, ok := j.getRetentionDays("open_platform_config", "log_retention_days"); ok && days > 0 {
 		if err := j.openLogRepo.Clear(ctx, days); err != nil {
-			log.Printf("[Cleaner] Clean open platform logs failed: %v", err)
+			slog.Error("Clean open platform logs failed", "error", err)
 		} else {
-			log.Printf("[Cleaner] Clean open platform logs older than %d days success", days)
+			slog.Info("Clean open platform logs older than days success", "days", days)
 		}
 	}
 

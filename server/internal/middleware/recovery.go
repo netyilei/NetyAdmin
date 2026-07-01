@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -117,7 +118,13 @@ func Logger() gin.HandlerFunc {
 
 		if status >= 400 {
 			requestID := c.GetString("requestID")
-			println("[%s] %s %s %d %v requestID=%s", time.Now().Format("2006-01-02 15:04:05"), method, path, status, latency, requestID)
+			slog.Warn("HTTP 4xx/5xx",
+				"method", method,
+				"path", path,
+				"status", status,
+				"latency", latency.String(),
+				"requestID", requestID,
+			)
 		}
 	}
 }

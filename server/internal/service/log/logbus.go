@@ -2,7 +2,7 @@ package log
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -206,7 +206,7 @@ func (b *logBusService) submitP2(entry logEntity.LogEntry) error {
 	added := b.tryAppend(entry)
 	b.mu.Unlock()
 	if !added {
-		log.Printf("[LogBus] P2 日志丢弃: type=%s", entry.GetLogType())
+		slog.Warn("LogBus P2 日志丢弃", "type", entry.GetLogType())
 	}
 	return nil
 }
@@ -303,7 +303,7 @@ func (b *logBusService) flushToWriter(writer LogBatchWriter, entries []logEntity
 		return
 	}
 	if err := writer.WriteBatch(context.Background(), entries); err != nil {
-		log.Printf("[LogBus] flush failed (%d entries): %v", len(entries), err)
+		slog.Error("LogBus flush failed", "count", len(entries), "error", err)
 	}
 }
 

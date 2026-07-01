@@ -12,6 +12,7 @@ import (
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/ratelimit"
 	"NetyAdmin/internal/pkg/storage"
 	"NetyAdmin/internal/pkg/utils"
 	ipacRepoPkg "NetyAdmin/internal/repository/ipac"
@@ -54,9 +55,10 @@ type appService struct {
 	ipacRepo      ipacRepoPkg.IPACRepository
 	storageMgr    *storage.Manager
 	configWatcher configsync.ConfigWatcher
+	rateLimiter   *ratelimit.Limiter
 }
 
-func NewAppService(repo openRepo.AppRepository, cacheMgr cache.LazyCacheManager, aesKey string, ipacSvc ipacSvcPkg.IPACService, ipacRepo ipacRepoPkg.IPACRepository, storageMgr *storage.Manager, configWatcher configsync.ConfigWatcher) AppService {
+func NewAppService(repo openRepo.AppRepository, cacheMgr cache.LazyCacheManager, aesKey string, ipacSvc ipacSvcPkg.IPACService, ipacRepo ipacRepoPkg.IPACRepository, storageMgr *storage.Manager, configWatcher configsync.ConfigWatcher, rateLimiter *ratelimit.Limiter) AppService {
 	return &appService{
 		repo:          repo,
 		cacheMgr:      cacheMgr,
@@ -65,6 +67,7 @@ func NewAppService(repo openRepo.AppRepository, cacheMgr cache.LazyCacheManager,
 		ipacRepo:      ipacRepo,
 		storageMgr:    storageMgr,
 		configWatcher: configWatcher,
+		rateLimiter:   rateLimiter,
 	}
 }
 
@@ -147,8 +150,7 @@ func (s *appService) AllowRequest(ctx context.Context, app *open_platform.App) (
 		}
 	}
 
-	key := cache.KeyAppRateLimit(app.AppKey)
-	return s.cacheMgr.RateLimit(ctx, key, rate, capacity)
+	return s.rateLimiter.Allow(ctx, app.AppKey, rate, capacity)
 }
 
 func (s *appService) getDefaultRate() int {

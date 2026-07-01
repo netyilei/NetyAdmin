@@ -37,7 +37,10 @@ expiration = 168
 
 [migration]
 enabled = true
-dir = "migrations"
+# 迁移文件已通过 go:embed 编译进二进制，无需配置 dir。
+# 迁移文件位于 internal/pkg/migration/migrations/，采用 golang-migrate 标准
+# NNNN_name.up.sql / .down.sql 格式。新增迁移请用：
+#   migrate create -ext sql -dir internal/pkg/migration/migrations -seq <name>
 
 [task]
 enabled = true # 是否开启任务管理器

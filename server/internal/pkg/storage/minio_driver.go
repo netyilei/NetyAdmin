@@ -1,0 +1,354 @@
+package storage
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
+)
+
+// minioDriver 基于 minio-go 的 S3 兼容存储驱动。
+// 支持所有 S3 协议存储（AWS S3 / 阿里云 OSS / 腾讯云 COS / 华为云 OBS / MinIO 等）。
+type minioDriver struct {
+	client     *minio.Client
+	bucket     string
+	domain     string
+	pathPrefix string
+}
+
+// NewMinioDriver 创建 minio-go 驱动实例。
+//
+// Endpoint 应包含协议前缀（https:// 或 http://），minio-go 会据此判断是否启用 TLS。
+// 对于 MinIO / 自建 S3 兼容存储（Provider 为 minio/custom），使用 path-style 寻址。
+func NewMinioDriver(cfg *Config) (Driver, error) {
+	if cfg.Endpoint == "" {
+		return nil, errors.New("endpoint 不能为空")
+	}
+	if cfg.Bucket == "" {
+		return nil, errors.New("bucket 不能为空")
+	}
+
+	// minio-go 的 New 接受含协议的 endpoint，自动解析 TLS 与 host。
+	client, err := minio.New(cfg.Endpoint, &minio.Options{
+		Creds:        credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
+		Secure:       isTLSEndpoint(cfg.Endpoint),
+		Region:       cfg.Region,
+		BucketLookup: bucketLookupType(cfg.Provider),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("创建 minio 客户端失败: %w", err)
+	}
+
+	return &minioDriver{
+		client:     client,
+		bucket:     cfg.Bucket,
+		domain:     cfg.Domain,
+		pathPrefix: cfg.PathPrefix,
+	}, nil
+}
+
+// isTLSEndpoint 根据 endpoint 的协议前缀判断是否启用 TLS。
+func isTLSEndpoint(endpoint string) bool {
+	return strings.HasPrefix(endpoint, "https://")
+}
+
+// bucketLookupType 根据供应商选择寻址方式。
+func bucketLookupType(p Provider) minio.BucketLookupType {
+	if p.IsPathStyle() {
+		return minio.BucketLookupPath
+	}
+	return minio.BucketLookupAuto
+}
+
+// buildKey 拼接路径前缀（确保所有对象统一存放于配置的子目录下）。
+func (d *minioDriver) buildKey(key string) string {
+	if d.pathPrefix != "" && !strings.HasPrefix(key, d.pathPrefix+"/") {
+		return d.pathPrefix + "/" + key
+	}
+	return key
+}
+
+// buildURL 构造对象的访问 URL（优先使用自定义域名）。
+func (d *minioDriver) buildURL(key string) string {
+	if d.domain != "" {
+		return strings.TrimSuffix(d.domain, "/") + "/" + key
+	}
+	// 回退到 minio client 的 endpoint host + key
+	return fmt.Sprintf("%s/%s/%s", d.client.EndpointURL().String(), d.bucket, key)
+}
+
+// Upload 上传对象（流式）。
+func (d *minioDriver) Upload(ctx context.Context, key string, reader io.Reader, size int64, contentType string) (*UploadResult, error) {
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	fullKey := d.buildKey(key)
+
+	info, err := d.client.PutObject(ctx, d.bucket, fullKey, reader, size, minio.PutObjectOptions{
+		ContentType: contentType,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("上传对象失败: %w", err)
+	}
+
+	return &UploadResult{
+		URL:      d.buildURL(fullKey),
+		Key:      fullKey,
+		ETag:     strings.Trim(info.ETag, "\""),
+		Size:     info.Size,
+		MimeType: contentType,
+	}, nil
+}
+
+// UploadFile 上传本地文件。
+func (d *minioDriver) UploadFile(ctx context.Context, key string, filePath string, contentType string) (*UploadResult, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("打开文件失败: %w", err)
+	}
+	defer file.Close()
+
+	stat, err := file.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("获取文件信息失败: %w", err)
+	}
+
+	if contentType == "" {
+		contentType = detectContentType(filePath)
+	}
+
+	return d.Upload(ctx, key, file, stat.Size(), contentType)
+}
+
+// Download 下载对象，返回可读流与对象元信息。
+func (d *minioDriver) Download(ctx context.Context, key string) (io.ReadCloser, *ObjectInfo, error) {
+	fullKey := d.buildKey(key)
+
+	obj, err := d.client.GetObject(ctx, d.bucket, fullKey, minio.GetObjectOptions{})
+	if err != nil {
+		return nil, nil, fmt.Errorf("下载对象失败: %w", err)
+	}
+
+	// GetObject 返回的 *minio.Object 需要读取 Stat 才能拿到元信息。
+	stat, err := obj.Stat()
+	if err != nil {
+		obj.Close()
+		return nil, nil, fmt.Errorf("获取对象元信息失败: %w", err)
+	}
+
+	info := toObjectInfo(fullKey, stat)
+	return obj, info, nil
+}
+
+// Delete 删除单个对象。
+func (d *minioDriver) Delete(ctx context.Context, key string) error {
+	fullKey := d.buildKey(key)
+	if err := d.client.RemoveObject(ctx, d.bucket, fullKey, minio.RemoveObjectOptions{}); err != nil {
+		return fmt.Errorf("删除对象失败: %w", err)
+	}
+	return nil
+}
+
+// DeleteMultiple 批量删除对象。
+func (d *minioDriver) DeleteMultiple(ctx context.Context, keys []string) error {
+	if len(keys) == 0 {
+		return nil
+	}
+
+	// minio-go 的 RemoveObjects 通过 channel 接收待删除对象名。
+	objCh := make(chan minio.ObjectInfo, len(keys))
+	for _, key := range keys {
+		objCh <- minio.ObjectInfo{Key: d.buildKey(key)}
+	}
+	close(objCh)
+
+	errCh := d.client.RemoveObjects(ctx, d.bucket, objCh, minio.RemoveObjectsOptions{})
+	var errMsgs []string
+	for err := range errCh {
+		errMsgs = append(errMsgs, fmt.Sprintf("%s: %s", err.ObjectName, err.Err.Error()))
+	}
+	if len(errMsgs) > 0 {
+		return fmt.Errorf("部分删除失败: %s", strings.Join(errMsgs, "; "))
+	}
+	return nil
+}
+
+// Exists 判断对象是否存在。
+func (d *minioDriver) Exists(ctx context.Context, key string) (bool, error) {
+	_, err := d.client.StatObject(ctx, d.bucket, d.buildKey(key), minio.StatObjectOptions{})
+	if err != nil {
+		resp := minio.ToErrorResponse(err)
+		if resp.Code == "NoSuchKey" {
+			return false, nil
+		}
+		return false, fmt.Errorf("检查对象是否存在失败: %w", err)
+	}
+	return true, nil
+}
+
+// GetObjectInfo 获取对象元信息。
+func (d *minioDriver) GetObjectInfo(ctx context.Context, key string) (*ObjectInfo, error) {
+	fullKey := d.buildKey(key)
+	stat, err := d.client.StatObject(ctx, d.bucket, fullKey, minio.StatObjectOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("获取对象元信息失败: %w", err)
+	}
+	return toObjectInfo(fullKey, stat), nil
+}
+
+// GetPresignedUploadURL 生成预签名上传 URL（PUT）。
+func (d *minioDriver) GetPresignedUploadURL(ctx context.Context, key string, _ string, expires time.Duration) (string, error) {
+	if expires == 0 {
+		expires = defaultPresignExpiry
+	}
+	u, err := d.client.PresignedPutObject(ctx, d.bucket, d.buildKey(key), expires)
+	if err != nil {
+		return "", fmt.Errorf("生成预签名上传URL失败: %w", err)
+	}
+	return u.String(), nil
+}
+
+// GetPresignedDownloadURL 生成预签名下载 URL（GET）。
+func (d *minioDriver) GetPresignedDownloadURL(ctx context.Context, key string, expires time.Duration) (string, error) {
+	if expires == 0 {
+		expires = defaultPresignExpiry
+	}
+	u, err := d.client.PresignedGetObject(ctx, d.bucket, d.buildKey(key), expires, nil)
+	if err != nil {
+		return "", fmt.Errorf("生成预签名下载URL失败: %w", err)
+	}
+	return u.String(), nil
+}
+
+// ListObjects 列举指定前缀下的对象（最多返回 maxKeys 条）。
+func (d *minioDriver) ListObjects(ctx context.Context, prefix string, maxKeys int) ([]*ObjectInfo, error) {
+	if maxKeys <= 0 {
+		maxKeys = defaultListMaxKeys
+	}
+
+	// 用可取消的子 context：达到数量上限后 cancel，
+	// 让 minio-go 内部的列举 goroutine 退出，避免 goroutine 泄漏。
+	listCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	fullPrefix := d.buildKey(prefix)
+	objCh := d.client.ListObjects(listCtx, d.bucket, minio.ListObjectsOptions{
+		Prefix:    fullPrefix,
+		Recursive: true,
+		MaxKeys:   maxKeys,
+	})
+
+	var objects []*ObjectInfo
+	for obj := range objCh {
+		if obj.Err != nil {
+			// context 被取消导致的错误视为正常结束
+			if errors.Is(listCtx.Err(), context.Canceled) {
+				break
+			}
+			return nil, fmt.Errorf("列举对象失败: %w", obj.Err)
+		}
+		objects = append(objects, toObjectInfo(obj.Key, minio.ObjectInfo{
+			ETag:         obj.ETag,
+			Size:         obj.Size,
+			LastModified: obj.LastModified,
+			ContentType:  obj.ContentType,
+		}))
+		if len(objects) >= maxKeys {
+			cancel()
+		}
+	}
+	return objects, nil
+}
+
+// Copy 复制对象（服务器端拷贝）。
+func (d *minioDriver) Copy(ctx context.Context, srcKey, destKey string) error {
+	fullSrc := d.buildKey(srcKey)
+	fullDest := d.buildKey(destKey)
+
+	_, err := d.client.CopyObject(ctx,
+		minio.CopyDestOptions{Bucket: d.bucket, Object: fullDest},
+		minio.CopySrcOptions{Bucket: d.bucket, Object: fullSrc},
+	)
+	if err != nil {
+		return fmt.Errorf("复制对象失败: %w", err)
+	}
+	return nil
+}
+
+// toObjectInfo 将 minio.ObjectInfo 转换为本包的 ObjectInfo。
+func toObjectInfo(key string, stat minio.ObjectInfo) *ObjectInfo {
+	return &ObjectInfo{
+		Key:          key,
+		Size:         stat.Size,
+		LastModified: stat.LastModified,
+		ETag:         strings.Trim(stat.ETag, "\""),
+		MimeType:     stat.ContentType,
+	}
+}
+
+// detectContentType 根据文件扩展名推断 MIME 类型。
+func detectContentType(filePath string) string {
+	ext := strings.ToLower(filepath.Ext(filePath))
+	if mime, ok := extensionMimeTypes[ext]; ok {
+		return mime
+	}
+	return "application/octet-stream"
+}
+
+// DetectMimeType 通过文件内容嗅探 MIME 类型（供 record 服务使用）。
+func DetectMimeType(data []byte) string {
+	return http.DetectContentType(data)
+}
+
+// extensionMimeTypes 常见文件扩展名到 MIME 的映射。
+var extensionMimeTypes = map[string]string{
+	".jpg":   "image/jpeg",
+	".jpeg":  "image/jpeg",
+	".png":   "image/png",
+	".gif":   "image/gif",
+	".webp":  "image/webp",
+	".svg":   "image/svg+xml",
+	".pdf":   "application/pdf",
+	".doc":   "application/msword",
+	".docx":  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+	".xls":   "application/vnd.ms-excel",
+	".xlsx":  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+	".mp4":   "video/mp4",
+	".mp3":   "audio/mpeg",
+	".zip":   "application/zip",
+	".json":  "application/json",
+	".xml":   "application/xml",
+	".txt":   "text/plain",
+	".html":  "text/html",
+	".css":   "text/css",
+	".js":    "application/javascript",
+}
+
+// MinioDriverFactory minio-go 驱动工厂实现。
+type MinioDriverFactory struct{}
+
+// Create 实现 DriverFactory 接口。
+func (f *MinioDriverFactory) Create(config *Config) (Driver, error) {
+	return NewMinioDriver(config)
+}
+
+// NewMinioDriverFactory 创建工厂实例。
+func NewMinioDriverFactory() *MinioDriverFactory {
+	return &MinioDriverFactory{}
+}
+
+// 默认值常量（避免魔法数字）。
+const (
+	// defaultPresignExpiry 预签名 URL 默认有效期。
+	defaultPresignExpiry = 15 * time.Minute
+	// defaultListMaxKeys 列举对象默认上限。
+	defaultListMaxKeys = 1000
+)

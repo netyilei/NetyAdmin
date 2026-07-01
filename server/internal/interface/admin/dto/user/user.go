@@ -8,7 +8,7 @@ type UserQuery struct {
 	Nickname string  `form:"nickname"`
 	Gender   *string `form:"gender"`
 	Phone    string  `form:"phone"`
-	Email    string  `form:"email"`
+	Email    string  `form:"email" binding:"omitempty,email,max=100"`
 	Status   *string `form:"status"`
 }
 
@@ -25,7 +25,7 @@ type CreateUserReq struct {
 	Avatar   string `json:"avatar"`
 	Gender   string `json:"gender" binding:"omitempty,oneof=0 1 2"`
 	Phone    string `json:"phone"`
-	Email    string `json:"email"`
+	Email    string `json:"email" binding:"omitempty,email,max=100"`
 	Status   string `json:"status"`
 }
 
@@ -36,6 +36,6 @@ type UpdateUserReq struct {
 	Avatar   string `json:"avatar"`
 	Gender   string `json:"gender" binding:"omitempty,oneof=0 1 2"`
 	Phone    string `json:"phone"`
-	Email    string `json:"email"`
+	Email    string `json:"email" binding:"omitempty,email,max=100"`
 	Status   string `json:"status"`
 }

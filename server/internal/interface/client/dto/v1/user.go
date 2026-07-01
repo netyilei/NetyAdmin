@@ -15,7 +15,7 @@ type UserRegisterReq struct {
 	Password string `json:"password" binding:"required,min=8,max=20"`
 	Nickname string `json:"nickName" binding:"required"`
 	Phone    string `json:"phone"`
-	Email    string `json:"email"`
+	Email    string `json:"email" binding:"omitempty,email,max=100"`
 	Code     string `json:"code"`
 }
 
@@ -31,7 +31,7 @@ type UserUpdateProfileReq struct {
 	Nickname string `json:"nickName"`
 	Avatar   string `json:"avatar"`
 	Gender   string `json:"gender" binding:"omitempty,oneof=0 1 2"`
-	Email    string `json:"email"`
+	Email    string `json:"email" binding:"omitempty,email,max=100"`
 	Phone    string `json:"phone"`
 }
 

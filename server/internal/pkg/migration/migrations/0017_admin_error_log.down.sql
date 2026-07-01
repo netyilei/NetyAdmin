@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS admin_error_log CASCADE;
