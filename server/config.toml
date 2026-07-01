@@ -1,5 +1,5 @@
 [server]
-port = 8010
+port = 9090
 mode = "debug"
 read_timeout = 120
 write_timeout = 120

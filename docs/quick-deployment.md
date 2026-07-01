@@ -472,7 +472,7 @@ curl http://localhost:8010/admin/v1/health
 访问 `http://your-domain.com`，使用默认账号登录：
 
 - **账号**：`admin`
-- **密码**：`Admin@123`
+- **密码**：`admin123`
 
 ### 7.3 数据库验证
 

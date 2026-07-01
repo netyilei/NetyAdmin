@@ -134,7 +134,7 @@ pnpm dev
 ### Default Account
 
 - **Username**: `admin`
-- **Password**: `Admin@123`
+- **Password**: `admin123`
 
 > ⚠️ **Security Tip**: Please change the default password immediately after deployment!
 
