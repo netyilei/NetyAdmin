@@ -77,7 +77,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	// 0. DB Migration（基于 golang-migrate，SQL 文件 embed 进二进制）
 	//    使用独立连接执行迁移，避免与 GORM 连接池的 advisory lock 冲突。
 	if cfg.Migration.Enabled {
-		if err := migration.Run(cfg.Database.DSN()); err != nil {
+		if err := migration.Run(cfg.Database.DSNURL()); err != nil {
 			return nil, fmt.Errorf("数据库迁移失败: %w", err)
 		}
 	}

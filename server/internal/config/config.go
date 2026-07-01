@@ -86,11 +86,18 @@ type DatabaseConfig struct {
 	MaxOpen  int    `toml:"max_open"`
 }
 
-// DSN 返回 PostgreSQL 的 keyword=value 格式 DSN（lib/pq / pgx / golang-migrate 通用）。
-// 抽到此处统一管理，避免在多个调用点重复拼接 DSN 造成不一致。
+// DSN 返回 PostgreSQL 的 keyword=value 格式 DSN（pgx 通用）。
+// 用于 GORM 连接（GORM postgres driver 使用 pgx 底层，接受 keyword=value 格式）。
 func (c DatabaseConfig) DSN() string {
 	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		c.Host, c.Port, c.User, c.Password, c.DBName, c.SSLMode)
+}
+
+// DSNURL 返回 PostgreSQL 的 URL 格式 DSN（golang-migrate / lib/pq 通用）。
+// golang-migrate 的 postgres driver 需要 URL 格式（带 postgres:// 协议头）。
+func (c DatabaseConfig) DSNURL() string {
+	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
+		c.User, c.Password, c.Host, c.Port, c.DBName, c.SSLMode)
 }
 
 type RedisConfig struct {
