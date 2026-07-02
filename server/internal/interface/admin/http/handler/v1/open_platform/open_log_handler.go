@@ -20,7 +20,22 @@ func NewOpenLogHandler(svc openSvc.OpenLogService) *OpenLogHandler {
 	return &OpenLogHandler{svc: svc}
 }
 
-// List 获取调用日志列表
+// @Summary      获取开放平台调用日志列表
+// @Description  分页获取开放平台调用日志，支持按应用、AppKey、API路径、状态码、时间范围筛选
+// @Tags         开放平台日志
+// @Accept       json
+// @Produce      json
+// @Param        current query int false "页码"
+// @Param        size query int false "每页数量"
+// @Param        appId query string false "应用ID"
+// @Param        appKey query string false "应用AppKey"
+// @Param        apiPath query string false "API路径"
+// @Param        statusCode query int false "HTTP状态码"
+// @Param        startTime query string false "开始时间"
+// @Param        endTime query string false "结束时间"
+// @Success      200 {object} response.Response "日志列表"
+// @Security    ApiKeyAuth
+// @Router       /admin/v1/ops/open-platform-log [get]
 func (h *OpenLogHandler) List(c *gin.Context) {
 	var req openDto.OpenLogQuery
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -41,7 +56,7 @@ func (h *OpenLogHandler) List(c *gin.Context) {
 
 	list, total, err := h.svc.ListLogs(c.Request.Context(), query)
 	if err != nil {
-		response.FailWithCode(c, errorx.CodeInternalError)
+		response.Fail(c, err)
 		return
 	}
 
@@ -64,7 +79,7 @@ func (h *OpenLogHandler) Get(c *gin.Context) {
 
 	log, err := h.svc.GetLog(c.Request.Context(), id)
 	if err != nil {
-		response.FailWithCode(c, errorx.CodeInternalError)
+		response.Fail(c, err)
 		return
 	}
 

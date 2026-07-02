@@ -19,6 +19,16 @@ func NewMessageHandler(msgSvc msgServicePkg.MessageService) *MessageHandler {
 	return &MessageHandler{msgSvc: msgSvc}
 }
 
+// @Summary      站内消息列表
+// @Description  分页获取当前用户的站内消息列表，支持已读过滤
+// @Tags         客户端-消息
+// @Accept       json
+// @Produce      json
+// @Param        page query int false "页码"
+// @Param        pageSize query int false "每页数量"
+// @Param        readFilter query string false "已读过滤"
+// @Success      200 {object} response.Response "操作成功"
+// @Router       /client/v1/message/internal [get]
 func (h *MessageHandler) ListInternalMsgs(c *gin.Context) {
 	userID := c.GetString("userID")
 	if userID == "" {
@@ -48,6 +58,14 @@ func (h *MessageHandler) ListInternalMsgs(c *gin.Context) {
 	response.SuccessWithPage(c, req.Page, req.PageSize, total, list)
 }
 
+// @Summary      站内消息详情
+// @Description  根据消息ID获取站内消息详情
+// @Tags         客户端-消息
+// @Accept       json
+// @Produce      json
+// @Param        id path int true "消息ID"
+// @Success      200 {object} response.Response "操作成功"
+// @Router       /client/v1/message/internal/{id} [get]
 func (h *MessageHandler) GetInternalMsg(c *gin.Context) {
 	userID := c.GetString("userID")
 	if userID == "" {
@@ -71,6 +89,14 @@ func (h *MessageHandler) GetInternalMsg(c *gin.Context) {
 	response.Success(c, msg)
 }
 
+// @Summary      标记已读
+// @Description  将指定站内消息标记为已读
+// @Tags         客户端-消息
+// @Accept       json
+// @Produce      json
+// @Param        req body clientDto.MarkReadReq true "标记已读请求"
+// @Success      200 {object} response.Response "操作成功"
+// @Router       /client/v1/message/internal/read [put]
 func (h *MessageHandler) MarkRead(c *gin.Context) {
 	userID := c.GetString("userID")
 	if userID == "" {
@@ -92,6 +118,13 @@ func (h *MessageHandler) MarkRead(c *gin.Context) {
 	response.Success(c, nil)
 }
 
+// @Summary      全部标记已读
+// @Description  将当前用户所有站内消息标记为已读
+// @Tags         客户端-消息
+// @Accept       json
+// @Produce      json
+// @Success      200 {object} response.Response "操作成功"
+// @Router       /client/v1/message/internal/read-all [put]
 func (h *MessageHandler) MarkAllRead(c *gin.Context) {
 	userID := c.GetString("userID")
 	if userID == "" {
@@ -107,6 +140,13 @@ func (h *MessageHandler) MarkAllRead(c *gin.Context) {
 	response.Success(c, nil)
 }
 
+// @Summary      未读消息数量
+// @Description  获取当前用户的站内消息未读数量
+// @Tags         客户端-消息
+// @Accept       json
+// @Produce      json
+// @Success      200 {object} response.Response "操作成功"
+// @Router       /client/v1/message/internal/unread-count [get]
 func (h *MessageHandler) CountUnread(c *gin.Context) {
 	userID := c.GetString("userID")
 	if userID == "" {

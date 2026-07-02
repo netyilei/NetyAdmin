@@ -49,13 +49,20 @@ func traverseTree(menus []*systemVO.MenuTreeVO) []UserRouteItem {
 	return res
 }
 
+// @Summary      获取用户路由
+// @Description  获取当前登录管理员的动态路由菜单
+// @Tags         路由管理
+// @Accept       json
+// @Produce      json
+// @Success      200 {object} response.Response "用户路由列表"
+// @Security    ApiKeyAuth
+// @Router       /admin/v1/route/getUserRoutes [get]
 func (h *RouteHandler) GetUserRoutes(c *gin.Context) {
-	adminID, exists := c.Get("adminID")
-	if !exists {
+	uid := c.GetUint("adminID")
+	if uid == 0 {
 		response.FailWithCode(c, errorx.CodeUnauthorized, "未授权")
 		return
 	}
-	uid := adminID.(uint)
 
 	// 1. 获取管理员信息（主要是角色）
 	info, err := h.adminService.GetAdminInfo(c.Request.Context(), uid)
@@ -79,6 +86,15 @@ func (h *RouteHandler) GetUserRoutes(c *gin.Context) {
 	})
 }
 
+// @Summary      检查路由是否存在
+// @Description  根据路由名称检查路由是否存在
+// @Tags         路由管理
+// @Accept       json
+// @Produce      json
+// @Param        routeName query string true "路由名称"
+// @Success      200 {object} response.Response "是否存在"
+// @Security    ApiKeyAuth
+// @Router       /admin/v1/route/isRouteExist [get]
 func (h *RouteHandler) IsRouteExist(c *gin.Context) {
 	routeName := c.Query("routeName")
 	if routeName == "" {

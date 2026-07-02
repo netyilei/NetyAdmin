@@ -22,7 +22,13 @@ func NewCommonHandler(captchaMgr *captcha.Manager, watcher configsync.ConfigWatc
 	}
 }
 
-// GetCaptcha 获取验证码
+// @Summary      获取验证码
+// @Description  生成图形验证码，返回验证码ID与Base64图片
+// @Tags         通用接口
+// @Accept       json
+// @Produce      json
+// @Success      200 {object} response.Response "验证码信息"
+// @Router       /admin/v1/common/captcha [get]
 func (h *CommonHandler) GetCaptcha(c *gin.Context) {
 	// 获取验证码配置
 	configs := h.watcher.GetGroupConfigs("captcha_config")

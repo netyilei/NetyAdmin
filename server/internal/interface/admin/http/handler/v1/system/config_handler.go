@@ -44,7 +44,7 @@ func (h *ConfigHandler) ListByGroup(c *gin.Context) {
 
 	configs, err := h.configSvc.ListByGroup(c.Request.Context(), req.GroupName)
 	if err != nil {
-		response.FailWithCode(c, errorx.CodeInternalError, "获取配置失败")
+		response.Fail(c, err)
 		return
 	}
 
@@ -69,7 +69,7 @@ func (h *ConfigHandler) Upsert(c *gin.Context) {
 	operatorID := c.GetUint("adminID")
 
 	if err := h.configSvc.Upsert(c.Request.Context(), &req, operatorID); err != nil {
-		response.FailWithCode(c, errorx.CodeInternalError, "更新配置失败")
+		response.Fail(c, err)
 		return
 	}
 
@@ -103,7 +103,7 @@ func (h *ConfigHandler) TestEmail(c *gin.Context) {
 
 	err := h.emailDriver.Send(c.Request.Context(), req.Receiver, "NetyAdmin 测试邮件", "<h2>测试邮件</h2><p>这是一封来自 NetyAdmin 的测试邮件，如果您收到了此邮件，说明邮件配置正确。</p>", nil)
 	if err != nil {
-		response.FailWithCode(c, errorx.CodeEmailTestFailed, err.Error())
+		response.Fail(c, err)
 		return
 	}
 

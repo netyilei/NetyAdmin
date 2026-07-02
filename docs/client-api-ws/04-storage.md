@@ -8,14 +8,15 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ 1. POST /client/v1/storage/credentials                       │
-│    → 获取上传凭证（预签名 URL、Headers、ObjectKey 等）         │
+│ 1. POST /client/v1/storage/credentials                         │
+│    → 获取上传凭证（预签名 URL、Headers、ObjectKey、recordId、  │
+│      secret 等）                                               │
 ├──────────────────────────────────────────────────────────────┤
 │ 2. 客户端使用凭证直接上传文件到对象存储                         │
 │    → PUT/POST 至 credentials.url，携带 credentials.headers    │
 ├──────────────────────────────────────────────────────────────┤
-│ 3. POST /client/v1/storage/records                            │
-│    → 上传成功后回调，记录上传结果                               │
+│ 3. POST /client/v1/storage/records                             │
+│    → 上传成功后回调，携带 recordId + secret 校验后完成记录      │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -23,32 +24,28 @@
 
 - 客户端不经过后端中转文件，直接上传至对象存储（S3/OSS/COS 等），减轻服务器压力
 - 上传凭证有时效性（通常 15-30 分钟），过期需重新获取
-- 上传记录回调是可选步骤，但强烈建议执行，以便后端追踪文件归属
+- 上传记录回调是**必填步骤**，需携带 `recordId` + `secret` 校验上传合法性
 
 ---
 
 ## 二、接口总览
 
-| 方法 | 路径 | 权限 | Scope | 说明 |
-|------|------|------|-------|------|
-| POST | /client/v1/storage/credentials | 签名 | `storage_upload` | 获取上传凭证 |
-| POST | /client/v1/storage/records | 签名 | `storage_upload` | 记录上传结果 |
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| POST | /client/v1/storage/credentials | 签名 | 获取上传凭证 |
+| POST | /client/v1/storage/records | 签名 | 记录上传结果 |
 
 ---
 
 ## 三、开放平台权限配置
 
-存储上传接口需要在开放平台**应用管理**中授权 `storage_upload` 权限组才能调用。
-
-| Scope Code | 名称 | 包含接口 |
-|------------|------|----------|
-| `storage_upload` | 存储上传 (凭证/记录) | `POST /client/v1/storage/credentials`、`POST /client/v1/storage/records` |
+存储上传接口需要在开放平台**应用管理**中授权对应的 API 权限才能调用。服务端会校验请求路径是否在应用授权的 API 列表中。
 
 **配置步骤**：
 
 1. 登录管理后台 → 开放平台 → 应用管理
 2. 选择目标应用 → 编辑权限范围
-3. 勾选 `storage_upload` 权限组并保存
+3. 勾选存储上传相关 API 并保存
 4. 使用该应用的 AppKey/AppSecret 调用存储上传接口
 
 > **提示**：应用绑定了专属存储配置时，`/storage/credentials` 会自动使用应用级存储源；未绑定则使用系统默认存储源。
@@ -92,6 +89,7 @@ POST /client/v1/storage/credentials
 ```json
 {
   "code": "100000",
+  "msg": "",
   "data": {
     "url": "https://bucket.oss-cn-hangzhou.aliyuncs.com/uploads/2025/01/xxx.png?OSSAccessKeyId=...&Signature=...",
     "method": "PUT",
@@ -107,7 +105,9 @@ POST /client/v1/storage/credentials
     "bucket": "my-bucket",
     "endpoint": "oss-cn-hangzhou.aliyuncs.com",
     "pathPrefix": "uploads",
-    "maxFileSize": 10485760
+    "maxFileSize": 10485760,
+    "recordId": 42,
+    "secret": "a1b2c3d4e5f6..."
   }
 }
 ```
@@ -127,6 +127,10 @@ POST /client/v1/storage/credentials
 | endpoint | string | 存储端点 |
 | pathPrefix | string | 路径前缀 |
 | maxFileSize | int64 | 最大文件大小限制（字节） |
+| recordId | uint | 上传记录 ID，**回调时必须携带** |
+| secret | string | 上传校验密钥，**回调时必须携带** |
+
+> **重要**：`recordId` 和 `secret` 是上传成功后回调 `/storage/records` 接口的必填参数，用于服务端校验上传合法性。请妥善保存。
 
 **可能错误码**：
 
@@ -140,7 +144,7 @@ POST /client/v1/storage/credentials
 
 ## 五、记录上传结果
 
-客户端直传文件到对象存储成功后，回调此接口记录上传信息。
+客户端直传文件到对象存储成功后，回调此接口通知服务端上传完成。需携带凭证签发时返回的 `recordId` + `secret` 进行校验。
 
 ```
 POST /client/v1/storage/records
@@ -152,25 +156,25 @@ POST /client/v1/storage/records
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| fileName | string | 是 | 文件名 |
-| objectKey | string | 是 | 对象存储 Key（从获取凭证接口返回） |
+| recordId | uint | 是 | 上传记录 ID（从获取凭证接口返回） |
+| secret | string | 是 | 上传校验密钥（从获取凭证接口返回） |
+| objectKey | string | 否 | 对象存储 Key |
+| fileUrl | string | 否 | 文件访问 URL |
 | fileSize | int64 | 否 | 文件大小（字节） |
 | mimeType | string | 否 | MIME 类型 |
 | md5 | string | 否 | 文件 MD5 哈希 |
-| businessType | string | 否 | 业务类型标识 |
-| businessId | string | 否 | 业务关联 ID |
-| sourceInfo | string | 否 | 额外来源信息（JSON 字符串） |
 
 **请求示例**：
 
 ```json
 {
-  "fileName": "avatar.png",
+  "recordId": 42,
+  "secret": "a1b2c3d4e5f6...",
   "objectKey": "uploads/2025/01/01HXYZ1234567890ABCDEFG.png",
+  "fileUrl": "https://cdn.example.com/uploads/2025/01/01HXYZ1234567890ABCDEFG.png",
   "fileSize": 102400,
   "mimeType": "image/png",
-  "md5": "d41d8cd98f00b204e9800998ecf8427e",
-  "businessType": "avatar"
+  "md5": "d41d8cd98f00b204e9800998ecf8427e"
 }
 ```
 
@@ -179,17 +183,24 @@ POST /client/v1/storage/records
 ```json
 {
   "code": "100000",
+  "msg": "",
   "data": null
 }
 ```
+
+> **说明**：服务端会根据 `recordId` + `secret` 校验上传凭证的合法性，校验通过后将上传记录状态从 `pending` 置为 `uploaded`。
 
 **可能错误码**：
 
 | code | 说明 |
 |------|------|
-| `100001` | 参数校验失败（fileName、objectKey 必填） |
+| `100001` | 参数校验失败（recordId、secret 必填） |
 | `100002` | 未授权（应用信息缺失） |
-| `100005` | 记录上传结果失败 |
+| `101501` | 上传记录不存在 |
+| `101502` | 上传凭证校验失败（recordId + secret 不匹配） |
+| `101503` | 该上传记录已完成，不可重复提交 |
+| `101504` | 上传凭证已过期 |
+| `101505` | 上传记录与请求不匹配 |
 
 ---
 
@@ -242,7 +253,7 @@ async function fullUploadFlow(file: File): Promise<string> {
   // 2. 直传文件到对象存储
   const finalUrl = await uploadFile(file, credData);
 
-  // 3. 记录上传结果
+  // 3. 记录上传结果（携带 recordId + secret）
   await fetch('/client/v1/storage/records', {
     method: 'POST',
     headers: {
@@ -253,8 +264,10 @@ async function fullUploadFlow(file: File): Promise<string> {
       'X-Signature': signature,
     },
     body: JSON.stringify({
-      fileName: file.name,
+      recordId: credData.recordId,
+      secret: credData.secret,
       objectKey: credData.objectKey,
+      fileUrl: credData.finalUrl,
       fileSize: file.size,
       mimeType: file.type,
     }),

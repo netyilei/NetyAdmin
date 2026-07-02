@@ -108,6 +108,10 @@ declare namespace Env {
     readonly VITE_AUTOMATICALLY_DETECT_UPDATE?: CommonType.YesOrNo;
     /** show proxy url log in terminal */
     readonly VITE_PROXY_LOG?: CommonType.YesOrNo;
+    /** Sentry DSN for error tracking (leave empty to disable) */
+    readonly VITE_SENTRY_DSN?: string;
+    /** Application version, used as Sentry release */
+    readonly VITE_APP_VERSION?: string;
   }
 }
 

@@ -1,0 +1,99 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "NetyAdmin 后台管理系统 API 文档",
+        "title": "NetyAdmin API",
+        "version": "1.0"
+    },
+    "basePath": "/admin/v1",
+    "paths": {
+        "/admin/v1/auth/changePassword": {
+            "post": {
+                "security": [{"ApiKeyAuth": []}],
+                "tags": ["认证管理"],
+                "summary": "修改密码",
+                "description": "当前登录管理员通过旧密码修改登录密码",
+                "responses": {"200": {"description": "修改成功"}}
+            }
+        },
+        "/admin/v1/auth/getUserInfo": {
+            "get": {
+                "security": [{"ApiKeyAuth": []}],
+                "tags": ["认证管理"],
+                "summary": "获取当前登录用户信息",
+                "description": "根据上下文中的管理员ID获取当前登录用户的详细信息",
+                "responses": {"200": {"description": "用户信息"}}
+            }
+        },
+        "/admin/v1/auth/login": {
+            "post": {
+                "tags": ["认证管理"],
+                "summary": "管理员登录",
+                "description": "使用用户名/密码登录管理员账号，可选验证码校验",
+                "responses": {"200": {"description": "登录成功"}}
+            }
+        },
+        "/admin/v1/auth/logout": {
+            "post": {
+                "security": [{"ApiKeyAuth": []}],
+                "tags": ["认证管理"],
+                "summary": "退出登录",
+                "description": "当前登录管理员退出登录，注销访问令牌",
+                "responses": {"200": {"description": "退出成功"}}
+            }
+        },
+        "/admin/v1/auth/profile": {
+            "get": {
+                "security": [{"ApiKeyAuth": []}],
+                "tags": ["认证管理"],
+                "summary": "获取个人资料",
+                "description": "获取当前登录管理员的个人资料信息",
+                "responses": {"200": {"description": "个人资料"}}
+            },
+            "put": {
+                "security": [{"ApiKeyAuth": []}],
+                "tags": ["认证管理"],
+                "summary": "更新个人资料",
+                "description": "更新当前登录管理员的个人资料",
+                "responses": {"200": {"description": "更新成功"}}
+            }
+        },
+        "/admin/v1/auth/refreshToken": {
+            "post": {
+                "tags": ["认证管理"],
+                "summary": "刷新令牌",
+                "description": "使用刷新令牌换取新的访问令牌与刷新令牌",
+                "responses": {"200": {"description": "刷新成功"}}
+            }
+        },
+        "/admin/v1/system/configs": {
+            "get": {
+                "tags": ["系统配置管理"],
+                "summary": "获取配置分组",
+                "description": "根据组名获取多项配置",
+                "responses": {"200": {"description": "配置列表"}}
+            },
+            "put": {
+                "tags": ["系统配置管理"],
+                "summary": "更新/新增单个系统配置",
+                "description": "更新缓存开关或其他动态配置",
+                "responses": {"200": {"description": "保存成功"}}
+            }
+        },
+        "/admin/v1/system/test-email": {
+            "post": {
+                "tags": ["系统配置管理"],
+                "summary": "测试邮件发送",
+                "description": "使用当前邮件配置发送测试邮件",
+                "responses": {"200": {"description": "发送成功"}}
+            }
+        }
+    },
+    "securityDefinitions": {
+        "ApiKeyAuth": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    }
+}

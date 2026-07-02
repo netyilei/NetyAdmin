@@ -2,6 +2,8 @@ package router
 
 import (
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 
 	"NetyAdmin/internal/interface/admin/http/handler/v1/admin"
 	"NetyAdmin/internal/interface/admin/http/handler/v1/auth"
@@ -80,6 +82,11 @@ func (r *Router) Register(engine *gin.Engine) {
 	engine.Use(middleware.IPACAuth(r.ipacSvc))
 
 	r.registerV1(engine)
+
+	// Swagger UI - 仅 debug 模式下开放
+	if gin.Mode() == gin.DebugMode {
+		engine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	}
 }
 
 func (r *Router) registerV1(engine *gin.Engine) {

@@ -4,6 +4,7 @@ import { setupAppVersionNotification, setupDayjs, setupIconifyOffline, setupLoad
 import { setupStore } from './store';
 import { setupRouter } from './router';
 import { setupI18n } from './locales';
+import { setupSentry } from './plugins/sentry';
 import App from './App.vue';
 
 async function setupApp() {
@@ -16,6 +17,8 @@ async function setupApp() {
   setupIconifyOffline();
 
   const app = createApp(App);
+
+  setupSentry(app);
 
   setupStore(app);
 

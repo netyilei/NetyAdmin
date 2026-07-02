@@ -20,6 +20,14 @@ func NewClientStorageHandler(recordSvc storageService.RecordService) *ClientStor
 	return &ClientStorageHandler{recordSvc: recordSvc}
 }
 
+// @Summary      获取上传凭证
+// @Description  获取客户端文件上传凭证，返回预签名URL及上传相关信息
+// @Tags         客户端-存储
+// @Accept       json
+// @Produce      json
+// @Param        req body clientDto.GetClientCredentialsReq true "获取上传凭证请求"
+// @Success      200 {object} response.Response "操作成功"
+// @Router       /client/v1/storage/credentials [post]
 func (h *ClientStorageHandler) GetUploadCredentials(c *gin.Context) {
 	var req clientDto.GetClientCredentialsReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -29,10 +37,14 @@ func (h *ClientStorageHandler) GetUploadCredentials(c *gin.Context) {
 
 	appObj, exists := c.Get("currentOpenApp")
 	if !exists {
-		response.FailWithCode(c, errorx.CodeUnauthorized)
+		response.FailWithCode(c, errorx.CodeUnauthorized, "未授权")
 		return
 	}
-	app := appObj.(*openEntity.App)
+	app, ok := appObj.(*openEntity.App)
+	if !ok {
+		response.FailWithCode(c, errorx.CodeInternalError, "上下文类型错误")
+		return
+	}
 
 	credReq := &storageDto.GetCredentialsReq{
 		FileName:     req.FileName,
@@ -68,6 +80,14 @@ func (h *ClientStorageHandler) GetUploadCredentials(c *gin.Context) {
 }
 
 // CreateUploadRecord 上传成功通知：根据 recordId + secret 校验后将 pending 记录置为 uploaded。
+// @Summary      创建上传记录
+// @Description  上传成功后通知服务端，根据recordId与secret校验后将记录置为已上传
+// @Tags         客户端-存储
+// @Accept       json
+// @Produce      json
+// @Param        req body clientDto.CompleteClientUploadReq true "完成上传请求"
+// @Success      200 {object} response.Response "操作成功"
+// @Router       /client/v1/storage/records [post]
 func (h *ClientStorageHandler) CreateUploadRecord(c *gin.Context) {
 	var req clientDto.CompleteClientUploadReq
 	if err := c.ShouldBindJSON(&req); err != nil {

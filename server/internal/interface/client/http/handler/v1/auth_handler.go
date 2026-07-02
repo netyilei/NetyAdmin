@@ -28,6 +28,13 @@ func NewAuthHandler(verifySvc userService.VerificationService, captcha *captcha.
 }
 
 // Captcha 获取图形验证码
+// @Summary      获取图形验证码
+// @Description  生成图形验证码，返回验证码ID与Base64编码的验证码图片
+// @Tags         客户端-认证
+// @Accept       json
+// @Produce      json
+// @Success      200 {object} response.Response "操作成功"
+// @Router       /client/v1/auth/captcha [get]
 func (h *AuthHandler) Captcha(c *gin.Context) {
 	id, b64s, err := h.captcha.Generate("digit", 120, 40, 4)
 	if err != nil {
@@ -42,6 +49,14 @@ func (h *AuthHandler) Captcha(c *gin.Context) {
 
 // SceneConfig 获取场景验证配置
 // 一次请求返回图形验证码开关 + SMS/Email 验证开关及类型
+// @Summary      获取场景验证配置
+// @Description  根据业务场景返回图形验证码开关及短信/邮箱验证开关与类型
+// @Tags         客户端-认证
+// @Accept       json
+// @Produce      json
+// @Param        scene query string true "业务场景"
+// @Success      200 {object} response.Response "操作成功"
+// @Router       /client/v1/auth/scene-config [get]
 func (h *AuthHandler) SceneConfig(c *gin.Context) {
 	scene := c.Query("scene")
 	if scene == "" {
@@ -86,6 +101,14 @@ func (h *AuthHandler) SceneConfig(c *gin.Context) {
 // SendCode 发送验证码
 // 登录场景：使用 username 字段，后端自动查找用户绑定的 email/phone
 // 注册/找回密码场景：使用 target 字段，直接发送到指定 email/phone
+// @Summary      发送验证码
+// @Description  根据场景发送短信或邮箱验证码，登录场景通过username查找绑定联系方式，注册/找回密码场景直接发送至target
+// @Tags         客户端-认证
+// @Accept       json
+// @Produce      json
+// @Param        req body object true "发送验证码请求"
+// @Success      200 {object} response.Response "操作成功"
+// @Router       /client/v1/auth/send-code [post]
 func (h *AuthHandler) SendCode(c *gin.Context) {
 	var req struct {
 		Target      string `json:"target"`

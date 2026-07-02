@@ -17,6 +17,14 @@ func NewEchoHandler() *EchoHandler {
 }
 
 // Echo 示例接口：原样返回消息并附带 AppID
+// @Summary      回显测试
+// @Description  示例接口，原样返回请求消息并附带AppID
+// @Tags         客户端-测试
+// @Accept       json
+// @Produce      json
+// @Param        req body v1.EchoRequest true "回显请求"
+// @Success      200 {object} response.Response "操作成功"
+// @Router       /client/v1/echo [post]
 func (h *EchoHandler) Echo(c *gin.Context) {
 	var req v1.EchoRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -24,11 +32,7 @@ func (h *EchoHandler) Echo(c *gin.Context) {
 		return
 	}
 
-	appID, _ := c.Get("appID")
-	appIDStr := ""
-	if appID != nil {
-		appIDStr = appID.(string)
-	}
+	appIDStr := c.GetString("appID")
 
 	response.Success(c, v1.EchoResponse{
 		Message:   req.Message,

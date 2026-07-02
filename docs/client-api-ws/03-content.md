@@ -1,6 +1,6 @@
 # 内容模块 API
 
-> 本文档包含分类树、文章列表/详情、Banner 等内容相关接口。所有接口均需开放平台签名，部分接口需额外携带用户 JWT Token。
+> 本文档包含文章列表/详情、点赞、Banner 等内容相关接口。所有接口均需开放平台签名。
 
 ---
 
@@ -8,7 +8,6 @@
 
 | 方法 | 路径 | 权限 | 说明 |
 |------|------|------|------|
-| GET | /client/v1/content/categories/tree | 签名 | 获取分类树 |
 | GET | /client/v1/content/articles | 签名 | 文章列表 |
 | GET | /client/v1/content/article/:id | 签名 | 文章详情 |
 | POST | /client/v1/content/article/:id/like | 签名 | 点赞文章 |
@@ -17,64 +16,9 @@
 
 ---
 
-## 二、获取分类树
+## 二、文章列表
 
-获取所有内容分类的树形结构。
-
-```
-GET /client/v1/content/categories/tree
-```
-
-**权限**：开放平台签名
-
-**请求参数**：无
-
-**响应示例**：
-
-```json
-{
-  "code": "100000",
-  "data": [
-    {
-      "id": 1,
-      "parentId": 0,
-      "name": "技术文章",
-      "code": "tech",
-      "icon": "code",
-      "contentType": "article",
-      "children": [
-        {
-          "id": 2,
-          "parentId": 1,
-          "name": "前端开发",
-          "code": "frontend",
-          "icon": "layout",
-          "contentType": "article",
-          "children": []
-        }
-      ]
-    }
-  ]
-}
-```
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | uint | 分类 ID |
-| parentId | uint | 父级分类 ID，0 表示顶级 |
-| name | string | 分类名称 |
-| code | string | 分类编码 |
-| icon | string | 图标标识 |
-| contentType | string | 内容类型 |
-| children | array | 子分类列表（递归结构） |
-
-**可能错误码**：`100005`（服务器内部错误）
-
----
-
-## 三、文章列表
-
-根据分类 ID 获取已发布的文章列表，支持关键词搜索。
+根据分类 ID 获取已发布文章列表，支持关键词搜索。结果会包含指定分类及其所有子分类下的文章。
 
 ```
 GET /client/v1/content/articles
@@ -102,6 +46,7 @@ GET /client/v1/content/articles?categoryId=1&page=1&pageSize=10&keyword=Vue
 ```json
 {
   "code": "100000",
+  "msg": "",
   "data": {
     "records": [
       {
@@ -153,13 +98,17 @@ GET /client/v1/content/articles?categoryId=1&page=1&pageSize=10&keyword=Vue
 | publishedAt | string | 发布时间（ISO 8601） |
 | createdAt | string | 创建时间（ISO 8601） |
 
-**可能错误码**：`100001`（categoryId 必填）
+**可能错误码**：
+
+| code | 说明 |
+|------|------|
+| `100001` | 参数校验失败（categoryId 必填） |
 
 ---
 
-## 四、文章详情
+## 三、文章详情
 
-获取单篇已发布文章的完整内容。
+获取单篇已发布文章的完整内容。每次请求会自动增加浏览数（viewCount +1）。
 
 ```
 GET /client/v1/content/article/:id
@@ -178,6 +127,7 @@ GET /client/v1/content/article/:id
 ```json
 {
   "code": "100000",
+  "msg": "",
   "data": {
     "id": 1,
     "categoryId": 1,
@@ -230,15 +180,18 @@ GET /client/v1/content/article/:id
 | publishedAt | string | 发布时间（ISO 8601） |
 | createdAt | string | 创建时间（ISO 8601） |
 
-> **注意**：每次获取详情会自动增加浏览数（viewCount +1）。
+**可能错误码**：
 
-**可能错误码**：`100001`（无效的 ID）、`100004`（文章不存在或未发布）
+| code | 说明 |
+|------|------|
+| `100001` | 无效的 ID |
+| `100004` | 文章不存在或未发布 |
 
 ---
 
-## 五、点赞文章
+## 四、点赞文章
 
-对指定文章进行点赞，浏览数 +1。
+对指定文章进行点赞，点赞数 +1。
 
 ```
 POST /client/v1/content/article/:id/like
@@ -259,17 +212,23 @@ POST /client/v1/content/article/:id/like
 ```json
 {
   "code": "100000",
+  "msg": "",
   "data": null
 }
 ```
 
-**可能错误码**：`100001`（无效的 ID）、`100004`（文章不存在）
+**可能错误码**：
+
+| code | 说明 |
+|------|------|
+| `100001` | 无效的 ID |
+| `100004` | 文章不存在 |
 
 ---
 
-## 六、获取 Banner 组
+## 五、获取 Banner 组
 
-根据 Banner 组编码获取当前有效的 Banner 列表。仅返回在有效时间范围内的 Banner 条目。
+根据 Banner 组编码获取 Banner 组及其条目列表。仅返回在有效时间范围内的 Banner 条目。
 
 ```
 GET /client/v1/content/banners/:code
@@ -288,6 +247,7 @@ GET /client/v1/content/banners/:code
 ```json
 {
   "code": "100000",
+  "msg": "",
   "data": {
     "id": 1,
     "name": "首页轮播",
@@ -346,13 +306,18 @@ GET /client/v1/content/banners/:code
 | customParams | string | 自定义参数（JSON 字符串） |
 | sort | int | 排序值，越小越靠前 |
 
-> **注意**：仅返回当前时间在有效时间范围内的 Banner 条目。
+> **注意**：仅返回当前时间在有效时间范围内的 Banner 条目（根据开始时间和结束时间过滤）。
 
-**可能错误码**：`100001`（code 不能为空）、`100004`（Banner 组不存在）
+**可能错误码**：
+
+| code | 说明 |
+|------|------|
+| `100001` | code 不能为空 |
+| `100004` | Banner 组不存在 |
 
 ---
 
-## 七、记录 Banner 点击
+## 六、记录 Banner 点击
 
 记录用户点击 Banner 的行为，点击数 +1。
 
@@ -375,8 +340,14 @@ POST /client/v1/content/banners/:id/click
 ```json
 {
   "code": "100000",
+  "msg": "",
   "data": null
 }
 ```
 
-**可能错误码**：`100001`（无效的 ID）、`100004`（Banner 条目不存在）
+**可能错误码**：
+
+| code | 说明 |
+|------|------|
+| `100001` | 无效的 ID |
+| `100004` | Banner 条目不存在 |

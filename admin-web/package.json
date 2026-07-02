@@ -59,6 +59,7 @@
     "@na/hooks": "workspace:*",
     "@na/materials": "workspace:*",
     "@na/utils": "workspace:*",
+    "@sentry/vue": "^10.63.0",
     "@toast-ui/editor": "^3.2.2",
     "@visactor/vchart": "1.13.7",
     "@visactor/vchart-theme": "1.12.2",

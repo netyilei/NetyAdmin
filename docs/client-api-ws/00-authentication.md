@@ -9,12 +9,12 @@
 | 文档 | 说明 |
 |------|------|
 | [00-authentication.md](./00-authentication.md) | 认证与签名指南（本文档） |
-| [01-auth.md](./01-auth.md) | 登录 / 注册 / 找回密码 / 验证码 |
-| [02-user.md](./02-user.md) | 用户资料 / 修改密码 / 注销 / 上传凭证 |
-| [03-content.md](./03-content.md) | 分类 / 文章 / Banner |
+| [01-auth.md](./01-auth.md) | 验证码 / 场景配置 / 发送验证码 |
+| [02-user.md](./02-user.md) | 注册 / 登录 / 找回密码 / 用户资料 / 修改密码 / 注销 / 上传凭证 |
+| [03-content.md](./03-content.md) | 文章 / Banner |
 | [04-storage.md](./04-storage.md) | 文件上传（凭证 + 直传 + 回调） |
 | [05-message.md](./05-message.md) | 站内信（列表 / 详情 / 已读 / 未读数） |
-| [06-echo.md](./06-echo.md) | Echo 测试接口 |
+| [06-error-codes.md](./06-error-codes.md) | 错误码参考表 |
 
 ---
 
@@ -48,7 +48,7 @@ NetyAdmin 客户端 API 采用**双层认证**机制：
 |--------|------|------|
 | `X-App-Key` | 应用 AppKey | `01HXYZ1234567890ABCDEFG` |
 | `X-Timestamp` | Unix 时间戳（秒） | `1713888000` |
-| `X-Nonce` | 随机字符串，60秒内不可重复 | `a1b2c3d4e5f6` |
+| `X-Nonce` | 随机字符串，2分钟内不可重复 | `a1b2c3d4e5f6` |
 | `X-Signature` | HMAC-SHA256 签名值（Base64 编码） | `3f8k2j...=` |
 
 ### 2.3 签名计算步骤
@@ -67,13 +67,17 @@ Method\nPath\nTimestamp\nNonce\nPayload
 | Path | 请求路径，不含域名和 Query，如 `/client/v1/user/login` |
 | Timestamp | 与 `X-Timestamp` 一致 |
 | Nonce | 与 `X-Nonce` 一致 |
-| Payload | GET 请求：Query 参数按 key 字典序排列拼接 `key1=value1&key2=value2`；POST/PUT/DELETE 请求：Body 的 SHA256 哈希（十六进制） |
+| Payload | GET 请求：Query 参数按 key 字典序排列拼接 `key1=value1&key2=value2`；POST/PUT/DELETE 请求：Body 的 SHA256 哈希（十六进制小写）；无 Body 时为空字符串 |
 
 #### Step 2：计算签名
 
 ```
 Signature = Base64(HMAC-SHA256(AppSecret, StringToSign))
 ```
+
+- 密钥 (key)：AppSecret
+- 数据 (data)：StringToSign（以换行符 `\n` 连接的 5 段文本）
+- 输出：Base64 编码字符串
 
 ### 2.4 签名示例
 
@@ -83,10 +87,10 @@ Signature = Base64(HMAC-SHA256(AppSecret, StringToSign))
 POST /client/v1/user/login
 Content-Type: application/json
 
-{"username":"test","password":"123456"}
+{"userName":"test","password":"123456"}
 ```
 
-1. Body SHA256 = `a1b2c3d4...`（32字节十六进制）
+1. Body SHA256 = `a1b2c3d4...`（64 位十六进制小写）
 2. StringToSign:
 
    ```
@@ -222,6 +226,7 @@ func SignRequest(method, path, appSecret string, body []byte, query map[string]s
 ```json
 {
   "code": "100000",
+  "msg": "",
   "data": {
     "accessToken": "eyJhbGciOi...",
     "refreshToken": "eyJhbGciOi...",
@@ -268,9 +273,9 @@ Authorization: Bearer <accessToken>
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| code | string | 状态码，`"100000"` 表示成功 |
-| msg | string | 消息（固定为空字符串，错误信息通过 code 映射） |
-| data | object | 业务数据，失败时可能不存在 |
+| code | string | 状态码，`"100000"` 表示成功，其他为错误码 |
+| msg | string | 消息描述，成功时为空字符串，失败时为错误描述 |
+| data | any | 业务数据，失败时可能不存在 |
 | request_id | string | 请求追踪 ID |
 
 ### 分页响应格式
@@ -289,68 +294,37 @@ Authorization: Bearer <accessToken>
 }
 ```
 
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| records | array | 当前页数据列表 |
+| current | int | 当前页码 |
+| size | int | 每页条数 |
+| total | int64 | 总记录数 |
+
 ---
 
-## 五、错误状态码
+## 五、认证错误码
 
-### 5.1 通用错误码
-
-| code | 说明 |
-|------|------|
-| `100000` | 成功 |
-| `100001` | 参数错误 |
-| `100002` | 未授权 |
-| `100003` | 无权限 |
-| `100004` | 资源不存在 |
-| `100005` | 服务器内部错误 |
-| `100006` | 请求过于频繁 |
-| `100007` | 请求错误 |
-| `100008` | 资源已存在 |
-| `100009` | 验证码错误 |
-| `100010` | 验证码必填 |
-
-### 5.2 开放平台签名错误码
+### 5.1 开放平台签名错误码
 
 | code | 说明 |
 |------|------|
 | `101301` | AppKey 无效 |
-| `101302` | 签名验证失败 |
+| `101302` | 签名验证失败（含 Nonce 重复） |
 | `101303` | 请求已过期（时间戳超出 ±60s） |
 | `101304` | 权限不足（Scope 不匹配） |
 | `101305` | 已触发流量限制 |
+| `101306` | 应用已被禁用 |
 
-### 5.3 IP 访问控制错误码
+### 5.2 IP 访问控制错误码
 
 | code | 说明 |
 |------|------|
-| `101401` | IP 访问受限（被封禁） |
+| `101401` | IP 访问受限（被封禁或校验服务异常） |
 | `101402` | 非法 IP/CIDR 格式 |
 | `101403` | 白名单模式，IP 未授权 |
 
-### 5.4 用户模块错误码
-
-| code | 说明 |
-|------|------|
-| `101001` | 用户不存在 |
-| `101002` | 用户已禁用 |
-| `101003` | 密码错误 |
-| `101004` | 用户名已存在 |
-| `101005` | 令牌已过期 |
-| `101006` | 令牌无效 |
-| `101007` | 账户已锁定 |
-| `101008` | 原密码错误 |
-| `101101` | 客户端用户不存在 |
-| `101102` | 客户端用户名已存在 |
-| `101103` | 邮箱已存在 |
-| `101104` | 手机号已存在 |
-
-### 5.5 验证码错误码
-
-| code | 说明 |
-|------|------|
-| `200601` | 验证码已过期 |
-| `200604` | 发送过于频繁，请稍后再试 |
-| `200605` | 未配置验证方式，请联系管理员 |
+> 完整错误码列表见 [06-error-codes.md](./06-error-codes.md)。
 
 ---
 
@@ -367,5 +341,5 @@ Authorization: Bearer <accessToken>
 
 - 每个应用有独立的请求频率限制（在管理后台「应用管理」中配置）
 - 验证码发送：同一目标 60 秒内仅允许发送一次
-- Nonce 防重放：同一 Nonce 在 60 秒内不可重复使用
+- Nonce 防重放：同一 Nonce 在 2 分钟内不可重复使用（覆盖 ±60s 时间戳容差窗口）
 - 时间戳容差：±60 秒

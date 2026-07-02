@@ -6,8 +6,17 @@ import (
 	"NetyAdmin/internal/app"
 	"NetyAdmin/internal/config"
 	"NetyAdmin/internal/pkg/recovery"
+
+	_ "NetyAdmin/docs" // Swagger generated docs
 )
 
+// @title           NetyAdmin API
+// @version         1.0
+// @description     NetyAdmin 后台管理系统 API 文档
+// @BasePath        /admin/v1
+// @securityDefinitions.apikey ApiKeyAuth
+// @in   header
+// @name Authorization
 func main() {
 	// 1. 全局 Panic 恢复
 	defer recovery.GlobalRecovery()

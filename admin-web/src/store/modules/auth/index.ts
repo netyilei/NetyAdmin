@@ -8,6 +8,7 @@ import { localStg } from '@/utils/storage';
 import type { Auth } from '@/typings/api/v1/auth';
 import { SetupStoreId } from '@/enum';
 import { $t } from '@/locales';
+import { clearUserContext, setUserContext } from '@/plugins/sentry';
 import { useRouteStore } from '../route';
 import { useTabStore } from '../tab';
 import { clearAuthStorage, getToken } from './shared';
@@ -43,6 +44,8 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
     recordUserId();
 
     clearAuthStorage();
+
+    clearUserContext();
 
     // 手动重置 state（setup store 的 $reset 不生效）
     token.value = '';
@@ -163,6 +166,12 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
     if (!error) {
       // update store
       Object.assign(userInfo, info);
+
+      setUserContext({
+        id: userInfo.userId,
+        username: userInfo.userName,
+        role: userInfo.roles.join(',')
+      });
 
       return true;
     }

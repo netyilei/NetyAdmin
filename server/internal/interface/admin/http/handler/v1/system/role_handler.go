@@ -10,6 +10,19 @@ import (
 	"NetyAdmin/internal/pkg/response"
 )
 
+// @Summary      获取角色列表
+// @Description  分页查询角色列表，支持按角色名称、编码、状态筛选
+// @Tags         角色管理
+// @Accept       json
+// @Produce      json
+// @Param        current query int false "当前页"
+// @Param        size query int false "每页数量"
+// @Param        name query string false "角色名称"
+// @Param        code query string false "角色编码"
+// @Param        status query string false "状态"
+// @Success      200 {object} response.Response "角色分页列表"
+// @Security    ApiKeyAuth
+// @Router       /admin/v1/systemManage/getRoleList [get]
 func (h *SystemHandler) GetAdminRoleList(c *gin.Context) {
 	var req systemDto.RoleQuery
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -26,6 +39,15 @@ func (h *SystemHandler) GetAdminRoleList(c *gin.Context) {
 	response.SuccessWithPage(c, req.Current, req.Size, total, roles)
 }
 
+// @Summary      获取角色详情
+// @Description  根据角色ID获取角色详细信息
+// @Tags         角色管理
+// @Accept       json
+// @Produce      json
+// @Param        id path int true "角色ID"
+// @Success      200 {object} response.Response "角色详情"
+// @Security    ApiKeyAuth
+// @Router       /admin/v1/systemManage/getRole/{id} [get]
 func (h *SystemHandler) GetAdminRoleByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -43,8 +65,21 @@ func (h *SystemHandler) GetAdminRoleByID(c *gin.Context) {
 	response.Success(c, role)
 }
 
+// @Summary      创建角色
+// @Description  创建新的角色，可同时绑定菜单、按钮及API权限
+// @Tags         角色管理
+// @Accept       json
+// @Produce      json
+// @Param        req body system.CreateRoleReq true "角色创建参数"
+// @Success      200 {object} response.Response "创建成功"
+// @Security    ApiKeyAuth
+// @Router       /admin/v1/systemManage/addRole [post]
 func (h *SystemHandler) AddAdminRole(c *gin.Context) {
-	operatorID, _ := c.Get("adminID")
+	operatorID := c.GetUint("adminID")
+	if operatorID == 0 {
+		response.FailWithCode(c, errorx.CodeUnauthorized, "未授权")
+		return
+	}
 
 	var req systemDto.CreateRoleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -52,7 +87,7 @@ func (h *SystemHandler) AddAdminRole(c *gin.Context) {
 		return
 	}
 
-	id, err := h.roleService.Create(c.Request.Context(), &req, operatorID.(uint))
+	id, err := h.roleService.Create(c.Request.Context(), &req, operatorID)
 	if err != nil {
 		response.Fail(c, err)
 		return
@@ -61,8 +96,21 @@ func (h *SystemHandler) AddAdminRole(c *gin.Context) {
 	response.SuccessWithMsg(c, "角色创建成功", gin.H{"id": id})
 }
 
+// @Summary      更新角色
+// @Description  更新角色信息，可同时调整菜单、按钮及API权限
+// @Tags         角色管理
+// @Accept       json
+// @Produce      json
+// @Param        req body system.UpdateRoleReq true "角色更新参数"
+// @Success      200 {object} response.Response "更新成功"
+// @Security    ApiKeyAuth
+// @Router       /admin/v1/systemManage/updateRole [put]
 func (h *SystemHandler) UpdateAdminRole(c *gin.Context) {
-	operatorID, _ := c.Get("adminID")
+	operatorID := c.GetUint("adminID")
+	if operatorID == 0 {
+		response.FailWithCode(c, errorx.CodeUnauthorized, "未授权")
+		return
+	}
 
 	var req systemDto.UpdateRoleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -70,7 +118,7 @@ func (h *SystemHandler) UpdateAdminRole(c *gin.Context) {
 		return
 	}
 
-	if err := h.roleService.Update(c.Request.Context(), &req, operatorID.(uint)); err != nil {
+	if err := h.roleService.Update(c.Request.Context(), &req, operatorID); err != nil {
 		response.Fail(c, err)
 		return
 	}
@@ -78,17 +126,20 @@ func (h *SystemHandler) UpdateAdminRole(c *gin.Context) {
 	response.SuccessWithMsg(c, "角色更新成功", nil)
 }
 
+// @Summary      删除角色
+// @Description  根据角色ID删除单个角色
+// @Tags         角色管理
+// @Accept       json
+// @Produce      json
+// @Param        id query int true "角色ID"
+// @Success      200 {object} response.Response "删除成功"
+// @Security    ApiKeyAuth
+// @Router       /admin/v1/systemManage/deleteRole [delete]
 func (h *SystemHandler) DeleteAdminRole(c *gin.Context) {
-	idStr := c.Query("id")
-	if idStr == "" {
-		idStr = c.Query("roleId")
-	}
-	if idStr == "" {
-		idStr = c.Param("id")
-	}
+	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil {
-		response.FailWithCode(c, errorx.CodeInvalidParams, "无效的角色ID")
+		response.FailWithCode(c, errorx.CodeInvalidParams, "参数错误")
 		return
 	}
 
@@ -100,6 +151,15 @@ func (h *SystemHandler) DeleteAdminRole(c *gin.Context) {
 	response.SuccessWithMsg(c, "角色删除成功", nil)
 }
 
+// @Summary      批量删除角色
+// @Description  根据角色ID列表批量删除角色
+// @Tags         角色管理
+// @Accept       json
+// @Produce      json
+// @Param        roleIds query []uint true "角色ID列表"
+// @Success      200 {object} response.Response "批量删除成功"
+// @Security    ApiKeyAuth
+// @Router       /admin/v1/systemManage/deleteRoles [delete]
 func (h *SystemHandler) DeleteAdminRoles(c *gin.Context) {
 	var req struct {
 		Ids []uint `form:"roleIds" json:"roleIds" binding:"required"`
@@ -119,6 +179,14 @@ func (h *SystemHandler) DeleteAdminRoles(c *gin.Context) {
 	response.SuccessWithMsg(c, "角色批量删除成功", nil)
 }
 
+// @Summary      获取全部角色
+// @Description  获取所有角色列表，不分页
+// @Tags         角色管理
+// @Accept       json
+// @Produce      json
+// @Success      200 {object} response.Response "角色列表"
+// @Security    ApiKeyAuth
+// @Router       /admin/v1/systemManage/getAllRoles [get]
 func (h *SystemHandler) GetAllAdminRoles(c *gin.Context) {
 	roles, err := h.roleService.GetAll(c.Request.Context())
 	if err != nil {
@@ -129,6 +197,15 @@ func (h *SystemHandler) GetAllAdminRoles(c *gin.Context) {
 	response.Success(c, roles)
 }
 
+// @Summary      获取角色菜单权限
+// @Description  根据角色ID获取角色已分配的菜单权限及首页路由
+// @Tags         角色权限管理
+// @Accept       json
+// @Produce      json
+// @Param        id path int true "角色ID"
+// @Success      200 {object} response.Response "角色菜单权限"
+// @Security    ApiKeyAuth
+// @Router       /admin/v1/systemManage/role/{id}/menus [get]
 func (h *SystemHandler) GetAdminRoleMenus(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -146,6 +223,16 @@ func (h *SystemHandler) GetAdminRoleMenus(c *gin.Context) {
 	response.Success(c, data)
 }
 
+// @Summary      更新角色菜单权限
+// @Description  根据角色ID更新角色的菜单权限列表及首页路由
+// @Tags         角色权限管理
+// @Accept       json
+// @Produce      json
+// @Param        id path int true "角色ID"
+// @Param        req body object true "菜单权限信息(menuIds:菜单ID列表,homeRouteName:首页路由名)"
+// @Success      200 {object} response.Response "更新成功"
+// @Security    ApiKeyAuth
+// @Router       /admin/v1/systemManage/role/{id}/menus [put]
 func (h *SystemHandler) UpdateAdminRoleMenus(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -171,6 +258,15 @@ func (h *SystemHandler) UpdateAdminRoleMenus(c *gin.Context) {
 	response.SuccessWithMsg(c, "权限更新成功", nil)
 }
 
+// @Summary      获取角色按钮权限
+// @Description  根据角色ID获取角色已分配的按钮权限
+// @Tags         角色权限管理
+// @Accept       json
+// @Produce      json
+// @Param        id path int true "角色ID"
+// @Success      200 {object} response.Response "角色按钮权限"
+// @Security    ApiKeyAuth
+// @Router       /admin/v1/systemManage/role/{id}/buttons [get]
 func (h *SystemHandler) GetAdminRoleButtons(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -188,6 +284,16 @@ func (h *SystemHandler) GetAdminRoleButtons(c *gin.Context) {
 	response.Success(c, data)
 }
 
+// @Summary      更新角色按钮权限
+// @Description  根据角色ID更新角色的按钮权限列表
+// @Tags         角色权限管理
+// @Accept       json
+// @Produce      json
+// @Param        id path int true "角色ID"
+// @Param        buttonIds body []uint true "按钮ID列表"
+// @Success      200 {object} response.Response "更新成功"
+// @Security    ApiKeyAuth
+// @Router       /admin/v1/systemManage/role/{id}/buttons [put]
 func (h *SystemHandler) UpdateAdminRoleButtons(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -210,6 +316,15 @@ func (h *SystemHandler) UpdateAdminRoleButtons(c *gin.Context) {
 	response.SuccessWithMsg(c, "角色按钮权限更新成功", nil)
 }
 
+// @Summary      获取角色API权限
+// @Description  根据角色ID获取角色已分配的API权限
+// @Tags         角色权限管理
+// @Accept       json
+// @Produce      json
+// @Param        id path int true "角色ID"
+// @Success      200 {object} response.Response "角色API权限"
+// @Security    ApiKeyAuth
+// @Router       /admin/v1/systemManage/role/{id}/apis [get]
 func (h *SystemHandler) GetAdminRoleAPIs(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -227,6 +342,16 @@ func (h *SystemHandler) GetAdminRoleAPIs(c *gin.Context) {
 	response.Success(c, data)
 }
 
+// @Summary      更新角色API权限
+// @Description  根据角色ID更新角色的API权限列表
+// @Tags         角色权限管理
+// @Accept       json
+// @Produce      json
+// @Param        id path int true "角色ID"
+// @Param        apiIds body []uint true "API ID列表"
+// @Success      200 {object} response.Response "更新成功"
+// @Security    ApiKeyAuth
+// @Router       /admin/v1/systemManage/role/{id}/apis [put]
 func (h *SystemHandler) UpdateAdminRoleAPIs(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)

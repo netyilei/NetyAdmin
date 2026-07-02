@@ -56,6 +56,13 @@ NetyAdmin 是一个基于 **Go + Gin** 后端和 **Vue 3 + TypeScript** 前端�
 
 ## 📚 文档索引
 
+### 项目规范
+
+| 文档 | 说明 |
+|------|------|
+| [AGENTS.md](AGENTS.md) | AI 助手开发指南：技术栈、项目结构、开发流程、命令速查 |
+| [RULES.md](RULES.md) | 项目编码规范：分层架构、安全规则、错误处理、测试要求 |
+
 ### 架构设计文档
 
 | 文档 | 说明 |
@@ -89,17 +96,38 @@ NetyAdmin 是一个基于 **Go + Gin** 后端和 **Vue 3 + TypeScript** 前端�
 | [API 管理指南](docs/api-management.md) | 前后端 API 定义、新增流程、最佳实践 |
 | [快速部署指南](docs/quick-deployment.md) | 环境准备、配置说明、部署步骤 |
 
-### 客户端 API 文档
+### 客户端 API 文档（client-api-ws）
 
 | 文档 | 说明 |
 |------|------|
-| [认证与签名指南](docs/client-api/00-authentication.md) | 开放平台签名、JWT Token、统一响应格式、错误码 |
-| [登录/注册/找回密码](docs/client-api/01-auth.md) | 场景验证配置、验证码、登录注册流程 |
-| [用户资料管理](docs/client-api/02-user.md) | 个人资料、修改密码、注销、上传凭证 |
-| [内容管理](docs/client-api/03-content.md) | 分类树、文章列表/详情/点赞、Banner |
-| [文件上传](docs/client-api/04-storage.md) | 上传凭证、直传流程、上传记录回调 |
-| [站内信](docs/client-api/05-message.md) | 消息列表、详情、已读、未读数 |
-| [Echo 测试](docs/client-api/06-echo.md) | 连通性测试接口 |
+| [客户端 API 文档索引](docs/client-api-ws/README.md) | 全部客户端 API 端点总览 |
+| [认证与签名指南](docs/client-api-ws/00-authentication.md) | 开放平台签名、JWT Token、统一响应格式、错误码 |
+| [认证模块 API](docs/client-api-ws/01-auth.md) | 验证码、场景配置、发送验证码 |
+| [用户模块 API](docs/client-api-ws/02-user.md) | 登录/注册/找回密码/个人资料/密码修改/注销/上传 |
+| [内容模块 API](docs/client-api-ws/03-content.md) | 文章列表/详情/点赞、Banner |
+| [存储模块 API](docs/client-api-ws/04-storage.md) | 上传凭证、直传流程、上传记录回调 |
+| [站内消息 API](docs/client-api-ws/05-message.md) | 消息列表、详情、已读、未读数 |
+| [错误码参考](docs/client-api-ws/06-error-codes.md) | 客户端相关错误码全量码表 |
+
+### 管理后台 API 文档（admin-api-ws）
+
+| 文档 | 说明 |
+|------|------|
+| [管理后台 API 文档索引](docs/admin-api-ws/README.md) | 全部管理后台 API 端点总览（110+ 接口） |
+| [认证指南](docs/admin-api-ws/00-authentication.md) | JWT 认证流程、Token 格式、三组中间件 |
+| [认证 API](docs/admin-api-ws/01-auth.md) | 登录、刷新令牌、用户信息、个人资料、修改密码、退出 |
+| [管理员管理 API](docs/admin-api-ws/02-admin.md) | 管理员 CRUD、批量删除、自删除防护 |
+| [RBAC 系统 API](docs/admin-api-ws/03-system-rbac.md) | 角色CRUD+权限分配、菜单CRUD+树、按钮CRUD、API CRUD+树 |
+| [内容管理 API](docs/admin-api-ws/04-content.md) | 分类CRUD+树、文章CRUD+发布/置顶、Banner组/项CRUD |
+| [字典管理 API](docs/admin-api-ws/05-dict.md) | 字典类型CRUD、字典数据CRUD、公开查询 |
+| [存储管理 API](docs/admin-api-ws/06-storage.md) | 存储配置CRUD+测试上传、上传记录管理、三步上传 |
+| [运维管理 API](docs/admin-api-ws/07-ops.md) | 操作日志、错误日志、IP访问控制、开放平台日志 |
+| [开放平台 API](docs/admin-api-ws/08-open-platform.md) | 应用CRUD+密钥重置、权限范围、开放API CRUD |
+| [消息管理 API](docs/admin-api-ws/09-message.md) | 消息模板CRUD、发送记录、直接发送 |
+| [任务管理 API](docs/admin-api-ws/10-task.md) | 任务列表、运行/启停/重载、日志 |
+| [系统配置 API](docs/admin-api-ws/12-config.md) | 配置查询、更新、邮件测试 |
+| [通用 API](docs/admin-api-ws/13-common.md) | 验证码、用户路由、路由检查 |
+| [错误码参考](docs/admin-api-ws/14-error-codes.md) | 全量错误码码表（50+ 错误码） |
 
 ---
 
@@ -107,7 +135,7 @@ NetyAdmin 是一个基于 **Go + Gin** 后端和 **Vue 3 + TypeScript** 前端�
 
 ### 环境要求
 
-- **Go** >= 1.21
+- **Go** >= 1.25
 - **Node.js** >= 18
 - **PostgreSQL** >= 14
 - **Redis** >= 6.0（可选）

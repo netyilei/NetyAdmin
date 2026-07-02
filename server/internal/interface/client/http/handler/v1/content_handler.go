@@ -33,6 +33,17 @@ func NewContentHandler(
 	}
 }
 
+// @Summary      文章列表
+// @Description  分页获取已发布文章列表，支持按分类与关键词筛选
+// @Tags         客户端-内容
+// @Accept       json
+// @Produce      json
+// @Param        page query int false "页码"
+// @Param        pageSize query int false "每页数量"
+// @Param        categoryId query int false "分类ID"
+// @Param        keyword query string false "搜索关键词"
+// @Success      200 {object} response.Response "操作成功"
+// @Router       /client/v1/content/articles [get]
 func (h *ContentHandler) ListArticles(c *gin.Context) {
 	var req clientDto.ClientArticleListReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -67,6 +78,14 @@ func (h *ContentHandler) ListArticles(c *gin.Context) {
 	response.SuccessWithPage(c, req.Page, req.PageSize, total, items)
 }
 
+// @Summary      文章详情
+// @Description  根据文章ID获取已发布文章详情并增加浏览数
+// @Tags         客户端-内容
+// @Accept       json
+// @Produce      json
+// @Param        id path int true "文章ID"
+// @Success      200 {object} response.Response "操作成功"
+// @Router       /client/v1/content/article/{id} [get]
 func (h *ContentHandler) GetArticle(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -86,6 +105,14 @@ func (h *ContentHandler) GetArticle(c *gin.Context) {
 	response.Success(c, articleToDetailVO(article))
 }
 
+// @Summary      点赞文章
+// @Description  根据文章ID点赞并增加点赞数
+// @Tags         客户端-内容
+// @Accept       json
+// @Produce      json
+// @Param        id path int true "文章ID"
+// @Success      200 {object} response.Response "操作成功"
+// @Router       /client/v1/content/article/{id}/like [post]
 func (h *ContentHandler) LikeArticle(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -102,6 +129,14 @@ func (h *ContentHandler) LikeArticle(c *gin.Context) {
 	response.Success(c, nil)
 }
 
+// @Summary      获取Banner组
+// @Description  根据编码获取Banner组及其Banner项列表
+// @Tags         客户端-内容
+// @Accept       json
+// @Produce      json
+// @Param        code path string true "Banner组编码"
+// @Success      200 {object} response.Response "操作成功"
+// @Router       /client/v1/content/banners/{code} [get]
 func (h *ContentHandler) GetBannerGroupByCode(c *gin.Context) {
 	code := c.Param("code")
 	if code == "" {
@@ -118,6 +153,14 @@ func (h *ContentHandler) GetBannerGroupByCode(c *gin.Context) {
 	response.Success(c, bannerGroupToClientVO(group))
 }
 
+// @Summary      点击Banner
+// @Description  根据Banner项ID记录点击并增加点击数
+// @Tags         客户端-内容
+// @Accept       json
+// @Produce      json
+// @Param        id path int true "Banner项ID"
+// @Success      200 {object} response.Response "操作成功"
+// @Router       /client/v1/content/banners/{id}/click [post]
 func (h *ContentHandler) ClickBanner(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
