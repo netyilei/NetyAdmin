@@ -187,7 +187,7 @@ func (c Code) Message() string {
 }
 
 func (c Code) String() string {
-	return fmt.Sprintf("%04d", int(c))
+	return fmt.Sprintf("%06d", int(c))
 }
 
 type BizError struct {

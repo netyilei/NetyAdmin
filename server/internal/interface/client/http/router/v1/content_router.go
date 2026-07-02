@@ -27,5 +27,3 @@ func (r *contentRouter) RegisterAuth(authGroup *gin.RouterGroup) {
 		content.POST("/banners/:id/click", r.handler.ClickBanner)
 	}
 }
-
-func (r *contentRouter) RegisterPermission(_ *gin.RouterGroup) {}

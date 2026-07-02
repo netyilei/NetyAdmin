@@ -53,6 +53,10 @@ func TestCode_String(t *testing.T) {
 		{errorx.CodeUnauthorized, "100002"},
 		{errorx.CodeUserNotFound, "101001"},
 		{errorx.CodeAppKeyInvalid, "101301"},
+		// Verify the %06d format pads codes < 10000 with leading zeros.
+		// Previously %04d was used, which would produce a 4-char string here.
+		{errorx.Code(1), "000001"},
+		{errorx.Code(9999), "009999"},
 	}
 
 	for _, tt := range tests {

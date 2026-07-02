@@ -45,13 +45,7 @@ func NewAuthHandler(adminService systemService.AdminService, captchaMgr *captcha
 // @Success      200 {object} response.Response "登录成功"
 // @Router       /admin/v1/auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
-	var body struct {
-		Username     string `json:"username"`
-		UserName     string `json:"userName"`
-		Password     string `json:"password"`
-		CaptchaId    string `json:"captchaId"`
-		CaptchaValue string `json:"captchaValue"`
-	}
+	var body LoginRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.FailWithCode(c, errorx.CodeInvalidParams, "参数错误")
 		return
