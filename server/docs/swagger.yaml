@@ -1,0 +1,5943 @@
+basePath: /
+definitions:
+  auth.LoginRequest:
+    properties:
+      captchaId:
+        type: string
+      captchaValue:
+        type: string
+      password:
+        example: admin123
+        type: string
+      userName:
+        example: admin
+        type: string
+      username:
+        example: admin
+        type: string
+    type: object
+  content.CreateContentArticleDTO:
+    properties:
+      allowComment:
+        type: boolean
+      author:
+        maxLength: 50
+        type: string
+      categoryId:
+        type: integer
+      content:
+        type: string
+      contentType:
+        enum:
+        - plaintext
+        - richtext
+        type: string
+      coverImage:
+        type: string
+      isHot:
+        type: boolean
+      isRecommend:
+        type: boolean
+      isTop:
+        type: boolean
+      keywords:
+        maxLength: 200
+        type: string
+      publishStatus:
+        enum:
+        - draft
+        - published
+        - scheduled
+        type: string
+      scheduledAt:
+        type: string
+      source:
+        maxLength: 100
+        type: string
+      summary:
+        maxLength: 500
+        type: string
+      tags:
+        maxLength: 200
+        type: string
+      title:
+        maxLength: 200
+        type: string
+      titleColor:
+        maxLength: 20
+        type: string
+      topSort:
+        type: integer
+    required:
+    - categoryId
+    - title
+    type: object
+  content.CreateContentBannerGroupDTO:
+    properties:
+      autoPlay:
+        type: boolean
+      code:
+        maxLength: 50
+        type: string
+      description:
+        maxLength: 255
+        type: string
+      height:
+        type: integer
+      interval:
+        minimum: 1000
+        type: integer
+      maxItems:
+        minimum: 1
+        type: integer
+      name:
+        maxLength: 100
+        type: string
+      position:
+        maxLength: 50
+        type: string
+      remark:
+        type: string
+      sort:
+        type: integer
+      status:
+        enum:
+        - "0"
+        - "1"
+        type: string
+      storageConfigId:
+        type: integer
+      width:
+        type: integer
+    required:
+    - code
+    - name
+    type: object
+  content.CreateContentBannerItemDTO:
+    properties:
+      content:
+        type: string
+      customParams:
+        type: string
+      endTime:
+        type: string
+      groupId:
+        type: integer
+      imageAlt:
+        maxLength: 200
+        type: string
+      imageUrl:
+        type: string
+      linkArticleId:
+        type: integer
+      linkType:
+        enum:
+        - none
+        - internal
+        - external
+        - article
+        type: string
+      linkUrl:
+        type: string
+      sort:
+        type: integer
+      startTime:
+        type: string
+      status:
+        enum:
+        - "0"
+        - "1"
+        type: string
+      subtitle:
+        maxLength: 200
+        type: string
+      title:
+        maxLength: 200
+        type: string
+    required:
+    - groupId
+    - imageUrl
+    - title
+    type: object
+  content.CreateContentCategoryDTO:
+    properties:
+      code:
+        maxLength: 50
+        type: string
+      contentType:
+        enum:
+        - plaintext
+        - richtext
+        type: string
+      icon:
+        maxLength: 100
+        type: string
+      name:
+        maxLength: 50
+        type: string
+      parentId:
+        type: integer
+      remark:
+        type: string
+      sort:
+        type: integer
+      status:
+        enum:
+        - "0"
+        - "1"
+        type: string
+      storageConfigId:
+        type: integer
+    required:
+    - name
+    type: object
+  content.SetArticleTopDTO:
+    properties:
+      isTop:
+        type: boolean
+      topSort:
+        type: integer
+    required:
+    - isTop
+    type: object
+  content.UpdateContentArticleDTO:
+    properties:
+      allowComment:
+        type: boolean
+      author:
+        maxLength: 50
+        type: string
+      categoryId:
+        type: integer
+      content:
+        type: string
+      contentType:
+        enum:
+        - plaintext
+        - richtext
+        type: string
+      coverImage:
+        type: string
+      isHot:
+        type: boolean
+      isRecommend:
+        type: boolean
+      isTop:
+        type: boolean
+      keywords:
+        maxLength: 200
+        type: string
+      publishStatus:
+        enum:
+        - draft
+        - published
+        - scheduled
+        type: string
+      scheduledAt:
+        type: string
+      source:
+        maxLength: 100
+        type: string
+      summary:
+        maxLength: 500
+        type: string
+      tags:
+        maxLength: 200
+        type: string
+      title:
+        maxLength: 200
+        type: string
+      titleColor:
+        maxLength: 20
+        type: string
+      topSort:
+        type: integer
+    type: object
+  content.UpdateContentBannerGroupDTO:
+    properties:
+      autoPlay:
+        type: boolean
+      code:
+        maxLength: 50
+        minLength: 1
+        type: string
+      description:
+        maxLength: 255
+        type: string
+      height:
+        type: integer
+      interval:
+        minimum: 1000
+        type: integer
+      maxItems:
+        minimum: 1
+        type: integer
+      name:
+        maxLength: 100
+        type: string
+      position:
+        maxLength: 50
+        type: string
+      remark:
+        type: string
+      sort:
+        type: integer
+      status:
+        enum:
+        - "0"
+        - "1"
+        type: string
+      storageConfigId:
+        type: integer
+      width:
+        type: integer
+    type: object
+  content.UpdateContentBannerItemDTO:
+    properties:
+      content:
+        type: string
+      customParams:
+        type: string
+      endTime:
+        type: string
+      imageAlt:
+        maxLength: 200
+        type: string
+      imageUrl:
+        type: string
+      linkArticleId:
+        type: integer
+      linkType:
+        enum:
+        - none
+        - internal
+        - external
+        - article
+        type: string
+      linkUrl:
+        type: string
+      sort:
+        type: integer
+      startTime:
+        type: string
+      status:
+        enum:
+        - "0"
+        - "1"
+        type: string
+      subtitle:
+        maxLength: 200
+        type: string
+      title:
+        maxLength: 200
+        type: string
+    type: object
+  content.UpdateContentCategoryDTO:
+    properties:
+      code:
+        maxLength: 50
+        type: string
+      contentType:
+        enum:
+        - plaintext
+        - richtext
+        type: string
+      icon:
+        maxLength: 100
+        type: string
+      name:
+        maxLength: 50
+        type: string
+      parentId:
+        type: integer
+      remark:
+        type: string
+      sort:
+        type: integer
+      status:
+        enum:
+        - "0"
+        - "1"
+        type: string
+      storageConfigId:
+        type: integer
+    type: object
+  dict.CreateDictDataReq:
+    properties:
+      dictCode:
+        type: string
+      label:
+        type: string
+      orderBy:
+        type: integer
+      remark:
+        type: string
+      status:
+        enum:
+        - "0"
+        - "1"
+        type: string
+      tagType:
+        type: string
+      value:
+        type: string
+    required:
+    - dictCode
+    - label
+    - status
+    - value
+    type: object
+  dict.CreateDictTypeReq:
+    properties:
+      code:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+      status:
+        enum:
+        - "0"
+        - "1"
+        type: string
+    required:
+    - code
+    - name
+    - status
+    type: object
+  dict.UpdateDictDataReq:
+    properties:
+      dictCode:
+        type: string
+      id:
+        type: integer
+      label:
+        type: string
+      orderBy:
+        type: integer
+      remark:
+        type: string
+      status:
+        enum:
+        - "0"
+        - "1"
+        type: string
+      tagType:
+        type: string
+      value:
+        type: string
+    required:
+    - dictCode
+    - id
+    - label
+    - status
+    - value
+    type: object
+  dict.UpdateDictTypeReq:
+    properties:
+      code:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      status:
+        enum:
+        - "0"
+        - "1"
+        type: string
+    required:
+    - code
+    - id
+    - name
+    - status
+    type: object
+  ipac.BatchDeleteIPACReq:
+    properties:
+      ids:
+        items:
+          type: integer
+        minItems: 1
+        type: array
+    required:
+    - ids
+    type: object
+  ipac.CreateIPACReq:
+    properties:
+      appId:
+        type: string
+      expiredAt:
+        description: '格式: "2006-01-02 15:04:05"'
+        type: string
+      ipAddr:
+        type: string
+      reason:
+        type: string
+      status:
+        enum:
+        - 0
+        - 1
+        type: integer
+      type:
+        enum:
+        - 1
+        - 2
+        type: integer
+    required:
+    - ipAddr
+    - type
+    type: object
+  ipac.UpdateIPACReq:
+    properties:
+      expiredAt:
+        type: string
+      id:
+        type: integer
+      reason:
+        type: string
+      status:
+        enum:
+        - 0
+        - 1
+        type: integer
+      type:
+        enum:
+        - 1
+        - 2
+        type: integer
+    required:
+    - id
+    - type
+    type: object
+  message.MsgTemplate:
+    properties:
+      channel:
+        description: sms, email, internal, push
+        type: string
+      code:
+        type: string
+      content:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      providerTplId:
+        type: string
+      status:
+        description: 1:启用, 0:禁用
+        type: integer
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  message.SendDirectReq:
+    properties:
+      channel:
+        type: string
+      content:
+        type: string
+      receiver:
+        type: string
+      title:
+        type: string
+    required:
+    - channel
+    - content
+    - receiver
+    type: object
+  open_platform.CreateAppReq:
+    properties:
+      cacheTTL:
+        type: integer
+      ipFilterEnabled:
+        type: boolean
+      name:
+        type: string
+      quotaConfig:
+        type: string
+      rateLimitEnabled:
+        type: boolean
+      remark:
+        type: string
+      scopes:
+        items:
+          type: string
+        type: array
+      status:
+        enum:
+        - 0
+        - 1
+        type: integer
+      storageId:
+        type: integer
+    required:
+    - name
+    type: object
+  open_platform.CreateOpenApiReq:
+    properties:
+      description:
+        type: string
+      group:
+        type: string
+      method:
+        enum:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - PATCH
+        type: string
+      name:
+        type: string
+      path:
+        type: string
+      status:
+        enum:
+        - 0
+        - 1
+        type: integer
+    required:
+    - method
+    - name
+    - path
+    type: object
+  open_platform.LinkIPRulesReq:
+    properties:
+      id:
+        type: string
+      ruleIds:
+        items:
+          type: integer
+        type: array
+    required:
+    - id
+    type: object
+  open_platform.ResetSecretReq:
+    properties:
+      id:
+        type: string
+    required:
+    - id
+    type: object
+  open_platform.UpdateAppReq:
+    properties:
+      cacheTTL:
+        type: integer
+      id:
+        type: string
+      ipFilterEnabled:
+        type: boolean
+      name:
+        type: string
+      quotaConfig:
+        type: string
+      rateLimitEnabled:
+        type: boolean
+      remark:
+        type: string
+      scopes:
+        items:
+          type: string
+        type: array
+      status:
+        enum:
+        - 0
+        - 1
+        type: integer
+      storageId:
+        type: integer
+    required:
+    - id
+    - name
+    type: object
+  open_platform.UpdateOpenApiReq:
+    properties:
+      description:
+        type: string
+      group:
+        type: string
+      id:
+        type: integer
+      method:
+        enum:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - PATCH
+        type: string
+      name:
+        type: string
+      path:
+        type: string
+      status:
+        enum:
+        - 0
+        - 1
+        type: integer
+    required:
+    - id
+    - method
+    - name
+    - path
+    type: object
+  open_platform.UpdateScopeApisReq:
+    properties:
+      apiIds:
+        items:
+          type: integer
+        type: array
+      scopeId:
+        type: integer
+    required:
+    - scopeId
+    type: object
+  response.Response:
+    properties:
+      code: {}
+      data: {}
+      msg:
+        type: string
+      request_id:
+        type: string
+    type: object
+  storage.CompleteUploadReq:
+    properties:
+      fileSize:
+        type: integer
+      fileUrl:
+        type: string
+      md5:
+        type: string
+      mimeType:
+        type: string
+      objectKey:
+        type: string
+      recordId:
+        type: integer
+      secret:
+        type: string
+    required:
+    - recordId
+    - secret
+    type: object
+  storage.CreateConfigReq:
+    properties:
+      accessKey:
+        type: string
+      allowedTypes:
+        type: string
+      bucket:
+        type: string
+      domain:
+        type: string
+      endpoint:
+        type: string
+      isDefault:
+        type: boolean
+      maxFileSize:
+        type: integer
+      name:
+        type: string
+      pathPrefix:
+        type: string
+      provider:
+        type: string
+      region:
+        type: string
+      remark:
+        type: string
+      secretKey:
+        type: string
+      status:
+        type: string
+      stsExpireTime:
+        type: integer
+    required:
+    - accessKey
+    - bucket
+    - endpoint
+    - name
+    - provider
+    - secretKey
+    type: object
+  storage.GetCredentialsReq:
+    properties:
+      businessId:
+        type: string
+      businessType:
+        type: string
+      configId:
+        type: integer
+      contentType:
+        type: string
+      fileName:
+        type: string
+      fileSize:
+        type: integer
+      sourceInfo:
+        additionalProperties: true
+        type: object
+    required:
+    - fileName
+    type: object
+  storage.TestUploadReq:
+    properties:
+      configId:
+        type: integer
+      content:
+        type: string
+      fileName:
+        type: string
+    required:
+    - configId
+    - content
+    - fileName
+    type: object
+  storage.UpdateConfigReq:
+    properties:
+      accessKey:
+        type: string
+      allowedTypes:
+        type: string
+      bucket:
+        type: string
+      domain:
+        type: string
+      endpoint:
+        type: string
+      id:
+        type: integer
+      isDefault:
+        type: boolean
+      maxFileSize:
+        type: integer
+      name:
+        type: string
+      pathPrefix:
+        type: string
+      provider:
+        type: string
+      region:
+        type: string
+      remark:
+        type: string
+      secretKey:
+        type: string
+      status:
+        type: string
+      stsExpireTime:
+        type: integer
+    required:
+    - bucket
+    - endpoint
+    - id
+    - name
+    - provider
+    type: object
+  system.ChangePasswordReq:
+    properties:
+      newPassword:
+        maxLength: 32
+        minLength: 8
+        type: string
+      oldPassword:
+        type: string
+    required:
+    - newPassword
+    - oldPassword
+    type: object
+  system.CreateAPIReq:
+    properties:
+      desc:
+        type: string
+      group:
+        type: string
+      method:
+        type: string
+      name:
+        type: string
+      path:
+        type: string
+    required:
+    - group
+    - method
+    - name
+    - path
+    type: object
+  system.CreateAdminReq:
+    properties:
+      email:
+        maxLength: 100
+        type: string
+      gender:
+        enum:
+        - "0"
+        - "1"
+        - "2"
+        type: string
+      nickname:
+        type: string
+      password:
+        maxLength: 32
+        minLength: 8
+        type: string
+      phone:
+        type: string
+      roles:
+        items:
+          type: string
+        type: array
+      status:
+        enum:
+        - "0"
+        - "1"
+        type: string
+      username:
+        maxLength: 50
+        minLength: 3
+        type: string
+    required:
+    - password
+    - status
+    - username
+    type: object
+  system.CreateButtonReq:
+    properties:
+      code:
+        type: string
+      menuId:
+        type: integer
+      name:
+        type: string
+    required:
+    - code
+    - menuId
+    - name
+    type: object
+  system.CreateMenuReq:
+    properties:
+      activeMenu:
+        type: string
+      buttons:
+        items:
+          $ref: '#/definitions/system.MenuButton'
+        type: array
+      component:
+        type: string
+      constant:
+        type: boolean
+      fixedIndexInTab:
+        type: integer
+      hideInMenu:
+        type: boolean
+      href:
+        type: string
+      i18nKey:
+        type: string
+      icon:
+        type: string
+      iconType:
+        type: string
+      keepAlive:
+        type: boolean
+      multiTab:
+        type: boolean
+      name:
+        type: string
+      order:
+        type: integer
+      parentId:
+        type: integer
+      query:
+        items:
+          $ref: '#/definitions/system.QueryItem'
+        type: array
+      routeName:
+        type: string
+      routePath:
+        type: string
+      status:
+        enum:
+        - "0"
+        - "1"
+        type: string
+      type:
+        type: string
+    required:
+    - name
+    - routeName
+    - routePath
+    - type
+    type: object
+  system.CreateRoleReq:
+    properties:
+      apis:
+        items:
+          type: integer
+        type: array
+      buttons:
+        items:
+          type: integer
+        type: array
+      code:
+        type: string
+      desc:
+        type: string
+      menus:
+        items:
+          type: integer
+        type: array
+      name:
+        type: string
+      status:
+        enum:
+        - "0"
+        - "1"
+        type: string
+    required:
+    - code
+    - name
+    type: object
+  system.MenuButton:
+    properties:
+      code:
+        type: string
+      desc:
+        type: string
+    type: object
+  system.QueryItem:
+    properties:
+      key:
+        type: string
+      value:
+        type: string
+    type: object
+  system.RefreshTokenReq:
+    properties:
+      refreshToken:
+        type: string
+    required:
+    - refreshToken
+    type: object
+  system.SysConfigVO:
+    properties:
+      configKey:
+        type: string
+      configValue:
+        type: string
+      description:
+        type: string
+      groupName:
+        type: string
+      isSystem:
+        type: boolean
+      valueType:
+        type: string
+    type: object
+  system.TestEmailReq:
+    properties:
+      receiver:
+        type: string
+    required:
+    - receiver
+    type: object
+  system.UpdateAPIReq:
+    properties:
+      desc:
+        type: string
+      group:
+        type: string
+      id:
+        type: integer
+      method:
+        type: string
+      name:
+        type: string
+      path:
+        type: string
+    required:
+    - id
+    - method
+    - name
+    - path
+    type: object
+  system.UpdateAdminReq:
+    properties:
+      email:
+        maxLength: 100
+        type: string
+      gender:
+        enum:
+        - "0"
+        - "1"
+        - "2"
+        type: string
+      id:
+        type: integer
+      nickname:
+        type: string
+      password:
+        maxLength: 32
+        minLength: 8
+        type: string
+      phone:
+        type: string
+      roles:
+        items:
+          type: string
+        type: array
+      status:
+        enum:
+        - "0"
+        - "1"
+        type: string
+      username:
+        maxLength: 50
+        minLength: 3
+        type: string
+    required:
+    - status
+    - username
+    type: object
+  system.UpdateButtonReq:
+    properties:
+      code:
+        type: string
+      id:
+        type: integer
+      menuId:
+        type: integer
+      name:
+        type: string
+    required:
+    - code
+    - id
+    - menuId
+    - name
+    type: object
+  system.UpdateConfigReq:
+    properties:
+      configKey:
+        type: string
+      configValue:
+        type: string
+      description:
+        type: string
+      groupName:
+        type: string
+      valueType:
+        type: string
+    required:
+    - configKey
+    - groupName
+    type: object
+  system.UpdateMenuReq:
+    properties:
+      activeMenu:
+        type: string
+      buttons:
+        items:
+          $ref: '#/definitions/system.MenuButton'
+        type: array
+      component:
+        type: string
+      constant:
+        type: boolean
+      fixedIndexInTab:
+        type: integer
+      hideInMenu:
+        type: boolean
+      href:
+        type: string
+      i18nKey:
+        type: string
+      icon:
+        type: string
+      iconType:
+        type: string
+      id:
+        type: integer
+      keepAlive:
+        type: boolean
+      multiTab:
+        type: boolean
+      name:
+        type: string
+      order:
+        type: integer
+      parentId:
+        type: integer
+      query:
+        items:
+          $ref: '#/definitions/system.QueryItem'
+        type: array
+      routeName:
+        type: string
+      routePath:
+        type: string
+      status:
+        enum:
+        - "0"
+        - "1"
+        type: string
+      type:
+        type: string
+    required:
+    - id
+    - name
+    - routeName
+    - routePath
+    - type
+    type: object
+  system.UpdateProfileReq:
+    properties:
+      email:
+        maxLength: 100
+        type: string
+      gender:
+        enum:
+        - "0"
+        - "1"
+        - "2"
+        type: string
+      nickname:
+        type: string
+      phone:
+        type: string
+    type: object
+  system.UpdateRoleReq:
+    properties:
+      apis:
+        items:
+          type: integer
+        type: array
+      buttons:
+        items:
+          type: integer
+        type: array
+      code:
+        type: string
+      desc:
+        type: string
+      id:
+        type: integer
+      menus:
+        items:
+          type: integer
+        type: array
+      name:
+        type: string
+      status:
+        enum:
+        - "0"
+        - "1"
+        type: string
+    required:
+    - code
+    - id
+    - name
+    type: object
+  task.UpdateTaskReq:
+    properties:
+      enabled:
+        type: boolean
+      name:
+        type: string
+      spec:
+        type: string
+    required:
+    - name
+    - spec
+    type: object
+  user.CreateUserReq:
+    properties:
+      avatar:
+        type: string
+      email:
+        maxLength: 100
+        type: string
+      gender:
+        enum:
+        - "0"
+        - "1"
+        - "2"
+        type: string
+      nickname:
+        type: string
+      password:
+        type: string
+      phone:
+        type: string
+      status:
+        type: string
+      username:
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  user.UpdateUserReq:
+    properties:
+      avatar:
+        type: string
+      email:
+        maxLength: 100
+        type: string
+      gender:
+        enum:
+        - "0"
+        - "1"
+        - "2"
+        type: string
+      nickname:
+        type: string
+      password:
+        type: string
+      phone:
+        type: string
+      status:
+        type: string
+    type: object
+  user.UpdateUserStatusReq:
+    properties:
+      status:
+        enum:
+        - "0"
+        - "1"
+        type: string
+    required:
+    - status
+    type: object
+  v1.CompleteClientUploadReq:
+    properties:
+      fileSize:
+        type: integer
+      fileUrl:
+        type: string
+      md5:
+        type: string
+      mimeType:
+        type: string
+      objectKey:
+        type: string
+      recordId:
+        type: integer
+      secret:
+        type: string
+    required:
+    - recordId
+    - secret
+    type: object
+  v1.CreateUserUploadRecordReq:
+    properties:
+      fileSize:
+        type: integer
+      fileUrl:
+        type: string
+      md5:
+        type: string
+      mimeType:
+        type: string
+      objectKey:
+        type: string
+      recordId:
+        type: integer
+      secret:
+        type: string
+    required:
+    - recordId
+    - secret
+    type: object
+  v1.EchoRequest:
+    properties:
+      message:
+        type: string
+    required:
+    - message
+    type: object
+  v1.GetClientCredentialsReq:
+    properties:
+      businessId:
+        type: string
+      businessType:
+        type: string
+      contentType:
+        type: string
+      fileName:
+        type: string
+      fileSize:
+        type: integer
+      sourceInfo:
+        additionalProperties: true
+        type: object
+    required:
+    - fileName
+    type: object
+  v1.MarkReadReq:
+    properties:
+      msgInternalId:
+        type: integer
+    required:
+    - msgInternalId
+    type: object
+  v1.UserChangePasswordReq:
+    properties:
+      newPassword:
+        maxLength: 20
+        minLength: 8
+        type: string
+      oldPassword:
+        type: string
+    required:
+    - newPassword
+    - oldPassword
+    type: object
+  v1.UserLoginReq:
+    properties:
+      captchaCode:
+        type: string
+      captchaKey:
+        type: string
+      code:
+        type: string
+      password:
+        type: string
+      platform:
+        type: string
+      userName:
+        type: string
+    required:
+    - password
+    - userName
+    type: object
+  v1.UserRegisterReq:
+    properties:
+      code:
+        type: string
+      email:
+        maxLength: 100
+        type: string
+      nickName:
+        type: string
+      password:
+        maxLength: 20
+        minLength: 8
+        type: string
+      phone:
+        type: string
+      userName:
+        maxLength: 20
+        minLength: 4
+        type: string
+    required:
+    - nickName
+    - password
+    - userName
+    type: object
+  v1.UserResetPasswordReq:
+    properties:
+      code:
+        type: string
+      newPassword:
+        maxLength: 20
+        minLength: 8
+        type: string
+      target:
+        description: phone or email
+        type: string
+    required:
+    - code
+    - newPassword
+    - target
+    type: object
+  v1.UserUpdateProfileReq:
+    properties:
+      avatar:
+        type: string
+      email:
+        maxLength: 100
+        type: string
+      gender:
+        enum:
+        - "0"
+        - "1"
+        - "2"
+        type: string
+      nickName:
+        type: string
+      phone:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: NetyAdmin 后台管理系统 API 文档
+  title: NetyAdmin API
+  version: "1.0"
+paths:
+  /admin/v1/admins:
+    get:
+      consumes:
+      - application/json
+      description: 分页查询管理员列表，支持按用户名、昵称、手机号、邮箱、状态、性别筛选
+      parameters:
+      - description: 用户名
+        in: query
+        name: username
+        type: string
+      - description: 昵称
+        in: query
+        name: nickname
+        type: string
+      - description: 手机号
+        in: query
+        name: phone
+        type: string
+      - description: 邮箱
+        in: query
+        name: email
+        type: string
+      - description: 状态
+        in: query
+        name: status
+        type: string
+      - description: 性别
+        in: query
+        name: gender
+        type: string
+      - description: 当前页
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 管理员分页列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取管理员列表
+      tags:
+      - 管理员管理
+    post:
+      consumes:
+      - application/json
+      description: 创建新的管理员账号，设置用户名、密码、昵称、联系方式、状态及角色
+      parameters:
+      - description: 管理员创建参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/system.CreateAdminReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 创建管理员
+      tags:
+      - 管理员管理
+  /admin/v1/admins/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 根据管理员ID删除单个管理员账号
+      parameters:
+      - description: 管理员ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除管理员
+      tags:
+      - 管理员管理
+    get:
+      consumes:
+      - application/json
+      description: 根据管理员ID获取管理员详细信息
+      parameters:
+      - description: 管理员ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 管理员详情
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取管理员详情
+      tags:
+      - 管理员管理
+    put:
+      consumes:
+      - application/json
+      description: 根据管理员ID更新管理员账号信息，包括资料、密码及角色
+      parameters:
+      - description: 管理员ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 管理员更新参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/system.UpdateAdminReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新管理员
+      tags:
+      - 管理员管理
+  /admin/v1/admins/batch:
+    delete:
+      consumes:
+      - application/json
+      description: 根据管理员ID列表批量删除管理员账号
+      parameters:
+      - description: 待删除的管理员ID列表
+        in: body
+        name: ids
+        required: true
+        schema:
+          items:
+            type: integer
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 批量删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 批量删除管理员
+      tags:
+      - 管理员管理
+  /admin/v1/auth/changePassword:
+    post:
+      consumes:
+      - application/json
+      description: 当前登录管理员通过旧密码修改登录密码
+      parameters:
+      - description: 修改密码请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/system.ChangePasswordReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 修改成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 修改密码
+      tags:
+      - 认证管理
+  /admin/v1/auth/getUserInfo:
+    get:
+      consumes:
+      - application/json
+      description: 根据上下文中的管理员ID获取当前登录用户的详细信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 用户信息
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取当前登录用户信息
+      tags:
+      - 认证管理
+  /admin/v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: 使用用户名/密码登录管理员账号，可选验证码校验，返回访问令牌与刷新令牌
+      parameters:
+      - description: 登录参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/auth.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 登录成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 管理员登录
+      tags:
+      - 认证管理
+  /admin/v1/auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: 当前登录管理员退出登录，注销访问令牌
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 退出成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 退出登录
+      tags:
+      - 认证管理
+  /admin/v1/auth/profile:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前登录管理员的个人资料信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 个人资料
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取个人资料
+      tags:
+      - 认证管理
+    put:
+      consumes:
+      - application/json
+      description: 更新当前登录管理员的个人资料，例如昵称、手机号、邮箱、性别
+      parameters:
+      - description: 个人资料信息
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/system.UpdateProfileReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新个人资料
+      tags:
+      - 认证管理
+  /admin/v1/auth/refreshToken:
+    post:
+      consumes:
+      - application/json
+      description: 使用刷新令牌换取新的访问令牌与刷新令牌
+      parameters:
+      - description: 刷新令牌请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/system.RefreshTokenReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 刷新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 刷新令牌
+      tags:
+      - 认证管理
+  /admin/v1/common/captcha:
+    get:
+      consumes:
+      - application/json
+      description: 生成图形验证码，返回验证码ID与Base64图片
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 验证码信息
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 获取验证码
+      tags:
+      - 通用接口
+  /admin/v1/content/articles:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取文章列表，支持按分类、标题、发布状态、置顶、热门、推荐、作者、时间范围筛选
+      parameters:
+      - description: 页码
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 分类ID
+        in: query
+        name: categoryId
+        type: integer
+      - description: 文章标题
+        in: query
+        name: title
+        type: string
+      - description: 发布状态(draft/published/scheduled)
+        in: query
+        name: publishStatus
+        type: string
+      - description: 是否置顶
+        in: query
+        name: isTop
+        type: boolean
+      - description: 是否热门
+        in: query
+        name: isHot
+        type: boolean
+      - description: 是否推荐
+        in: query
+        name: isRecommend
+        type: boolean
+      - description: 作者
+        in: query
+        name: author
+        type: string
+      - description: 开始时间
+        in: query
+        name: startTime
+        type: string
+      - description: 结束时间
+        in: query
+        name: endTime
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 文章列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取文章列表
+      tags:
+      - 文章管理
+    post:
+      consumes:
+      - application/json
+      description: 新建一篇文章
+      parameters:
+      - description: 创建文章参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/content.CreateContentArticleDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 创建文章
+      tags:
+      - 文章管理
+  /admin/v1/content/articles/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 根据ID删除文章
+      parameters:
+      - description: 文章ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除文章
+      tags:
+      - 文章管理
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取单个文章详情
+      parameters:
+      - description: 文章ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 文章详情
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取文章详情
+      tags:
+      - 文章管理
+    put:
+      consumes:
+      - application/json
+      description: 根据ID更新文章信息
+      parameters:
+      - description: 文章ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 更新文章参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/content.UpdateContentArticleDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新文章
+      tags:
+      - 文章管理
+  /admin/v1/content/articles/{id}/publish:
+    put:
+      consumes:
+      - application/json
+      description: 根据ID发布文章
+      parameters:
+      - description: 文章ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 发布成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 发布文章
+      tags:
+      - 文章管理
+  /admin/v1/content/articles/{id}/top:
+    put:
+      consumes:
+      - application/json
+      description: 根据ID设置文章置顶状态及排序
+      parameters:
+      - description: 文章ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 置顶参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/content.SetArticleTopDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 设置成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 设置文章置顶
+      tags:
+      - 文章管理
+  /admin/v1/content/articles/{id}/unpublish:
+    put:
+      consumes:
+      - application/json
+      description: 根据ID取消发布文章
+      parameters:
+      - description: 文章ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 取消发布成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 取消发布文章
+      tags:
+      - 文章管理
+  /admin/v1/content/banner-groups:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取Banner组列表，支持按名称、编码、描述、位置、状态筛选
+      parameters:
+      - description: 页码
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 组名称
+        in: query
+        name: name
+        type: string
+      - description: 组编码
+        in: query
+        name: code
+        type: string
+      - description: 描述
+        in: query
+        name: description
+        type: string
+      - description: 位置
+        in: query
+        name: position
+        type: string
+      - description: 状态(0/1)
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Banner组列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取Banner组列表
+      tags:
+      - Banner组管理
+    post:
+      consumes:
+      - application/json
+      description: 新建一个Banner组
+      parameters:
+      - description: 创建Banner组参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/content.CreateContentBannerGroupDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 创建Banner组
+      tags:
+      - Banner组管理
+  /admin/v1/content/banner-groups/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 根据ID删除Banner组
+      parameters:
+      - description: Banner组ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除Banner组
+      tags:
+      - Banner组管理
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取单个Banner组详情
+      parameters:
+      - description: Banner组ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Banner组详情
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取Banner组详情
+      tags:
+      - Banner组管理
+    put:
+      consumes:
+      - application/json
+      description: 根据ID更新Banner组信息
+      parameters:
+      - description: Banner组ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 更新Banner组参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/content.UpdateContentBannerGroupDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新Banner组
+      tags:
+      - Banner组管理
+  /admin/v1/content/banner-items:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取Banner项列表，支持按组、标题、状态、时间范围筛选
+      parameters:
+      - description: 页码
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: Banner组ID
+        in: query
+        name: groupId
+        type: integer
+      - description: 标题
+        in: query
+        name: title
+        type: string
+      - description: 状态(0/1)
+        in: query
+        name: status
+        type: string
+      - description: 开始时间
+        in: query
+        name: startTime
+        type: string
+      - description: 结束时间
+        in: query
+        name: endTime
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Banner项列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取Banner项列表
+      tags:
+      - Banner项管理
+    post:
+      consumes:
+      - application/json
+      description: 新建一个Banner项
+      parameters:
+      - description: 创建Banner项参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/content.CreateContentBannerItemDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 创建Banner项
+      tags:
+      - Banner项管理
+  /admin/v1/content/banner-items/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 根据ID删除Banner项
+      parameters:
+      - description: Banner项ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除Banner项
+      tags:
+      - Banner项管理
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取单个Banner项详情
+      parameters:
+      - description: Banner项ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Banner项详情
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取Banner项详情
+      tags:
+      - Banner项管理
+    put:
+      consumes:
+      - application/json
+      description: 根据ID更新Banner项信息
+      parameters:
+      - description: Banner项ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 更新Banner项参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/content.UpdateContentBannerItemDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新Banner项
+      tags:
+      - Banner项管理
+  /admin/v1/content/categories:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取内容分类列表，支持按名称、编码、内容类型、状态筛选
+      parameters:
+      - description: 页码
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 分类名称
+        in: query
+        name: name
+        type: string
+      - description: 分类编码
+        in: query
+        name: code
+        type: string
+      - description: 内容类型(plaintext/richtext)
+        in: query
+        name: contentType
+        type: string
+      - description: 状态(0/1)
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 分类列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取内容分类列表
+      tags:
+      - 内容分类管理
+    post:
+      consumes:
+      - application/json
+      description: 新建一个内容分类
+      parameters:
+      - description: 创建分类参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/content.CreateContentCategoryDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 创建内容分类
+      tags:
+      - 内容分类管理
+  /admin/v1/content/categories/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 根据ID删除内容分类
+      parameters:
+      - description: 分类ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除内容分类
+      tags:
+      - 内容分类管理
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取单个内容分类详情
+      parameters:
+      - description: 分类ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 分类详情
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取内容分类详情
+      tags:
+      - 内容分类管理
+    put:
+      consumes:
+      - application/json
+      description: 根据ID更新内容分类信息
+      parameters:
+      - description: 分类ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 更新分类参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/content.UpdateContentCategoryDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新内容分类
+      tags:
+      - 内容分类管理
+  /admin/v1/content/categories/tree:
+    get:
+      consumes:
+      - application/json
+      description: 获取内容分类的树形结构，可选强制刷新缓存
+      parameters:
+      - description: 是否强制刷新缓存(true)
+        in: query
+        name: refresh
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 分类树
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取内容分类树
+      tags:
+      - 内容分类管理
+  /admin/v1/error-logs:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取错误日志，支持按日志级别、是否已解决筛选
+      parameters:
+      - description: 页码
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 日志级别
+        in: query
+        name: level
+        type: string
+      - description: 是否已解决(true/false)
+        in: query
+        name: resolved
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 错误日志列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取错误日志列表
+      tags:
+      - 错误日志
+  /admin/v1/error-logs/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 根据ID删除错误日志
+      parameters:
+      - description: 日志ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除错误日志
+      tags:
+      - 错误日志
+  /admin/v1/error-logs/{id}/resolve:
+    put:
+      consumes:
+      - application/json
+      description: 根据ID将错误日志标记为已解决
+      parameters:
+      - description: 日志ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 标记成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 标记错误日志已解决
+      tags:
+      - 错误日志
+  /admin/v1/error-logs/batch-delete:
+    post:
+      consumes:
+      - application/json
+      description: 根据ID列表批量删除错误日志
+      parameters:
+      - description: 批量删除请求，包含ids字段
+        in: body
+        name: req
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 批量删除错误日志
+      tags:
+      - 错误日志
+  /admin/v1/message/records:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取消息发送记录，支持按渠道、接收人、状态筛选
+      parameters:
+      - description: 页码
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 消息渠道
+        in: query
+        name: channel
+        type: string
+      - description: 接收人
+        in: query
+        name: receiver
+        type: string
+      - description: 发送状态
+        in: query
+        name: status
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 记录列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取消息记录列表
+      tags:
+      - 消息管理
+  /admin/v1/message/records/{id}/retry:
+    post:
+      consumes:
+      - application/json
+      description: 根据记录ID重发失败的消息
+      parameters:
+      - description: 记录ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 重发成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 重发消息
+      tags:
+      - 消息管理
+  /admin/v1/message/send:
+    post:
+      consumes:
+      - application/json
+      description: 管理员直接发送消息到指定接收人
+      parameters:
+      - description: 发送消息请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/message.SendDirectReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 发送成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 直接发送消息
+      tags:
+      - 消息管理
+  /admin/v1/message/templates:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取消息模板列表，支持按渠道、编码、名称、状态筛选
+      parameters:
+      - description: 页码
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 消息渠道
+        in: query
+        name: channel
+        type: string
+      - description: 模板编码
+        in: query
+        name: code
+        type: string
+      - description: 模板名称
+        in: query
+        name: name
+        type: string
+      - description: 状态(0:禁用 1:启用)
+        in: query
+        name: status
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 模板列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取消息模板列表
+      tags:
+      - 消息管理
+    post:
+      consumes:
+      - application/json
+      description: 创建消息模板
+      parameters:
+      - description: 模板信息
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/message.MsgTemplate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 新增消息模板
+      tags:
+      - 消息管理
+    put:
+      consumes:
+      - application/json
+      description: 更新消息模板信息
+      parameters:
+      - description: 模板信息
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/message.MsgTemplate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 修改消息模板
+      tags:
+      - 消息管理
+  /admin/v1/message/templates/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 根据ID删除消息模板
+      parameters:
+      - description: 模板ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除消息模板
+      tags:
+      - 消息管理
+  /admin/v1/open-platform/ip-access:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取IP访问控制规则列表，支持按应用、IP、类型、状态筛选
+      parameters:
+      - description: 页码
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 应用ID
+        in: query
+        name: appId
+        type: string
+      - description: IP地址
+        in: query
+        name: ipAddr
+        type: string
+      - description: 类型(1黑名单/2白名单)
+        in: query
+        name: type
+        type: integer
+      - description: 状态(0/1)
+        in: query
+        name: status
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: IP访问规则列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取IP访问规则列表
+      tags:
+      - IP访问控制
+    post:
+      consumes:
+      - application/json
+      description: 新增一条IP访问控制规则
+      parameters:
+      - description: 新增IP规则参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/ipac.CreateIPACReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 新增成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 新增IP访问规则
+      tags:
+      - IP访问控制
+    put:
+      consumes:
+      - application/json
+      description: 修改一条IP访问控制规则
+      parameters:
+      - description: 修改IP规则参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/ipac.UpdateIPACReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 修改成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 修改IP访问规则
+      tags:
+      - IP访问控制
+  /admin/v1/open-platform/ip-access/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 根据ID删除单个IP访问控制规则
+      parameters:
+      - description: IP规则ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除IP访问规则
+      tags:
+      - IP访问控制
+  /admin/v1/open-platform/ip-access/batch:
+    delete:
+      consumes:
+      - application/json
+      description: 根据ID数组批量删除IP访问控制规则
+      parameters:
+      - description: 批量删除参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/ipac.BatchDeleteIPACReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 批量删除IP访问规则
+      tags:
+      - IP访问控制
+  /admin/v1/open/apis:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取开放平台API列表，支持按方法、路径、名称、分组、状态筛选
+      parameters:
+      - description: 页码
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 请求方法
+        in: query
+        name: method
+        type: string
+      - description: API路径
+        in: query
+        name: path
+        type: string
+      - description: API名称
+        in: query
+        name: name
+        type: string
+      - description: API分组
+        in: query
+        name: group
+        type: string
+      - description: 状态(0:禁用 1:启用)
+        in: query
+        name: status
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: API列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取开放API列表
+      tags:
+      - 开放API管理
+    post:
+      consumes:
+      - application/json
+      description: 创建开放平台API
+      parameters:
+      - description: 创建API请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/open_platform.CreateOpenApiReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 新增开放API
+      tags:
+      - 开放API管理
+    put:
+      consumes:
+      - application/json
+      description: 更新开放平台API信息
+      parameters:
+      - description: 更新API请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/open_platform.UpdateOpenApiReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 修改开放API
+      tags:
+      - 开放API管理
+  /admin/v1/open/apis/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 根据ID删除开放平台API
+      parameters:
+      - description: API ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除开放API
+      tags:
+      - 开放API管理
+  /admin/v1/open/apis/grouped:
+    get:
+      consumes:
+      - application/json
+      description: 按分组获取开放平台API列表
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 分组API列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取分组API列表
+      tags:
+      - 开放API管理
+  /admin/v1/open/apis/scope-apis:
+    get:
+      consumes:
+      - application/json
+      description: 根据权限范围ID获取其关联的API列表
+      parameters:
+      - description: 权限范围ID
+        in: query
+        name: scopeId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: API列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取权限范围的API列表
+      tags:
+      - 开放API管理
+    put:
+      consumes:
+      - application/json
+      description: 更新指定权限范围所关联的API列表
+      parameters:
+      - description: 更新权限范围API请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/open_platform.UpdateScopeApisReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新权限范围的API
+      tags:
+      - 开放API管理
+  /admin/v1/open/apps:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取开放平台应用列表，支持按名称、AppKey、状态筛选
+      parameters:
+      - description: 页码
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 应用名称
+        in: query
+        name: name
+        type: string
+      - description: 应用AppKey
+        in: query
+        name: appKey
+        type: string
+      - description: 状态(0:禁用 1:启用)
+        in: query
+        name: status
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 应用列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取应用列表
+      tags:
+      - 应用管理
+    post:
+      consumes:
+      - application/json
+      description: 创建开放平台应用，并关联权限范围
+      parameters:
+      - description: 创建应用请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/open_platform.CreateAppReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 新增应用
+      tags:
+      - 应用管理
+    put:
+      consumes:
+      - application/json
+      description: 更新开放平台应用信息及其权限范围
+      parameters:
+      - description: 更新应用请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/open_platform.UpdateAppReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 修改应用
+      tags:
+      - 应用管理
+  /admin/v1/open/apps/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 根据应用ID删除开放平台应用
+      parameters:
+      - description: 应用ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除应用
+      tags:
+      - 应用管理
+  /admin/v1/open/apps/available-scopes:
+    get:
+      consumes:
+      - application/json
+      description: 获取所有可用的权限范围列表
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 可用权限范围列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取可用权限范围
+      tags:
+      - 应用管理
+  /admin/v1/open/apps/ip-rules:
+    put:
+      consumes:
+      - application/json
+      description: 将IP规则关联到指定应用
+      parameters:
+      - description: 关联IP规则请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/open_platform.LinkIPRulesReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 关联成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 关联IP规则
+      tags:
+      - 应用管理
+  /admin/v1/open/apps/reset-secret:
+    put:
+      consumes:
+      - application/json
+      description: 重置开放平台应用的AppSecret，返回新的密钥
+      parameters:
+      - description: 重置密钥请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/open_platform.ResetSecretReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 新密钥
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 重置密钥
+      tags:
+      - 应用管理
+  /admin/v1/open/apps/scopes:
+    get:
+      consumes:
+      - application/json
+      description: 根据应用ID获取应用已授权的权限范围列表
+      parameters:
+      - description: 应用ID
+        in: query
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 权限范围列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取应用权限范围
+      tags:
+      - 应用管理
+  /admin/v1/operation-logs:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取操作日志，支持按管理员、操作、时间范围筛选
+      parameters:
+      - description: 页码
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 管理员ID
+        in: query
+        name: adminId
+        type: integer
+      - description: 操作类型
+        in: query
+        name: action
+        type: string
+      - description: 开始日期
+        in: query
+        name: startDate
+        type: string
+      - description: 结束日期
+        in: query
+        name: endDate
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作日志列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取操作日志列表
+      tags:
+      - 操作日志
+  /admin/v1/operation-logs/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 根据ID删除操作日志
+      parameters:
+      - description: 日志ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除操作日志
+      tags:
+      - 操作日志
+  /admin/v1/operation-logs/batch-delete:
+    post:
+      consumes:
+      - application/json
+      description: 根据ID列表批量删除操作日志
+      parameters:
+      - description: 批量删除请求，包含ids字段
+        in: body
+        name: req
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 批量删除操作日志
+      tags:
+      - 操作日志
+  /admin/v1/ops/open-platform-log:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取开放平台调用日志，支持按应用、AppKey、API路径、状态码、时间范围筛选
+      parameters:
+      - description: 页码
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 应用ID
+        in: query
+        name: appId
+        type: string
+      - description: 应用AppKey
+        in: query
+        name: appKey
+        type: string
+      - description: API路径
+        in: query
+        name: apiPath
+        type: string
+      - description: HTTP状态码
+        in: query
+        name: statusCode
+        type: integer
+      - description: 开始时间
+        in: query
+        name: startTime
+        type: string
+      - description: 结束时间
+        in: query
+        name: endTime
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 日志列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取开放平台调用日志列表
+      tags:
+      - 开放平台日志
+  /admin/v1/route/getUserRoutes:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前登录管理员的动态路由菜单
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 用户路由列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取用户路由
+      tags:
+      - 路由管理
+  /admin/v1/route/isRouteExist:
+    get:
+      consumes:
+      - application/json
+      description: 根据路由名称检查路由是否存在
+      parameters:
+      - description: 路由名称
+        in: query
+        name: routeName
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 是否存在
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 检查路由是否存在
+      tags:
+      - 路由管理
+  /admin/v1/storage-configs:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取存储配置列表
+      parameters:
+      - description: 页码
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 存储配置列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取存储配置列表
+      tags:
+      - 存储管理
+    post:
+      consumes:
+      - application/json
+      description: 新建一个存储配置
+      parameters:
+      - description: 创建存储配置参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/storage.CreateConfigReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 创建存储配置
+      tags:
+      - 存储管理
+    put:
+      consumes:
+      - application/json
+      description: 更新存储配置信息
+      parameters:
+      - description: 更新存储配置参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/storage.UpdateConfigReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新存储配置
+      tags:
+      - 存储管理
+  /admin/v1/storage-configs/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 根据ID删除存储配置
+      parameters:
+      - description: 存储配置ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除存储配置
+      tags:
+      - 存储管理
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取单个存储配置详情
+      parameters:
+      - description: 存储配置ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 存储配置详情
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取存储配置详情
+      tags:
+      - 存储管理
+  /admin/v1/storage-configs/{id}/default:
+    put:
+      consumes:
+      - application/json
+      description: 根据ID将存储配置设为默认
+      parameters:
+      - description: 存储配置ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 设置成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 设置默认存储配置
+      tags:
+      - 存储管理
+  /admin/v1/storage-configs/all-enabled:
+    get:
+      consumes:
+      - application/json
+      description: 获取所有状态为启用的存储配置列表
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 存储配置列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取所有启用的存储配置
+      tags:
+      - 存储管理
+  /admin/v1/storage-configs/test-upload:
+    post:
+      consumes:
+      - application/json
+      description: 使用指定存储配置测试文件上传
+      parameters:
+      - description: 测试上传参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/storage.TestUploadReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 测试结果
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 测试存储上传
+      tags:
+      - 存储管理
+  /admin/v1/storage/upload-credentials:
+    post:
+      consumes:
+      - application/json
+      description: 获取文件上传凭证(含recordId与secret，用于上传成功通知验签)
+      parameters:
+      - description: 获取上传凭证参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/storage.GetCredentialsReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 上传凭证
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取上传凭证
+      tags:
+      - 文件上传
+  /admin/v1/storage/upload-record:
+    post:
+      consumes:
+      - application/json
+      description: 上传成功后通知服务端，根据 recordId 与 secret 校验后将 pending 记录置为 uploaded
+      parameters:
+      - description: 上传成功通知参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/storage.CompleteUploadReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 上传记录
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 上传成功通知
+      tags:
+      - 文件上传
+  /admin/v1/system/configs:
+    get:
+      consumes:
+      - application/json
+      description: 根据组名获取多项配置，例如 cache_switches
+      parameters:
+      - description: 配置组名
+        in: query
+        name: groupName
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 配置列表
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/system.SysConfigVO'
+                  type: array
+              type: object
+      summary: 获取配置分组
+      tags:
+      - 系统配置管理
+    put:
+      consumes:
+      - application/json
+      description: 更新缓存开关或其他动态配置，修改后自动通过Redis广播全局重新加载内存字典
+      parameters:
+      - description: 配置信息
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/system.UpdateConfigReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 保存成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 更新/新增单个系统配置
+      tags:
+      - 系统配置管理
+  /admin/v1/system/dict/data:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取字典数据全量管理列表，支持按字典编码、标签、状态筛选
+      parameters:
+      - description: 页码
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 字典编码
+        in: query
+        name: dictCode
+        type: string
+      - description: 字典标签
+        in: query
+        name: label
+        type: string
+      - description: 状态(0/1)
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 字典数据列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取字典数据列表
+      tags:
+      - 字典管理
+    post:
+      consumes:
+      - application/json
+      description: 新建一条字典数据
+      parameters:
+      - description: 创建字典数据参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/dict.CreateDictDataReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 创建字典数据
+      tags:
+      - 字典管理
+    put:
+      consumes:
+      - application/json
+      description: 更新字典数据信息
+      parameters:
+      - description: 更新字典数据参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/dict.UpdateDictDataReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新字典数据
+      tags:
+      - 字典管理
+  /admin/v1/system/dict/data/{code}:
+    get:
+      consumes:
+      - application/json
+      description: 根据字典编码获取字典数据(用于下拉框，带缓存)
+      parameters:
+      - description: 字典编码
+        in: path
+        name: code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 字典数据
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 获取字典数据
+      tags:
+      - 字典管理
+  /admin/v1/system/dict/data/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 根据ID删除字典数据
+      parameters:
+      - description: 字典数据ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除字典数据
+      tags:
+      - 字典管理
+  /admin/v1/system/dict/types:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取字典类型列表，支持按名称、编码、状态筛选
+      parameters:
+      - description: 页码
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 字典类型名称
+        in: query
+        name: name
+        type: string
+      - description: 字典类型编码
+        in: query
+        name: code
+        type: string
+      - description: 状态(0/1)
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 字典类型列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取字典类型列表
+      tags:
+      - 字典管理
+    post:
+      consumes:
+      - application/json
+      description: 新建一个字典类型
+      parameters:
+      - description: 创建字典类型参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/dict.CreateDictTypeReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 创建字典类型
+      tags:
+      - 字典管理
+    put:
+      consumes:
+      - application/json
+      description: 更新字典类型信息
+      parameters:
+      - description: 更新字典类型参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/dict.UpdateDictTypeReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新字典类型
+      tags:
+      - 字典管理
+  /admin/v1/system/dict/types/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 根据ID删除字典类型
+      parameters:
+      - description: 字典类型ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除字典类型
+      tags:
+      - 字典管理
+  /admin/v1/system/tasks:
+    get:
+      consumes:
+      - application/json
+      description: 获取所有定时任务列表
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 任务列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取任务列表
+      tags:
+      - 任务管理
+  /admin/v1/system/tasks/{name}/reload:
+    post:
+      consumes:
+      - application/json
+      description: 根据任务名称重新加载任务配置
+      parameters:
+      - description: 任务名称
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 重启成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 重启任务
+      tags:
+      - 任务管理
+  /admin/v1/system/tasks/{name}/run:
+    post:
+      consumes:
+      - application/json
+      description: 根据任务名称立即触发执行一次
+      parameters:
+      - description: 任务名称
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 触发成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 立即执行任务
+      tags:
+      - 任务管理
+  /admin/v1/system/tasks/{name}/start:
+    post:
+      consumes:
+      - application/json
+      description: 根据任务名称启动定时任务
+      parameters:
+      - description: 任务名称
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 启动成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 启动任务
+      tags:
+      - 任务管理
+  /admin/v1/system/tasks/{name}/stop:
+    post:
+      consumes:
+      - application/json
+      description: 根据任务名称停止定时任务
+      parameters:
+      - description: 任务名称
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 停止成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 停止任务
+      tags:
+      - 任务管理
+  /admin/v1/system/tasks/logs:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取任务执行日志
+      parameters:
+      - description: 任务名称
+        in: query
+        name: name
+        type: string
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 日志列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取任务执行日志
+      tags:
+      - 任务管理
+  /admin/v1/system/tasks/update:
+    put:
+      consumes:
+      - application/json
+      description: 更新定时任务的启用状态与调度表达式
+      parameters:
+      - description: 更新任务请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/task.UpdateTaskReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新任务配置
+      tags:
+      - 任务管理
+  /admin/v1/system/test-email:
+    post:
+      consumes:
+      - application/json
+      description: 使用当前邮件配置发送测试邮件，验证配置是否正确
+      parameters:
+      - description: 测试邮件信息
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/system.TestEmailReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 发送成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 测试邮件发送
+      tags:
+      - 系统配置管理
+  /admin/v1/systemManage/addMenu:
+    post:
+      consumes:
+      - application/json
+      description: 创建新的菜单，可设置路由、组件、图标、按钮等信息
+      parameters:
+      - description: 菜单创建参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/system.CreateMenuReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 创建菜单
+      tags:
+      - 菜单管理
+  /admin/v1/systemManage/addRole:
+    post:
+      consumes:
+      - application/json
+      description: 创建新的角色，可同时绑定菜单、按钮及API权限
+      parameters:
+      - description: 角色创建参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/system.CreateRoleReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 创建角色
+      tags:
+      - 角色管理
+  /admin/v1/systemManage/createApi:
+    post:
+      consumes:
+      - application/json
+      description: 创建新的API接口记录，包含名称、路径、方法、分组等信息
+      parameters:
+      - description: API创建参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/system.CreateAPIReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 创建API
+      tags:
+      - API管理
+  /admin/v1/systemManage/createButton:
+    post:
+      consumes:
+      - application/json
+      description: 创建新的按钮，绑定到指定菜单，设置名称与编码
+      parameters:
+      - description: 按钮创建参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/system.CreateButtonReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 创建按钮
+      tags:
+      - 按钮管理
+  /admin/v1/systemManage/deleteApi/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 根据API ID删除单个API接口记录
+      parameters:
+      - description: API ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除API
+      tags:
+      - API管理
+  /admin/v1/systemManage/deleteButton:
+    delete:
+      consumes:
+      - application/json
+      description: 根据按钮ID删除单个按钮
+      parameters:
+      - description: 按钮ID
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除按钮
+      tags:
+      - 按钮管理
+  /admin/v1/systemManage/deleteMenu:
+    delete:
+      consumes:
+      - application/json
+      description: 根据菜单ID删除单个菜单
+      parameters:
+      - description: 菜单ID
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除菜单
+      tags:
+      - 菜单管理
+  /admin/v1/systemManage/deleteMenus:
+    delete:
+      consumes:
+      - application/json
+      description: 根据菜单ID列表批量删除菜单
+      parameters:
+      - collectionFormat: csv
+        description: 菜单ID列表
+        in: query
+        items:
+          type: integer
+        name: menuIds
+        required: true
+        type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 批量删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 批量删除菜单
+      tags:
+      - 菜单管理
+  /admin/v1/systemManage/deleteRole:
+    delete:
+      consumes:
+      - application/json
+      description: 根据角色ID删除单个角色
+      parameters:
+      - description: 角色ID
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除角色
+      tags:
+      - 角色管理
+  /admin/v1/systemManage/deleteRoles:
+    delete:
+      consumes:
+      - application/json
+      description: 根据角色ID列表批量删除角色
+      parameters:
+      - collectionFormat: csv
+        description: 角色ID列表
+        in: query
+        items:
+          type: integer
+        name: roleIds
+        required: true
+        type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 批量删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 批量删除角色
+      tags:
+      - 角色管理
+  /admin/v1/systemManage/getAllApi:
+    get:
+      consumes:
+      - application/json
+      description: 获取所有API接口列表，不分页
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: API列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取全部API
+      tags:
+      - API管理
+  /admin/v1/systemManage/getAllButton:
+    get:
+      consumes:
+      - application/json
+      description: 获取所有按钮列表，不分页
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 按钮列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取全部按钮
+      tags:
+      - 按钮管理
+  /admin/v1/systemManage/getAllPages:
+    get:
+      consumes:
+      - application/json
+      description: 获取所有可作为菜单的页面列表
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 页面列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取全部页面
+      tags:
+      - 菜单管理
+  /admin/v1/systemManage/getAllRoles:
+    get:
+      consumes:
+      - application/json
+      description: 获取所有角色列表，不分页
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 角色列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取全部角色
+      tags:
+      - 角色管理
+  /admin/v1/systemManage/getApi/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据API ID获取API接口详细信息
+      parameters:
+      - description: API ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: API详情
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取API详情
+      tags:
+      - API管理
+  /admin/v1/systemManage/getApiList:
+    get:
+      consumes:
+      - application/json
+      description: 分页查询API列表，支持按名称、路径、请求方法、分组筛选
+      parameters:
+      - description: API名称
+        in: query
+        name: name
+        type: string
+      - description: API路径
+        in: query
+        name: path
+        type: string
+      - description: 请求方法
+        in: query
+        name: method
+        type: string
+      - description: API分组
+        in: query
+        name: group
+        type: string
+      - description: 当前页
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: API分页列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取API列表
+      tags:
+      - API管理
+  /admin/v1/systemManage/getApiTree:
+    get:
+      consumes:
+      - application/json
+      description: 获取菜单与API关联的树形结构
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 菜单API树
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取菜单API树
+      tags:
+      - 菜单管理
+  /admin/v1/systemManage/getButton/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据按钮ID获取按钮详细信息
+      parameters:
+      - description: 按钮ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 按钮详情
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取按钮详情
+      tags:
+      - 按钮管理
+  /admin/v1/systemManage/getButtonList:
+    get:
+      consumes:
+      - application/json
+      description: 分页查询按钮列表，支持按标签、编码、菜单ID筛选
+      parameters:
+      - description: 按钮标签
+        in: query
+        name: label
+        type: string
+      - description: 按钮编码
+        in: query
+        name: code
+        type: string
+      - description: 菜单ID
+        in: query
+        name: menuId
+        type: integer
+      - description: 当前页
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 按钮分页列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取按钮列表
+      tags:
+      - 按钮管理
+  /admin/v1/systemManage/getButtonTree:
+    get:
+      consumes:
+      - application/json
+      description: 获取菜单与按钮关联的树形结构
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 菜单按钮树
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取菜单按钮树
+      tags:
+      - 菜单管理
+  /admin/v1/systemManage/getMenu/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据菜单ID获取菜单详细信息
+      parameters:
+      - description: 菜单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 菜单详情
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取菜单详情
+      tags:
+      - 菜单管理
+  /admin/v1/systemManage/getMenuList:
+    get:
+      consumes:
+      - application/json
+      description: 分页查询菜单列表，支持按名称、状态、父菜单ID筛选
+      parameters:
+      - description: 菜单名称
+        in: query
+        name: name
+        type: string
+      - description: 状态
+        in: query
+        name: status
+        type: string
+      - description: 父菜单ID
+        in: query
+        name: parentId
+        type: integer
+      - description: 当前页
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 菜单分页列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取菜单列表
+      tags:
+      - 菜单管理
+  /admin/v1/systemManage/getMenuTree:
+    get:
+      consumes:
+      - application/json
+      description: 获取完整的菜单树形结构
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 菜单树
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取菜单树
+      tags:
+      - 菜单管理
+  /admin/v1/systemManage/getRole/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据角色ID获取角色详细信息
+      parameters:
+      - description: 角色ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 角色详情
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取角色详情
+      tags:
+      - 角色管理
+  /admin/v1/systemManage/getRoleList:
+    get:
+      consumes:
+      - application/json
+      description: 分页查询角色列表，支持按角色名称、编码、状态筛选
+      parameters:
+      - description: 当前页
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 角色名称
+        in: query
+        name: name
+        type: string
+      - description: 角色编码
+        in: query
+        name: code
+        type: string
+      - description: 状态
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 角色分页列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取角色列表
+      tags:
+      - 角色管理
+  /admin/v1/systemManage/role/{id}/apis:
+    get:
+      consumes:
+      - application/json
+      description: 根据角色ID获取角色已分配的API权限
+      parameters:
+      - description: 角色ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 角色API权限
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取角色API权限
+      tags:
+      - 角色权限管理
+    put:
+      consumes:
+      - application/json
+      description: 根据角色ID更新角色的API权限列表
+      parameters:
+      - description: 角色ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: API ID列表
+        in: body
+        name: apiIds
+        required: true
+        schema:
+          items:
+            type: integer
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新角色API权限
+      tags:
+      - 角色权限管理
+  /admin/v1/systemManage/role/{id}/buttons:
+    get:
+      consumes:
+      - application/json
+      description: 根据角色ID获取角色已分配的按钮权限
+      parameters:
+      - description: 角色ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 角色按钮权限
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取角色按钮权限
+      tags:
+      - 角色权限管理
+    put:
+      consumes:
+      - application/json
+      description: 根据角色ID更新角色的按钮权限列表
+      parameters:
+      - description: 角色ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 按钮ID列表
+        in: body
+        name: buttonIds
+        required: true
+        schema:
+          items:
+            type: integer
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新角色按钮权限
+      tags:
+      - 角色权限管理
+  /admin/v1/systemManage/role/{id}/menus:
+    get:
+      consumes:
+      - application/json
+      description: 根据角色ID获取角色已分配的菜单权限及首页路由
+      parameters:
+      - description: 角色ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 角色菜单权限
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取角色菜单权限
+      tags:
+      - 角色权限管理
+    put:
+      consumes:
+      - application/json
+      description: 根据角色ID更新角色的菜单权限列表及首页路由
+      parameters:
+      - description: 角色ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 菜单权限信息(menuIds:菜单ID列表,homeRouteName:首页路由名)
+        in: body
+        name: req
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新角色菜单权限
+      tags:
+      - 角色权限管理
+  /admin/v1/systemManage/updateApi:
+    put:
+      consumes:
+      - application/json
+      description: 更新API接口记录，包含名称、路径、方法、分组等信息
+      parameters:
+      - description: API更新参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/system.UpdateAPIReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新API
+      tags:
+      - API管理
+  /admin/v1/systemManage/updateButton:
+    put:
+      consumes:
+      - application/json
+      description: 更新按钮信息，包括所属菜单、名称与编码
+      parameters:
+      - description: 按钮更新参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/system.UpdateButtonReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新按钮
+      tags:
+      - 按钮管理
+  /admin/v1/systemManage/updateMenu:
+    put:
+      consumes:
+      - application/json
+      description: 更新菜单信息，可调整路由、组件、图标、按钮等
+      parameters:
+      - description: 菜单更新参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/system.UpdateMenuReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新菜单
+      tags:
+      - 菜单管理
+  /admin/v1/systemManage/updateRole:
+    put:
+      consumes:
+      - application/json
+      description: 更新角色信息，可同时调整菜单、按钮及API权限
+      parameters:
+      - description: 角色更新参数
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/system.UpdateRoleReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新角色
+      tags:
+      - 角色管理
+  /admin/v1/systemManage/users:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取终端用户列表，支持按用户名、昵称、性别、手机号、邮箱、状态筛选
+      parameters:
+      - description: 页码
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 用户名
+        in: query
+        name: username
+        type: string
+      - description: 昵称
+        in: query
+        name: nickname
+        type: string
+      - description: 性别(0:未知 1:男 2:女)
+        in: query
+        name: gender
+        type: string
+      - description: 手机号
+        in: query
+        name: phone
+        type: string
+      - description: 邮箱
+        in: query
+        name: email
+        type: string
+      - description: 状态(0:禁用 1:正常)
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 用户列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取用户列表
+      tags:
+      - 用户管理
+    post:
+      consumes:
+      - application/json
+      description: 创建终端用户
+      parameters:
+      - description: 创建用户请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/user.CreateUserReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 新增用户
+      tags:
+      - 用户管理
+  /admin/v1/systemManage/users/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 根据用户ID删除用户
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除用户
+      tags:
+      - 用户管理
+    put:
+      consumes:
+      - application/json
+      description: 根据用户ID更新用户信息
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新用户请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/user.UpdateUserReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 修改用户
+      tags:
+      - 用户管理
+  /admin/v1/systemManage/users/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      description: 根据用户ID更新用户状态
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新状态请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/user.UpdateUserStatusReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 修改用户状态
+      tags:
+      - 用户管理
+  /admin/v1/systemManage/users/{id}/unlock:
+    post:
+      consumes:
+      - application/json
+      description: 根据用户ID解除登录锁定状态
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 解锁成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 解锁用户
+      tags:
+      - 用户管理
+  /admin/v1/systemManage/users/autocomplete:
+    get:
+      consumes:
+      - application/json
+      description: 根据关键字搜索用户，用于输入框自动补全
+      parameters:
+      - description: 搜索关键字
+        in: query
+        name: keyword
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 用户列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 用户自动补全
+      tags:
+      - 用户管理
+  /admin/v1/upload-records:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取上传记录列表，支持按文件名、来源、业务类型、MIME类型、存储配置、应用、时间范围筛选
+      parameters:
+      - description: 页码
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 文件名
+        in: query
+        name: fileName
+        type: string
+      - description: 来源
+        in: query
+        name: source
+        type: string
+      - description: 来源ID
+        in: query
+        name: sourceId
+        type: string
+      - description: 业务类型
+        in: query
+        name: businessType
+        type: string
+      - description: 业务ID
+        in: query
+        name: businessId
+        type: string
+      - description: MIME类型
+        in: query
+        name: mimeType
+        type: string
+      - description: 存储配置ID
+        in: query
+        name: storageConfigId
+        type: integer
+      - description: 应用ID
+        in: query
+        name: appId
+        type: string
+      - description: 开始时间
+        in: query
+        name: startTime
+        type: string
+      - description: 结束时间
+        in: query
+        name: endTime
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 上传记录列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取上传记录列表
+      tags:
+      - 上传记录管理
+  /admin/v1/upload-records/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 根据ID删除上传记录
+      parameters:
+      - description: 上传记录ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除上传记录
+      tags:
+      - 上传记录管理
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取单个上传记录详情
+      parameters:
+      - description: 上传记录ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 上传记录详情
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取上传记录详情
+      tags:
+      - 上传记录管理
+  /admin/v1/upload-records/batch-delete:
+    post:
+      consumes:
+      - application/json
+      description: 根据ID数组批量删除上传记录
+      parameters:
+      - description: '批量删除参数，字段: ids(整型数组)'
+        in: body
+        name: req
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 批量删除上传记录
+      tags:
+      - 上传记录管理
+  /client/v1/auth/captcha:
+    get:
+      consumes:
+      - application/json
+      description: 生成图形验证码，返回验证码ID与Base64编码的验证码图片
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 获取图形验证码
+      tags:
+      - 客户端-认证
+  /client/v1/auth/scene-config:
+    get:
+      consumes:
+      - application/json
+      description: 根据业务场景返回图形验证码开关及短信/邮箱验证开关与类型
+      parameters:
+      - description: 业务场景
+        in: query
+        name: scene
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 获取场景验证配置
+      tags:
+      - 客户端-认证
+  /client/v1/auth/send-code:
+    post:
+      consumes:
+      - application/json
+      description: 根据场景发送短信或邮箱验证码，登录场景通过username查找绑定联系方式，注册/找回密码场景直接发送至target
+      parameters:
+      - description: 发送验证码请求
+        in: body
+        name: req
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 发送验证码
+      tags:
+      - 客户端-认证
+  /client/v1/content/article/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据文章ID获取已发布文章详情并增加浏览数
+      parameters:
+      - description: 文章ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 文章详情
+      tags:
+      - 客户端-内容
+  /client/v1/content/article/{id}/like:
+    post:
+      consumes:
+      - application/json
+      description: 根据文章ID点赞并增加点赞数
+      parameters:
+      - description: 文章ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 点赞文章
+      tags:
+      - 客户端-内容
+  /client/v1/content/articles:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取已发布文章列表，支持按分类与关键词筛选
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: pageSize
+        type: integer
+      - description: 分类ID
+        in: query
+        name: categoryId
+        type: integer
+      - description: 搜索关键词
+        in: query
+        name: keyword
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 文章列表
+      tags:
+      - 客户端-内容
+  /client/v1/content/banners/{code}:
+    get:
+      consumes:
+      - application/json
+      description: 根据编码获取Banner组及其Banner项列表
+      parameters:
+      - description: Banner组编码
+        in: path
+        name: code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 获取Banner组
+      tags:
+      - 客户端-内容
+  /client/v1/content/banners/{id}/click:
+    post:
+      consumes:
+      - application/json
+      description: 根据Banner项ID记录点击并增加点击数
+      parameters:
+      - description: Banner项ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 点击Banner
+      tags:
+      - 客户端-内容
+  /client/v1/echo:
+    post:
+      consumes:
+      - application/json
+      description: 示例接口，原样返回请求消息并附带AppID
+      parameters:
+      - description: 回显请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/v1.EchoRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 回显测试
+      tags:
+      - 客户端-测试
+  /client/v1/message/internal:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取当前用户的站内消息列表，支持已读过滤
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: pageSize
+        type: integer
+      - description: 已读过滤
+        in: query
+        name: readFilter
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 站内消息列表
+      tags:
+      - 客户端-消息
+  /client/v1/message/internal/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据消息ID获取站内消息详情
+      parameters:
+      - description: 消息ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 站内消息详情
+      tags:
+      - 客户端-消息
+  /client/v1/message/internal/read:
+    put:
+      consumes:
+      - application/json
+      description: 将指定站内消息标记为已读
+      parameters:
+      - description: 标记已读请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/v1.MarkReadReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 标记已读
+      tags:
+      - 客户端-消息
+  /client/v1/message/internal/read-all:
+    put:
+      consumes:
+      - application/json
+      description: 将当前用户所有站内消息标记为已读
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 全部标记已读
+      tags:
+      - 客户端-消息
+  /client/v1/message/internal/unread-count:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前用户的站内消息未读数量
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 未读消息数量
+      tags:
+      - 客户端-消息
+  /client/v1/storage/credentials:
+    post:
+      consumes:
+      - application/json
+      description: 获取客户端文件上传凭证，返回预签名URL及上传相关信息
+      parameters:
+      - description: 获取上传凭证请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/v1.GetClientCredentialsReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 获取上传凭证
+      tags:
+      - 客户端-存储
+  /client/v1/storage/records:
+    post:
+      consumes:
+      - application/json
+      description: 上传成功后通知服务端，根据recordId与secret校验后将记录置为已上传
+      parameters:
+      - description: 完成上传请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/v1.CompleteClientUploadReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 创建上传记录
+      tags:
+      - 客户端-存储
+  /client/v1/user/account:
+    delete:
+      consumes:
+      - application/json
+      description: 当前登录用户注销账号
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 注销账号
+      tags:
+      - 客户端-用户
+  /client/v1/user/login:
+    post:
+      consumes:
+      - application/json
+      description: 客户端用户登录并获取访问令牌
+      parameters:
+      - description: 登录请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/v1.UserLoginReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 用户登录
+      tags:
+      - 客户端-用户
+  /client/v1/user/logout:
+    post:
+      consumes:
+      - application/json
+      description: 当前登录用户退出登录并失效令牌
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 退出登录
+      tags:
+      - 客户端-用户
+  /client/v1/user/password:
+    put:
+      consumes:
+      - application/json
+      description: 当前登录用户修改登录密码
+      parameters:
+      - description: 修改密码请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/v1.UserChangePasswordReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 修改密码
+      tags:
+      - 客户端-用户
+  /client/v1/user/profile:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前登录用户的个人资料信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 获取个人资料
+      tags:
+      - 客户端-用户
+    put:
+      consumes:
+      - application/json
+      description: 更新当前登录用户的个人资料信息
+      parameters:
+      - description: 更新个人资料请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/v1.UserUpdateProfileReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 更新个人资料
+      tags:
+      - 客户端-用户
+  /client/v1/user/refresh-token:
+    post:
+      consumes:
+      - application/json
+      description: 使用刷新令牌获取新的访问令牌
+      parameters:
+      - description: 刷新令牌
+        in: query
+        name: refreshToken
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 刷新令牌
+      tags:
+      - 客户端-用户
+  /client/v1/user/register:
+    post:
+      consumes:
+      - application/json
+      description: 客户端用户注册账号
+      parameters:
+      - description: 注册请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/v1.UserRegisterReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 用户注册
+      tags:
+      - 客户端-用户
+  /client/v1/user/reset-password:
+    post:
+      consumes:
+      - application/json
+      description: 通过验证码找回并重置用户密码
+      parameters:
+      - description: 重置密码请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/v1.UserResetPasswordReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 重置密码
+      tags:
+      - 客户端-用户
+  /client/v1/user/upload-record:
+    post:
+      consumes:
+      - application/json
+      description: 上传成功后通知服务端，根据recordId与secret校验后将记录置为已上传
+      parameters:
+      - description: 记录上传请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/v1.CreateUserUploadRecordReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 记录上传结果
+      tags:
+      - 客户端-用户
+  /client/v1/user/upload-token:
+    get:
+      consumes:
+      - application/json
+      description: 签发预签名上传URL并创建待处理记录，返回recordId与secret
+      parameters:
+      - description: 文件名
+        in: query
+        name: fileName
+        type: string
+      - description: 内容类型
+        in: query
+        name: contentType
+        type: string
+      - description: 业务类型
+        in: query
+        name: businessType
+        type: string
+      - description: 业务ID
+        in: query
+        name: businessId
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 获取上传凭证
+      tags:
+      - 客户端-用户
+securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

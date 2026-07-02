@@ -268,13 +268,14 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 
 	// 临时关闭标准输出以屏蔽路由注册时的 [GIN-debug] 日志
 	gin.DefaultWriter = io.Discard
+
+	// /health 标准健康检查端点（供 K8s liveness/readiness 探针或负载均衡探测）
+	// 必须在 router.Register 之前注册，避免被 IPACAuth 全局中间件拦截（Redis 故障时 fail-closed 会导致健康检查失败）
+	engine.GET("/health", dbHealthChecker.Handler())
+
 	router.Register(engine)
 	cRouter.Register(engine)
 	gin.DefaultWriter = os.Stdout
-
-	// /health 标准健康检查端点（供 K8s liveness/readiness 探针或负载均衡探测）
-	// 不走鉴权与限流，直接返回 DB/Redis 探活结果。
-	engine.GET("/health", dbHealthChecker.Handler())
 
 	// 静态文件服务：提供前端 SPA 页面（admin-web/dist/）
 	// 使 http://localhost:8010/ 直接访问管理后台

@@ -13,7 +13,7 @@ import (
 // @title           NetyAdmin API
 // @version         1.0
 // @description     NetyAdmin 后台管理系统 API 文档
-// @BasePath        /admin/v1
+// @BasePath        /
 // @securityDefinitions.apikey ApiKeyAuth
 // @in   header
 // @name Authorization

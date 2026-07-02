@@ -17,7 +17,7 @@ import (
 type LoginRequest struct {
 	Username     string `json:"username" example:"admin"`
 	UserName     string `json:"userName" example:"admin"`
-	Password     string `json:"password" example:"123456"`
+	Password     string `json:"password" example:"admin123"`
 	CaptchaId    string `json:"captchaId"`
 	CaptchaValue string `json:"captchaValue"`
 }
