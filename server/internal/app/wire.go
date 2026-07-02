@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	sentrygin "github.com/getsentry/sentry-go/gin"
 	"github.com/mojocn/base64Captcha"
 	"gorm.io/gorm"
 
@@ -41,6 +42,7 @@ import (
 	"NetyAdmin/internal/pkg/pubsub"
 	pkgredis "NetyAdmin/internal/pkg/redis"
 	ratelimitPkg "NetyAdmin/internal/pkg/ratelimit"
+	pkgSentry "NetyAdmin/internal/pkg/sentry"
 	storagePkg "NetyAdmin/internal/pkg/storage"
 	"NetyAdmin/internal/pkg/task"
 	"NetyAdmin/internal/pkg/utils"
@@ -75,6 +77,13 @@ import (
 )
 
 func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
+	// 0. Sentry 错误追踪初始化（DSN 为空时自动跳过）
+	//    尽早初始化，确保后续 panic 和错误都能被捕获
+	if err := pkgSentry.Init(cfg.Sentry); err != nil {
+		// Sentry 初始化失败不阻断启动，仅打印警告
+		slog.Warn("Sentry 初始化失败，错误追踪已禁用", "error", err)
+	}
+
 	// 0. DB Migration（基于 golang-migrate，SQL 文件 embed 进二进制）
 	//    使用独立连接执行迁移，避免与 GORM 连接池的 advisory lock 冲突。
 	if cfg.Migration.Enabled {
@@ -253,6 +262,11 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	engine.Use(middleware.CORS())
 	engine.Use(middleware.SecurityHeaders())
 	engine.Use(middleware.Recovery(services.errorLog))
+	// sentrygin 必须在 Recovery 之后：panic 发生时 sentrygin 先捕获并上报 Sentry，
+	// 然后 Repanic=true 重新 panic，由外层 Recovery 兜底记录到 DB 并返回 500。
+	engine.Use(sentrygin.New(sentrygin.Options{Repanic: true}))
+	// 将 requestID / path / userID 注入 Sentry Scope，实现前后端链路关联
+	engine.Use(middleware.SentryTagSetter())
 	engine.Use(middleware.ErrorLogger(services.errorLog))
 	// 中间件超时与 HTTP server 保持一致（取 read_timeout 和 write_timeout 的较大值）
 	middlewareTimeout := time.Duration(cfg.Server.ReadTimeout) * time.Second

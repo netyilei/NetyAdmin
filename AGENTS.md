@@ -295,10 +295,60 @@ swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal
 
 | 端 | 技术 | 集成位置 | 启用方式 |
 |----|------|----------|----------|
-| 后端 Go (server/) | `log/slog` 结构化日志 → 错误日志表 | 无独立 SDK，通过 `middleware/recovery.go` 捕获 panic，经 `LogBus` 写入 DB | 默认启用 |
+| 后端 Go (server/) | `getsentry/sentry-go v0.47.0` + `sentrygin` | `internal/pkg/sentry/sentry.go` 初始化 + `middleware/recovery.go` 捕获 panic/错误 + `wire.go` 中间件链 | 需配置 `[sentry] dsn`（空则禁用） |
 | 前端 Vue3 (admin-web/) | `@sentry/vue` | `src/plugins/sentry.ts` + `main.ts` 集成 + auth store 自动设置用户上下文 | 需配置 `VITE_SENTRY_DSN` |
 
-### 9.2 前端 Sentry 集成详情
+### 9.2 后端 Sentry 集成详情
+
+**文件位置**：
+
+| 文件 | 作用 |
+|------|------|
+| `internal/pkg/sentry/sentry.go` | 核心包：`Init()` 初始化 SDK、`Flush()` 刷新缓冲区、`CaptureException()` 手动捕获 |
+| `internal/config/config.go` | `SentryConfig` 结构体（DSN / Environment / Release / SampleRate / TracesSampleRate） |
+| `internal/app/wire.go` | Bootstrap 中初始化 Sentry + 注册 `sentrygin` 中间件 |
+| `internal/app/app.go` | 退出时 `Flush(2s)` 确保事件提交 |
+| `internal/middleware/recovery.go` | `SentryTagSetter` 注入 requestID/path/userID 到 Sentry Scope；`ErrorLogger` 同步上报 Gin 错误到 Sentry |
+
+**中间件链顺序**（关键）：
+
+```
+RequestID → CORS → SecurityHeaders → Recovery → sentrygin(Repanic=true) → SentryTagSetter → ErrorLogger → ...
+```
+
+- `sentrygin` 在 `Recovery` 之后：panic 发生时 sentrygin 先捕获并上报 Sentry（带请求上下文），然后 Repanic 重新 panic，由外层 Recovery 兜底记录到 DB error_log 表并返回 500
+- `SentryTagSetter` 在 `sentrygin` 之后：将 `request_id`、`path`、`method`、`userID` 注入 Sentry Scope，实现前后端链路关联
+- `ErrorLogger` 同步上报 Gin 上下文错误到 Sentry（若 hub 存在用 hub，否则用全局 hub）
+
+**初始化条件**：仅当 `config.toml` 的 `[sentry] dsn` 非空时 Sentry 才激活；为空则静默跳过，不影响正常启动。
+
+**配置项**：
+
+```toml
+[sentry]
+dsn = ""                        # 为空则禁用
+environment = "development"    # development / production
+release = "server@1.0.0"      # 版本号
+sample_rate = 1.0              # 错误事件采样率 (0.0-1.0)
+traces_sample_rate = 0.2       # 性能追踪采样率 (0.0-1.0)
+```
+
+**手动捕获错误**（Go 代码中）：
+
+```go
+import pkgSentry "NetyAdmin/internal/pkg/sentry"
+
+// 手动上报错误
+pkgSentry.CaptureException(err)
+
+// 手动上报消息
+pkgSentry.CaptureMessage("something went wrong")
+
+// 设置全局标签
+pkgSentry.SetTag("module", "content")
+```
+
+### 9.3 前端 Sentry 集成详情
 
 **文件位置**：
 
@@ -325,56 +375,60 @@ Sentry.init({
 })
 ```
 
-### 9.3 调试工作流（联调时 AI 必须遵守）
+### 9.4 调试工作流（联调时 AI 必须遵守）
 
 ```
 遇到错误/异常
     │
     ▼
-┌────────────────────────────────────────────┐
-│ 1. 检查 Sentry Issues                      │ ← AI 优先从这里开始
-│    - 是否有对应错误？堆栈信息是什么？       │
-│    - 错误发生的浏览器/版本/操作系统         │
-│    - 用户上下文（ID / 角色）               │
-│    - 上下游 Span（Trace ID）               │
-└────────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│ 1. 检查 Sentry Issues                         │ ← AI 优先从这里开始
+│    - 是否有对应错误？堆栈信息是什么？          │
+│    - 前端错误：浏览器/版本/操作系统            │
+│    - 后端错误：请求路径/方法/堆栈             │
+│    - 用户上下文（ID / 角色）                  │
+│    - 上下游 Span（Trace ID）+ request_id 关联  │
+│    - 区分前端(@sentry/vue) vs 后端(sentry-go)  │
+└──────────────────────────────────────────────┘
     │ 有匹配
     ▼
-┌────────────────────────────────────────────┐
-│ 2. 结合后端日志定位                        │
-│    - 看 server/ 的 log/slog 输出           │
-│    - 查 error_log 表中的上下文              │
-│    - 看请求链路的 request_id 关联           │
-└────────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│ 2. 结合后端日志定位                           │
+│    - 看 server/ 的 log/slog 输出              │
+│    - 查 DB error_log 表中的上下文              │
+│    - 用 request_id 关联前后端链路              │
+└──────────────────────────────────────────────┘
     │
     ▼
-┌────────────────────────────────────────────┐
-│ 3. 修复后验证                              │
-│    - Sentry Issues 不再新增同类错误         │
-│    - 手动复现确认                          │
-└────────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│ 3. 修复后验证                                 │
+│    - Sentry Issues 不再新增同类错误            │
+│    - 手动复现确认                             │
+└──────────────────────────────────────────────┘
 ```
 
-### 9.4 环境变量配置
+### 9.5 环境变量与配置
+
+**前端**（`.env` 文件）：
 
 | 变量 | 说明 | 示例 |
 |------|------|------|
 | `VITE_SENTRY_DSN` | Sentry DSN，为空则禁用 | `https://xxx@sentry.io/1` |
 | `VITE_APP_VERSION` | 应用版本（作为 Sentry release） | `admin-web@1.0.0` |
 
-配置位置：
+**后端**（`config.toml`）：
 
-```bash
-# .env          — 基础（留空禁用）
-VITE_SENTRY_DSN=
+| 配置项 | 说明 | 示例 |
+|--------|------|------|
+| `[sentry] dsn` | Sentry DSN，为空则禁用 | `https://xxx@sentry.io/2` |
+| `[sentry] environment` | 环境标识 | `development` |
+| `[sentry] release` | 版本号 | `server@1.0.0` |
+| `[sentry] sample_rate` | 错误采样率 | `1.0` |
+| `[sentry] traces_sample_rate` | 性能追踪采样率 | `0.2` |
 
-# .env.prod     — 生产环境
-VITE_SENTRY_DSN=https://xxx@sentry.io/1
-```
+### 9.6 手动捕获错误
 
-### 9.5 手动捕获错误
-
-在无法直接集成 Sentry 的场景（如定时任务、非 Vue 回调），可直接调用：
+**前端**（TypeScript）：
 
 ```typescript
 import { captureError, setUserContext, clearUserContext } from '@/plugins/sentry';
@@ -385,6 +439,21 @@ captureError(new Error('xxx'), { businessId: '123' });
 // 设置/清除用户上下文（auth store 已自动处理，一般无需手动调用）
 setUserContext({ id: '1', username: 'admin', role: 'admin' });
 clearUserContext();
+```
+
+**后端**（Go）：
+
+```go
+import pkgSentry "NetyAdmin/internal/pkg/sentry"
+
+// 手动上报错误（Sentry 未初始化时为空操作，安全调用）
+pkgSentry.CaptureException(err)
+
+// 手动上报消息
+pkgSentry.CaptureMessage("定时任务执行异常")
+
+// 设置全局标签
+pkgSentry.SetTag("module", "content")
 ```
 
 ---
@@ -459,6 +528,7 @@ pnpm preview
 | `[security]` | AES 密钥（32 字节 = AES-256） |
 | `[email]` | SMTP 配置（SSL/STARTTLS/AuthType） |
 | `[bus]` | 事件总线驱动（memory/redis，不设置则根据 Redis 自动选择） |
+| `[sentry]` | Sentry 错误追踪（DSN 为空则禁用，environment/release/采样率） |
 
 ### 前端 .env 文件
 
@@ -477,16 +547,19 @@ pnpm preview
 | `VITE_AUTH_ROUTE_MODE` | 路由模式（static/dynamic） |
 | `VITE_HTTP_PROXY` | 是否启用开发代理 |
 | `VITE_SOURCE_MAP` | 是否生成 sourcemap |
+| `VITE_SENTRY_DSN` | Sentry DSN（为空则禁用前端错误追踪） |
 
 ---
 
 ## 12. 注意事项
 
+> **错误联调优先使用 Sentry**：联调时遇到任何前后端错误/异常，**第一步永远是查看 Sentry Issues 看板**（前端 `@sentry/vue` + 后端 `sentry-go`），而非直接读代码猜测原因。通过 `request_id` 标签关联前后端链路，通过堆栈定位代码行，最后才是读代码修复。详见 [§9 错误追踪（Sentry）](#9-错误追踪sentry-联调优先)。
+
 ### 安全规范
 
 | 规则 | 正确做法 | 错误做法 |
 |------|----------|----------|
-| **调试优先查 Sentry** | 联调时先看 Sentry Issues 是否有对应错误 | 不看 Sentry 直接猜测问题原因 |
+| **错误联调优先用 Sentry** | 联调时先看 Sentry Issues 是否有对应错误，通过 `request_id` 关联前后端 | 不看 Sentry 直接猜测问题原因 |
 | **不泄露内部错误** | Service 返回 `errorx.New(code)`，Handler 用 `response.Fail(c, err)` | `response.FailWithCode(c, errorx.CodeInternalError, err.Error())` |
 | **获取用户 ID** | `c.GetUint("adminID")` | `c.Get("adminID").(uint)`（panic 风险） |
 | **Service 错误处理** | `response.Fail(c, err)` 自动识别 BizError | 手动判断 err 类型或暴露原始错误 |

@@ -83,3 +83,12 @@ sign_name = ""
 # driver = "redis"    # 集群模式：基于 Redis Pub/Sub，支持多节点广播
 # driver = "memory"   # 单机模式：基于内存 channel，无需 Redis
 # 不设置则根据 Redis.Enabled 自动选择（Redis 启用 -> redis，否则 -> memory）
+
+[sentry]
+# DSN 为空时自动禁用 Sentry，不影响正常运行
+# 联调时配置后，Go 后端的 panic 和错误会同步上报到 Sentry 看板
+dsn = ""
+environment = "development"    # development / production
+release = "server@1.0.0"     # 版本号，用于 Sentry Release 追踪
+sample_rate = 1.0             # 错误事件采样率 (0.0-1.0)，开发环境建议 1.0
+traces_sample_rate = 0.2      # 性能追踪采样率 (0.0-1.0)，生产建议 0.2

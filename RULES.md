@@ -226,8 +226,8 @@ if err != nil {
 ### 2.10 禁止造轮子 — 必须使用已引入的能力
 
 - 实现任何功能前，先确认是否已有对应基础设施，**已引入的必须使用，禁止手写替代实现**：
-  - **Go**：缓存用 `pkg/cache`（Redis/BigCache 双引擎）+ gocache Tags 失效；限流用 `pkg/ratelimit`（ulule/limiter）；对象存储用 `pkg/storage`；任务调度用 `pkg/task`；密码加密用 `pkg/password`；JWT 用 `pkg/jwt`；配置用 `pelletier/go-toml`；UUID 用 `google/uuid`；ULID 用 `oklog/ulid`；验证码用 `pkg/captcha`（base64Captcha）；邮件用 `go-simple-mail`；DB 迁移用 `golang-migrate`。
-  - **前端**：UI 组件用 **Naive UI**，禁止手写下拉/弹窗/表格；HTTP 用 `service/request` 封装（@na/alova / @na/axios），禁止业务代码直接 `import axios`；状态用 **Pinia**；图标用 **Iconify**（unplugin-icons）；样式用 **UnoCSS**；国际化用 **vue-i18n**；错误追踪用 **@sentry/vue**。
+  - **Go**：缓存用 `pkg/cache`（Redis/BigCache 双引擎）+ gocache Tags 失效；限流用 `pkg/ratelimit`（ulule/limiter）；对象存储用 `pkg/storage`；任务调度用 `pkg/task`；密码加密用 `pkg/password`；JWT 用 `pkg/jwt`；配置用 `pelletier/go-toml`；UUID 用 `google/uuid`；ULID 用 `oklog/ulid`；验证码用 `pkg/captcha`（base64Captcha）；邮件用 `go-simple-mail`；DB 迁移用 `golang-migrate`；错误追踪用 `pkg/sentry`（getsentry/sentry-go + sentrygin）。
+  - **前端**：UI 组件用 **Naive UI**，禁止手写下拉/弹窗/表格；HTTP 用 `service/request` 封装（@na/alova / @na/axios），禁止业务代码直接 `import axios`；状态用 **Pinia**；图标用 **Iconify**（unplugin-icons）；样式用 **UnoCSS**；国际化用 **vue-i18n**；错误追踪用 **@sentry/vue**（`src/plugins/sentry.ts`）。
 - 若某功能确无已引入库覆盖，**先在文档中记录新增库并说明选型理由**，再写代码。
 
 ---
@@ -317,19 +317,21 @@ ci(deploy): 新增 PostgreSQL 14 初始化脚本
 
 ## 七、错误追踪（联调排错第一入口）⭐ AI 必须优先使用
 
+> **错误联调优先使用 Sentry**：联调时遇到任何前后端错误/异常，**第一步永远是查看 Sentry Issues 看板**，而非直接读代码猜测原因。通过 `request_id` 标签关联前后端链路，通过堆栈定位代码行，最后才是读代码修复。
+
 ### 7.1 技术选型
 
 | 端 | 方案 | 说明 |
 |---|---|---|
-| Go 后端 | `log/slog`（标准库，Go 1.21+） | 结构化 JSON 日志，零依赖，无缝接入日志聚合 |
+| Go 后端 | `getsentry/sentry-go v0.47.0` + `sentrygin` | 自动捕获 panic 和 Gin 上下文错误，带请求路径/方法/request_id/userID 上下文，经 `[sentry] dsn` 配置接入 |
 | Admin-Web（Vue3） | `@sentry/vue` | 自动捕获前端异常 + 用户操作链路 + 浏览器环境信息，经 `VITE_SENTRY_DSN` 配置接入 |
 
 ### 7.2 强制规范
 
-- **两端必须接入**：Go 端用 `log/slog` 输出结构化日志，Admin-Web 接入 `@sentry/vue`。
+- **两端必须接入 Sentry**：Go 端通过 `sentry-go` 自动捕获 panic 和错误，Admin-Web 接入 `@sentry/vue`。DSN 为空时自动禁用，不影响正常启动。
 - **关键路径必须打点**：所有 API 入口、开放平台签名校验、第三方/外部调用（对象存储、短信、邮件）、任务调度执行必须记录日志/事件。
-- **错误必须包含上下文**：`error` 级别日志必须携带 `admin_id`/`user_id`、`app_id`、`request_id`（由 trace 中间件注入），便于跨端串联排查。
-- **AI 联调排错优先使用**：AI 助手在排查任何 Bug 时，**必须优先查看两端日志/错误追踪系统**，再结合代码分析。不得跳过日志直接猜测原因。
+- **错误必须包含上下文**：`error` 级别日志必须携带 `admin_id`/`user_id`、`app_id`、`request_id`（由 SentryTagSetter 中间件注入 Sentry Scope），便于跨端串联排查。
+- **AI 联调排错优先使用**：AI 助手在排查任何 Bug 时，**必须优先查看 Sentry Issues 看板**（前端 `@sentry/vue` + 后端 `sentry-go`），再结合代码分析。不得跳过 Sentry 直接猜测原因。
 
 ### 7.3 Go 端 slog 使用规范
 

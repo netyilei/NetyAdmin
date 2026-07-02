@@ -15,6 +15,7 @@ import (
 
 	"NetyAdmin/internal/config"
 	"NetyAdmin/internal/pkg/database"
+	pkgSentry "NetyAdmin/internal/pkg/sentry"
 	"NetyAdmin/internal/pkg/pubsub"
 	"NetyAdmin/internal/pkg/task"
 	logService "NetyAdmin/internal/service/log"
@@ -112,6 +113,9 @@ func (a *App) Run() error {
 	if a.eventBus != nil {
 		_ = a.eventBus.Close()
 	}
+
+	// Flush Sentry buffer (ensure all pending events are sent before exit)
+	pkgSentry.Flush(2 * time.Second)
 
 	slog.Info("服务器已安全关闭")
 	return nil
