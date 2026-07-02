@@ -36,7 +36,7 @@ server/
 ├── config.toml                    # 运行配置（TOML格式）
 ├── go.mod / go.sum               # Go模块依赖
 │
-├── migrations/                    # SQL迁移脚本
+├── internal/pkg/migration/migrations/   # SQL迁移脚本
 │   ├── table_*.sql               # 表结构定义
 │   └── data_*.sql                # 基础数据
 │
@@ -136,6 +136,7 @@ server/
     │   ├── jwt/                  # JWT工具
     │   ├── migration/            # 数据迁移
     │   ├── password/             # 密码加密
+    │   ├── ratelimit/            # 限流
     │   ├── redis/                # Redis封装
     │   ├── response/             # 统一响应封装
     │   ├── storage/              # 对象存储驱动
@@ -155,7 +156,21 @@ server/
         ├── open_platform/        # 开放平台服务（AppService含GetAppStorageDriver）
         ├── storage/              # 存储服务（RecordService含应用存储配置解析）
         └── system/               # 系统管理服务
-```
+	```
+
+### 2.1 核心依赖
+
+| 依赖 | 用途 |
+|------|------|
+| gin-gonic/gin | HTTP 框架 |
+| gin-contrib/cors | 跨域中间件 |
+| hellofresh/health-go | 健康检查 |
+| golang-migrate/migrate | 数据库迁移 |
+| minio-go | 对象存储 SDK |
+| ulule/limiter | 限流 |
+| redis/go-redis | Redis 客户端 |
+| gorm.io/gorm | ORM 框架 |
+| google/wire | 依赖注入 |
 
 ---
 

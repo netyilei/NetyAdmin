@@ -100,18 +100,17 @@ type LazyCacheManager interface {
     // SetNX 原子性写入（走 Redis 原生 NX，Nonce 防重放等场景不需要 L1）
     SetNX(ctx context.Context, key string, value interface{}, ttl time.Duration) (bool, error)
 
-    // RateLimit 分布式/单机自适应限流（Redis Lua 脚本或本地令牌桶）
-    RateLimit(ctx context.Context, key string, rate int, capacity int) (bool, error)
-
-    // SetEventBus 注入 PubSubBus 实例
+	    // SetEventBus 注入 PubSubBus 实例
     SetEventBus(bus pubsub.EventBus)
 
     // GetRedisClient 获取底层 Redis 客户端
     GetRedisClient() *redis.Client
-}
-```
-
-### 3.3 方法与引擎对照表
+	}
+	```
+	
+	> **注意**：LazyCacheManager 不再提供 RateLimit 方法，限流能力已抽离到独立的 `internal/pkg/ratelimit/` 包中。
+	
+	### 3.3 方法与引擎对照表
 
 | 方法 | 读取链路 | 写入链路 | 说明 |
 |------|----------|----------|------|
@@ -125,10 +124,9 @@ type LazyCacheManager interface {
 | `SetFast` | — | L1 + L2 分别写入 | 模式A：支持 tags，L1 关闭时降级为 cacheManager 写入 |
 | `GetFast` | 手动 L1→L2 | — | 模式A：L2 命中时回填 L1（带 tags） |
 | `DeleteFast` | — | L1 + L2 分别删除 | 模式A |
-| `InvalidateByTags` | — | cacheManager + PubSub 广播 | 失效 cacheManager 并广播，其他节点仅失效 L1 |
-| `RateLimit` | — | Redis Lua / 本地令牌桶 | 不走缓存引擎，直接用 Redis Lua 脚本或本地令牌桶 |
-
----
+	| `InvalidateByTags` | — | cacheManager + PubSub 广播 | 失效 cacheManager 并广播，其他节点仅失效 L1 |
+	
+	---
 
 ## 四、L1/L2 二级缓存架构
 

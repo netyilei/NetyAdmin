@@ -11,7 +11,7 @@
 ### 1.1 核心特性
 
 - **多触发类型**：once（启动执行）、interval（固定间隔）、cron（Cron表达式）
-- **优先级队列**：支持多级优先级（System/Essential/Normal/Low），确保核心任务优先处理
+- **优先级队列**：支持多级优先级（Essential/Normal/Low），确保核心任务优先处理
 - **弹性队列**：单机使用多级 Channel，集群使用 Redis 多级 List (BRPop 实现)
 - **多机防重**：Redis 启用时，生产者侧（定时触发）通过分布式锁确保同一任务在同一时刻仅由一个实例执行
 - **后台管理**：支持启停、重载、立即执行
@@ -49,12 +49,11 @@ type Dispatcher interface {
 }
 
 // 预定义优先级常量 (registry)
-const (
-    WeightSystem    = 100 // 最高优先级 (系统环境、配置重载)
-    WeightEssential = 80  // 核心业务 (验证码发送、即时通知)
-    WeightNormal    = 50  // 普通业务 (文章发布、缓存同步)
-    WeightLow       = 10  // 低优先级 (日志清理、统计报表)
-)
+	const (
+	    WeightEssential = 80  // 核心业务 (验证码发送、即时通知)
+	    WeightNormal    = 50  // 普通业务 (文章发布、缓存同步)
+	    WeightLow       = 10  // 低优先级 (日志清理、统计报表)
+	)
 ```
 
 #### 3.1.2 Task 接口 (消费者)

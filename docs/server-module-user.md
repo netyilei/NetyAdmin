@@ -30,7 +30,9 @@ server/internal/repository/user/
 ├── user.go             # 用户仓储实现
 
 server/internal/service/user/
-├── user.go             # 用户业务逻辑 (Register/Login/Profile/Lock/Unlock)
+├── user.go             # 用户业务逻辑 (核心: GetInfo/ChangePassword/UpdateProfile)
+├── user_auth.go        # 认证逻辑 (Register/Login/RefreshToken/ResetPassword)
+├── user_admin.go       # 管理逻辑 (List/Create/Update/Delete)
 └── verification.go     # 验证码逻辑 (SMS/Email)
 
 server/internal/interface/client/http/handler/v1/
@@ -109,6 +111,16 @@ type UserTokenHash struct {
 | GET | /admin/v1/systemManage/users | 用户列表 (含锁定状态) |
 | PUT | /admin/v1/systemManage/users/:id/status | 更新用户状态 (停用时清除锁定) |
 | POST | /admin/v1/systemManage/users/:id/unlock | 解锁用户 |
+
+---
+
+### 4.4 方法文件映射
+
+| 方法 | 源文件 | 说明 |
+|------|--------|------|
+| Register / Login / RefreshToken / ResetPassword | `user_auth.go` | 认证相关 |
+| List / Create / Update / Delete | `user_admin.go` | 管理相关 |
+| GetInfo / ChangePassword / UpdateProfile | `user.go` | 核心用户操作 |
 
 ---
 
