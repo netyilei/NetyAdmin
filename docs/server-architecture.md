@@ -120,7 +120,8 @@ server/
     │   └── system_log_cleanup.go # 日志清理
     │
     ├── middleware/                # Gin中间件
-    │   ├── auth.go               # JWT认证
+    │   ├── auth.go               # JWT认证（薄壳，注入 ClaimsAccessor 到 pkg/auth.RequireAuth）
+    │   ├── open_platform_auth.go # 开放平台签名校验
     │   ├── operation_log.go      # 操作日志记录
     │   ├── permission.go         # RBAC权限校验
     │   ├── recovery.go           # 异常恢复
@@ -128,20 +129,22 @@ server/
     │   └── trace.go              # 链路追踪
     │
     ├── pkg/                       # 可复用基础设施包
+    │   ├── auth/                 # 会话鉴权公共工具（TokenHash/AdminTokenKey/RequireAuth 泛型/会话写入 helper）
     │   ├── cache/                # 缓存管理（Redis/BigCache）
     │   ├── captcha/              # 验证码模块
     │   ├── configsync/           # 配置热同步
     │   ├── database/             # 数据库健康检查
     │   ├── errorx/               # 错误码定义
-    │   ├── jwt/                  # JWT工具
+    │   ├── jwt/                  # JWT工具（含 TokenVersion 版本号机制）
     │   ├── migration/            # 数据迁移
-    │   ├── password/             # 密码加密
+    │   ├── password/             # 密码加密 + 强度校验（ValidateStrength）
     │   ├── ratelimit/            # 限流
     │   ├── redis/                # Redis封装
     │   ├── response/             # 统一响应封装
-    │   ├── storage/              # 对象存储驱动
+    │   ├── sentry/               # 错误追踪（sentry-go）
+    │   ├── storage/              # 对象存储驱动（含 BuildPublicURL/CompleteUploadFromParams）
     │   ├── task/                 # 任务调度引擎
-    │   └── utils/                # 通用工具函数
+    │   └── utils/                # 通用工具（含 NormalizePaging/GetIntWithDefault/NewSecretToken/TokenHash）
     │
     ├── repository/                # 数据访问层
     │   ├── content/              # 内容管理仓储
