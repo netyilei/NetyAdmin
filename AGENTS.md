@@ -329,8 +329,12 @@ RequestID → CORS → SecurityHeaders → Recovery → sentrygin(Repanic=true) 
 dsn = ""                        # 为空则禁用
 environment = "development"    # development / production
 release = "server@1.0.0"      # 版本号
+# sample_rate：未配置（删除该行）=默认 1.0；显式 0.0=关闭错误上报（v1.0.1 修复）
 sample_rate = 1.0              # 错误事件采样率 (0.0-1.0)
-traces_sample_rate = 0.2       # 性能追踪采样率 (0.0-1.0)
+traces_sample_rate = 0.2       # 性能追踪采样率 (0.0-1.0)，0=关闭性能追踪
+# ignore_transactions：过滤高频低价值性能事务（regex），默认内置 /health /favicon /assets/
+# 用户配置会追加到默认清单之上（v1.0.2 新增）
+# ignore_transactions = ["/api/v1/ping", "/metrics"]
 ```
 
 **手动捕获错误**（Go 代码中）：
@@ -423,8 +427,9 @@ Sentry.init({
 | `[sentry] dsn` | Sentry DSN，为空则禁用 | `https://xxx@sentry.io/2` |
 | `[sentry] environment` | 环境标识 | `development` |
 | `[sentry] release` | 版本号 | `server@1.0.0` |
-| `[sentry] sample_rate` | 错误采样率 | `1.0` |
-| `[sentry] traces_sample_rate` | 性能追踪采样率 | `0.2` |
+| `[sentry] sample_rate` | 错误采样率（未配置默认 1.0，显式 0 关闭） | `1.0` |
+| `[sentry] traces_sample_rate` | 性能追踪采样率（0 关闭性能追踪） | `0.2` |
+| `[sentry] ignore_transactions` | 过滤高频低价值性能事务（regex，默认含 /health 等） | （可选） |
 
 ### 9.6 手动捕获错误
 
@@ -528,7 +533,7 @@ pnpm preview
 | `[security]` | AES 密钥（32 字节 = AES-256） |
 | `[email]` | SMTP 配置（SSL/STARTTLS/AuthType） |
 | `[bus]` | 事件总线驱动（memory/redis，不设置则根据 Redis 自动选择） |
-| `[sentry]` | Sentry 错误追踪（DSN 为空则禁用，environment/release/采样率） |
+| `[sentry]` | Sentry 错误追踪（DSN 为空则禁用，environment/release/采样率/事务过滤） |
 
 ### 前端 .env 文件
 

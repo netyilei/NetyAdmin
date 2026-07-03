@@ -50,6 +50,10 @@ func Init(cfg config.SentryConfig) error {
 			"connection reset by peer",
 			"i/o timeout",
 		},
+		// 过滤性能追踪事务（regex 匹配事务名，格式 "<METHOD> <FullPath>"）。
+		// sentrygin 默认对每个请求都创建事务，K8s 健康探针/静态资源等高频低价值请求
+		// 会污染 Sentry 性能面板（如 /health 每 10s 一次 × 20% 采样 ≈ 1700+/天）。
+		IgnoreTransactions: buildIgnoreTransactions(cfg.IgnoreTransactions),
 	}
 
 	if err := sentry.Init(opts); err != nil {
@@ -61,8 +65,45 @@ func Init(cfg config.SentryConfig) error {
 		"release", cfg.Release,
 		"sample_rate", sampleRate,
 		"traces_sample_rate", cfg.TracesSampleRate,
+		"ignore_transactions", len(opts.IgnoreTransactions),
 	)
 	return nil
+}
+
+// defaultIgnoreTransactions 是默认过滤的性能事务名（regex）。
+// sentrygin 事务名格式为 "<METHOD> <FullPath>"（如 "GET /health"），
+// 用 `(?i) ...$` 之类不严格，这里采用匹配 Path 部分的写法（regex 部分匹配即可）。
+//
+// 默认覆盖：
+//   - /health          K8s liveness/readiness 探针（每 10s 一次，最高频噪声源）
+//   - /favicon.*       浏览器自动请求的站点图标
+//   - /assets/.*       前端 SPA 静态资源（JS/CSS/图片）
+//
+// 用户在 config.toml 配置的 ignore_transactions 会**追加**到默认清单之上（不覆盖），
+// 避免用户配置时漏掉探针/静态资源导致噪声再次涌入。
+func defaultIgnoreTransactions() []string {
+	return []string{
+		`/health`,
+		`/favicon`,
+		`/assets/`,
+	}
+}
+
+// buildIgnoreTransactions 合并默认清单与用户配置清单，去重。
+func buildIgnoreTransactions(user []string) []string {
+	seen := make(map[string]struct{}, len(user)+4)
+	result := make([]string, 0, len(user)+4)
+	for _, pattern := range append(defaultIgnoreTransactions(), user...) {
+		if pattern == "" {
+			continue
+		}
+		if _, ok := seen[pattern]; ok {
+			continue
+		}
+		seen[pattern] = struct{}{}
+		result = append(result, pattern)
+	}
+	return result
 }
 
 // Flush 刷新 Sentry 缓冲区，确保未发送的事件被提交。

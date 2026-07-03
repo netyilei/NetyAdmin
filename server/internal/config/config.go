@@ -30,6 +30,7 @@ type SentryConfig struct {
 	Release          string   `toml:"release"`            // 版本号
 	SampleRate       *float64 `toml:"sample_rate"`        // 错误事件采样率 (0.0-1.0)；nil=未配置默认1.0，显式0=关闭错误上报
 	TracesSampleRate float64  `toml:"traces_sample_rate"` // 性能追踪采样率 (0.0-1.0)；0=关闭性能追踪
+	IgnoreTransactions []string `toml:"ignore_transactions"` // 需过滤的性能事务名（regex），默认含 /health 等探针/静态资源噪声
 }
 
 type EmailConfig struct {
