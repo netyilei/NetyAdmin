@@ -24,6 +24,10 @@ type User struct {
 	LastLoginIP string                `gorm:"column:last_login_ip;size:50" json:"lastLoginIp"`
 	Remark      string                `gorm:"column:remark" json:"remark"`
 	LastReadID  uint64                `gorm:"column:last_read_announcement_id;default:0" json:"lastReadAnnouncementId"`
+	// TokenVersion 是会话失效的版本号（BUG #5 纵深防御）。
+	// 敏感操作（改密/禁用/删除）递增此值；JWT claims 携带签发时的版本号，
+	// 中间件比较 claims.TokenVersion < User.TokenVersion → 拒绝旧 token。
+	TokenVersion uint64 `gorm:"column:token_version;default:0" json:"-"`
 }
 
 func (User) TableName() string {

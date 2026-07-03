@@ -63,7 +63,7 @@ func TestParseToken_AlgConfusion(t *testing.T) {
 	assert.NoError(t, err)
 
 	// 用 HMAC 生成的合法 token，应解析成功
-	adminClaims := j.NewAdminClaims(1, "admin", []string{"super_admin"}, jwt.AccessToken)
+	adminClaims := j.NewAdminClaims(1, "admin", []string{"super_admin"}, jwt.AccessToken, 1)
 	validToken, err := j.GenerateToken(adminClaims)
 	assert.NoError(t, err)
 
@@ -73,4 +73,33 @@ func TestParseToken_AlgConfusion(t *testing.T) {
 	// 注：alg=none / RS256 等 confusion 攻击的具体 token 由 golang-jwt/v5 内部
 	// 在 keyfunc 返回 error 后统一归一到 ErrTokenInvalid，回归测试通过验证
 	// keyfunc 中的方法断言逻辑来覆盖防御层
+}
+
+// TestTokenVersion_RoundTrip 验证 TokenVersion 字段在签发→解析往返中正确保留（BUG #5 回归测试）。
+func TestTokenVersion_RoundTrip(t *testing.T) {
+	j, err := jwt.New("StrongTestSecret2026Abcd", 24)
+	assert.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		version uint64
+	}{
+		{"zero", 0},
+		{"one", 1},
+		{"large", 1<<32 + 12345},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			claims := j.NewAdminClaims(42, "tester", []string{"admin"}, jwt.AccessToken, tt.version)
+			token, err := j.GenerateToken(claims)
+			assert.NoError(t, err)
+
+			parsed := &jwt.AdminClaims{}
+			err = j.ParseToken(token, parsed)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.version, parsed.TokenVersion, "TokenVersion 应在往返中保留")
+			assert.Equal(t, uint(42), parsed.UserID)
+		})
+	}
 }

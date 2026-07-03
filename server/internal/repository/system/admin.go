@@ -17,6 +17,8 @@ type AdminRepository interface {
 	List(ctx context.Context, query *AdminRepoQuery) ([]systemEntity.Admin, int64, error)
 	Update(ctx context.Context, admin *systemEntity.Admin) error
 	UpdateLastLoginAt(ctx context.Context, id uint, lastLoginAt string) error
+	// IncrementTokenVersion 原子递增管理员 token_version（BUG #5）。
+	IncrementTokenVersion(ctx context.Context, id uint) error
 	Delete(ctx context.Context, id uint) error
 	UpdateRoles(ctx context.Context, adminID uint, roleIDs []uint) error
 }
@@ -122,6 +124,13 @@ func (r *adminRepository) UpdateLastLoginAt(ctx context.Context, id uint, lastLo
 	return r.db.WithContext(ctx).Model(&systemEntity.Admin{}).
 		Where("id = ?", id).
 		UpdateColumn("last_login_at", lastLoginAt).Error
+}
+
+// IncrementTokenVersion 原子递增管理员 token_version（BUG #5）。
+func (r *adminRepository) IncrementTokenVersion(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).Model(&systemEntity.Admin{}).
+		Where("id = ?", id).
+		UpdateColumn("token_version", gorm.Expr("token_version + ?", 1)).Error
 }
 
 func (r *adminRepository) Delete(ctx context.Context, id uint) error {

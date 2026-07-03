@@ -11,6 +11,7 @@ import (
 	systemVO "NetyAdmin/internal/domain/vo/system"
 	systemDto "NetyAdmin/internal/interface/admin/dto/system"
 
+	authPkg "NetyAdmin/internal/pkg/auth"
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
@@ -61,29 +62,29 @@ func (s *adminService) Login(ctx context.Context, req *systemDto.LoginReq) (*sys
 	_ = s.adminRepo.UpdateLastLoginAt(ctx, admin.ID, now)
 
 	roles := admin.RoleCodes()
-	claims := s.jwt.NewAdminClaims(admin.ID, admin.Username, roles, jwt.AccessToken)
+	claims := s.jwt.NewAdminClaims(admin.ID, admin.Username, roles, jwt.AccessToken, admin.TokenVersion)
 	token, err := s.jwt.GenerateToken(claims)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "生成令牌失败")
 	}
 
-	refreshClaims := s.jwt.NewAdminClaims(admin.ID, admin.Username, roles, jwt.RefreshToken)
+	refreshClaims := s.jwt.NewAdminClaims(admin.ID, admin.Username, roles, jwt.RefreshToken, admin.TokenVersion)
 	refreshToken, err := s.jwt.GenerateToken(refreshClaims)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "生成刷新令牌失败")
 	}
 
 	// 写入 token hash 到 tokenStore，使中间件可校验会话有效性，支持改密码/禁用/登出后立即失效
-	userIDKey := adminTokenUserID(admin.ID)
+	userIDKey := authPkg.AdminTokenKey(admin.ID)
 	if s.tokenStore != nil {
 		_ = s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
 			UserID:    userIDKey,
-			TokenHash: computeAdminTokenHash(token),
+			TokenHash: authPkg.HashToken(token),
 			ExpiredAt: time.Unix(claims.ExpiresAt.Unix(), 0),
 		})
 		_ = s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
 			UserID:    userIDKey,
-			TokenHash: computeAdminTokenHash(refreshToken),
+			TokenHash: authPkg.HashToken(refreshToken),
 			ExpiredAt: time.Unix(refreshClaims.ExpiresAt.Unix(), 0),
 		})
 	}
@@ -101,8 +102,8 @@ func (s *adminService) Logout(ctx context.Context, adminID uint, token string) e
 	if s.tokenStore == nil {
 		return nil
 	}
-	tokenHash := computeAdminTokenHash(token)
-	return s.tokenStore.Delete(ctx, adminTokenUserID(adminID), tokenHash)
+	tokenHash := authPkg.HashToken(token)
+	return s.tokenStore.Delete(ctx, authPkg.AdminTokenKey(adminID), tokenHash)
 }
 
 func (s *adminService) RefreshToken(ctx context.Context, refreshToken string) (*systemVO.LoginVO, error) {
@@ -130,13 +131,13 @@ func (s *adminService) RefreshToken(ctx context.Context, refreshToken string) (*
 	}
 
 	roles := admin.RoleCodes()
-	newClaims := s.jwt.NewAdminClaims(admin.ID, admin.Username, roles, jwt.AccessToken)
+	newClaims := s.jwt.NewAdminClaims(admin.ID, admin.Username, roles, jwt.AccessToken, admin.TokenVersion)
 	token, err := s.jwt.GenerateToken(newClaims)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "生成令牌失败")
 	}
 
-	refreshClaims := s.jwt.NewAdminClaims(admin.ID, admin.Username, roles, jwt.RefreshToken)
+	refreshClaims := s.jwt.NewAdminClaims(admin.ID, admin.Username, roles, jwt.RefreshToken, admin.TokenVersion)
 	newRefreshToken, err := s.jwt.GenerateToken(refreshClaims)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "生成刷新令牌失败")
@@ -149,16 +150,16 @@ func (s *adminService) RefreshToken(ctx context.Context, refreshToken string) (*
 	// 刷新令牌：失效该管理员的所有旧 token（包括旧 AccessToken），然后写入新 access + refresh token hash
 	// 这样可保证旧 AccessToken 在刷新后立即失效，防止 Token 泄露后被继续使用
 	if s.tokenStore != nil {
-		userIDKey := adminTokenUserID(admin.ID)
+		userIDKey := authPkg.AdminTokenKey(admin.ID)
 		_ = s.tokenStore.DeleteAll(ctx, userIDKey)
 		_ = s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
 			UserID:    userIDKey,
-			TokenHash: computeAdminTokenHash(token),
+			TokenHash: authPkg.HashToken(token),
 			ExpiredAt: time.Unix(newClaims.ExpiresAt.Unix(), 0),
 		})
 		_ = s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
 			UserID:    userIDKey,
-			TokenHash: computeAdminTokenHash(newRefreshToken),
+			TokenHash: authPkg.HashToken(newRefreshToken),
 			ExpiredAt: time.Unix(refreshClaims.ExpiresAt.Unix(), 0),
 		})
 	}

@@ -14,16 +14,18 @@ type Claims interface {
 }
 
 type AdminClaims struct {
-	UserID   uint     `json:"userId"`
-	Username string   `json:"userName"`
-	Roles    []string `json:"roles"`
+	UserID       uint     `json:"userId"`
+	Username     string   `json:"userName"`
+	Roles        []string `json:"roles"`
+	TokenVersion uint64   `json:"tv"` // BUG #5：签发时的 Token 版本号，中间件与 DB 当前版本比较
 	jwt.RegisteredClaims
 }
 
 type UserClaims struct {
-	UID      string `json:"uid"`
-	Platform string `json:"platform"`
-	Type     string `json:"type"`
+	UID          string `json:"uid"`
+	Platform     string `json:"platform"`
+	Type         string `json:"type"`
+	TokenVersion uint64 `json:"tv"` // BUG #5：签发时的 Token 版本号
 	jwt.RegisteredClaims
 }
 
@@ -125,21 +127,27 @@ func (j *JWT) GenerateToken(claims Claims) (string, error) {
 	return token.SignedString([]byte(j.secret))
 }
 
-func (j *JWT) NewAdminClaims(userID uint, username string, roles []string, tokenType TokenType) *AdminClaims {
-	var expDuration time.Duration
+// expirationFor 返回指定 tokenType 的有效期（access = expiration 小时；refresh = 2 倍）。
+// 同时叠加 0~600 秒随机抖动，避免大量 token 在同一时刻集中过期引发惊群。
+// 抽取此 helper 以消除 NewAdminClaims / NewUserClaims 间的重复（RULES.md §0.1）。
+func (j *JWT) expirationFor(tokenType TokenType) time.Time {
+	var hours int
 	if tokenType == AccessToken {
-		expDuration = time.Duration(j.expiration) * time.Hour
+		hours = j.expiration
 	} else {
-		expDuration = time.Duration(j.expiration*2) * time.Hour
+		hours = j.expiration * 2
 	}
-
 	jitter := time.Duration(time.Now().UnixNano()%600) * time.Second
-	expTime := time.Now().Add(expDuration).Add(jitter)
+	return time.Now().Add(time.Duration(hours) * time.Hour).Add(jitter)
+}
 
+func (j *JWT) NewAdminClaims(userID uint, username string, roles []string, tokenType TokenType, tokenVersion uint64) *AdminClaims {
+	expTime := j.expirationFor(tokenType)
 	return &AdminClaims{
-		UserID:   userID,
-		Username: username,
-		Roles:    roles,
+		UserID:       userID,
+		Username:     username,
+		Roles:        roles,
+		TokenVersion: tokenVersion,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -148,21 +156,13 @@ func (j *JWT) NewAdminClaims(userID uint, username string, roles []string, token
 	}
 }
 
-func (j *JWT) NewUserClaims(uid string, platform string, tokenType TokenType) *UserClaims {
-	var expDuration time.Duration
-	if tokenType == AccessToken {
-		expDuration = time.Duration(j.expiration) * time.Hour
-	} else {
-		expDuration = time.Duration(j.expiration*2) * time.Hour
-	}
-
-	jitter := time.Duration(time.Now().UnixNano()%600) * time.Second
-	expTime := time.Now().Add(expDuration).Add(jitter)
-
+func (j *JWT) NewUserClaims(uid string, platform string, tokenType TokenType, tokenVersion uint64) *UserClaims {
+	expTime := j.expirationFor(tokenType)
 	return &UserClaims{
-		UID:      uid,
-		Platform: platform,
-		Type:     "user",
+		UID:          uid,
+		Platform:     platform,
+		Type:         "user",
+		TokenVersion: tokenVersion,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

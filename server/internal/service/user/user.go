@@ -4,8 +4,6 @@ package user
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -15,6 +13,7 @@ import (
 	userEntity "NetyAdmin/internal/domain/entity/user"
 	clientDto "NetyAdmin/internal/interface/client/dto/v1"
 
+	authPkg "NetyAdmin/internal/pkg/auth"
 	userVO "NetyAdmin/internal/domain/vo/user"
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/configsync"
@@ -152,14 +151,16 @@ func (s *userService) ChangePassword(ctx context.Context, userID string, req *cl
 	}
 	user.Password = hashedPassword
 
-	// 密码修改成功后，强制清除该用户所有 token，使旧 access/refresh token 立即失效
-	_ = s.tokenStore.DeleteAll(ctx, userID)
+	// 改密：失效旧 token + 递增版本号（fail-closed）
+	if err := s.invalidateUserTokens(ctx, userID); err != nil {
+		return errorx.New(errorx.CodeInternalError, "令牌失效失败")
+	}
 
 	return s.repo.Update(ctx, user)
 }
 
 func (s *userService) Logout(ctx context.Context, userID string, token string) error {
-	tokenHash := s.computeHash(token)
+	tokenHash := authPkg.HashToken(token)
 	return s.tokenStore.Delete(ctx, userID, tokenHash)
 }
 
@@ -201,8 +202,20 @@ func (s *userService) validatePasswordStrength(ctx context.Context, password str
 	return nil
 }
 
-func (s *userService) computeHash(token string) string {
-	h := sha256.New()
-	h.Write([]byte(token))
-	return hex.EncodeToString(h.Sum(nil))
+// invalidateUserTokens 失效用户的所有旧 token（BUG #5 纵深防御）。
+//
+// 双层防御：
+//  1. tokenStore.DeleteAll — 立即拉黑所有会话哈希（依赖 Redis/DB 可用）
+//  2. repo.IncrementTokenVersion — 递增 DB 版本号，作为 tokenStore 故障时的兜底
+//
+// 失败语义（fail-closed）：IncrementTokenVersion 失败时返回 error 阻断当前敏感操作，
+// 避免版本号未递增却返回成功，导致旧 token 仍可继续访问。
+// tokenStore.DeleteAll 失败仍忽略错误（已由版本号机制兜底，且 tokenStore 不可用不应阻断业务）。
+func (s *userService) invalidateUserTokens(ctx context.Context, userID string) error {
+	if s.tokenStore != nil {
+		_ = s.tokenStore.DeleteAll(ctx, userID)
+		_ = s.cacheMgr.Delete(ctx, cache.KeyLoginLock(userID))
+		_ = s.cacheMgr.Delete(ctx, cache.KeyLoginRetryCount(userID))
+	}
+	return s.repo.IncrementTokenVersion(ctx, userID)
 }

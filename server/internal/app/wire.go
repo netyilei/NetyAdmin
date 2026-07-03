@@ -409,7 +409,7 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	rateLimiter := ratelimitPkg.New(lazyCacheMgr.GetRedisClient(), cfg.Redis.Prefix)
 
 	s := &serviceSet{}
-	tokenStore := userServicePkg.NewTokenStoreFromConfig(configWatcher, repos.user, lazyCacheMgr)
+	tokenStore := userServicePkg.NewTokenStore(repos.user, lazyCacheMgr)
 	s.admin = systemService.NewAdminService(repos.admin, repos.role, jwtInstance, lazyCacheMgr, tokenStore)
 	s.role = systemService.NewRoleService(repos.role, repos.menu, repos.api, repos.button, lazyCacheMgr)
 	s.menu = systemService.NewMenuService(repos.menu, repos.button, lazyCacheMgr)

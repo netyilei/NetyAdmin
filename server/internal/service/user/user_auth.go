@@ -11,6 +11,7 @@ import (
 	clientDto "NetyAdmin/internal/interface/client/dto/v1"
 
 	"NetyAdmin/internal/domain/entity"
+	authPkg "NetyAdmin/internal/pkg/auth"
 	userVO "NetyAdmin/internal/domain/vo/user"
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/errorx"
@@ -179,20 +180,20 @@ func (s *userService) Login(ctx context.Context, req *clientDto.UserLoginReq, ip
 	_ = s.repo.Update(ctx, user)
 
 	// 6. 生成令牌
-	claims := s.jwt.NewUserClaims(user.ID, req.Platform, jwt.AccessToken)
+	claims := s.jwt.NewUserClaims(user.ID, req.Platform, jwt.AccessToken, user.TokenVersion)
 	token, err := s.jwt.GenerateToken(claims)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "令牌生成失败")
 	}
 
-	refreshClaims := s.jwt.NewUserClaims(user.ID, req.Platform, jwt.RefreshToken)
+	refreshClaims := s.jwt.NewUserClaims(user.ID, req.Platform, jwt.RefreshToken, user.TokenVersion)
 	refreshToken, err := s.jwt.GenerateToken(refreshClaims)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "刷新令牌生成失败")
 	}
 
 	// 7. 存储 Token 哈希 (用于后续主动拉黑或单端登录控制)
-	tokenHash := s.computeHash(token)
+	tokenHash := authPkg.HashToken(token)
 	if err := s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
 		UserID:    user.ID,
 		TokenHash: tokenHash,
@@ -201,7 +202,7 @@ func (s *userService) Login(ctx context.Context, req *clientDto.UserLoginReq, ip
 		return nil, errorx.New(errorx.CodeInternalError, "令牌存储失败")
 	}
 
-	refreshTokenHash := s.computeHash(refreshToken)
+	refreshTokenHash := authPkg.HashToken(refreshToken)
 	if err := s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
 		UserID:    user.ID,
 		TokenHash: refreshTokenHash,
@@ -240,19 +241,19 @@ func (s *userService) RefreshToken(ctx context.Context, refreshToken string) (*u
 		return nil, errorx.New(errorx.CodeUserDisabled, "账户已禁用")
 	}
 
-	newClaims := s.jwt.NewUserClaims(user.ID, claims.Platform, jwt.AccessToken)
+	newClaims := s.jwt.NewUserClaims(user.ID, claims.Platform, jwt.AccessToken, user.TokenVersion)
 	token, err := s.jwt.GenerateToken(newClaims)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "生成令牌失败")
 	}
 
-	newRefreshClaims := s.jwt.NewUserClaims(user.ID, claims.Platform, jwt.RefreshToken)
+	newRefreshClaims := s.jwt.NewUserClaims(user.ID, claims.Platform, jwt.RefreshToken, user.TokenVersion)
 	newRefreshToken, err := s.jwt.GenerateToken(newRefreshClaims)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "生成刷新令牌失败")
 	}
 
-	tokenHash := s.computeHash(token)
+	tokenHash := authPkg.HashToken(token)
 	if err := s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
 		UserID:    user.ID,
 		TokenHash: tokenHash,
@@ -261,7 +262,7 @@ func (s *userService) RefreshToken(ctx context.Context, refreshToken string) (*u
 		return nil, errorx.New(errorx.CodeInternalError, "令牌存储失败")
 	}
 
-	refreshTokenHash := s.computeHash(newRefreshToken)
+	refreshTokenHash := authPkg.HashToken(newRefreshToken)
 	if err := s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
 		UserID:    user.ID,
 		TokenHash: refreshTokenHash,
@@ -321,10 +322,10 @@ func (s *userService) ResetPassword(ctx context.Context, req *clientDto.UserRese
 	}
 	user.Password = hashedPassword
 
-	_ = s.tokenStore.DeleteAll(ctx, user.ID)
-
-	_ = s.cacheMgr.Delete(ctx, cache.KeyLoginLock(user.ID))
-	_ = s.cacheMgr.Delete(ctx, cache.KeyLoginRetryCount(user.ID))
+	// 重置密码：失效旧 token + 递增版本号（fail-closed）
+	if err := s.invalidateUserTokens(ctx, user.ID); err != nil {
+		return errorx.New(errorx.CodeInternalError, "令牌失效失败")
+	}
 
 	return s.repo.Update(ctx, user)
 }

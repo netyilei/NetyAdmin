@@ -221,10 +221,12 @@ func (s *adminService) Update(ctx context.Context, req *systemDto.UpdateAdminReq
 	}
 
 	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagAdminInfo)
-	// 若修改了密码、禁用了账户或变更了角色，强制清除该管理员所有 token
+	// 若修改了密码、禁用了账户或变更了角色，强制失效该管理员所有 token
 	// 角色变更后旧 Token 仍有效会导致被移除权限的管理员继续访问
-	if s.tokenStore != nil && (req.Password != "" || admin.Status != entity.StatusEnabled || rolesChanged) {
-		_ = s.tokenStore.DeleteAll(ctx, adminTokenUserID(req.ID))
+	if req.Password != "" || admin.Status != entity.StatusEnabled || rolesChanged {
+		if err := s.invalidateAdminTokens(ctx, req.ID); err != nil {
+			return errorx.New(errorx.CodeInternalError, "令牌失效失败")
+		}
 	}
 	return nil
 }
@@ -244,15 +246,16 @@ func (s *adminService) Delete(ctx context.Context, id uint, operatorID uint) err
 		return errorx.New(errorx.CodeCannotDeleteSuper)
 	}
 
-	err = s.adminRepo.Delete(ctx, id)
-	if err == nil {
-		_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagAdminInfo)
-		// 删除管理员后，清除其所有 token
-		if s.tokenStore != nil {
-			_ = s.tokenStore.DeleteAll(ctx, adminTokenUserID(id))
-		}
+	// 删除前先失效该管理员所有 token（防止被删管理员继续访问）
+	if err := s.invalidateAdminTokens(ctx, id); err != nil {
+		return errorx.New(errorx.CodeInternalError, "令牌失效失败")
 	}
-	return err
+	if err := s.adminRepo.Delete(ctx, id); err == nil {
+		_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagAdminInfo)
+	} else {
+		return err
+	}
+	return nil
 }
 
 func (s *adminService) DeleteBatch(ctx context.Context, ids []uint, operatorID uint) error {
@@ -272,13 +275,13 @@ func (s *adminService) DeleteBatch(ctx context.Context, ids []uint, operatorID u
 			errs = append(errs, fmt.Sprintf("管理员 %d：不允许删除超级管理员", id))
 			continue
 		}
+		// 批量场景：失效 token 失败不阻断删除主数据（已删的管理员 token 自然作废）
+		if err := s.invalidateAdminTokens(ctx, id); err != nil {
+			errs = append(errs, fmt.Sprintf("管理员 %d：令牌失效失败", id))
+		}
 		if err := s.adminRepo.Delete(ctx, id); err != nil {
 			errs = append(errs, fmt.Sprintf("管理员 %d：%s", id, err.Error()))
 			continue
-		}
-		// 批量删除后，清除对应管理员所有 token
-		if s.tokenStore != nil {
-			_ = s.tokenStore.DeleteAll(ctx, adminTokenUserID(id))
 		}
 	}
 	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagAdminInfo)

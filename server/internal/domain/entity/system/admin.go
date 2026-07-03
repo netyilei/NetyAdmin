@@ -13,6 +13,10 @@ type Admin struct {
 	Gender        string  `gorm:"column:gender;size:1;default:1" json:"userGender"`
 	Status        string  `gorm:"column:status;size:1;default:1" json:"status"`
 	LastLoginAt   *string `gorm:"column:last_login_at;size:30" json:"lastLoginAt"`
+	// TokenVersion 是会话失效的版本号（BUG #5 纵深防御）。
+	// 敏感操作（改密/禁用/删除/角色变更）递增此值；JWT claims 携带签发时的版本号，
+	// 中间件比较 claims.TokenVersion < Admin.TokenVersion → 拒绝旧 token。
+	TokenVersion  uint64  `gorm:"column:token_version;default:0" json:"-"`
 	Roles         []*Role `gorm:"many2many:admin_user_roles;joinForeignKey:admin_user_id;joinReferences:admin_role_id" json:"roles"`
 	CreatedByUser *Admin  `gorm:"foreignKey:CreatedBy;references:ID" json:"createdByUser"`
 	UpdatedByUser *Admin  `gorm:"foreignKey:UpdatedBy;references:ID" json:"updatedByUser"`

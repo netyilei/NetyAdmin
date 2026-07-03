@@ -3,12 +3,14 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import type { FormInst } from 'naive-ui';
 import { GENDER } from '@/constants/business';
 import { fetchChangePassword, fetchGetProfile, fetchUpdateProfile } from '@/service/api/v1/auth';
+import { useAuthStore } from '@/store/modules/auth';
 import type { Auth } from '@/typings/api/v1/auth';
 import { $t } from '@/locales';
 
 defineOptions({ name: 'AdminProfileModal' });
 
 const visible = defineModel<boolean>('show', { default: false });
+const authStore = useAuthStore();
 
 const profileLoading = ref(false);
 const passwordLoading = ref(false);
@@ -89,10 +91,10 @@ async function handleChangePassword() {
     });
     if (error) return;
 
-    passwordModel.oldPassword = '';
-    passwordModel.newPassword = '';
-    passwordModel.confirmPassword = '';
     window.$message?.success($t('page.adminProfile.passwordChangeSuccess'));
+    // 改密成功后旧 token 已被 Token 版本号机制立即失效（后端 IncrementTokenVersion），
+    // 必须主动登出并跳转登录页，否则当前会话的后续请求都会被 401 拦截。
+    await authStore.resetStore();
   } finally {
     passwordLoading.value = false;
   }

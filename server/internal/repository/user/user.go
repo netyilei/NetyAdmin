@@ -24,6 +24,9 @@ type UserRepository interface {
 	Delete(ctx context.Context, id string) error
 	DeleteBatch(ctx context.Context, ids []string) error
 	UpdateFields(ctx context.Context, id string, fields map[string]interface{}) error
+	// IncrementTokenVersion 原子递增用户的 token_version（BUG #5）。
+	// 用于改密/禁用/删除等敏感操作，使旧 token 携带的版本号失效。
+	IncrementTokenVersion(ctx context.Context, id string) error
 
 	// Token Hash 相关
 	CreateTokenHash(ctx context.Context, hash *userEntity.UserTokenHash) error
@@ -181,6 +184,14 @@ func (r *userRepository) DeleteBatch(ctx context.Context, ids []string) error {
 
 func (r *userRepository) UpdateFields(ctx context.Context, id string, fields map[string]interface{}) error {
 	return r.db.WithContext(ctx).Model(&userEntity.User{}).Where("id = ?", id).Updates(fields).Error
+}
+
+// IncrementTokenVersion 原子递增用户 token_version（BUG #5）。
+// 使用 UpdateColumn + gorm.Expr 保证并发安全，避免 Save 全字段覆盖。
+func (r *userRepository) IncrementTokenVersion(ctx context.Context, id string) error {
+	return r.db.WithContext(ctx).Model(&userEntity.User{}).
+		Where("id = ?", id).
+		UpdateColumn("token_version", gorm.Expr("token_version + ?", 1)).Error
 }
 
 func (r *userRepository) CreateTokenHash(ctx context.Context, hash *userEntity.UserTokenHash) error {

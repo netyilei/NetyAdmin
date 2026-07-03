@@ -4,12 +4,11 @@ package system
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"regexp"
 	"strconv"
 	"time"
 
+	authPkg "NetyAdmin/internal/pkg/auth"
 	systemEntity "NetyAdmin/internal/domain/entity/system"
 	systemDto "NetyAdmin/internal/interface/admin/dto/system"
 
@@ -58,18 +57,6 @@ func NewAdminService(adminRepo systemRepo.AdminRepository, roleRepo systemRepo.R
 	}
 }
 
-// adminTokenUserID 将 adminID（uint）转为 tokenStore 所需的 string 形式用户标识
-func adminTokenUserID(adminID uint) string {
-	return "a:" + strconv.FormatUint(uint64(adminID), 10)
-}
-
-// computeAdminTokenHash 计算 admin token 的 sha256 哈希，与中间件校验保持一致
-func computeAdminTokenHash(token string) string {
-	h := sha256.New()
-	h.Write([]byte(token))
-	return hex.EncodeToString(h.Sum(nil))
-}
-
 // validateAdminPasswordStrength 校验管理员密码强度：必须包含大小写字母、数字、特殊符号中的至少 3 类
 func validateAdminPasswordStrength(pwd string) error {
 	types := 0
@@ -89,6 +76,17 @@ func validateAdminPasswordStrength(pwd string) error {
 		return errorx.New(errorx.CodePasswordTooWeak, "密码必须包含大小写字母、数字、特殊符号中的至少 3 种")
 	}
 	return nil
+}
+
+// invalidateAdminTokens 失效管理员的所有旧 token（BUG #5 纵深防御）。
+//
+// 语义同 userService.invalidateUserTokens，详见其文档。
+// admin 的 tokenStore key 由 authPkg.AdminTokenKey 生成，与 middleware 对称。
+func (s *adminService) invalidateAdminTokens(ctx context.Context, adminID uint) error {
+	if s.tokenStore != nil {
+		_ = s.tokenStore.DeleteAll(ctx, authPkg.AdminTokenKey(adminID))
+	}
+	return s.adminRepo.IncrementTokenVersion(ctx, adminID)
 }
 
 func (s *adminService) GetAdminInfo(ctx context.Context, adminID uint) (*systemVO.AdminInfoVO, error) {
@@ -176,9 +174,9 @@ func (s *adminService) ChangePassword(ctx context.Context, adminID uint, req *sy
 
 	admin.Password = hashedPassword
 
-	// 改密码后强制清除该管理员所有 token，使旧 access/refresh token 立即失效
-	if s.tokenStore != nil {
-		_ = s.tokenStore.DeleteAll(ctx, adminTokenUserID(adminID))
+	// 改密码：失效旧 token + 递增版本号（fail-closed）
+	if err := s.invalidateAdminTokens(ctx, adminID); err != nil {
+		return errorx.New(errorx.CodeInternalError, "令牌失效失败")
 	}
 
 	return s.adminRepo.Update(ctx, admin)
