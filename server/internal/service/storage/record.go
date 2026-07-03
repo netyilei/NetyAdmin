@@ -161,7 +161,9 @@ func (s *recordService) GetUploadCredentials(ctx context.Context, req *storageDt
 
 	contentType := req.ContentType
 	if contentType == "" {
-		contentType = storage.DetectMimeType([]byte{})
+		// 上传凭证签发时还没有文件内容，按文件名扩展名推断 MIME
+		// （替代原 DetectMimeType([]byte{}) 空参占位 hack，重构清单 B-OTHER-13）
+		contentType = storage.MimeTypeByExt(req.FileName)
 	}
 
 	expires := 15 * time.Minute

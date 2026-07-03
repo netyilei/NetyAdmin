@@ -437,25 +437,28 @@ func (m *Manager) execute(ctx context.Context, t Task) {
 		lockKey := cache.KeyTaskLock(m.redisCfg.Prefix, name)
 		// 设置锁的 TTL 为 1 小时 (兜底时间)
 		// 避免任务执行时间超过 60s 导致锁失效
+		// resetRunningState 把 state.IsRunning 改回 false（抢锁失败/出错时回滚）。
+		// 抽取自两处复制粘贴的 mu.Lock + IsRunning=false + mu.Unlock（重构清单 B-OTHER-9）。
+		resetRunningState := func() {
+			m.mu.Lock()
+			state.IsRunning = false
+			m.mu.Unlock()
+		}
+
 		err := m.redis.SetArgs(ctx, lockKey, "locked", redis.SetArgs{
 			Mode: "NX",
 			TTL:  1 * time.Hour,
 		}).Err()
-		if err == redis.Nil {
-			// 未抢到锁，说明其他实例正在执行
-			slog.Info("任务在其他实例中执行，本实例跳过", "name", name)
-
-			// 把状态改回未运行
-			m.mu.Lock()
-			state.IsRunning = false
-			m.mu.Unlock()
+		if err != nil {
+			// redis.Nil = 未抢到锁（其他实例执行中）；其他 err = 抢锁出错
+			// 两种情况都安全起见不执行本实例任务
+			if err != redis.Nil {
+				slog.Error("任务尝试获取分布式锁失败", "name", name, "error", err)
+			} else {
+				slog.Info("任务在其他实例中执行，本实例跳过", "name", name)
+			}
+			resetRunningState()
 			return
-		} else if err != nil {
-			slog.Error("任务尝试获取分布式锁失败", "name", name, "error", err)
-			m.mu.Lock()
-			state.IsRunning = false
-			m.mu.Unlock()
-			return // 发生错误，安全起见不执行
 		}
 
 		// 执行完毕后释放锁

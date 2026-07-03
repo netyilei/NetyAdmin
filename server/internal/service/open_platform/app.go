@@ -169,7 +169,7 @@ func (s *appService) CreateApp(ctx context.Context, app *open_platform.App, scop
 	app.ID = utils.NewULID()
 	app.AppKey = app.ID
 
-	rawSecret := utils.NewULID() + utils.NewULID() // 简单生成一个较长的随机字符串
+	rawSecret := utils.NewSecretToken()
 	encryptedSecret, err := utils.Encrypt(rawSecret, s.aesKey)
 	if err != nil {
 		return err
@@ -224,7 +224,7 @@ func (s *appService) ResetAppSecret(ctx context.Context, id string) (string, err
 		}
 		return "", err
 	}
-	rawSecret := utils.NewULID() + utils.NewULID()
+	rawSecret := utils.NewSecretToken()
 
 	encryptedSecret, err := utils.Encrypt(rawSecret, s.aesKey)
 	if err != nil {

@@ -230,40 +230,36 @@ func (s *articleService) List(ctx context.Context, query *contentDto.ContentArti
 	return s.repo.List(ctx, repoQuery)
 }
 
-func (s *articleService) Publish(ctx context.Context, id uint) error {
-	_, err := s.repo.GetByID(ctx, id)
-	if err != nil {
+// withArticleCacheInvalidation 是 Publish/Unpublish/SetTop 的统一骨架
+// （重构清单 B-OTHER-8）：GetByID 前置校验 → 执行 op → 失效文章缓存。
+// op 是具体的 repo 操作闭包。
+func (s *articleService) withArticleCacheInvalidation(ctx context.Context, id uint, op func(uint) error) error {
+	if _, err := s.repo.GetByID(ctx, id); err != nil {
 		return errorx.New(errorx.CodeNotFound, "文章不存在")
 	}
-	if err := s.repo.Publish(ctx, id, time.Now()); err != nil {
+	if err := op(id); err != nil {
 		return err
 	}
 	_ = s.cache.InvalidateByTags(ctx, cache.TagContentArticle)
 	return nil
+}
+
+func (s *articleService) Publish(ctx context.Context, id uint) error {
+	return s.withArticleCacheInvalidation(ctx, id, func(i uint) error {
+		return s.repo.Publish(ctx, i, time.Now())
+	})
 }
 
 func (s *articleService) Unpublish(ctx context.Context, id uint) error {
-	_, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		return errorx.New(errorx.CodeNotFound, "文章不存在")
-	}
-	if err := s.repo.Unpublish(ctx, id); err != nil {
-		return err
-	}
-	_ = s.cache.InvalidateByTags(ctx, cache.TagContentArticle)
-	return nil
+	return s.withArticleCacheInvalidation(ctx, id, func(i uint) error {
+		return s.repo.Unpublish(ctx, i)
+	})
 }
 
 func (s *articleService) SetTop(ctx context.Context, id uint, req *contentDto.SetArticleTopDTO) error {
-	_, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		return errorx.New(errorx.CodeNotFound, "文章不存在")
-	}
-	if err := s.repo.SetTop(ctx, id, req.IsTop, req.TopSort); err != nil {
-		return err
-	}
-	_ = s.cache.InvalidateByTags(ctx, cache.TagContentArticle)
-	return nil
+	return s.withArticleCacheInvalidation(ctx, id, func(i uint) error {
+		return s.repo.SetTop(ctx, i, req.IsTop, req.TopSort)
+	})
 }
 
 func (s *articleService) ListPublishedByCategoryIDs(ctx context.Context, page, pageSize int, categoryIDs []uint, keyword string) ([]*contentEntity.ContentArticle, int64, error) {

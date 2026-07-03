@@ -127,7 +127,7 @@ func (d *minioDriver) UploadFile(ctx context.Context, key string, filePath strin
 	}
 
 	if contentType == "" {
-		contentType = detectContentType(filePath)
+		contentType = MimeTypeByExt(filePath)
 	}
 
 	return d.Upload(ctx, key, file, stat.Size(), contentType)
@@ -299,16 +299,22 @@ func toObjectInfo(key string, stat minio.ObjectInfo) *ObjectInfo {
 	}
 }
 
-// detectContentType 根据文件扩展名推断 MIME 类型。
-func detectContentType(filePath string) string {
-	ext := strings.ToLower(filepath.Ext(filePath))
+// MimeTypeByExt 根据文件名扩展名推断 MIME 类型。
+//
+// 适用于上传凭证签发场景（此时还没有文件内容，只有文件名），
+// 替代原来 record.go 中 DetectMimeType([]byte{}) 的空参占位 hack（重构清单 B-OTHER-13）。
+// 扩展名未命中映射表时返回 application/octet-stream。
+func MimeTypeByExt(fileName string) string {
+	ext := strings.ToLower(filepath.Ext(fileName))
 	if mime, ok := extensionMimeTypes[ext]; ok {
 		return mime
 	}
 	return "application/octet-stream"
 }
 
-// DetectMimeType 通过文件内容嗅探 MIME 类型（供 record 服务使用）。
+// DetectMimeType 通过文件内容嗅探 MIME 类型。
+// 仅在已有文件内容时使用（如 CompleteUpload 后续处理）。
+// 上传凭证签发场景（仅有文件名）应使用 MimeTypeByExt。
 func DetectMimeType(data []byte) string {
 	return http.DetectContentType(data)
 }
