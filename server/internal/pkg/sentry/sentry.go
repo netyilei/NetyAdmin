@@ -71,29 +71,45 @@ func Init(cfg config.SentryConfig) error {
 }
 
 // defaultIgnoreTransactions 是默认过滤的性能事务名（regex）。
-// sentrygin 事务名格式为 "<METHOD> <FullPath>"（如 "GET /health"），
-// 用 `(?i) ...$` 之类不严格，这里采用匹配 Path 部分的写法（regex 部分匹配即可）。
+//
+// sentrygin 的事务名格式固定为 "<METHOD> <FullPath>"（如 "GET /health"），
+// sentry-go 的 IgnoreTransactions 匹配逻辑是「regex.Match || strings.Contains」，
+// 即子串匹配。为避免裸子串（如 "/assets/"）误伤未来包含该子串的业务路由
+// （例如 /admin/v1/assets-management），这里在 path 前加一个空格锚定 method/path 分隔符，
+// 确保只匹配 path 起始部分，不匹配 method 名也不匹配 path 中间子串。
 //
 // 默认覆盖：
-//   - /health          K8s liveness/readiness 探针（每 10s 一次，最高频噪声源）
-//   - /favicon.*       浏览器自动请求的站点图标
-//   - /assets/.*       前端 SPA 静态资源（JS/CSS/图片）
+//   - " /health"      K8s liveness/readiness 探针（每 10s 一次，最高频噪声源）
+//   - " /favicon"     浏览器自动请求的站点图标（/favicon.svg 等）
+//   - " /assets/"     前端 SPA 静态资源（JS/CSS/图片）
 //
 // 用户在 config.toml 配置的 ignore_transactions 会**追加**到默认清单之上（不覆盖），
 // 避免用户配置时漏掉探针/静态资源导致噪声再次涌入。
 func defaultIgnoreTransactions() []string {
 	return []string{
-		`/health`,
-		`/favicon`,
-		`/assets/`,
+		` /health`,
+		` /favicon`,
+		` /assets/`,
 	}
 }
 
 // buildIgnoreTransactions 合并默认清单与用户配置清单，去重。
+// 容量预分配按「默认清单长度 + 用户清单长度」精确计算，避免扩容。
 func buildIgnoreTransactions(user []string) []string {
-	seen := make(map[string]struct{}, len(user)+4)
-	result := make([]string, 0, len(user)+4)
-	for _, pattern := range append(defaultIgnoreTransactions(), user...) {
+	defaults := defaultIgnoreTransactions()
+	seen := make(map[string]struct{}, len(defaults)+len(user))
+	result := make([]string, 0, len(defaults)+len(user))
+	for _, pattern := range defaults {
+		if pattern == "" {
+			continue
+		}
+		if _, ok := seen[pattern]; ok {
+			continue
+		}
+		seen[pattern] = struct{}{}
+		result = append(result, pattern)
+	}
+	for _, pattern := range user {
 		if pattern == "" {
 			continue
 		}
