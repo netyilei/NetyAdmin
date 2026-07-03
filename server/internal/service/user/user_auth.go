@@ -184,23 +184,10 @@ func (s *userService) Login(ctx context.Context, req *clientDto.UserLoginReq, ip
 		return nil, errorx.New(errorx.CodeInternalError, "刷新令牌生成失败")
 	}
 
-	// 7. 存储 Token 哈希 (用于后续主动拉黑或单端登录控制)
-	tokenHash := authPkg.HashToken(token)
-	if err := s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
-		UserID:    user.ID,
-		TokenHash: tokenHash,
-		ExpiredAt: time.Unix(claims.ExpiresAt.Unix(), 0),
-	}); err != nil {
+	// 7. 存储 Token 哈希（统一走 authPkg.StoreSessionPair，含 tokenStore nil 守卫）
+	if err := authPkg.StoreSessionPair(ctx, s.tokenStore, user.ID, token, refreshToken,
+		time.Unix(claims.ExpiresAt.Unix(), 0), time.Unix(refreshClaims.ExpiresAt.Unix(), 0)); err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "令牌存储失败")
-	}
-
-	refreshTokenHash := authPkg.HashToken(refreshToken)
-	if err := s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
-		UserID:    user.ID,
-		TokenHash: refreshTokenHash,
-		ExpiredAt: time.Unix(refreshClaims.ExpiresAt.Unix(), 0),
-	}); err != nil {
-		return nil, errorx.New(errorx.CodeInternalError, "刷新令牌存储失败")
 	}
 
 	return &userVO.UserLoginVO{
@@ -249,25 +236,10 @@ func (s *userService) RefreshToken(ctx context.Context, refreshToken string) (*u
 	// 再写入新 access + refresh hash。
 	// 注意：此处只清 tokenStore 哈希，不递增 TokenVersion——
 	// refresh 不应失效其他设备的合法会话（版本号递增会波及所有设备）。
-	if s.tokenStore != nil {
-		_ = s.tokenStore.DeleteAll(ctx, user.ID)
-	}
-	tokenHash := authPkg.HashToken(token)
-	if err := s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
-		UserID:    user.ID,
-		TokenHash: tokenHash,
-		ExpiredAt: time.Unix(newClaims.ExpiresAt.Unix(), 0),
-	}); err != nil {
+	// 刷新令牌：失效旧会话哈希（含旧 access，防泄露）+ 写入新对（统一走 ReplaceSessionForRefresh，含 nil 守卫）
+	if err := authPkg.ReplaceSessionForRefresh(ctx, s.tokenStore, user.ID, token, newRefreshToken,
+		time.Unix(newClaims.ExpiresAt.Unix(), 0), time.Unix(newRefreshClaims.ExpiresAt.Unix(), 0)); err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "令牌存储失败")
-	}
-
-	refreshTokenHash := authPkg.HashToken(newRefreshToken)
-	if err := s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
-		UserID:    user.ID,
-		TokenHash: refreshTokenHash,
-		ExpiredAt: time.Unix(newRefreshClaims.ExpiresAt.Unix(), 0),
-	}); err != nil {
-		return nil, errorx.New(errorx.CodeInternalError, "刷新令牌存储失败")
 	}
 
 	remainingTTL := time.Until(time.Unix(claims.ExpiresAt.Unix(), 0))

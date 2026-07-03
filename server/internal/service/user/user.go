@@ -158,6 +158,9 @@ func (s *userService) ChangePassword(ctx context.Context, userID string, req *cl
 }
 
 func (s *userService) Logout(ctx context.Context, userID string, token string) error {
+	if s.tokenStore == nil {
+		return nil
+	}
 	tokenHash := authPkg.HashToken(token)
 	return s.tokenStore.Delete(ctx, userID, tokenHash)
 }
