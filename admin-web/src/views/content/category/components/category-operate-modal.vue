@@ -15,6 +15,7 @@ import {
 import { ENABLE_STATUS } from '@/constants/business';
 import { fetchCreateCategory, fetchUpdateCategory } from '@/service/api/v1/content';
 import { useFormRules } from '@/hooks/common/form';
+import { useOperation } from '@/hooks/common/operation';
 import { getAllIconifyIcons } from '@/utils/iconify-icons';
 import type { Content } from '@/typings/api/v1/content';
 import { $t } from '@/locales';
@@ -144,21 +145,14 @@ function closeModal() {
 async function handleSubmit() {
   await formRef.value?.validate();
 
-  loading.value = true;
-  try {
-    if (props.operateType === 'add') {
-      await fetchCreateCategory(model);
-      window.$message?.success($t('common.addSuccess'));
-    } else {
-      await fetchUpdateCategory(props.rowData!.id, model);
-      window.$message?.success($t('common.updateSuccess'));
+  await useOperation(props.operateType, loading, {
+    edit: () => fetchUpdateCategory(props.rowData!.id, model),
+    add: () => fetchCreateCategory(model),
+    onSuccess: () => {
+      closeModal();
+      emit('submitted');
     }
-
-    closeModal();
-    emit('submitted');
-  } finally {
-    loading.value = false;
-  }
+  });
 }
 
 watch(

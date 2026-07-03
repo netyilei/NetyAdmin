@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import type { FormRules, UploadFileInfo } from 'naive-ui';
-import { fetchCompleteUpload, fetchGetUploadCredentials } from '@/service/api/v1/storage';
 import { useNaiveForm } from '@/hooks/common/form';
-import { uploadWithPresignedUrl } from '@/utils/upload';
+import { uploadFileWithCredentials } from '@/utils/upload';
 import { $t } from '@/locales';
 
 defineOptions({
@@ -68,35 +67,19 @@ async function handleSubmit() {
   try {
     const file = nativeFile as File;
 
-    const { data: credentials, error } = await fetchGetUploadCredentials({
-      configId: model.value.configId,
-      fileName: file.name,
-      fileSize: file.size,
-      contentType: file.type || 'application/octet-stream',
-      businessType: 'storage_test'
-    });
-
-    if (error || !credentials) {
-      throw new Error(error?.message || $t('page.settings.storageTest.getCredentialFailed'));
-    }
-
+    // 获取凭证阶段完成后切换为上传中状态，配合进度回调更新 UI
     uploadStatus.value = 'uploading';
     uploadProgress.value = 0;
-    const uploadUrl = await uploadWithPresignedUrl(credentials, file, progress => {
-      uploadProgress.value = progress.percent;
+    const { fileUrl } = await uploadFileWithCredentials({
+      configId: model.value.configId,
+      businessType: 'storage_test',
+      file,
+      onProgress: progress => {
+        uploadProgress.value = progress.percent;
+      }
     });
 
-    // 上传成功通知：回传 recordId + secret，由后端验签后置为 uploaded
-    await fetchCompleteUpload({
-      recordId: credentials.recordId,
-      secret: credentials.secret,
-      objectKey: credentials.objectKey,
-      fileUrl: credentials.finalUrl,
-      fileSize: file.size,
-      mimeType: file.type
-    });
-
-    resultUrl.value = uploadUrl;
+    resultUrl.value = fileUrl;
     uploadStatus.value = 'success';
     window.$message?.success($t('page.settings.storageTest.verifySuccess'));
   } catch (err: any) {

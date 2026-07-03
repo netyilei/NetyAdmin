@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue';
 import { fetchCreateDictType, fetchUpdateDictType } from '@/service/api/v1/system-dict';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
+import { useOperation } from '@/hooks/common/operation';
 import type { SystemDict } from '@/typings/api/v1/system-dict';
 import { $t } from '@/locales';
 import AppDictRadioGroup from '@/components/custom/app-dict-radio-group.vue';
@@ -51,20 +52,21 @@ watch(visible, val => {
   }
 });
 
+function closeModal() {
+  visible.value = false;
+}
+
 async function handleSubmit() {
   await validate();
-  loading.value = true;
-  try {
-    if (props.mode === 'edit') {
-      await fetchUpdateDictType({ ...model.value, id: props.rowData!.id } as SystemDict.DictType);
-    } else {
-      await fetchCreateDictType(model.value);
+
+  await useOperation(props.mode, loading, {
+    edit: () => fetchUpdateDictType({ ...model.value, id: props.rowData!.id } as SystemDict.DictType),
+    add: () => fetchCreateDictType(model.value),
+    onSuccess: () => {
+      closeModal();
+      emit('submitted');
     }
-    visible.value = false;
-    emit('submitted');
-  } finally {
-    loading.value = false;
-  }
+  });
 }
 </script>
 
@@ -96,7 +98,7 @@ async function handleSubmit() {
     </NForm>
     <template #footer>
       <NSpace justify="end">
-        <NButton @click="visible = false">{{ $t('common.cancel') }}</NButton>
+        <NButton @click="closeModal">{{ $t('common.cancel') }}</NButton>
         <NButton type="primary" :loading="loading" @click="handleSubmit">{{ $t('common.confirm') }}</NButton>
       </NSpace>
     </template>

@@ -8,9 +8,9 @@ import {
   fetchGetCategoryTree,
   fetchUpdateArticle
 } from '@/service/api/v1/content';
-import { fetchCompleteUpload, fetchGetUploadCredentials } from '@/service/api/v1/storage';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
-import { uploadWithPresignedUrl } from '@/utils/upload';
+import { useOperation } from '@/hooks/common/operation';
+import { uploadFileWithCredentials } from '@/utils/upload';
 import type { Content } from '@/typings/api/v1/content';
 import { $t } from '@/locales';
 import ToastUiEditor from '@/components/custom/toast-ui-editor.vue';
@@ -215,29 +215,13 @@ async function handleCoverUpload(options: { file: UploadFileInfo }) {
 
   coverUploading.value = true;
   try {
-    const { data, error } = await fetchGetUploadCredentials({
+    const { fileUrl } = await uploadFileWithCredentials({
       configId: currentStorageConfigId.value,
-      fileName: options.file.name,
-      fileSize: options.file.file.size,
-      contentType: options.file.file.type || 'image/jpeg',
-      businessType: 'article_cover'
+      businessType: 'article_cover',
+      file: options.file.file
     });
-
-    if (!error && data) {
-      const fileUrl = await uploadWithPresignedUrl(data, options.file.file);
-      model.value.coverImage = fileUrl;
-
-      await fetchCompleteUpload({
-        recordId: data.recordId,
-        secret: data.secret,
-        objectKey: data.objectKey,
-        fileUrl: data.finalUrl,
-        fileSize: options.file.file.size,
-        mimeType: options.file.file.type || 'image/jpeg'
-      });
-
-      window.$message?.success($t('common.updateSuccess'));
-    }
+    model.value.coverImage = fileUrl;
+    window.$message?.success($t('common.updateSuccess'));
   } catch {
     window.$message?.error?.($t('common.updateFailed'));
   } finally {
@@ -250,38 +234,25 @@ function closeModal() {
 }
 
 async function handleSubmit() {
-  loading.value = true;
+  await validate();
 
-  try {
-    await validate();
+  const params = { ...model.value };
 
-    const params = { ...model.value };
-
-    // Format date if scheduled
-    if (params.publishStatus === 'scheduled' && params.scheduledAt) {
-      params.scheduledAt = dayjs(params.scheduledAt).toISOString() as any;
-    } else {
-      params.scheduledAt = null;
-    }
-
-    if (props.operateType === 'add') {
-      const { error } = await fetchCreateArticle(params);
-      if (!error) {
-        window.$message?.success($t('common.addSuccess'));
-        closeModal();
-        emit('submitted');
-      }
-    } else {
-      const { error } = await fetchUpdateArticle(props.rowData!.id, params);
-      if (!error) {
-        window.$message?.success($t('common.updateSuccess'));
-        closeModal();
-        emit('submitted');
-      }
-    }
-  } finally {
-    loading.value = false;
+  // 定时发布需要 ISO 字符串格式，其余情况清空
+  if (params.publishStatus === 'scheduled' && params.scheduledAt) {
+    params.scheduledAt = dayjs(params.scheduledAt).toISOString() as any;
+  } else {
+    params.scheduledAt = null;
   }
+
+  await useOperation(props.operateType, loading, {
+    edit: () => fetchUpdateArticle(props.rowData!.id, params),
+    add: () => fetchCreateArticle(params),
+    onSuccess: () => {
+      closeModal();
+      emit('submitted');
+    }
+  });
 }
 
 watch(

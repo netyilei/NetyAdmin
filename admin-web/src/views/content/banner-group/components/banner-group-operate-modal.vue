@@ -3,6 +3,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import { ENABLE_STATUS } from '@/constants/business';
 import { fetchCreateBannerGroup, fetchUpdateBannerGroup } from '@/service/api/v1/content';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
+import { useOperation } from '@/hooks/common/operation';
 import type { Content } from '@/typings/api/v1/content';
 import { $t } from '@/locales';
 import StorageConfigSelect from '@/components/custom/storage-config-select.vue';
@@ -132,26 +133,18 @@ function closeModal() {
 }
 
 async function handleSubmit() {
-  loading.value = true;
+  await validate();
 
-  try {
-    await validate();
+  const params = { ...model };
 
-    const params = { ...model };
-
-    if (props.operateType === 'add') {
-      await fetchCreateBannerGroup(params);
-      window.$message?.success($t('common.addSuccess'));
-    } else {
-      await fetchUpdateBannerGroup(props.rowData!.id, params);
-      window.$message?.success($t('common.updateSuccess'));
+  await useOperation(props.operateType, loading, {
+    edit: () => fetchUpdateBannerGroup(props.rowData!.id, params),
+    add: () => fetchCreateBannerGroup(params),
+    onSuccess: () => {
+      closeModal();
+      emit('submitted');
     }
-
-    closeModal();
-    emit('submitted');
-  } finally {
-    loading.value = false;
-  }
+  });
 }
 
 watch(

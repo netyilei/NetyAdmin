@@ -9,7 +9,7 @@ import {
   fetchGetDictTypeList
 } from '@/service/api/v1/system-dict';
 import { useDictStore } from '@/store/modules/dict';
-import { useTable } from '@/hooks/common/table';
+import { useTable, useTableOperate } from '@/hooks/common/table';
 import { useDict } from '@/hooks/common/dict';
 import type { SystemDict } from '@/typings/api/v1/system-dict';
 import { $t } from '@/locales';
@@ -61,7 +61,7 @@ const {
       width: 120,
       render: row => (
         <div class="flex-center gap-8px" onClick={e => e.stopPropagation()}>
-          <NButton type="primary" ghost size="small" onClick={() => handleEditType(row as SystemDict.DictType)}>
+          <NButton type="primary" ghost size="small" onClick={() => handleEditType((row as SystemDict.DictType).id)}>
             {$t('common.edit')}
           </NButton>
           <NPopconfirm onPositiveClick={() => handleDeleteType((row as SystemDict.DictType).id)}>
@@ -140,7 +140,7 @@ const {
       width: 140,
       render: row => (
         <div class="flex-center gap-8px">
-          <NButton type="primary" ghost size="small" onClick={() => handleEditData(row as SystemDict.DictData)}>
+          <NButton type="primary" ghost size="small" onClick={() => handleEditData((row as SystemDict.DictData).id)}>
             {$t('common.edit')}
           </NButton>
           <NPopconfirm onPositiveClick={() => handleDeleteData((row as SystemDict.DictData).id)}>
@@ -172,35 +172,35 @@ const typeRowProps = (row: any) => {
   };
 };
 
-const typeModalVisible = ref(false);
-const typeModalMode = ref<'add' | 'edit'>('add');
-const editingType = ref<SystemDict.DictType | null>(null);
+// 字典类型表操作（统一走 useTableOperate，与项目其余列表视图保持一致）
+const {
+  drawerVisible: typeModalVisible,
+  operateType: typeModalMode,
+  editingData: editingType,
+  handleAdd: handleAddTypeBase,
+  handleEdit: handleEditTypeBase,
+  onDeleted: onTypeDeleted
+} = useTableOperate<SystemDict.DictType>(typeData, getTypeData);
 
-function handleAddType() {
-  typeModalMode.value = 'add';
-  editingType.value = null;
-  typeModalVisible.value = true;
+// 字典数据表操作
+const {
+  drawerVisible: dataModalVisible,
+  operateType: dataModalMode,
+  editingData,
+  handleAdd: handleAddDataBase,
+  handleEdit: handleEditDataBase,
+  onDeleted: onDataDeleted
+} = useTableOperate<SystemDict.DictData>(dictData, async () => {
+  await loadDictData(selectedDictCode.value);
+});
+
+// 列渲染中调用的句柄通过函数声明提升，避免 use-before-define
+function handleEditType(id: SystemDict.DictType['id']) {
+  handleEditTypeBase(id);
 }
-
-function handleEditType(row: SystemDict.DictType) {
-  typeModalMode.value = 'edit';
-  editingType.value = { ...row };
-  typeModalVisible.value = true;
+function handleEditData(id: SystemDict.DictData['id']) {
+  handleEditDataBase(id);
 }
-
-async function handleDeleteType(id: number) {
-  const { error } = await fetchDeleteDictType(id);
-  if (!error) {
-    window.$message?.success($t('common.deleteSuccess'));
-    const dictStore = useDictStore();
-    dictStore.clearCache();
-    await getTypeData();
-  }
-}
-
-const dataModalVisible = ref(false);
-const dataModalMode = ref<'add' | 'edit'>('add');
-const editingData = ref<SystemDict.DictData | null>(null);
 
 function handleSelectType(row: SystemDict.DictType) {
   selectedDictCode.value = row.code;
@@ -208,38 +208,43 @@ function handleSelectType(row: SystemDict.DictType) {
   loadDictData(row.code);
 }
 
-function loadDictData(code: string) {
+async function loadDictData(code: string) {
   dictData.value = [];
-  fetchGetDictData(code).then((res: any) => {
-    if (res.data) {
-      dictData.value = res.data;
-    }
-  });
+  const res: any = await fetchGetDictData(code);
+  if (res.data) {
+    dictData.value = res.data;
+  }
 }
 
+/** 新增字典类型 */
+function handleAddType() {
+  handleAddTypeBase();
+}
+
+/** 新增字典数据前校验：必须先选中字典类型 */
 function handleAddData() {
   if (!selectedDictCode.value) {
     window.$message?.warning($t('page.manage.dict.selectTypeFirst'));
     return;
   }
-  dataModalMode.value = 'add';
-  editingData.value = null;
-  dataModalVisible.value = true;
+  handleAddDataBase();
 }
 
-function handleEditData(row: SystemDict.DictData) {
-  dataModalMode.value = 'edit';
-  editingData.value = { ...row };
-  dataModalVisible.value = true;
+async function handleDeleteType(id: number) {
+  const { error } = await fetchDeleteDictType(id);
+  if (!error) {
+    const dictStore = useDictStore();
+    dictStore.clearCache();
+    await onTypeDeleted();
+  }
 }
 
 async function handleDeleteData(id: number) {
   const { error } = await fetchDeleteDictData(id);
   if (!error) {
-    window.$message?.success($t('common.deleteSuccess'));
     const dictStore = useDictStore();
     dictStore.removeDict(selectedDictCode.value);
-    loadDictData(selectedDictCode.value);
+    await onDataDeleted();
   }
 }
 
@@ -252,7 +257,7 @@ async function handleTypeSubmitted() {
 async function handleDataSubmitted() {
   const dictStore = useDictStore();
   dictStore.removeDict(selectedDictCode.value);
-  loadDictData(selectedDictCode.value);
+  await loadDictData(selectedDictCode.value);
 }
 </script>
 

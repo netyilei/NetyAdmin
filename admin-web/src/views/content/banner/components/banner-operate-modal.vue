@@ -9,9 +9,9 @@ import {
   fetchGetBannerItem,
   fetchUpdateBannerItem
 } from '@/service/api/v1/content';
-import { fetchCompleteUpload, fetchGetUploadCredentials } from '@/service/api/v1/storage';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
-import { uploadWithPresignedUrl } from '@/utils/upload';
+import { useOperation } from '@/hooks/common/operation';
+import { uploadFileWithCredentials } from '@/utils/upload';
 import type { Content } from '@/typings/api/v1/content';
 import { $t } from '@/locales';
 
@@ -163,29 +163,13 @@ async function handleImageUpload(options: { file: UploadFileInfo }) {
 
   imageUploading.value = true;
   try {
-    const { data, error } = await fetchGetUploadCredentials({
+    const { fileUrl } = await uploadFileWithCredentials({
       configId: storageConfigId,
-      fileName: options.file.name,
-      fileSize: options.file.file.size,
-      contentType: options.file.file.type || 'image/jpeg',
-      businessType: 'banner_image'
+      businessType: 'banner_image',
+      file: options.file.file
     });
-
-    if (!error && data) {
-      const fileUrl = await uploadWithPresignedUrl(data, options.file.file);
-      model.imageUrl = fileUrl;
-
-      await fetchCompleteUpload({
-        recordId: data.recordId,
-        secret: data.secret,
-        objectKey: data.objectKey,
-        fileUrl: data.finalUrl,
-        fileSize: options.file.file.size,
-        mimeType: options.file.file.type || 'image/jpeg'
-      });
-
-      window.$message?.success($t('common.addSuccess'));
-    }
+    model.imageUrl = fileUrl;
+    window.$message?.success($t('common.addSuccess'));
   } catch {
     window.$message?.error($t('common.uploadFailed'));
   } finally {
@@ -198,32 +182,22 @@ function closeModal() {
 }
 
 async function handleSubmit() {
-  loading.value = true;
+  await validate();
 
-  try {
-    await validate();
+  const params: any = {
+    ...model,
+    startTime: model.startTime ? dayjs(model.startTime).toISOString() : undefined,
+    endTime: model.endTime ? dayjs(model.endTime).toISOString() : undefined
+  };
 
-    const params: any = {
-      ...model,
-      startTime: model.startTime ? dayjs(model.startTime).toISOString() : undefined,
-      endTime: model.endTime ? dayjs(model.endTime).toISOString() : undefined
-    };
-
-    if (props.operateType === 'add') {
-      const { error } = await fetchCreateBannerItem(params);
-      if (error) return;
-      window.$message?.success($t('common.addSuccess'));
-    } else {
-      const { error } = await fetchUpdateBannerItem(props.rowData!.id, params);
-      if (error) return;
-      window.$message?.success($t('common.updateSuccess'));
+  await useOperation(props.operateType, loading, {
+    edit: () => fetchUpdateBannerItem(props.rowData!.id, params),
+    add: () => fetchCreateBannerItem(params),
+    onSuccess: () => {
+      closeModal();
+      emit('submitted');
     }
-
-    closeModal();
-    emit('submitted');
-  } finally {
-    loading.value = false;
-  }
+  });
 }
 
 watch(

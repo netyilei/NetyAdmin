@@ -3,6 +3,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import type { FormRules } from 'naive-ui';
 import { fetchCreateStorageConfig, fetchGetStorageConfig, fetchUpdateStorageConfig } from '@/service/api/v1/storage';
 import { useNaiveForm } from '@/hooks/common/form';
+import { useOperation } from '@/hooks/common/operation';
 import type { Storage } from '@/typings/api/v1/storage';
 import { $t } from '@/locales';
 
@@ -122,26 +123,14 @@ function handleUpdateProvider(value: Storage.StorageProvider) {
 async function handleSubmit() {
   await validate();
 
-  loading.value = true;
-  try {
-    if (props.operateType === 'add') {
-      const { error } = await fetchCreateStorageConfig(model);
-      if (!error) {
-        window.$message?.success($t('common.addSuccess'));
-        closeModal();
-        emit('submitted');
-      }
-    } else {
-      const { error } = await fetchUpdateStorageConfig({ ...model, id: model.id! });
-      if (!error) {
-        window.$message?.success($t('common.updateSuccess'));
-        closeModal();
-        emit('submitted');
-      }
+  await useOperation(props.operateType, loading, {
+    edit: () => fetchUpdateStorageConfig({ ...model, id: model.id! }),
+    add: () => fetchCreateStorageConfig(model),
+    onSuccess: () => {
+      closeModal();
+      emit('submitted');
     }
-  } finally {
-    loading.value = false;
-  }
+  });
 }
 
 function closeModal() {

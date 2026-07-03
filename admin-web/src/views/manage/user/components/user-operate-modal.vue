@@ -2,10 +2,9 @@
 import { computed, reactive, ref, watch } from 'vue';
 import type { UploadFileInfo } from 'naive-ui';
 import { fetchAddUser, fetchGetSysConfigs, fetchUpdateUser } from '@/service/api/v1/system-manage';
-import { fetchCompleteUpload, fetchGetUploadCredentials } from '@/service/api/v1/storage';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { useOperation } from '@/hooks/common/operation';
-import { uploadWithPresignedUrl } from '@/utils/upload';
+import { uploadFileWithCredentials } from '@/utils/upload';
 import { $t } from '@/locales';
 import AppDictSelect from '@/components/custom/app-dict-select.vue';
 
@@ -128,29 +127,13 @@ async function handleAvatarUpload(options: { file: UploadFileInfo }) {
 
   avatarUploading.value = true;
   try {
-    const { data, error } = await fetchGetUploadCredentials({
+    const { fileUrl } = await uploadFileWithCredentials({
       configId: storageConfigId.value,
-      fileName: options.file.name,
-      fileSize: options.file.file.size,
-      contentType: options.file.file.type || 'image/jpeg',
-      businessType: 'user_avatar'
+      businessType: 'user_avatar',
+      file: options.file.file
     });
-
-    if (!error && data) {
-      const fileUrl = await uploadWithPresignedUrl(data, options.file.file);
-      model.avatar = fileUrl;
-
-      await fetchCompleteUpload({
-        recordId: data.recordId,
-        secret: data.secret,
-        objectKey: data.objectKey,
-        fileUrl: data.finalUrl,
-        fileSize: options.file.file.size,
-        mimeType: options.file.file.type || 'image/jpeg'
-      });
-
-      window.$message?.success($t('common.updateSuccess'));
-    }
+    model.avatar = fileUrl;
+    window.$message?.success($t('common.updateSuccess'));
   } catch {
     window.$message?.error?.($t('common.updateFailed'));
   } finally {
