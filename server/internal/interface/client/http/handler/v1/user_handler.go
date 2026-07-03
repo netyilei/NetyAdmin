@@ -14,6 +14,7 @@ import (
 	storageDto "NetyAdmin/internal/interface/admin/dto/storage"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
+	storagePkg "NetyAdmin/internal/pkg/storage"
 	storageService "NetyAdmin/internal/service/storage"
 	userSvcPkg "NetyAdmin/internal/service/user"
 )
@@ -286,16 +287,15 @@ func (h *UserHandler) RecordUpload(c *gin.Context) {
 		return
 	}
 
-	result, err := h.recordSvc.CompleteUpload(
-		c.Request.Context(),
-		req.RecordID,
-		req.Secret,
-		req.ObjectKey,
-		req.FileURL,
-		req.FileSize,
-		req.MimeType,
-		req.MD5,
-	)
+	result, err := storagePkg.CompleteUploadFromParams(c.Request.Context(), h.recordSvc, storagePkg.CompleteUploadParams{
+		RecordID:  req.RecordID,
+		Secret:    req.Secret,
+		ObjectKey: req.ObjectKey,
+		FileURL:   req.FileURL,
+		FileSize:  req.FileSize,
+		MimeType:  req.MimeType,
+		MD5:       req.MD5,
+	})
 	if err != nil {
 		response.Fail(c, err)
 		return
