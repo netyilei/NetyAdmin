@@ -253,7 +253,7 @@ func (s *adminService) Delete(ctx context.Context, id uint, operatorID uint) err
 	}
 	// 事务提交后失效缓存：auth_state（按 adminID 精准）+ admin:info（全局，列表/详情页可能引用）
 	s.invalidateAdminAuthStateCache(ctx, id)
-	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagAdminInfo)
+	s.invalidateAdminInfoCache(ctx)
 	return nil
 }
 
@@ -282,12 +282,14 @@ func (s *adminService) DeleteBatch(ctx context.Context, ids []uint, operatorID u
 		}
 		if err := s.adminRepo.DeleteWithTokenInvalidation(ctx, id); err != nil {
 			// 事务失败立即返回（fail-closed）：已提交的 id 保持删除状态，未处理的 id 不受影响
+			// 但已成功删除的 id 会导致列表/详情页缓存过期，必须失效 TagAdminInfo
+			s.invalidateAdminInfoCache(ctx)
 			return errorx.New(errorx.CodeInternalError, fmt.Sprintf("管理员 %d 删除失败（事务回滚）：%s", id, err.Error()))
 		}
 		s.invalidateAdminAuthStateCache(ctx, id)
 	}
 	// 全部处理完成后，全局失效 admin:info 缓存（列表页/详情页可能引用了已删 admin）
-	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagAdminInfo)
+	s.invalidateAdminInfoCache(ctx)
 	if len(skipped) > 0 {
 		return errorx.New(errorx.CodeForbidden, fmt.Sprintf("部分管理员被跳过：%s", strings.Join(skipped, "; ")))
 	}

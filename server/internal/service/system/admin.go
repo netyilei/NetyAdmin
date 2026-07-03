@@ -91,9 +91,24 @@ func (s *adminService) invalidateAdminTokens(ctx context.Context, adminID uint) 
 // 用于 token_version 变更后保证下次鉴权重算，避免 30s TTL 窗口内旧 token 绕过版本号校验。
 // 失败仅记录日志不阻断：DB 层 token_version 已是最终值，缓存最长 30s 后自然过期。
 func (s *adminService) invalidateAdminAuthStateCache(ctx context.Context, adminID uint) {
+	if s.cacheMgr == nil {
+		return
+	}
 	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagAdminAuthByID(adminID)); err != nil {
 		slog.Error("invalidate admin auth_state cache failed",
 			"adminID", adminID, "err", err)
+	}
+}
+
+// invalidateAdminInfoCache 全局失效 admin:info 缓存（列表页/详情页可能引用了已变更的 admin）。
+// 用于 admin 增删改后保证列表/详情页重算。
+// 失败仅记录日志不阻断：DB 已是最终状态，缓存最长 TTL 后自然过期。
+func (s *adminService) invalidateAdminInfoCache(ctx context.Context) {
+	if s.cacheMgr == nil {
+		return
+	}
+	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagAdminInfo); err != nil {
+		slog.Error("invalidate admin info cache failed", "err", err)
 	}
 }
 
