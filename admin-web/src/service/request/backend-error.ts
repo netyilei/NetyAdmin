@@ -36,11 +36,6 @@ export const BackendErrorCode = {
   apiNotFound: '105001',
   apiAlreadyExists: '105002',
   apiPathDuplicate: '105003',
-  // 用户模块 (1011xx)
-  clientUserNotFound: '101101',
-  clientUserAlreadyExists: '101102',
-  emailAlreadyExists: '101103',
-  phoneAlreadyExists: '101104',
   // 消息模块 (1012xx)
   msgTemplateNotFound: '101201',
   msgTemplateCodeExists: '101202',
@@ -101,11 +96,6 @@ const backendErrorI18nKeyMap: Record<string, string> = {
   [BackendErrorCode.apiNotFound]: 'request.backend.apiNotFound',
   [BackendErrorCode.apiAlreadyExists]: 'request.backend.apiAlreadyExists',
   [BackendErrorCode.apiPathDuplicate]: 'request.backend.apiPathDuplicate',
-  // 用户模块 (1011xx)
-  [BackendErrorCode.clientUserNotFound]: 'request.backend.clientUserNotFound',
-  [BackendErrorCode.clientUserAlreadyExists]: 'request.backend.clientUserAlreadyExists',
-  [BackendErrorCode.emailAlreadyExists]: 'request.backend.emailAlreadyExists',
-  [BackendErrorCode.phoneAlreadyExists]: 'request.backend.phoneAlreadyExists',
   // 消息模块 (1012xx)
   [BackendErrorCode.msgTemplateNotFound]: 'request.backend.msgTemplateNotFound',
   [BackendErrorCode.msgTemplateCodeExists]: 'request.backend.msgTemplateCodeExists',

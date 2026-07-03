@@ -48,12 +48,6 @@ const (
 	CodeApiAlreadyExists Code = 105002
 	CodeApiPathDuplicate Code = 105003
 
-	// 用户模块 (1011xx)
-	CodeClientUserNotFound      Code = 101101
-	CodeClientUserAlreadyExists Code = 101102
-	CodeEmailAlreadyExists      Code = 101103
-	CodePhoneAlreadyExists      Code = 101104
-
 	// 消息模块 (1012xx)
 	CodeMsgTemplateNotFound   Code = 101201
 	CodeMsgTemplateCodeExists Code = 101202
@@ -136,12 +130,6 @@ var codeMessages = map[Code]string{
 	CodeApiNotFound:      "API不存在",
 	CodeApiAlreadyExists: "API已存在",
 	CodeApiPathDuplicate: "API路径重复",
-
-	// 用户模块 (1011xx)
-	CodeClientUserNotFound:      "用户不存在",
-	CodeClientUserAlreadyExists: "用户名已存在",
-	CodeEmailAlreadyExists:      "邮箱已存在",
-	CodePhoneAlreadyExists:      "手机号已存在",
 
 	// 消息模块 (1012xx)
 	CodeMsgTemplateNotFound:   "消息模板不存在",

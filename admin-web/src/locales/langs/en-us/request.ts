@@ -42,11 +42,6 @@ const request = {
     apiNotFound: 'API not found',
     apiAlreadyExists: 'API already exists',
     apiPathDuplicate: 'Duplicate API path',
-    // User Module (1011xx)
-    clientUserNotFound: 'User not found',
-    clientUserAlreadyExists: 'Username already exists',
-    emailAlreadyExists: 'Email already exists',
-    phoneAlreadyExists: 'Phone already exists',
     // Message Module (1012xx)
     msgTemplateNotFound: 'Message template not found',
     msgTemplateCodeExists: 'Template code already exists',

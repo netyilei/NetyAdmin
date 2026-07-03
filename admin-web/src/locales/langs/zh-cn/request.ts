@@ -42,11 +42,6 @@ const request = {
     apiNotFound: 'API不存在',
     apiAlreadyExists: 'API已存在',
     apiPathDuplicate: 'API路径重复',
-    // 用户模块 (1011xx)
-    clientUserNotFound: '用户不存在',
-    clientUserAlreadyExists: '用户名已存在',
-    emailAlreadyExists: '邮箱已存在',
-    phoneAlreadyExists: '手机号已存在',
     // 消息模块 (1012xx)
     msgTemplateNotFound: '消息模板不存在',
     msgTemplateCodeExists: '模板编码已存在',

@@ -4,8 +4,6 @@ package user
 
 import (
 	"context"
-	"fmt"
-	"regexp"
 	"strconv"
 
 	"github.com/mojocn/base64Captcha"
@@ -19,7 +17,7 @@ import (
 	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
-	"NetyAdmin/internal/pkg/password"
+	passwordPkg "NetyAdmin/internal/pkg/password"
 	storagePkg "NetyAdmin/internal/pkg/storage"
 	userRepo "NetyAdmin/internal/repository/user"
 )
@@ -131,7 +129,7 @@ func (s *userService) ChangePassword(ctx context.Context, userID string, req *cl
 		return errorx.New(errorx.CodeUserNotFound, "用户不存在")
 	}
 
-	if err := password.Verify(user.Password, req.OldPassword); err != nil {
+	if err := passwordPkg.Verify(user.Password, req.OldPassword); err != nil {
 		return errorx.New(errorx.CodePasswordWrong, "原密码错误")
 	}
 
@@ -145,7 +143,7 @@ func (s *userService) ChangePassword(ctx context.Context, userID string, req *cl
 		return err
 	}
 
-	hashedPassword, err := password.Hash(req.NewPassword)
+	hashedPassword, err := passwordPkg.Hash(req.NewPassword)
 	if err != nil {
 		return errorx.New(errorx.CodeInternalError, "密码加密失败")
 	}
@@ -164,58 +162,40 @@ func (s *userService) Logout(ctx context.Context, userID string, token string) e
 	return s.tokenStore.Delete(ctx, userID, tokenHash)
 }
 
+// validatePasswordStrength 校验用户密码强度（配置驱动）。
+// 委托给 pkg/password.ValidateStrength，配置从 configWatcher 读取并覆盖默认值。
 func (s *userService) validatePasswordStrength(ctx context.Context, password string) error {
-	minLengthStr, _ := s.configWatcher.GetConfig("user_config", "password_min_length")
-	minLength := 8
-	if v, err := strconv.Atoi(minLengthStr); err == nil && v > 0 {
-		minLength = v
+	cfg := passwordPkg.DefaultUserStrengthConfig
+	if v, err := strconv.Atoi(getConfig(s.configWatcher, "user_config", "password_min_length")); err == nil && v > 0 {
+		cfg.MinLength = v
 	}
-
-	requireTypesStr, _ := s.configWatcher.GetConfig("user_config", "password_require_types")
-	requireTypes := 2
-	if v, err := strconv.Atoi(requireTypesStr); err == nil && v > 0 {
-		requireTypes = v
+	if v, err := strconv.Atoi(getConfig(s.configWatcher, "user_config", "password_require_types")); err == nil && v > 0 {
+		cfg.RequireTypes = v
 	}
-
-	if len(password) < minLength {
-		return errorx.New(errorx.CodePasswordTooWeak, fmt.Sprintf("密码长度不能少于 %d 位", minLength))
+	if err := passwordPkg.ValidateStrength(password, cfg); err != nil {
+		return errorx.New(errorx.CodePasswordTooWeak, err.Error())
 	}
-
-	types := 0
-	if matched, _ := regexp.MatchString(`[a-z]`, password); matched {
-		types++
-	}
-	if matched, _ := regexp.MatchString(`[A-Z]`, password); matched {
-		types++
-	}
-	if matched, _ := regexp.MatchString(`[0-9]`, password); matched {
-		types++
-	}
-	if matched, _ := regexp.MatchString(`[^a-zA-Z0-9]`, password); matched {
-		types++
-	}
-
-	if types < requireTypes {
-		return errorx.New(errorx.CodePasswordTooWeak, fmt.Sprintf("密码必须包含数字、大小写字母、特殊符号中的至少 %d 种", requireTypes))
-	}
-
 	return nil
 }
 
-// invalidateUserTokens 失效用户的所有旧 token（BUG #5 纵深防御）。
+// getConfig 是 configWatcher.GetConfig 的便捷封装，屏蔽 error 返回值。
+// 提取自多处重复的 `val, _ := s.configWatcher.GetConfig(...)` 模式。
+func getConfig(watcher configsync.ConfigWatcher, group, key string) string {
+	val, _ := watcher.GetConfig(group, key)
+	return val
+}
+
+// invalidateUserTokens 全局失效用户的所有旧 token（BUG #5 + 鉴权方案 C）。
 //
-// 双层防御：
-//  1. tokenStore.DeleteAll — 立即拉黑所有会话哈希（依赖 Redis/DB 可用）
-//  2. repo.IncrementTokenVersion — 递增 DB 版本号，作为 tokenStore 故障时的兜底
+// 职责切分（鉴权方案 C）：
+//   - TokenVersion 专职"用户粒度的全局失效"：改密/禁用/删除时递增，旧 token 中间件比较版本号即拒
+//   - tokenStore 专职"单 token 粒度的精确失效"：仅登出单设备时用 Delete(单哈希)
 //
-// 失败语义（fail-closed）：IncrementTokenVersion 失败时返回 error 阻断当前敏感操作，
-// 避免版本号未递增却返回成功，导致旧 token 仍可继续访问。
-// tokenStore.DeleteAll 失败仍忽略错误（已由版本号机制兜底，且 tokenStore 不可用不应阻断业务）。
+// 因此本函数只递增 TokenVersion + 清登录锁缓存，不调 tokenStore.DeleteAll
+// （版本号已全局兜底，DeleteAll 是冗余操作，且增加 tokenStore 故障耦合）。
+//
+// 失败语义（fail-closed）：IncrementTokenVersion 失败时返回 error 阻断当前敏感操作。
 func (s *userService) invalidateUserTokens(ctx context.Context, userID string) error {
-	if s.tokenStore != nil {
-		_ = s.tokenStore.DeleteAll(ctx, userID)
-		_ = s.cacheMgr.Delete(ctx, cache.KeyLoginLock(userID))
-		_ = s.cacheMgr.Delete(ctx, cache.KeyLoginRetryCount(userID))
-	}
+	s.clearLoginLockCache(ctx, userID)
 	return s.repo.IncrementTokenVersion(ctx, userID)
 }

@@ -16,7 +16,7 @@ import (
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
-	"NetyAdmin/internal/pkg/password"
+	passwordPkg "NetyAdmin/internal/pkg/password"
 	"NetyAdmin/internal/pkg/utils"
 )
 
@@ -64,7 +64,7 @@ func (s *userService) Register(ctx context.Context, req *clientDto.UserRegisterR
 	}
 
 	// 3. 密码加密
-	hashedPassword, err := password.Hash(req.Password)
+	hashedPassword, err := passwordPkg.Hash(req.Password)
 	if err != nil {
 		return "", errorx.New(errorx.CodeInternalError, "密码加密失败")
 	}
@@ -138,7 +138,7 @@ func (s *userService) Login(ctx context.Context, req *clientDto.UserLoginReq, ip
 	}
 
 	// 4. 验证密码
-	if err := password.Verify(user.Password, req.Password); err != nil {
+	if err := passwordPkg.Verify(user.Password, req.Password); err != nil {
 		maxRetryStr, _ := s.configWatcher.GetConfig("user_config", "login_max_retry")
 		lockDurationStr, _ := s.configWatcher.GetConfig("user_config", "login_lock_duration")
 		maxRetry, _ := strconv.Atoi(maxRetryStr)
@@ -150,28 +150,20 @@ func (s *userService) Login(ctx context.Context, req *clientDto.UserLoginReq, ip
 			lockDuration = 3600
 		}
 
+		lockKey := cache.KeyLoginLock(user.ID)
 		retryKey := cache.KeyLoginRetryCount(user.ID)
-		var retryCount int
-		var retryVal string
-		if err := s.cacheMgr.Get(ctx, retryKey, &retryVal); err == nil && retryVal != "" {
-			retryCount, _ = strconv.Atoi(retryVal)
+		locked, msg := authPkg.HandlePasswordWrong(ctx, s.cacheMgr, lockKey, retryKey, authPkg.LoginLockConfig{
+			MaxRetry:     maxRetry,
+			LockDuration: time.Duration(lockDuration) * time.Second,
+			RetryTTL:     time.Duration(lockDuration) * time.Second,
+		})
+		if locked {
+			return nil, errorx.New(errorx.CodeUserLocked, msg)
 		}
-		retryCount++
-
-		if retryCount >= maxRetry {
-			lockKey := cache.KeyLoginLock(user.ID)
-			_ = s.cacheMgr.Set(ctx, lockKey, "1", time.Duration(lockDuration)*time.Second)
-			_ = s.cacheMgr.Delete(ctx, retryKey)
-			return nil, errorx.New(errorx.CodeUserLocked, "密码错误次数过多，账户已锁定")
-		}
-
-		_ = s.cacheMgr.Set(ctx, retryKey, strconv.Itoa(retryCount), time.Duration(lockDuration)*time.Second)
-
-		return nil, errorx.New(errorx.CodePasswordWrong, "密码错误")
+		return nil, errorx.New(errorx.CodePasswordWrong, msg)
 	}
 
-	retryKey := cache.KeyLoginRetryCount(user.ID)
-	_ = s.cacheMgr.Delete(ctx, retryKey)
+	authPkg.ClearLoginRetry(ctx, s.cacheMgr, cache.KeyLoginRetryCount(user.ID))
 
 	// 5. 更新登录信息
 	now := time.Now()
@@ -323,7 +315,7 @@ func (s *userService) ResetPassword(ctx context.Context, req *clientDto.UserRese
 		return err
 	}
 
-	hashedPassword, err := password.Hash(req.NewPassword)
+	hashedPassword, err := passwordPkg.Hash(req.NewPassword)
 	if err != nil {
 		return errorx.New(errorx.CodeInternalError, "密码加密失败")
 	}

@@ -4,11 +4,9 @@ package system
 
 import (
 	"context"
-	"regexp"
 	"strconv"
 	"time"
 
-	authPkg "NetyAdmin/internal/pkg/auth"
 	systemEntity "NetyAdmin/internal/domain/entity/system"
 	systemDto "NetyAdmin/internal/interface/admin/dto/system"
 
@@ -57,35 +55,23 @@ func NewAdminService(adminRepo systemRepo.AdminRepository, roleRepo systemRepo.R
 	}
 }
 
-// validateAdminPasswordStrength 校验管理员密码强度：必须包含大小写字母、数字、特殊符号中的至少 3 类
+// validateAdminPasswordStrength 校验管理员密码强度。
+// 委托给 pkg/password.ValidateStrength，使用管理员端默认配置（3 类字符）。
 func validateAdminPasswordStrength(pwd string) error {
-	types := 0
-	if matched, _ := regexp.MatchString(`[a-z]`, pwd); matched {
-		types++
-	}
-	if matched, _ := regexp.MatchString(`[A-Z]`, pwd); matched {
-		types++
-	}
-	if matched, _ := regexp.MatchString(`[0-9]`, pwd); matched {
-		types++
-	}
-	if matched, _ := regexp.MatchString(`[^a-zA-Z0-9]`, pwd); matched {
-		types++
-	}
-	if types < 3 {
-		return errorx.New(errorx.CodePasswordTooWeak, "密码必须包含大小写字母、数字、特殊符号中的至少 3 种")
+	if err := password.ValidateStrength(pwd, password.DefaultAdminStrengthConfig); err != nil {
+		return errorx.New(errorx.CodePasswordTooWeak, err.Error())
 	}
 	return nil
 }
 
-// invalidateAdminTokens 失效管理员的所有旧 token（BUG #5 纵深防御）。
+// invalidateAdminTokens 全局失效管理员的所有旧 token（BUG #5 + 鉴权方案 C）。
 //
-// 语义同 userService.invalidateUserTokens，详见其文档。
-// admin 的 tokenStore key 由 authPkg.AdminTokenKey 生成，与 middleware 对称。
+// 职责切分（鉴权方案 C）：
+//   - TokenVersion 专职"用户粒度的全局失效"：改密/禁用/删除时递增
+//   - tokenStore 专职"单 token 粒度的精确失效"：仅登出单设备时用 Delete(单哈希)
+//
+// 因此本函数只递增 TokenVersion，不调 tokenStore.DeleteAll（版本号已全局兜底）。
 func (s *adminService) invalidateAdminTokens(ctx context.Context, adminID uint) error {
-	if s.tokenStore != nil {
-		_ = s.tokenStore.DeleteAll(ctx, authPkg.AdminTokenKey(adminID))
-	}
 	return s.adminRepo.IncrementTokenVersion(ctx, adminID)
 }
 

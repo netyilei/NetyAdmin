@@ -3,11 +3,8 @@ package system
 
 import (
 	"context"
-	"fmt"
-	"strconv"
 	"time"
 
-	userEntity "NetyAdmin/internal/domain/entity/user"
 	systemVO "NetyAdmin/internal/domain/vo/system"
 	systemDto "NetyAdmin/internal/interface/admin/dto/system"
 
@@ -36,26 +33,21 @@ func (s *adminService) Login(ctx context.Context, req *systemDto.LoginReq) (*sys
 	}
 
 	if err := password.Verify(admin.Password, req.Password); err != nil {
+		lockKey := cache.KeyAdminLoginLock(req.Username)
 		retryKey := cache.KeyAdminLoginRetryCount(req.Username)
-		var retryVal string
-		var retryCount int
-		if err := s.cacheMgr.Get(ctx, retryKey, &retryVal); err == nil && retryVal != "" {
-			retryCount, _ = strconv.Atoi(retryVal)
+		locked, msg := authPkg.HandlePasswordWrong(ctx, s.cacheMgr, lockKey, retryKey, authPkg.LoginLockConfig{
+			MaxRetry:     5,
+			LockDuration: 15 * time.Minute,
+			RetryTTL:     10 * time.Minute,
+		})
+		if locked {
+			return nil, errorx.New(errorx.CodeUserLocked, msg)
 		}
-		retryCount++
-
-		if retryCount >= 5 {
-			_ = s.cacheMgr.Set(ctx, lockKey, "1", 15*time.Minute)
-			_ = s.cacheMgr.Delete(ctx, retryKey)
-			return nil, errorx.New(errorx.CodeUserLocked, "密码错误次数过多，账户已被锁定 15 分钟")
-		}
-
-		_ = s.cacheMgr.Set(ctx, retryKey, strconv.Itoa(retryCount), 10*time.Minute)
-		return nil, errorx.New(errorx.CodePasswordWrong, fmt.Sprintf("密码错误，剩余尝试次数 %d 次", 5-retryCount))
+		return nil, errorx.New(errorx.CodePasswordWrong, msg)
 	}
 
 	// 登录成功，清除失败计数
-	_ = s.cacheMgr.Delete(ctx, cache.KeyAdminLoginRetryCount(req.Username))
+	authPkg.ClearLoginRetry(ctx, s.cacheMgr, cache.KeyAdminLoginRetryCount(req.Username))
 
 	now := time.Now().Format(time.DateTime)
 	// 使用 UpdateColumn 仅更新 last_login_at，避免 Save 覆盖并发修改及 Preload 关联
@@ -76,17 +68,9 @@ func (s *adminService) Login(ctx context.Context, req *systemDto.LoginReq) (*sys
 
 	// 写入 token hash 到 tokenStore，使中间件可校验会话有效性，支持改密码/禁用/登出后立即失效
 	userIDKey := authPkg.AdminTokenKey(admin.ID)
-	if s.tokenStore != nil {
-		_ = s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
-			UserID:    userIDKey,
-			TokenHash: authPkg.HashToken(token),
-			ExpiredAt: time.Unix(claims.ExpiresAt.Unix(), 0),
-		})
-		_ = s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
-			UserID:    userIDKey,
-			TokenHash: authPkg.HashToken(refreshToken),
-			ExpiredAt: time.Unix(refreshClaims.ExpiresAt.Unix(), 0),
-		})
+	if err := authPkg.StoreSessionPair(ctx, s.tokenStore, userIDKey, token, refreshToken,
+		time.Unix(claims.ExpiresAt.Unix(), 0), time.Unix(refreshClaims.ExpiresAt.Unix(), 0)); err != nil {
+		return nil, errorx.New(errorx.CodeInternalError, "令牌存储失败")
 	}
 
 	// 注：登录成功后不再主动写入角色的硬编码 Redis，
@@ -149,19 +133,11 @@ func (s *adminService) RefreshToken(ctx context.Context, refreshToken string) (*
 
 	// 刷新令牌：失效该管理员的所有旧 token（包括旧 AccessToken），然后写入新 access + refresh token hash
 	// 这样可保证旧 AccessToken 在刷新后立即失效，防止 Token 泄露后被继续使用
-	if s.tokenStore != nil {
-		userIDKey := authPkg.AdminTokenKey(admin.ID)
-		_ = s.tokenStore.DeleteAll(ctx, userIDKey)
-		_ = s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
-			UserID:    userIDKey,
-			TokenHash: authPkg.HashToken(token),
-			ExpiredAt: time.Unix(newClaims.ExpiresAt.Unix(), 0),
-		})
-		_ = s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
-			UserID:    userIDKey,
-			TokenHash: authPkg.HashToken(newRefreshToken),
-			ExpiredAt: time.Unix(refreshClaims.ExpiresAt.Unix(), 0),
-		})
+	// 注意：refresh 不递增 TokenVersion（不应失效其他设备合法会话）
+	userIDKey := authPkg.AdminTokenKey(admin.ID)
+	if err := authPkg.ReplaceSessionForRefresh(ctx, s.tokenStore, userIDKey, token, newRefreshToken,
+		time.Unix(newClaims.ExpiresAt.Unix(), 0), time.Unix(refreshClaims.ExpiresAt.Unix(), 0)); err != nil {
+		return nil, errorx.New(errorx.CodeInternalError, "令牌存储失败")
 	}
 
 	return &systemVO.LoginVO{

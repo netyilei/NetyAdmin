@@ -12,7 +12,7 @@ import (
 	"NetyAdmin/internal/domain/entity"
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/errorx"
-	"NetyAdmin/internal/pkg/password"
+	passwordPkg "NetyAdmin/internal/pkg/password"
 	"NetyAdmin/internal/pkg/utils"
 	userRepo "NetyAdmin/internal/repository/user"
 )
@@ -58,7 +58,7 @@ func (s *userService) Create(ctx context.Context, user *userEntity.User) error {
 		if err := s.validatePasswordStrength(ctx, user.Password); err != nil {
 			return err
 		}
-		hashedPassword, err := password.Hash(user.Password)
+		hashedPassword, err := passwordPkg.Hash(user.Password)
 		if err != nil {
 			return errorx.New(errorx.CodeInternalError, "密码加密失败")
 		}
@@ -111,7 +111,7 @@ func (s *userService) Update(ctx context.Context, user *userEntity.User) error {
 		if err := s.validatePasswordStrength(ctx, user.Password); err != nil {
 			return err
 		}
-		hashedPassword, err := password.Hash(user.Password)
+		hashedPassword, err := passwordPkg.Hash(user.Password)
 		if err != nil {
 			return errorx.New(errorx.CodeInternalError, "密码加密失败")
 		}
