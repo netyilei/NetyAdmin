@@ -122,21 +122,21 @@ func (m *Manager) GetPresignedDownloadURL(ctx context.Context, configID uint, ke
 	return driver.GetPresignedDownloadURL(ctx, key, expires)
 }
 
+// GenerateObjectKey 生成不带业务前缀的对象 key。
+// 等价于 GenerateObjectKeyWithBusiness(originalName, pathPrefix, "", "")，
+// 作为常用场景的便捷语法糖（重构清单 B-OTHER-3）。
 func GenerateObjectKey(originalName string, pathPrefix string) string {
-	ext := filepath.Ext(originalName)
-	timestamp := time.Now().UnixNano()
-	hash := md5.Sum([]byte(fmt.Sprintf("%s%d", originalName, timestamp)))
-	hashStr := hex.EncodeToString(hash[:])[:16]
-
-	datePath := time.Now().Format("2006/01/02")
-
-	key := fmt.Sprintf("%s/%s%s", datePath, hashStr, ext)
-	if pathPrefix != "" {
-		key = fmt.Sprintf("%s/%s", pathPrefix, key)
-	}
-	return key
+	return GenerateObjectKeyWithBusiness(originalName, pathPrefix, "", "")
 }
 
+// GenerateObjectKeyWithBusiness 生成对象 key 的统一实现。
+//
+// key 结构：[pathPrefix/][businessType/businessID/]date/hash.ext
+//   - businessType 非空时插入业务前缀路径，便于按业务隔离与统计
+//   - pathPrefix 非空时在最外层加路径前缀（桶内子目录）
+//
+// 原实现 GenerateObjectKey 与本函数 90% 重复（hash/datePath/ext 计算完全一致），
+// 现统一为本函数单一实现，GenerateObjectKey 委托调用。
 func GenerateObjectKeyWithBusiness(originalName string, pathPrefix string, businessType string, businessID string) string {
 	ext := filepath.Ext(originalName)
 	timestamp := time.Now().UnixNano()
