@@ -39,7 +39,47 @@ var (
 	ErrTokenMalformed   = errors.New("令牌格式错误")
 	ErrTokenInvalid     = errors.New("令牌无效")
 	ErrTokenNotValidYet = errors.New("令牌尚未生效")
+
+	// secret 强度校验正则（包级预编译，避免每次 New 重复编译）
+	reLower   = regexp.MustCompile(`[a-z]`)
+	reUpper   = regexp.MustCompile(`[A-Z]`)
+	reDigit   = regexp.MustCompile(`[0-9]`)
+	reSpecial = regexp.MustCompile(`[^a-zA-Z0-9]`)
 )
+
+// isRepeatingPattern 检测 secret 是否为单一重复字符或周期性短串
+// 拒绝场景：
+//   - "aaaaaaaaaaaaaaaa"        (单一字符重复)
+//   - "AbcAbcAbcAbcAbcA"        (短周期 "Abc" 重复，末尾可截断)
+//   - "A1A1A1A1A1A1A1A1"        (短周期 "A1" 重复)
+//
+// 算法：枚举可能的周期长度 p ∈ [1, 8]，若 secret 由前 p 个字符重复构成
+// （最后一段允许截断）则视为弱 secret
+func isRepeatingPattern(s string) bool {
+	n := len(s)
+	if n < 4 { // 短串不在此检查（已有长度门槛）
+		return false
+	}
+	// 周期上限定为 8：周期 ≥9 的字符串熵已较高，可接受
+	maxPeriod := 8
+	if n/2 < maxPeriod {
+		maxPeriod = n / 2
+	}
+	for p := 1; p <= maxPeriod; p++ {
+		base := s[:p]
+		matched := true
+		for i := p; i < n; i++ {
+			if s[i] != base[i%p] {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return true
+		}
+	}
+	return false
+}
 
 type JWT struct {
 	secret     string
@@ -51,17 +91,24 @@ func New(secret string, expiration int) (*JWT, error) {
 	if len(secret) < 16 {
 		return nil, fmt.Errorf("JWT secret 长度不足，至少需要 16 字节，当前 %d 字节", len(secret))
 	}
+
+	// 拒绝单一重复字符或周期性短串（如 "aaaaaaaaaaaaaaaa"、"AbcAbcAbcAbcAbc"）
+	// 这类 secret 字符熵极低，可被字典/暴力破解快速还原
+	if isRepeatingPattern(secret) {
+		return nil, fmt.Errorf("JWT secret 强度不足，禁止使用单一重复字符或周期性短串")
+	}
+
 	types := 0
-	if matched, _ := regexp.MatchString(`[a-z]`, secret); matched {
+	if reLower.MatchString(secret) {
 		types++
 	}
-	if matched, _ := regexp.MatchString(`[A-Z]`, secret); matched {
+	if reUpper.MatchString(secret) {
 		types++
 	}
-	if matched, _ := regexp.MatchString(`[0-9]`, secret); matched {
+	if reDigit.MatchString(secret) {
 		types++
 	}
-	if matched, _ := regexp.MatchString(`[^a-zA-Z0-9]`, secret); matched {
+	if reSpecial.MatchString(secret) {
 		types++
 	}
 	if types < 2 {
@@ -126,6 +173,11 @@ func (j *JWT) NewUserClaims(uid string, platform string, tokenType TokenType) *U
 
 func (j *JWT) ParseToken(tokenString string, claims Claims) error {
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (any, error) {
+		// 校验签名方法必须为 HMAC，防止 alg confusion 攻击：
+		// 攻击者可能构造 alg=none 或 alg=RS256（用公钥作为 HMAC secret）的伪造 Token
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
 		return []byte(j.secret), nil
 	})
 

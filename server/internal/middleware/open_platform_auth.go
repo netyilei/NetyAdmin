@@ -163,7 +163,9 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 		// 8. 计算 HMAC-SHA256 签名
 		expectedSignature := computeHmacSha256(appSecret, stringToSign)
 
-		if signature != expectedSignature {
+		// 使用 hmac.Equal 进行恒定时间比较，防止时序攻击推导签名
+		// 注意：直接比较字符串（!=）会因为短路比较泄露字节差异信息
+		if !hmac.Equal([]byte(signature), []byte(expectedSignature)) {
 			response.FailWithCode(c, errorx.CodeSignatureFailed, "签名验证失败")
 			c.Abort()
 			return

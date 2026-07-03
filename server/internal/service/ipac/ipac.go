@@ -133,11 +133,21 @@ func (s *ipacService) CheckIP(ctx context.Context, ipStr string, appID *string) 
 		}
 	}
 
-	// 2. 全局放行 (Global Allow)
-	for _, ipNet := range s.globalAllow {
-		if ipNet.Contains(ip) {
-			return true, nil
+	// 2. 全局放行 (Global Allow) - 白名单语义（fail-closed）
+	// 配置了全局 Allow 列表时，IP 必须在其中才放行，否则拒绝
+	// 这与应用级 Allow 的语义保持一致，避免全局白名单形同虚设
+	if len(s.globalAllow) > 0 {
+		inGlobalAllow := false
+		for _, ipNet := range s.globalAllow {
+			if ipNet.Contains(ip) {
+				inGlobalAllow = true
+				break
+			}
 		}
+		if !inGlobalAllow {
+			return false, nil
+		}
+		return true, nil
 	}
 
 	// 3. 应用级校验
