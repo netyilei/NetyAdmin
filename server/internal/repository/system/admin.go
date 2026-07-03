@@ -21,6 +21,19 @@ type AdminRepository interface {
 	IncrementTokenVersion(ctx context.Context, id uint) error
 	Delete(ctx context.Context, id uint) error
 	UpdateRoles(ctx context.Context, adminID uint, roleIDs []uint) error
+	// GetAuthStateByID 仅查询鉴权所需字段（token_version, status），无 Preload。
+	// 用于 JWTAuth 中间件的高频路径，避免 GetByID 触发 Roles/Roles.Buttons/
+	// CreatedByUser/UpdatedByUser 四个 Preload 的过度 JOIN。
+	GetAuthStateByID(ctx context.Context, id uint) (*AdminAuthState, error)
+	// DeleteWithTokenInvalidation 单事务原子完成「清理角色关联 + 递增 token_version + 软删除」。
+	// 用于 admin Delete/DeleteBatch 的 fail-closed 改造，与 user 侧语义对齐。
+	DeleteWithTokenInvalidation(ctx context.Context, id uint) error
+}
+
+// AdminAuthState 是鉴权中间件所需的账户最小字段集。
+type AdminAuthState struct {
+	TokenVersion uint64
+	Status       string
 }
 
 type AdminRepoQuery struct {
@@ -55,6 +68,20 @@ func (r *adminRepository) GetByID(ctx context.Context, id uint) (*systemEntity.A
 		return nil, err
 	}
 	return &admin, nil
+}
+
+// GetAuthStateByID 仅查询鉴权所需的 token_version 与 status 字段，无 Preload。
+// 用于 JWTAuth 中间件的高频路径，避免每次鉴权触发 4 个 Preload 的过度 JOIN。
+func (r *adminRepository) GetAuthStateByID(ctx context.Context, id uint) (*AdminAuthState, error) {
+	var state AdminAuthState
+	if err := r.db.WithContext(ctx).
+		Model(&systemEntity.Admin{}).
+		Select("token_version", "status").
+		Where("id = ?", id).
+		Take(&state).Error; err != nil {
+		return nil, err
+	}
+	return &state, nil
 }
 
 func (r *adminRepository) GetByUsername(ctx context.Context, username string) (*systemEntity.Admin, error) {
@@ -143,6 +170,36 @@ func (r *adminRepository) Delete(ctx context.Context, id uint) error {
 		if err := tx.Model(&admin).Association("Roles").Clear(); err != nil {
 			return err
 		}
+		return tx.Delete(&systemEntity.Admin{}, id).Error
+	})
+}
+
+// DeleteWithTokenInvalidation 单事务原子完成「清理角色关联 + 递增 token_version + 软删除」。
+//
+// 设计动机（与 user 侧对齐）：
+//   - 旧实现：invalidateAdminTokens（Inc）与 adminRepo.Delete 分离，Inc 成功+Delete 失败时
+//     版本号已变但账号还在，旧 token 立即失效但用户未被删（中间态）
+//   - 新实现：三步收敛到单事务，任一失败整体回滚，调用方据此实现 fail-closed
+//
+// 事务内顺序：清理角色关联 → 递增 token_version → 软删除。
+// 先 Inc 再 Delete 的好处：若 Delete 失败，版本号已递增使旧 token 失效（fail-safe）。
+func (r *adminRepository) DeleteWithTokenInvalidation(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 1. 清理 many2many 角色关联（保留原 Delete 的事务行为）
+		var admin systemEntity.Admin
+		if err := tx.First(&admin, id).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&admin).Association("Roles").Clear(); err != nil {
+			return err
+		}
+		// 2. 递增 token_version（使旧 token 失效，纵深防御）
+		if err := tx.Model(&systemEntity.Admin{}).
+			Where("id = ?", id).
+			UpdateColumn("token_version", gorm.Expr("token_version + ?", 1)).Error; err != nil {
+			return err
+		}
+		// 3. 软删除管理员主数据
 		return tx.Delete(&systemEntity.Admin{}, id).Error
 	})
 }

@@ -449,7 +449,7 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	s.verification = userServicePkg.NewVerificationService(lazyCacheMgr, s.message, configWatcher, captchaStore)
 	s.user = userServicePkg.NewUserService(repos.user, jwtInstance, s.verification, configWatcher, storageMgr, captchaStore, tokenStore, lazyCacheMgr)
 
-	middleware.InitJWT(jwtInstance, repos.user, tokenStore, repos.admin)
+	middleware.InitJWT(jwtInstance, repos.user, tokenStore, repos.admin, lazyCacheMgr)
 
 	writers := map[logEntity.LogType]logService.LogBatchWriter{
 		logEntity.LogTypeOperation: logService.NewOperationLogWriter(repos.operationLog),

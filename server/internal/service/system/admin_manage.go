@@ -246,49 +246,50 @@ func (s *adminService) Delete(ctx context.Context, id uint, operatorID uint) err
 		return errorx.New(errorx.CodeCannotDeleteSuper)
 	}
 
-	// 删除前先失效该管理员所有 token（防止被删管理员继续访问）
-	if err := s.invalidateAdminTokens(ctx, id); err != nil {
-		return errorx.New(errorx.CodeInternalError, "令牌失效失败")
+	// 单事务原子完成「清理角色关联 + 递增 token_version + 软删除」，与 user 侧语义一致。
+	// 避免旧的 invalidateAdminTokens + adminRepo.Delete 两步分离导致的中间态。
+	if err := s.adminRepo.DeleteWithTokenInvalidation(ctx, id); err != nil {
+		return errorx.New(errorx.CodeInternalError, fmt.Sprintf("管理员 %d 删除失败（事务回滚）：%s", id, err.Error()))
 	}
-	if err := s.adminRepo.Delete(ctx, id); err == nil {
-		_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagAdminInfo)
-	} else {
-		return err
-	}
+	// 事务提交后失效缓存：auth_state（按 adminID 精准）+ admin:info（全局，列表/详情页可能引用）
+	s.invalidateAdminAuthStateCache(ctx, id)
+	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagAdminInfo)
 	return nil
 }
 
 func (s *adminService) DeleteBatch(ctx context.Context, ids []uint, operatorID uint) error {
-	var errs []string
+	// 逐条事务 fail-closed：任一 id 事务失败立即返回错误（已提交的 id 保持删除状态）。
+	// 业务规则拒绝（自我保护/超管保护/不存在）走 continue 跳过并记录，不阻断整个批量。
+	//
+	// 设计权衡（vs 旧 fail-open 实现）：
+	//   - 旧实现：invalidateAdminTokens 与 Delete 分离，Inc 失败仅记录 errs 不阻断，
+	//     可能出现"已删但版本号未递增"的中间态（旧 token 仍能通过版本号校验）
+	//   - 新实现：单事务原子保证，事务失败立即返回；业务规则拒绝仍 continue
+	var skipped []string
 	for _, id := range ids {
-		// 自我保护：跳过删除自己
 		if id == operatorID {
-			errs = append(errs, fmt.Sprintf("管理员 %d：不允许删除自己", id))
+			skipped = append(skipped, fmt.Sprintf("管理员 %d：不允许删除自己", id))
 			continue
 		}
 		admin, err := s.adminRepo.GetByID(ctx, id)
 		if err != nil {
-			errs = append(errs, fmt.Sprintf("管理员 %d：不存在", id))
+			skipped = append(skipped, fmt.Sprintf("管理员 %d：不存在", id))
 			continue
 		}
 		if admin.IsSuperAdmin() {
-			errs = append(errs, fmt.Sprintf("管理员 %d：不允许删除超级管理员", id))
+			skipped = append(skipped, fmt.Sprintf("管理员 %d：不允许删除超级管理员", id))
 			continue
 		}
-		// 批量场景：失效 token 失败不阻断删除主数据（已删的管理员 token 自然作废）
-		if err := s.invalidateAdminTokens(ctx, id); err != nil {
-			errs = append(errs, fmt.Sprintf("管理员 %d：令牌失效失败", id))
+		if err := s.adminRepo.DeleteWithTokenInvalidation(ctx, id); err != nil {
+			// 事务失败立即返回（fail-closed）：已提交的 id 保持删除状态，未处理的 id 不受影响
+			return errorx.New(errorx.CodeInternalError, fmt.Sprintf("管理员 %d 删除失败（事务回滚）：%s", id, err.Error()))
 		}
-		if err := s.adminRepo.Delete(ctx, id); err != nil {
-			errs = append(errs, fmt.Sprintf("管理员 %d：%s", id, err.Error()))
-			continue
-		}
+		s.invalidateAdminAuthStateCache(ctx, id)
 	}
+	// 全部处理完成后，全局失效 admin:info 缓存（列表页/详情页可能引用了已删 admin）
 	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagAdminInfo)
-
-	// 收集错误并返回聚合错误，避免静默吞错导致数据不一致
-	if len(errs) > 0 {
-		return errorx.New(errorx.CodeInternalError, fmt.Sprintf("部分管理员删除失败：%s", strings.Join(errs, "; ")))
+	if len(skipped) > 0 {
+		return errorx.New(errorx.CodeForbidden, fmt.Sprintf("部分管理员被跳过：%s", strings.Join(skipped, "; ")))
 	}
 	return nil
 }

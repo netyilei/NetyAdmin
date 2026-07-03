@@ -4,6 +4,7 @@ package system
 
 import (
 	"context"
+	"log/slog"
 	"strconv"
 	"time"
 
@@ -71,8 +72,29 @@ func validateAdminPasswordStrength(pwd string) error {
 //   - tokenStore 专职"单 token 粒度的精确失效"：仅登出单设备时用 Delete(单哈希)
 //
 // 因此本函数只递增 TokenVersion，不调 tokenStore.DeleteAll（版本号已全局兜底）。
+//
+// 用于 ChangePassword/Update/UpdateStatus 等非删除场景：
+//   - 递增 token_version（DB 操作）
+//   - 失效 auth_state 缓存（双写一致性，避免 30s TTL 窗口内旧 token 误判）
+//
+// Delete/DeleteBatch 不调用本函数：token_version 递增已合并到 DeleteWithTokenInvalidation 事务内，
+// 事务后直接调用 invalidateAdminAuthStateCache 失效缓存。
 func (s *adminService) invalidateAdminTokens(ctx context.Context, adminID uint) error {
-	return s.adminRepo.IncrementTokenVersion(ctx, adminID)
+	if err := s.adminRepo.IncrementTokenVersion(ctx, adminID); err != nil {
+		return err
+	}
+	s.invalidateAdminAuthStateCache(ctx, adminID)
+	return nil
+}
+
+// invalidateAdminAuthStateCache 失效管理员鉴权状态缓存（按 adminID 精准）。
+// 用于 token_version 变更后保证下次鉴权重算，避免 30s TTL 窗口内旧 token 绕过版本号校验。
+// 失败仅记录日志不阻断：DB 层 token_version 已是最终值，缓存最长 30s 后自然过期。
+func (s *adminService) invalidateAdminAuthStateCache(ctx context.Context, adminID uint) {
+	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagAdminAuthByID(adminID)); err != nil {
+		slog.Error("invalidate admin auth_state cache failed",
+			"adminID", adminID, "err", err)
+	}
 }
 
 func (s *adminService) GetAdminInfo(ctx context.Context, adminID uint) (*systemVO.AdminInfoVO, error) {

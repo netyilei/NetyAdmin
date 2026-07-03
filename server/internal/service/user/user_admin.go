@@ -5,7 +5,6 @@ package user
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	userEntity "NetyAdmin/internal/domain/entity/user"
 
@@ -175,27 +174,35 @@ func (s *userService) UpdateStatus(ctx context.Context, id string, status string
 }
 
 func (s *userService) Delete(ctx context.Context, id string) error {
-	// 删除用户：失效所有 token + 递增版本号（防止被删用户继续访问）
-	if err := s.invalidateUserTokens(ctx, id); err != nil {
-		return errorx.New(errorx.CodeInternalError, "令牌失效失败")
+	// 单事务原子完成「递增 token_version + 软删除」，与 DeleteBatch 语义一致。
+	// 不再用旧的 invalidateUserTokens + repo.Delete 两步分离（避免 Inc 成功+Delete 失败的中间态）。
+	// clearLoginLockCache 在事务前调用：清理无关缓存，不参与事务（即使失败也不影响删除主流程）。
+	s.clearLoginLockCache(ctx, id)
+	if err := s.repo.DeleteWithTokenInvalidation(ctx, id); err != nil {
+		return errorx.New(errorx.CodeInternalError, fmt.Sprintf("用户 %s 删除失败（事务回滚）：%s", id, err.Error()))
 	}
-	return s.repo.Delete(ctx, id)
+	return nil
 }
 
 func (s *userService) DeleteBatch(ctx context.Context, ids []string) error {
-	// 批量删除：逐个失效 token（版本号机制要求逐条 UPDATE）。
-	// 与 admin_manage.go DeleteBatch 对齐：失败记录到 errs，最终聚合返回，避免静默吞错。
-	var errs []string
+	// 逐条事务 fail-closed：每个 id 走单事务（IncrementTokenVersion + Delete），
+	// 任一 id 事务失败立即返回错误，已提交的 id 保持删除状态，未处理的 id 不受影响。
+	//
+	// 设计权衡（vs 旧 fail-open 实现）：
+	//   - 安全优先：避免 IncrementTokenVersion 失败但 DeleteBatch 成功导致"已删但版本号未变"的中间态
+	//   - 一致性优先：单事务原子保证「要么两步都成功，要么都回滚」
+	//   - 已提交 id 不回滚：事务一旦 commit 即不可撤销，符合「逐条」语义
+	//
+	// clearLoginLockCache 在每条事务前调用（补回旧 invalidateUserTokens 的清理逻辑，
+	// 避免被删用户的登录锁/重试计数在 Redis 中残留至 TTL 过期）。
+	//
+	// 性能：N 个 id = N 次事务，相比旧实现 1 次 DeleteBatch + N 次 UPDATE 略慢，
+	// 但 DeleteBatch 是低频管理操作，可接受。
 	for _, id := range ids {
-		if err := s.invalidateUserTokens(ctx, id); err != nil {
-			errs = append(errs, fmt.Sprintf("用户 %s：令牌失效失败", id))
+		s.clearLoginLockCache(ctx, id)
+		if err := s.repo.DeleteWithTokenInvalidation(ctx, id); err != nil {
+			return errorx.New(errorx.CodeInternalError, fmt.Sprintf("用户 %s 删除失败（事务回滚）：%s", id, err.Error()))
 		}
-	}
-	if err := s.repo.DeleteBatch(ctx, ids); err != nil {
-		return err
-	}
-	if len(errs) > 0 {
-		return errorx.New(errorx.CodeInternalError, fmt.Sprintf("部分用户令牌失效失败：%s", strings.Join(errs, "; ")))
 	}
 	return nil
 }

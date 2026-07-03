@@ -23,6 +23,10 @@ type UserRepository interface {
 	Update(ctx context.Context, user *userEntity.User) error
 	Delete(ctx context.Context, id string) error
 	DeleteBatch(ctx context.Context, ids []string) error
+	// DeleteWithTokenInvalidation 单事务原子删除用户并递增 token_version。
+	// 用于 DeleteBatch 的逐条 fail-closed 语义：任一 id 的事务失败立即返回错误，
+	// 已提交的 id 保持删除状态，未处理的 id 不受影响。
+	DeleteWithTokenInvalidation(ctx context.Context, id string) error
 	UpdateFields(ctx context.Context, id string, fields map[string]interface{}) error
 	// IncrementTokenVersion 原子递增用户的 token_version（BUG #5）。
 	// 用于改密/禁用/删除等敏感操作，使旧 token 携带的版本号失效。
@@ -180,6 +184,28 @@ func (r *userRepository) Delete(ctx context.Context, id string) error {
 
 func (r *userRepository) DeleteBatch(ctx context.Context, ids []string) error {
 	return r.db.WithContext(ctx).Delete(&userEntity.User{}, "id IN ?", ids).Error
+}
+
+// DeleteWithTokenInvalidation 单事务原子完成「递增 token_version + 软删除」。
+//
+// 设计动机（DeleteBatch fail-closed 改造）：
+//   - 旧实现先逐个 IncrementTokenVersion（失败仅记录 errs）再批量 DeleteBatch，
+//     若 IncrementTokenVersion 失败但 DeleteBatch 成功，会出现"用户被删但版本号未递增"的中间态
+//   - 新实现将两步收敛到单事务：任一步失败整体回滚，调用方据此实现 fail-closed
+//
+// 事务内顺序：先 IncrementTokenVersion 再 Delete。
+// 先 Inc 的好处：若 Delete 失败，版本号已递增使旧 token 失效（fail-safe）。
+func (r *userRepository) DeleteWithTokenInvalidation(ctx context.Context, id string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 1. 递增 token_version（使旧 token 失效，纵深防御）
+		if err := tx.Model(&userEntity.User{}).
+			Where("id = ?", id).
+			UpdateColumn("token_version", gorm.Expr("token_version + ?", 1)).Error; err != nil {
+			return err
+		}
+		// 2. 软删除用户主数据
+		return tx.Delete(&userEntity.User{}, "id = ?", id).Error
+	})
 }
 
 func (r *userRepository) UpdateFields(ctx context.Context, id string, fields map[string]interface{}) error {
