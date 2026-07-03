@@ -1,14 +1,10 @@
 import { h } from 'vue';
-import type { App } from 'vue';
 import { NButton } from 'naive-ui';
 import { $t } from '@/locales';
 
-export function setupAppErrorHandle(app: App) {
-  app.config.errorHandler = (err, vm, info) => {
-    // eslint-disable-next-line no-console
-    console.error(err, vm, info);
-  };
-}
+// 注：曾存在 setupAppErrorHandle 死代码（仅 console.error 且未上报 Sentry），
+// 已删除。Sentry 通过 setupSentry(app) 传入的 app 参数自动接管 Vue 全局 errorHandler，
+// 不再需要手动设置 errorHandler，避免与 Sentry 集成冲突/重复。
 
 export function setupAppVersionNotification() {
   // Update check interval in milliseconds

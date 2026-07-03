@@ -25,11 +25,11 @@ type Config struct {
 // SentryConfig Sentry 错误追踪配置（后端 Go）
 // DSN 为空时自动禁用，不影响正常运行
 type SentryConfig struct {
-	DSN              string  `toml:"dsn"`                // Sentry DSN，为空则禁用
-	Environment      string  `toml:"environment"`        // 环境标识（development / production）
-	Release          string  `toml:"release"`            // 版本号
-	SampleRate       float64 `toml:"sample_rate"`        // 错误事件采样率 (0.0-1.0)
-	TracesSampleRate float64 `toml:"traces_sample_rate"` // 性能追踪采样率 (0.0-1.0)
+	DSN              string   `toml:"dsn"`                // Sentry DSN，为空则禁用
+	Environment      string   `toml:"environment"`        // 环境标识（development / production）
+	Release          string   `toml:"release"`            // 版本号
+	SampleRate       *float64 `toml:"sample_rate"`        // 错误事件采样率 (0.0-1.0)；nil=未配置默认1.0，显式0=关闭错误上报
+	TracesSampleRate float64  `toml:"traces_sample_rate"` // 性能追踪采样率 (0.0-1.0)；0=关闭性能追踪
 }
 
 type EmailConfig struct {

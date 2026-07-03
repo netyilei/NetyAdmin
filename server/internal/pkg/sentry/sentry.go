@@ -24,9 +24,14 @@ func Init(cfg config.SentryConfig) error {
 	if env == "" {
 		env = "development"
 	}
-	sampleRate := cfg.SampleRate
-	if sampleRate == 0 {
-		sampleRate = 1.0
+	// SampleRate 默认值处理（M1 修复）：
+	//   cfg.SampleRate == nil → TOML 中未配置 sample_rate，使用默认 1.0（全量上报）
+	//   cfg.SampleRate != nil → 按配置值（含显式 0=关闭错误上报，这是 Sentry SDK 合法语义）
+	// 旧代码用 float64 零值判断"未配置"，导致 config.toml 写 sample_rate=0 想关闭上报时
+	// 被强制改为 100% 全量上报；改用 *float64 指针区分"未配置"与"显式 0"。
+	var sampleRate float64 = 1.0
+	if cfg.SampleRate != nil {
+		sampleRate = *cfg.SampleRate
 	}
 
 	opts := sentry.ClientOptions{

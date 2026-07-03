@@ -1,5 +1,5 @@
-import * as Sentry from '@sentry/vue';
 import type { App } from 'vue';
+import * as Sentry from '@sentry/vue';
 
 /**
  * Initialize Sentry error tracking for the Vue 3 admin frontend.
@@ -16,17 +16,23 @@ export function setupSentry(app: App) {
   Sentry.init({
     app,
     dsn,
-    environment: import.meta.env.MODE,
+    // environment 用标准 production 命名（而非 Vite 的 MODE='prod'），
+    // 与 Sentry 看板和团队约定保持一致。
+    environment: import.meta.env.PROD ? 'production' : import.meta.env.MODE,
     release: import.meta.env.VITE_APP_VERSION || 'admin-web@dev',
     integrations: [
       Sentry.browserTracingIntegration(),
       Sentry.replayIntegration({
         maskAllText: true,
-        blockAllMedia: true,
-      }),
+        blockAllMedia: true
+      })
     ],
     // Performance tracing
-    tracesSampleRate: import.meta.env.MODE === 'production' ? 0.2 : 1.0,
+    // 修复 H1：旧代码用 `import.meta.env.MODE === 'production'`，
+    // 但 package.json 的 build 命令是 `vite build --mode prod`（MODE='prod'），
+    // 导致生产构建采样率退回 1.0（100%），与设计意图（生产 20%）相反。
+    // 改用 Vite 内建的 PROD（任何非开发 mode 均为 true），与项目其它处（theme/shared/app.ts）一致。
+    tracesSampleRate: import.meta.env.PROD ? 0.2 : 1.0,
     // Session replay
     replaysSessionSampleRate: 0.1,
     replaysOnErrorSampleRate: 1.0,
@@ -40,8 +46,8 @@ export function setupSentry(app: App) {
       'Navigation cancelled',
       'navigation aborted',
       // Resize observer
-      'ResizeObserver loop limit exceeded',
-    ],
+      'ResizeObserver loop limit exceeded'
+    ]
   });
 }
 
@@ -50,7 +56,7 @@ export function setupSentry(app: App) {
  */
 export function captureError(error: Error | unknown, context?: Record<string, unknown>) {
   if (context) {
-    Sentry.withScope((scope) => {
+    Sentry.withScope(scope => {
       Object.entries(context).forEach(([key, value]) => {
         scope.setExtra(key, value);
       });
@@ -68,7 +74,7 @@ export function setUserContext(user: { id: string; username: string; role?: stri
   Sentry.setUser({
     id: user.id,
     username: user.username,
-    role: user.role,
+    role: user.role
   });
 }
 
