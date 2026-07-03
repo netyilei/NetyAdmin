@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"strings"
+	"time"
 
 	"NetyAdmin/internal/domain/entity"
 	storageEntity "NetyAdmin/internal/domain/entity/storage"
@@ -388,15 +389,13 @@ func (s *configService) GetPresignedUploadURL(ctx context.Context, configID uint
 
 	key := storage.GenerateObjectKey(fileName, config.PathPrefix)
 
-	url, err := driver.GetPresignedUploadURL(ctx, key, contentType, 15*60*1000000000)
+	url, err := driver.GetPresignedUploadURL(ctx, key, contentType, 15*time.Minute)
 	if err != nil {
 		return "", "", err
 	}
 
-	fileURL := config.Domain + "/" + key
-	if config.Domain == "" {
-		fileURL = "https://" + config.Bucket + "." + strings.TrimPrefix(config.Endpoint, "https://") + "/" + key
-	}
+	// 统一调用 storage.BuildPublicURL（重构清单 B-OTHER-1）
+	fileURL := storage.BuildPublicURL(config.Domain, config.Endpoint, config.Bucket, key)
 
 	return url, fileURL, nil
 }

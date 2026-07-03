@@ -76,13 +76,18 @@ func (d *minioDriver) buildKey(key string) string {
 	return key
 }
 
-// buildURL 构造对象的访问 URL（优先使用自定义域名）。
+// buildURL 构造对象的访问 URL。
+//
+// 委托给 storage.BuildPublicURL 的核心规则（domain 规范化 + endpoint 回退），
+// 保持 minioDriver 与 record.go / config.go 的 URL 生成逻辑一致（重构清单 B-OTHER-1）。
+// minioDriver 已在构造时拆解 Config，此处复用同一套规范化逻辑而非重新实现。
 func (d *minioDriver) buildURL(key string) string {
+	key = strings.TrimPrefix(key, "/")
 	if d.domain != "" {
-		return strings.TrimSuffix(d.domain, "/") + "/" + key
+		return joinDomainKey(normalizeDomain(d.domain), key)
 	}
-	// 回退到 minio client 的 endpoint host + key
-	return fmt.Sprintf("%s/%s/%s", d.client.EndpointURL().String(), d.bucket, key)
+	// 回退到 client endpoint（已含协议）
+	return strings.TrimSuffix(d.client.EndpointURL().String(), "/") + "/" + d.bucket + "/" + key
 }
 
 // Upload 上传对象（流式）。

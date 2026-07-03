@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -177,13 +176,10 @@ func (s *recordService) GetUploadCredentials(ctx context.Context, req *storageDt
 		return nil, err
 	}
 
-	domainParts := strings.SplitN(config.Domain, "//", 2)
-	baseDomain := config.Domain
-	if len(domainParts) == 2 {
-		hostParts := strings.SplitN(domainParts[1], "/", 2)
-		baseDomain = domainParts[0] + "//" + hostParts[0]
-	}
-	finalURL := strings.TrimSuffix(baseDomain, "/") + "/" + strings.TrimPrefix(key, "/")
+	// 统一调用 storage.BuildPublicURL 构造访问 URL（重构清单 B-OTHER-1：
+	// 消除原 record.go 中手写 SplitN+TrimSuffix 的 domain 解析逻辑，
+	// 与 minio_driver / config.go 共用同一套规范化规则）。
+	finalURL := storage.BuildPublicURL(config.Domain, config.Endpoint, config.Bucket, key)
 
 	// 落 pending 上传记录：凭证签发即登记，等待上传成功通知（CompleteUpload）确认状态。
 	credExpiresAt := time.Now().Add(credentialTTL)
