@@ -250,9 +250,16 @@ func (s *userService) RefreshToken(ctx context.Context, refreshToken string) (*u
 	newRefreshClaims := s.jwt.NewUserClaims(user.ID, claims.Platform, jwt.RefreshToken, user.TokenVersion)
 	newRefreshToken, err := s.jwt.GenerateToken(newRefreshClaims)
 	if err != nil {
-		return nil, errorx.New(errorx.CodeInternalError, "生成刷新令牌失败")
+		return nil, errorx.New(errorx.CodeInternalError, "刷新令牌失败")
 	}
 
+	// 刷新令牌：先失效该用户所有旧 token hash（含旧 access token，防止泄露后被继续使用），
+	// 再写入新 access + refresh hash。
+	// 注意：此处只清 tokenStore 哈希，不递增 TokenVersion——
+	// refresh 不应失效其他设备的合法会话（版本号递增会波及所有设备）。
+	if s.tokenStore != nil {
+		_ = s.tokenStore.DeleteAll(ctx, user.ID)
+	}
 	tokenHash := authPkg.HashToken(token)
 	if err := s.tokenStore.Create(ctx, &userEntity.UserTokenHash{
 		UserID:    user.ID,

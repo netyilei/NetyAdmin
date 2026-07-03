@@ -4,6 +4,8 @@ package user
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	userEntity "NetyAdmin/internal/domain/entity/user"
 
@@ -181,14 +183,21 @@ func (s *userService) Delete(ctx context.Context, id string) error {
 }
 
 func (s *userService) DeleteBatch(ctx context.Context, ids []string) error {
-	// 批量删除：逐个失效 token（版本号机制要求逐条 UPDATE）
+	// 批量删除：逐个失效 token（版本号机制要求逐条 UPDATE）。
+	// 与 admin_manage.go DeleteBatch 对齐：失败记录到 errs，最终聚合返回，避免静默吞错。
+	var errs []string
 	for _, id := range ids {
 		if err := s.invalidateUserTokens(ctx, id); err != nil {
-			// 批量场景下个别失败不阻断，记录错误后继续删除主数据
-			_ = err
+			errs = append(errs, fmt.Sprintf("用户 %s：令牌失效失败", id))
 		}
 	}
-	return s.repo.DeleteBatch(ctx, ids)
+	if err := s.repo.DeleteBatch(ctx, ids); err != nil {
+		return err
+	}
+	if len(errs) > 0 {
+		return errorx.New(errorx.CodeInternalError, fmt.Sprintf("部分用户令牌失效失败：%s", strings.Join(errs, "; ")))
+	}
+	return nil
 }
 
 func (s *userService) UpdateLastReadID(ctx context.Context, userID string, lastReadID uint64) error {
