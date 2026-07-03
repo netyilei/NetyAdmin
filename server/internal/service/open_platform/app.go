@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"time"
 
 	"NetyAdmin/internal/domain/entity/open_platform"
@@ -154,27 +153,11 @@ func (s *appService) AllowRequest(ctx context.Context, app *open_platform.App) (
 }
 
 func (s *appService) getDefaultRate() int {
-	val, exists := s.configWatcher.GetConfig("open_platform_config", "default_rate")
-	if !exists {
-		return 100
-	}
-	n, err := strconv.Atoi(val)
-	if err != nil || n <= 0 {
-		return 100
-	}
-	return n
+	return utils.GetIntWithDefault(s.configWatcher, "open_platform_config", "default_rate", 100)
 }
 
 func (s *appService) getDefaultCapacity() int {
-	val, exists := s.configWatcher.GetConfig("open_platform_config", "default_capacity")
-	if !exists {
-		return 200
-	}
-	n, err := strconv.Atoi(val)
-	if err != nil || n <= 0 {
-		return 200
-	}
-	return n
+	return utils.GetIntWithDefault(s.configWatcher, "open_platform_config", "default_capacity", 200)
 }
 
 func (s *appService) GetCacheMgr() cache.LazyCacheManager {

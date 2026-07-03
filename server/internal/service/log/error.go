@@ -59,30 +59,21 @@ func (s *errorService) Log(ctx context.Context, logRecord *logEntity.Error) erro
 }
 
 func (s *errorService) LogPanic(ctx context.Context, err interface{}, requestID, path, method, ip, userAgent string, adminID uint) {
-	stack := s.getStack(3)
-
-	logRecord := &logEntity.Error{
-		Level:     logEntity.LogLevelPanic,
-		Message:   fmt.Sprintf("%v", err),
-		Stack:     stack,
-		RequestID: requestID,
-		Path:      path,
-		Method:    method,
-		AdminID:   adminID,
-		IP:        ip,
-		UserAgent: userAgent,
-	}
-
-	_ = s.Log(ctx, logRecord)
+	s.logAt(ctx, logEntity.LogLevelPanic, fmt.Sprintf("%v", err), requestID, path, method, ip, userAgent, adminID)
 }
 
 func (s *errorService) LogError(ctx context.Context, err error, requestID, path, method, ip, userAgent string, adminID uint) {
-	stack := s.getStack(3)
+	s.logAt(ctx, logEntity.LogLevelError, err.Error(), requestID, path, method, ip, userAgent, adminID)
+}
 
+// logAt 是 LogPanic/LogError 的统一实现（重构清单 B-OTHER-6）。
+// 两方法仅 Level 与 Message 取值不同，构造 Error 实体 + 调 s.Log 的样板完全一致。
+// getStack(4) 跳过 runtime.Caller/getStack/logAt/LogPanic(or LogError) 四层，定位真正调用方。
+func (s *errorService) logAt(ctx context.Context, level string, message, requestID, path, method, ip, userAgent string, adminID uint) {
 	logRecord := &logEntity.Error{
-		Level:     logEntity.LogLevelError,
-		Message:   err.Error(),
-		Stack:     stack,
+		Level:     level,
+		Message:   message,
+		Stack:     s.getStack(4),
 		RequestID: requestID,
 		Path:      path,
 		Method:    method,
@@ -90,7 +81,6 @@ func (s *errorService) LogError(ctx context.Context, err error, requestID, path,
 		IP:        ip,
 		UserAgent: userAgent,
 	}
-
 	_ = s.Log(ctx, logRecord)
 }
 

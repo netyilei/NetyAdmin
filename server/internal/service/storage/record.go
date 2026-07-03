@@ -10,7 +10,6 @@ import (
 	storageEntity "NetyAdmin/internal/domain/entity/storage"
 	storageVO "NetyAdmin/internal/domain/vo/storage"
 	storageDto "NetyAdmin/internal/interface/admin/dto/storage"
-	"NetyAdmin/internal/domain/entity"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/storage"
 	"NetyAdmin/internal/pkg/utils"
@@ -76,12 +75,7 @@ func (s *recordService) List(ctx context.Context, req *storageDto.RecordQuery) (
 		Size:            req.Size,
 	}
 
-	if query.Current <= 0 {
-		query.Current = 1
-	}
-	if query.Size <= 0 {
-		query.Size = entity.DefaultPageSize
-	}
+	query.Current, query.Size = utils.NormalizePaging(query.Current, query.Size)
 
 	records, total, err := s.recordRepo.List(ctx, query)
 	if err != nil {

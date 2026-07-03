@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"NetyAdmin/internal/domain/entity"
+	"NetyAdmin/internal/pkg/utils"
 	contentEntity "NetyAdmin/internal/domain/entity/content"
 	contentDto "NetyAdmin/internal/interface/admin/dto/content"
 	"NetyAdmin/internal/pkg/cache"
@@ -267,12 +267,7 @@ func (s *articleService) SetTop(ctx context.Context, id uint, req *contentDto.Se
 }
 
 func (s *articleService) ListPublishedByCategoryIDs(ctx context.Context, page, pageSize int, categoryIDs []uint, keyword string) ([]*contentEntity.ContentArticle, int64, error) {
-	if page <= 0 {
-		page = 1
-	}
-	if pageSize <= 0 {
-		pageSize = entity.DefaultPageSize
-	}
+	page, pageSize = utils.NormalizePaging(page, pageSize)
 
 	var primaryCategoryID uint
 	if len(categoryIDs) > 0 {

@@ -78,12 +78,7 @@ func (s *configService) List(ctx context.Context, req *storageDto.ConfigQuery) (
 		Size:    req.Size,
 	}
 
-	if query.Current <= 0 {
-		query.Current = 1
-	}
-	if query.Size <= 0 {
-		query.Size = entity.DefaultPageSize
-	}
+	query.Current, query.Size = utils.NormalizePaging(query.Current, query.Size)
 
 	configs, total, err := s.configRepo.List(ctx, query)
 	if err != nil {

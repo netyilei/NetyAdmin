@@ -10,6 +10,7 @@ import (
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/task"
+	"NetyAdmin/internal/pkg/utils"
 	systemRepo "NetyAdmin/internal/repository/system"
 	taskRepo "NetyAdmin/internal/repository/task"
 )
@@ -226,11 +227,6 @@ func (s *taskService) UpdateTask(ctx context.Context, name string, enabled bool,
 }
 
 func (s *taskService) ListLogs(ctx context.Context, name string, page, size int) ([]*taskEntity.TaskLog, int64, error) {
-	if page <= 0 {
-		page = 1
-	}
-	if size <= 0 {
-		size = entity.DefaultPageSize
-	}
+	page, size = utils.NormalizePaging(page, size)
 	return s.logRepo.List(ctx, name, page, size)
 }

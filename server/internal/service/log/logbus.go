@@ -8,6 +8,7 @@ import (
 
 	logEntity "NetyAdmin/internal/domain/entity/log"
 	"NetyAdmin/internal/pkg/configsync"
+	"NetyAdmin/internal/pkg/utils"
 )
 
 type LogBatchWriter interface {
@@ -70,22 +71,12 @@ func (b *logBusService) loadConfig() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if val, ok := b.watcher.GetConfig("logbus_config", "global_max_entries"); ok {
-		if v := parseInt(val); v > 0 {
-			b.globalMaxEntries = v
-		}
+	// 全局配置：maxEntries / maxBytesMB（默认 2000 / 10MB）
+	if v := utils.GetIntWithDefault(b.watcher, "logbus_config", "global_max_entries", 2000); v > 0 {
+		b.globalMaxEntries = v
 	}
-	if b.globalMaxEntries == 0 {
-		b.globalMaxEntries = 2000
-	}
-
-	if val, ok := b.watcher.GetConfig("logbus_config", "global_max_bytes_mb"); ok {
-		if v := parseInt(val); v > 0 {
-			b.globalMaxBytesMB = v
-		}
-	}
-	if b.globalMaxBytesMB == 0 {
-		b.globalMaxBytesMB = 10
+	if v := utils.GetIntWithDefault(b.watcher, "logbus_config", "global_max_bytes_mb", 10); v > 0 {
+		b.globalMaxBytesMB = v
 	}
 
 	if val, ok := b.watcher.GetConfig("logbus_config", "force_sync"); ok {
@@ -94,35 +85,21 @@ func (b *logBusService) loadConfig() {
 
 	for lt, cfg := range b.configs {
 		groupKey := logTypeConfigKey(lt)
-		if val, ok := b.watcher.GetConfig("logbus_config", groupKey+"_batch_size"); ok {
-			if v := parseInt(val); v > 0 {
-				cfg.SizeThreshold = v
-			}
+
+		// 各日志类型独立配置（优先级高于默认）
+		if v := utils.GetIntWithDefault(b.watcher, "logbus_config", groupKey+"_batch_size", 0); v > 0 {
+			cfg.SizeThreshold = v
 		}
-		if val, ok := b.watcher.GetConfig("logbus_config", groupKey+"_time_threshold"); ok {
-			if v := parseInt(val); v > 0 {
-				cfg.TimeThreshold = time.Duration(v) * time.Second
-			}
+		if v := utils.GetIntWithDefault(b.watcher, "logbus_config", groupKey+"_time_threshold", 0); v > 0 {
+			cfg.TimeThreshold = time.Duration(v) * time.Second
 		}
+		// 兜底默认值（未配置独立项时用全局默认）
 		if cfg.SizeThreshold == 0 {
-			if val, ok := b.watcher.GetConfig("logbus_config", "default_batch_size"); ok {
-				if v := parseInt(val); v > 0 {
-					cfg.SizeThreshold = v
-				}
-			}
-			if cfg.SizeThreshold == 0 {
-				cfg.SizeThreshold = 200
-			}
+			cfg.SizeThreshold = utils.GetIntWithDefault(b.watcher, "logbus_config", "default_batch_size", 200)
 		}
 		if cfg.TimeThreshold == 0 {
-			if val, ok := b.watcher.GetConfig("logbus_config", "default_time_threshold"); ok {
-				if v := parseInt(val); v > 0 {
-					cfg.TimeThreshold = time.Duration(v) * time.Second
-				}
-			}
-			if cfg.TimeThreshold == 0 {
-				cfg.TimeThreshold = 5 * time.Second
-			}
+			defaultSec := utils.GetIntWithDefault(b.watcher, "logbus_config", "default_time_threshold", 5)
+			cfg.TimeThreshold = time.Duration(defaultSec) * time.Second
 		}
 		b.configs[lt] = cfg
 	}
@@ -325,16 +302,4 @@ func logTypeConfigKey(lt logEntity.LogType) string {
 	default:
 		return string(lt)
 	}
-}
-
-func parseInt(s string) int {
-	v := 0
-	for _, c := range s {
-		if c >= '0' && c <= '9' {
-			v = v*10 + int(c-'0')
-		} else {
-			return 0
-		}
-	}
-	return v
 }
