@@ -22,3 +22,10 @@ nul
 
 # MCP 图谱缓存（由 AI 在本地重建，不上传）
 .codebase-memory/
+
+# AI 协作指南文档（本地保留，不上传 GitHub）
+RULES.md
+AGENTS.md
+基座BUG修复说明.md
+基座问题汇总.md
+补丁代码重构清单.md
