@@ -18,11 +18,14 @@ NetyAdmin Server 采用 **BFF (Backend For Frontend) 多端隔离架构**，旨�
 
 | 原则 | 说明 |
 |------|------|
-| **端隔离** | 按终端类型（admin/client）物理隔离接口层 |
-| **分层清晰** | 严格遵循 `router -> handler -> service -> repository -> entity` 调用链 |
+| **端隔离** | 按终端类型（admin/client）物理隔离接口层，DTO 独立存放 |
+| **分层清晰** | 严格遵循 `router → handler → service → repository → entity` 单向调用链 |
 | **无侵入协议** | Service 层禁止出现 `*gin.Context`，只接收基础 Go 类型 |
-| **DTO 专属** | 每个端的 DTO 独立存放，禁止全局共享 |
+| **DTO 专属** | 每个端的 DTO 独立存放，禁止跨端共享；Service 接口接收 DTO，不接收 entity |
 | **依赖注入** | 使用 Wire 进行依赖装配，便于测试和替换实现 |
+| **TM 事务管理** | 所有多步原子操作统一使用 `TransactionManager`，Repository 不自管事务 |
+| **缓存失效在后** | 缓存失效必须在 `tm.Commit()` 之后执行，避免回滚后缓存已清 |
+| **fail-closed** | 敏感操作（删除/禁用/改密）使用 TM 单事务原子完成，失败不回补 |
 
 ---
 
@@ -214,7 +217,7 @@ server/
 │  Repository (repository/)                                   │
 │  - CRUD操作                                                 │
 │  - 查询拼装（GORM）                                         │
-│  - 事务管理                                                 │
+│  - 所有 repo 调用通过 getDB(ctx) 统一获取 *gorm.DB          │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
@@ -227,231 +230,17 @@ server/
 
 ---
 
-## 四、二次开发示例
+## 四、二次开发指南
 
-### 4.1 新增业务模块（以"评论管理"为例）
+完整的二次开发示例（以**评论管理**模块为例，覆盖 Entity → Repository → DTO → Service → Handler → Router → Wire 全流程）已移到独立文档：
 
-#### 步骤1：定义实体
+> 👉 **[二次开发指南](development-guide.md)**
 
-```go
-// internal/domain/entity/content/comment.go
-package content
-
-import (
-    "gorm.io/plugin/soft_delete"
-)
-
-type Comment struct {
-    ID        uint                  `gorm:"primarykey"`
-    ArticleID uint                  `gorm:"not null;index"`
-    UserID    uint                  `gorm:"not null;index"`
-    Content   string                `gorm:"type:text;not null"`
-    Status    int8                  `gorm:"default:1"` // 1:正常 2:禁用
-    CreatedAt int64                 `gorm:"autoCreateTime"`
-    UpdatedAt int64                 `gorm:"autoUpdateTime"`
-    DeletedAt soft_delete.DeletedAt `gorm:"column:deleted_at;softDelete:milli;default:0;index"`
-}
-
-func (Comment) TableName() string {
-    return "comments"
-}
-```
-
-> **注意**：NetyAdmin 使用 `soft_delete.DeletedAt`（BIGINT 类型）而非 `gorm.DeletedAt`（TIMESTAMP 类型），以支持毫秒级软删除时间戳，并避免时区问题。数据库列类型为 `BIGINT DEFAULT 0`。
-
-#### 步骤2：创建仓储
-
-```go
-// internal/repository/content/comment.go
-package content
-
-import (
-    "context"
-    "server/internal/domain/entity/content"
-    "gorm.io/gorm"
-)
-
-type CommentRepository interface {
-    Create(ctx context.Context, comment *content.Comment) error
-    GetByID(ctx context.Context, id uint) (*content.Comment, error)
-    ListByArticle(ctx context.Context, articleID uint, page, size int) ([]content.Comment, int64, error)
-    Update(ctx context.Context, comment *content.Comment) error
-    Delete(ctx context.Context, id uint) error
-}
-
-type commentRepository struct {
-    db *gorm.DB
-}
-
-func NewCommentRepository(db *gorm.DB) CommentRepository {
-    return &commentRepository{db: db}
-}
-
-func (r *commentRepository) Create(ctx context.Context, comment *content.Comment) error {
-    return r.db.WithContext(ctx).Create(comment).Error
-}
-
-// ... 其他方法实现
-```
-
-#### 步骤3：创建DTO
-
-```go
-// internal/interface/admin/dto/content/comment.go
-package content
-
-// CreateCommentReq 创建评论请求
-type CreateCommentReq struct {
-    ArticleID uint   `json:"article_id" binding:"required"`
-    Content   string `json:"content" binding:"required,max=500"`
-}
-
-// CommentResp 评论响应
-type CommentResp struct {
-    ID        uint   `json:"id"`
-    ArticleID uint   `json:"article_id"`
-    Content   string `json:"content"`
-    Status    int8   `json:"status"`
-    CreatedAt int64  `json:"created_at"`
-}
-
-// ListCommentReq 评论列表请求
-type ListCommentReq struct {
-    ArticleID uint `form:"article_id"`
-    Page      int  `form:"page,default=1"`
-    Size      int  `form:"size,default=20"`
-}
-```
-
-#### 步骤4：创建Service
-
-```go
-// internal/service/content/comment.go
-package content
-
-import (
-    "context"
-    "server/internal/domain/entity/content"
-    contentRepo "server/internal/repository/content"
-)
-
-type CommentService interface {
-    Create(ctx context.Context, articleID uint, content string) (*content.Comment, error)
-    ListByArticle(ctx context.Context, articleID uint, page, size int) ([]content.Comment, int64, error)
-    Delete(ctx context.Context, id uint) error
-}
-
-type commentService struct {
-    repo contentRepo.CommentRepository
-}
-
-func NewCommentService(repo contentRepo.CommentRepository) CommentService {
-    return &commentService{repo: repo}
-}
-
-func (s *commentService) Create(ctx context.Context, articleID uint, contentStr string) (*content.Comment, error) {
-    comment := &content.Comment{
-        ArticleID: articleID,
-        Content:   contentStr,
-        Status:    1,
-    }
-    if err := s.repo.Create(ctx, comment); err != nil {
-        return nil, err
-    }
-    return comment, nil
-}
-
-// ... 其他方法实现
-```
-
-#### 步骤5：创建Handler
-
-```go
-// internal/interface/admin/http/handler/v1/content/comment_handler.go
-package content
-
-import (
-    "net/http"
-    "server/internal/interface/admin/dto/content"
-    "server/internal/pkg/errorx"
-    "server/internal/pkg/response"
-    "server/internal/service/content"
-
-    "github.com/gin-gonic/gin"
-)
-
-type CommentHandler struct {
-    service content.CommentService
-}
-
-func NewCommentHandler(service content.CommentService) *CommentHandler {
-    return &CommentHandler{service: service}
-}
-
-func (h *CommentHandler) Create(c *gin.Context) {
-    var req content.CreateCommentReq
-    if err := c.ShouldBindJSON(&req); err != nil {
-        response.Error(c, errorx.CodeInvalidParams)
-        return
-    }
-
-    comment, err := h.service.Create(c.Request.Context(), req.ArticleID, req.Content)
-    if err != nil {
-        response.Error(c, errorx.CodeInternalError)
-        return
-    }
-
-    response.Success(c, comment)
-}
-
-func (h *CommentHandler) List(c *gin.Context) {
-    var req content.ListCommentReq
-    if err := c.ShouldBindQuery(&req); err != nil {
-        response.Error(c, errorx.CodeInvalidParams)
-        return
-    }
-
-    comments, total, err := h.service.ListByArticle(c.Request.Context(), req.ArticleID, req.Page, req.Size)
-    if err != nil {
-        response.Error(c, errorx.CodeInternalError)
-        return
-    }
-
-    response.Success(c, gin.H{
-        "list":  comments,
-        "total": total,
-    })
-}
-```
-
-#### 步骤6：注册路由
-
-```go
-// internal/interface/admin/http/router/v1/content.go
-// 在Register方法中添加：
-
-func (r *ContentRouter) Register(group *gin.RouterGroup) {
-    // ... 现有路由
-    
-    // 评论管理
-    commentHandler := contentHandler.NewCommentHandler(r.commentService)
-    commentGroup := group.Group("/comments")
-    {
-        commentGroup.GET("", commentHandler.List)
-        commentGroup.POST("", commentHandler.Create)
-        commentGroup.DELETE("/:id", commentHandler.Delete)
-    }
-}
-```
-
-#### 步骤7：更新Wire注入
-
-```go
-// internal/app/wire.go
-// 在ProviderSet中添加：
-// contentRepo.NewCommentRepository,
-// contentService.NewCommentService,
-```
+包含：
+- 详细代码示例（每个层级都附带红线规范说明）
+- TransactionManager 事务指南（TM 架构图、标准范式、DeleteBatch fail-closed、注入方式）
+- DTO/Entity 隔离规范（为什么需要隔离、Update 的 GetByID+patch+Save 模式、BFF userBase 模式）
+- 常见踩坑记录
 
 ---
 
@@ -465,33 +254,341 @@ func (r *ContentRouter) Register(group *gin.RouterGroup) {
 
 ### 5.2 事务处理规范
 
+NetyAdmin 使用 `TransactionManager`（TM）统一管理数据库事务。TM 通过 context 隐式传递事务句柄，Repository 层通过 `getDB(ctx)` 自动区分是否在事务中。
+
+#### TM 架构
+
+```
+┌───────────────────────────────────────────────────────┐
+│  TransactionManager（无状态单例，DI 复用）              │
+│                                                        │
+│  Begin(ctx) → (txCtx, tx)  开启事务，注入 context      │
+│  Commit(tx)  → 提交 + 执行 AfterCommit 钩子            │
+│  Rollback(tx) → 回滚                                   │
+│  AfterCommit(tx, func()) → 注册提交后回调              │
+└───────────────────────────────────────────────────────┘
+                             │
+                             ▼
+┌───────────────────────────────────────────────────────┐
+│  Repository 通过 getDB(ctx) 统一取 *gorm.DB            │
+│  - ctx 中有事务 → 返回 tx.DB（落入事务）               │
+│  - ctx 中无事务 → 返回连接池（正常 CRUD）              │
+└───────────────────────────────────────────────────────┘
+```
+
+#### 红线规则
+
+| 规则 | 说明 |
+|------|------|
+| **Repository 不自管事务** | 禁止使用 `r.db.Transaction(func(tx){...})` 或 `r.db.WithContext(ctx).Transaction(...)` |
+| **多步写操作必须用 TM** | 两个以上 repo 调用必须用 `tm.Begin → tm.Commit/Rollback` |
+| **所有 repo 调用传 txCtx** | 事务内的 repo 调用必须用 `txCtx`（Begin 返回的 context），不是原始 `ctx` |
+| **缓存失效在 Commit 之后** | 缓存失效 / 事件发布必须在 `tm.Commit()` 成功之后执行 |
+| **Redis 处理在事务前** | `clearLoginLockCache` 等 Redis 操作在事务前调用，不进事务 |
+| **fail-closed** | 失败直接 return error，不尝试补偿 |
+
+#### TM 标准范式
+
+**单事务多步写：**
+
 ```go
-// 在Repository层处理事务
-func (r *repository) CreateWithItems(ctx context.Context, data *Entity, items []Item) error {
-    return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-        if err := tx.Create(data).Error; err != nil {
-            return err
-        }
-        if err := tx.Create(&items).Error; err != nil {
-            return err
-        }
-        return nil
-    })
+func (s *xxxService) MultiStepOp(ctx context.Context, args) error {
+    // 事务前：预校验（用原始 ctx）
+    old, err := s.repo.GetByID(ctx, id)
+    if err != nil {
+        return errorx.New(errorx.CodeNotFound, "资源不存在")
+    }
+
+    // 事务前：Redis 操作（不进事务）
+    s.clearLoginLockCache(ctx, id)
+
+    // TM 单事务
+    txCtx, tx := s.tm.Begin(ctx)
+
+    // 第一步（用 txCtx！）
+    if err := s.repo.DoA(txCtx, id); err != nil {
+        slog.Error("...", "err", err)
+        s.tm.Rollback(tx)
+        return errorx.New(errorx.CodeInternalError, "操作A失败")
+    }
+    // 第二步（用 txCtx！）
+    if err := s.repo.DoB(txCtx, id); err != nil {
+        slog.Error("...", "err", err)
+        s.tm.Rollback(tx)
+        return errorx.New(errorx.CodeInternalError, "操作B失败")
+    }
+    // 提交
+    if err := s.tm.Commit(tx); err != nil {
+        slog.Error("commit failed", "err", err)
+        return errorx.New(errorx.CodeInternalError, "事务提交失败")
+    }
+
+    // Commit 成功后：失效缓存（用原始 ctx，不是 txCtx）
+    if cErr := s.cacheMgr.InvalidateByTags(ctx, tag); cErr != nil {
+        slog.Warn("cache invalidation failed", "err", cErr)
+    }
+    return nil
 }
 ```
 
-### 5.3 日志规范
+**DeleteBatch fail-closed 范式：**
 
-- 使用中间件自动记录操作日志
-- 敏感字段（password、token等）自动脱敏
-- 错误日志自动记录堆栈信息
+```go
+func (s *xxxService) DeleteBatch(ctx context.Context, ids []string) error {
+    var skipped []string
+    for _, id := range ids {
+        // 业务规则拒绝：不存在的 id 跳过，不阻断
+        if _, err := s.repo.GetByID(ctx, id); err != nil {
+            skipped = append(skipped, fmt.Sprintf("id %s：不存在", id))
+            continue
+        }
+        // 事务前清理缓存
+        s.clearLoginLockCache(ctx, id)
+
+        txCtx, tx := s.tm.Begin(ctx)
+        if err := s.repo.IncrementTokenVersion(txCtx, id); err != nil {
+            slog.Error("...", "err", err)
+            s.tm.Rollback(tx)
+            return errorx.New(errorx.CodeInternalError, fmt.Sprintf("id %s 处理失败", id)) // 事务失败：立即返回
+        }
+        if err := s.repo.Delete(txCtx, id); err != nil {
+            slog.Error("...", "err", err)
+            s.tm.Rollback(tx)
+            return errorx.New(errorx.CodeInternalError, fmt.Sprintf("id %s 处理失败", id))
+        }
+        if err := s.tm.Commit(tx); err != nil {
+            slog.Error("commit failed", "err", err)
+            return errorx.New(errorx.CodeInternalError, fmt.Sprintf("id %s 处理失败", id))
+        }
+        // Commit 后失效缓存
+    }
+    if len(skipped) > 0 {
+        return errorx.New(errorx.CodeForbidden, fmt.Sprintf("部分用户被跳过：%s", strings.Join(skipped, "; ")))
+    }
+    return nil
+}
+```
+
+**Repository getDB 实现：**
+
+```go
+// 每个 Repository 都通过 getDB 统一取 *gorm.DB
+func (r *recordRepo) getDB(ctx context.Context) *gorm.DB {
+    return database.GetDB(ctx, r.db) // GetDB 自动判断 ctx 中是否有事务
+}
+
+// Repository 内部方法都调 getDB，不直接使用 r.db
+func (r *recordRepo) LockRecordByID(ctx context.Context, id uint) (*Record, error) {
+    var record Record
+    err := r.getDB(ctx).Set("gorm:query_option", "FOR UPDATE").First(&record, id).Error
+    return &record, err
+}
+```
+
+#### TM 注入方式
+
+```go
+// 1. wire.go 中的 tm 实例在 Bootstrap 中创建
+tm := database.NewTransactionManager(db)
+
+// 2. 传给 initServices，由 initServices 注入到各个 service
+s.someService = NewSomeService(someRepo, tm)
+
+// 3. Service struct 声明 tm 字段
+type someService struct {
+    repo someRepo.Repository
+    tm   *database.TransactionManager
+}
+```
+
+### 5.3 DTO/Entity 隔离规范
+
+**为什么需要隔离？**
+- Handler 只做协议转换（参数绑定 + 调 Service + 统一响应），不应知道 entity 结构
+- Service 层通过 DTO 明确入参边界，不受 entity 字段变化影响
+- Admin/Client 两端的入参完全不同（如 client 登录需要 platform，admin 不需要），统一 DTO 会导致混乱
+
+#### 规范细则
+
+**DTO 定义规则：**
+- DTO 只含业务字段，不含 `ID`/`CreatedAt`/`UpdatedAt`/`DeletedAt`/`Password` 等持久化字段
+- `CreateXxxReq` 包含创建所需的所有字段（不含 ID）
+- `UpdateXxxReq` 只含可修改的业务字段（ID 由 URL `:id` 传入，不放在 body 中）
+- Admin 端 DTO 放在 `internal/interface/admin/dto/`，Client 端 DTO 放在 `internal/interface/client/dto/v1/`
+- 两端 DTO **禁止跨端 import**（如 client handler 不可 import admin DTO，反之亦然）
+
+**Service 接口签名规则：**
+- `Create(ctx, req *dto.CreateXxxReq) error`
+- `Update(ctx, id uint64, req *dto.UpdateXxxReq) error`
+- Service 内部构造 entity 再调 repo，Handler 不直接传 entity 给 Service
+
+**Handler 改造规则：**
+- 禁止 import `domain/entity/` 包
+- 禁止直接调用 cacheMgr / repository（应通过 Service 层完成）
+- Update 的 ID 从 `c.Param("id")` 解析，不在 body 中
+
+#### Update 实现：GetByID + patch + Save
+
+**背景**：GORM 的 `Save` 是全字段更新，如果 DTO 字段少于 entity，零值会覆盖数据库已有值（如 `CreatedAt`/`DeletedAt` 被零值覆盖）。
+
+**解决方案**：
+```go
+func (s *xxxService) Update(ctx context.Context, id uint64, req *dto.UpdateXxxReq) error {
+    // 1. 先 GetByID 取旧 entity（保留 ID/CreatedAt/DeletedAt 不被覆盖）
+    old, err := s.repo.GetByID(ctx, id)
+    if err != nil {
+        return errorx.New(errorx.CodeNotFound)
+    }
+
+    // 2. 唯一性校验（排除自身）
+    if req.Name != "" && req.Name != old.Name {
+        exists, _ := s.repo.ExistsByName(ctx, req.Name, id)
+        if exists {
+            return errorx.New(errorx.CodeAlreadyExists, "名称已存在")
+        }
+        old.Name = req.Name
+    }
+
+    // 3. patch 业务字段（不动 ID/CreatedAt/DeletedAt）
+    if req.Phone != "" {
+        old.Phone = req.Phone
+    }
+
+    // 4. Save（或 Update）
+    return s.repo.Save(ctx, old)
+}
+```
+
+#### BFF Service 端隔离（user 模块参考）
+
+当 Admin 和 Client 两端的业务逻辑差异大但共享底层依赖（repo、jwt、cache、TM）时，可采用 **userBase 共享底层 + 独立接口** 模式：
+
+```go
+// userBase 封装共享依赖和横切方法
+type userBase struct {
+    repo       userRepo.UserRepository
+    cacheMgr   cache.LazyCacheManager
+    tm         *database.TransactionManager
+    // ... 更多共享依赖
+}
+
+func (b *userBase) validatePasswordStrength(ctx context.Context, password string) error { ... }
+func (b *userBase) clearLoginLockCache(ctx context.Context, userID string) { ... }
+
+// Admin 端 service：仅 import admin/dto/user
+type UserAdminService interface {
+    Create(ctx context.Context, req *adminDto.CreateUserReq) error
+    Update(ctx context.Context, id string, req *adminDto.UpdateUserReq) error
+}
+type userAdminService struct { userBase }
+func NewUserAdminService(base userBase) UserAdminService {
+    return &userAdminService{userBase: base}
+}
+
+// Client 端 service：仅 import client/dto/v1
+type UserClientService interface {
+    Register(ctx context.Context, req *clientDto.UserRegisterReq) error
+    DeleteAccount(ctx context.Context, userID string) error
+}
+type userClientService struct { userBase }
+func NewUserClientService(base userBase) UserClientService {
+    return &userClientService{userBase: base}
+}
+
+// wire.go 注入
+userBase := userService.NewUserBase(...)
+s.userAdmin = userService.NewUserAdminService(userBase)
+s.userClient = userService.NewUserClientService(userBase)
+```
 
 ---
 
-## 六、相关文档
+## 六、测试规范
+
+### 6.1 框架与断言
+
+| 规范 | 说明 |
+|------|------|
+| 测试框架 | `github.com/stretchr/testify`（主要使用 `assert`） |
+| 文件命名 | `xxx_test.go`，与被测文件同目录同包（外部测试包 `xxx_test`） |
+| 测试风格 | **表驱动测试**（table-driven tests），用 `[]struct{name; input; want}` 组织用例 |
+| 子测试 | 使用 `t.Run(tt.name, func(t *testing.T) {...})` |
+| 断言 | `assert.Equal(t, expected, actual)`、`assert.True/False`、`assert.NoError` |
+
+### 6.2 代码示例
+
+```go
+func TestCode_Message(t *testing.T) {
+    tests := []struct {
+        name string
+        code errorx.Code
+        want string
+    }{
+        {"success", errorx.CodeSuccess, "操作成功"},
+        {"not found", errorx.CodeNotFound, "资源不存在"},
+    }
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            assert.Equal(t, tt.want, tt.code.Message())
+        })
+    }
+}
+```
+
+### 6.3 运行命令
+
+```bash
+cd server
+go test ./...                          # 全部测试
+go test ./internal/pkg/errorx/... -v   # 指定包，详细输出
+```
+
+参考实现：`internal/pkg/errorx/errorx_test.go`
+
+---
+
+## 七、Swagger / API 文档
+
+### 7.1 Handler注解规范
+
+每个Handler方法**必须**编写标准Swagger注解：
+
+```go
+// @Summary      获取文章列表
+// @Description  分页获取文章列表，支持多条件筛选
+// @Tags         文章管理
+// @Accept       json
+// @Produce      json
+// @Param        current query int false "页码"
+// @Param        size query int false "每页数量"
+// @Success      200 {object} response.Response "文章列表"
+// @Security    ApiKeyAuth
+// @Router       /admin/v1/content/articles [get]
+func (h *ContentArticleHandler) List(c *gin.Context) { ... }
+```
+
+### 7.2 全局元信息
+
+在 `cmd/server/main.go` 中定义全局Swagger元信息（`@title`、`@version`、`@BasePath` 等）。
+
+### 7.3 生成与访问
+
+```bash
+cd server
+swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal
+```
+
+- 生成产物：`server/docs/`（`docs.go`、`swagger.json`、`swagger.yaml`）
+- 访问地址：`http://localhost:9090/swagger/index.html`（仅 `debug` 模式开放）
+- 路由注册：`internal/interface/admin/http/router/router.go`
+
+---
+
+## 八、相关文档
 
 - [状态码规范](./status-codes.md)
 - [API管理指南](./api-management.md)
+- [Sentry错误追踪](./server-module-sentry.md)
 - [缓存模块详解](./server-module-cache.md)
 - [验证码模块详解](./server-module-captcha.md)
 - [任务系统详解](./server-module-task.md)

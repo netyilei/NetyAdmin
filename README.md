@@ -60,14 +60,15 @@ NetyAdmin 是一个基于 **Go + Gin** 后端和 **Vue 3 + TypeScript** 前端�
 
 | 文档 | 说明 |
 |------|------|
-| [AGENTS.md](AGENTS.md) | AI 助手开发指南：技术栈、项目结构、开发流程、命令速查 |
-| [RULES.md](RULES.md) | 项目编码规范：分层架构、安全规则、错误处理、测试要求 |
+| [AGENTS.md](AGENTS.md) | AI 协作规范：必读流程、开发约定、文档索引、提交规范 |
+| [RULES.md](RULES.md) | **红线规则**：分层架构、事务管理、删除策略、安全规范、代码质量 |
+| [SHARED.md](SHARED.md) | 共享知识库：踩坑记录、架构决策、注意事项 |
 
 ### 架构设计文档
 
 | 文档 | 说明 |
 |------|------|
-| [Server 架构设计与目录结构](docs/server-architecture.md) | 后端架构理念、分层设计、二次开发指南 |
+| [Server 架构设计与目录结构](docs/server-architecture.md) | 后端架构理念、分层设计、目录结构、关键规范 |
 | [Admin-Web 架构设计与目录结构](docs/admin-web-architecture.md) | 前端架构理念、目录规范、开发规范 |
 
 ### 模块详解文档
@@ -92,6 +93,9 @@ NetyAdmin 是一个基于 **Go + Gin** 后端和 **Vue 3 + TypeScript** 前端�
 
 | 文档 | 说明 |
 |------|------|
+| [二次开发指南](docs/development-guide.md) | 新增业务模块全流程示例（Entity → Repository → DTO → Service → Handler → Router → Wire） |
+| [Server 架构设计与目录结构](docs/server-architecture.md) | 后端架构理念、分层设计、目录结构、关键规范 |
+| [Admin-Web 架构设计与目录结构](docs/admin-web-architecture.md) | 前端架构理念、目录规范、开发规范 |
 | [状态码规范](docs/status-codes.md) | 错误码编码规则、全量码表、新增流程 |
 | [API 管理指南](docs/api-management.md) | 前后端 API 定义、新增流程、最佳实践 |
 | [快速部署指南](docs/quick-deployment.md) | 环境准备、配置说明、部署步骤 |
@@ -200,17 +204,16 @@ NetyAdmin/
 
 ## 🛠️ 二次开发
 
-### 新增后端模块
+详细的开发流程、红线规范、代码示例请参考 **[二次开发指南](docs/development-guide.md)**。
 
-参考 [Server 架构设计](docs/server-architecture.md) 中的二次开发示例：
+### 快速总览
 
-1. 定义实体（`domain/entity`）
-2. 创建仓储（`repository`）
-3. 创建 DTO（`interface/admin/dto`）
-4. 创建服务（`service`）
-5. 创建 Handler（`interface/admin/http/handler`）
-6. 注册路由（`interface/admin/http/router`）
-7. Wire 注入（`app/wire.go`）
+| 层级 | 职责 | 红线 |
+|------|------|------|
+| **Handler** | 参数绑定 → 调 Service → 统一响应 | 禁止 import entity，禁止调用 cacheMgr/repo |
+| **Service** | 业务规则 + 多仓储聚合 | 禁止 `*gin.Context`，接收 DTO，多步操作用 TM |
+| **Repository** | CRUD + 查询拼装 | 禁止自管事务，通过 `getDB(ctx)` 统一取 DB |
+| **Entity** | GORM 模型定义 | 纯数据结构，不含业务逻辑 |
 
 ### 新增前端页面
 
