@@ -394,9 +394,10 @@ func (r *ContentRouter) Register(group *gin.RouterGroup) {
 ```
 TransactionManager（无状态单例，DI 复用）
   Begin(ctx)     → (txCtx, tx)  开启事务，注入 context
-  Commit(tx)     → 提交 + 执行 AfterCommit 钩子
+  Commit(tx)     → 提交
   Rollback(tx)   → 回滚
-  AfterCommit(tx, func()) → 注册提交后回调
+  WithTransaction(ctx, fn) → 闭包事务（推荐）
+    自动处理 panic/error 路径的 Rollback
                     │
                     ▼
 Repository 通过 getDB(ctx) 统一取 *gorm.DB

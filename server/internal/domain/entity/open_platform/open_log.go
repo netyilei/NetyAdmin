@@ -19,7 +19,10 @@ type OpenPlatformLog struct {
 	RequestBody   string    `gorm:"type:text" json:"requestBody"`
 	ResponseBody  string    `gorm:"type:text" json:"responseBody"`
 	ErrorMsg      string    `gorm:"type:text" json:"errorMsg"`
-	CreatedAt     time.Time `gorm:"index" json:"createdAt"`
+	// RequestID 由 OpenPlatformAuth 中间件在调用 logSvc.Record 时填入，
+	// 对应 DB 列 sys_open_platform_logs.request_id（迁移 0060 新增）。
+	RequestID string    `gorm:"column:request_id;size:50;comment:请求ID" json:"requestId"`
+	CreatedAt time.Time `gorm:"index" json:"createdAt"`
 }
 
 func (OpenPlatformLog) TableName() string {
@@ -32,4 +35,8 @@ func (l *OpenPlatformLog) GetLogType() logEntity.LogType {
 
 func (l *OpenPlatformLog) GetCreatedAt() time.Time {
 	return l.CreatedAt
+}
+
+func (l *OpenPlatformLog) GetRequestID() string {
+	return l.RequestID
 }

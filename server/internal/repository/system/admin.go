@@ -5,7 +5,9 @@ import (
 
 	"gorm.io/gorm"
 
+	"NetyAdmin/internal/domain/entity"
 	systemEntity "NetyAdmin/internal/domain/entity/system"
+	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/pagination"
 )
 
@@ -18,16 +20,18 @@ type AdminRepository interface {
 	Update(ctx context.Context, admin *systemEntity.Admin) error
 	UpdateLastLoginAt(ctx context.Context, id uint, lastLoginAt string) error
 	// IncrementTokenVersion 原子递增管理员 token_version（BUG #5）。
+	// 用于改密/禁用/删除等敏感操作，使旧 token 携带的版本号失效。
+	// 支持 context 传播事务：若 ctx 中携带 *Tx 则复用事务句柄。
 	IncrementTokenVersion(ctx context.Context, id uint) error
+	// ClearRoles 清理 admin_user_roles 关联表中指定管理员的全部角色关联。
+	// 用于 Delete/DeleteBatch 的 TM 事务编排，支持 context 传播事务。
+	ClearRoles(ctx context.Context, adminID uint) error
 	Delete(ctx context.Context, id uint) error
 	UpdateRoles(ctx context.Context, adminID uint, roleIDs []uint) error
 	// GetAuthStateByID 仅查询鉴权所需字段（token_version, status），无 Preload。
 	// 用于 JWTAuth 中间件的高频路径，避免 GetByID 触发 Roles/Roles.Buttons/
 	// CreatedByUser/UpdatedByUser 四个 Preload 的过度 JOIN。
 	GetAuthStateByID(ctx context.Context, id uint) (*AdminAuthState, error)
-	// DeleteWithTokenInvalidation 单事务原子完成「清理角色关联 + 递增 token_version + 软删除」。
-	// 用于 admin Delete/DeleteBatch 的 fail-closed 改造，与 user 侧语义对齐。
-	DeleteWithTokenInvalidation(ctx context.Context, id uint) error
 }
 
 // AdminAuthState 是鉴权中间件所需的账户最小字段集。
@@ -55,13 +59,18 @@ func NewAdminRepository(db *gorm.DB) AdminRepository {
 	return &adminRepository{db: db}
 }
 
+// getDB 取当前 context 下的 *gorm.DB：若 ctx 中存在事务句柄则复用事务，否则回退到 r.db。
+func (r *adminRepository) getDB(ctx context.Context) *gorm.DB {
+	return database.GetDB(ctx, r.db)
+}
+
 func (r *adminRepository) Create(ctx context.Context, admin *systemEntity.Admin) error {
-	return r.db.WithContext(ctx).Create(admin).Error
+	return r.getDB(ctx).Create(admin).Error
 }
 
 func (r *adminRepository) GetByID(ctx context.Context, id uint) (*systemEntity.Admin, error) {
 	var admin systemEntity.Admin
-	if err := r.db.WithContext(ctx).
+	if err := r.getDB(ctx).
 		Preload("Roles").Preload("Roles.Buttons").
 		Preload("CreatedByUser").Preload("UpdatedByUser").
 		First(&admin, id).Error; err != nil {
@@ -74,7 +83,7 @@ func (r *adminRepository) GetByID(ctx context.Context, id uint) (*systemEntity.A
 // 用于 JWTAuth 中间件的高频路径，避免每次鉴权触发 4 个 Preload 的过度 JOIN。
 func (r *adminRepository) GetAuthStateByID(ctx context.Context, id uint) (*AdminAuthState, error) {
 	var state AdminAuthState
-	if err := r.db.WithContext(ctx).
+	if err := r.getDB(ctx).
 		Model(&systemEntity.Admin{}).
 		Select("token_version", "status").
 		Where("id = ?", id).
@@ -87,14 +96,14 @@ func (r *adminRepository) GetAuthStateByID(ctx context.Context, id uint) (*Admin
 func (r *adminRepository) GetByUsername(ctx context.Context, username string) (*systemEntity.Admin, error) {
 	var admin systemEntity.Admin
 	// 注意：根据实体的 GORM Tag，列名应为 username
-	if err := r.db.WithContext(ctx).Preload("Roles").Preload("Roles.Buttons").Where("username = ?", username).First(&admin).Error; err != nil {
+	if err := r.getDB(ctx).Preload("Roles").Preload("Roles.Buttons").Where("username = ?", username).First(&admin).Error; err != nil {
 		return nil, err
 	}
 	return &admin, nil
 }
 
 func (r *adminRepository) ExistsByUsername(ctx context.Context, username string, excludeID ...uint) (bool, error) {
-	query := r.db.WithContext(ctx).Model(&systemEntity.Admin{}).Where("username = ?", username)
+	query := r.getDB(ctx).Model(&systemEntity.Admin{}).Where("username = ?", username)
 	if len(excludeID) > 0 {
 		query = query.Where("id <> ?", excludeID[0])
 	}
@@ -104,10 +113,17 @@ func (r *adminRepository) ExistsByUsername(ctx context.Context, username string,
 }
 
 func (r *adminRepository) List(ctx context.Context, query *AdminRepoQuery) ([]systemEntity.Admin, int64, error) {
+	if query.Current <= 0 {
+		query.Current = 1
+	}
+	if query.Size <= 0 {
+		query.Size = entity.DefaultPageSize
+	}
+
 	var admins []systemEntity.Admin
 	var total int64
 
-	db := r.db.WithContext(ctx).Model(&systemEntity.Admin{})
+	db := r.getDB(ctx).Model(&systemEntity.Admin{})
 
 	if query.Username != "" {
 		db = db.Where("username LIKE ?", "%"+query.Username+"%")
@@ -144,80 +160,55 @@ func (r *adminRepository) List(ctx context.Context, query *AdminRepoQuery) ([]sy
 }
 
 func (r *adminRepository) Update(ctx context.Context, admin *systemEntity.Admin) error {
-	return r.db.WithContext(ctx).Save(admin).Error
+	return r.getDB(ctx).Save(admin).Error
 }
 
 func (r *adminRepository) UpdateLastLoginAt(ctx context.Context, id uint, lastLoginAt string) error {
-	return r.db.WithContext(ctx).Model(&systemEntity.Admin{}).
+	return r.getDB(ctx).Model(&systemEntity.Admin{}).
 		Where("id = ?", id).
 		UpdateColumn("last_login_at", lastLoginAt).Error
 }
 
 // IncrementTokenVersion 原子递增管理员 token_version（BUG #5）。
 func (r *adminRepository) IncrementTokenVersion(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Model(&systemEntity.Admin{}).
+	return r.getDB(ctx).Model(&systemEntity.Admin{}).
 		Where("id = ?", id).
 		UpdateColumn("token_version", gorm.Expr("token_version + ?", 1)).Error
 }
 
+// ClearRoles 清理 admin_user_roles 关联表中指定管理员的全部角色关联。
+// 用于 Service 层 TM 事务编排（Delete/DeleteBatch），支持 context 传播事务。
+// 使用原生 SQL 直接删除关联表行，避免加载实体再 Association().Clear() 的额外查询开销。
+func (r *adminRepository) ClearRoles(ctx context.Context, adminID uint) error {
+	return r.getDB(ctx).
+		Table("admin_user_roles").
+		Where("admin_user_id = ?", adminID).
+		Delete(nil).Error
+}
+
+// Delete 软删除管理员主数据。
+// 注意：本方法仅删除主数据，不再清理 admin_user_roles 关联表（清理职责已上移到 Service 层 TM 事务）。
+// Service 层 Delete/DeleteBatch 应在 TM 事务内先调 ClearRoles 再调 Delete，保证原子性。
 func (r *adminRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// 先清理 many2many 角色关联，避免关联表残留数据
-		var admin systemEntity.Admin
-		if err := tx.First(&admin, id).Error; err != nil {
-			return err
-		}
-		if err := tx.Model(&admin).Association("Roles").Clear(); err != nil {
-			return err
-		}
-		return tx.Delete(&systemEntity.Admin{}, id).Error
-	})
+	return r.getDB(ctx).Delete(&systemEntity.Admin{}, id).Error
 }
 
-// DeleteWithTokenInvalidation 单事务原子完成「清理角色关联 + 递增 token_version + 软删除」。
-//
-// 设计动机（与 user 侧对齐）：
-//   - 旧实现：invalidateAdminTokens（Inc）与 adminRepo.Delete 分离，Inc 成功+Delete 失败时
-//     版本号已变但账号还在，旧 token 立即失效但用户未被删（中间态）
-//   - 新实现：三步收敛到单事务，任一失败整体回滚，调用方据此实现 fail-closed
-//
-// 事务内顺序：清理角色关联 → 递增 token_version → 软删除。
-// 先 Inc 再 Delete 的好处：若 Delete 失败，版本号已递增使旧 token 失效（fail-safe）。
-func (r *adminRepository) DeleteWithTokenInvalidation(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// 1. 清理 many2many 角色关联（保留原 Delete 的事务行为）
-		var admin systemEntity.Admin
-		if err := tx.First(&admin, id).Error; err != nil {
-			return err
-		}
-		if err := tx.Model(&admin).Association("Roles").Clear(); err != nil {
-			return err
-		}
-		// 2. 递增 token_version（使旧 token 失效，纵深防御）
-		if err := tx.Model(&systemEntity.Admin{}).
-			Where("id = ?", id).
-			UpdateColumn("token_version", gorm.Expr("token_version + ?", 1)).Error; err != nil {
-			return err
-		}
-		// 3. 软删除管理员主数据
-		return tx.Delete(&systemEntity.Admin{}, id).Error
-	})
-}
-
+// UpdateRoles 替换管理员的角色关联。
+// 不再自管理事务：当 ctx 携带 TM 事务句柄时复用外层事务，否则走连接池。
+// 调用方（Service 层）需在需要原子性时自行用 TM 事务包裹。
 func (r *adminRepository) UpdateRoles(ctx context.Context, adminID uint, roleIDs []uint) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var admin systemEntity.Admin
-		if err := tx.First(&admin, adminID).Error; err != nil {
+	db := r.getDB(ctx)
+	var admin systemEntity.Admin
+	if err := db.First(&admin, adminID).Error; err != nil {
+		return err
+	}
+
+	var roles []systemEntity.Role
+	if len(roleIDs) > 0 {
+		if err := db.Find(&roles, roleIDs).Error; err != nil {
 			return err
 		}
+	}
 
-		var roles []systemEntity.Role
-		if len(roleIDs) > 0 {
-			if err := tx.Find(&roles, roleIDs).Error; err != nil {
-				return err
-			}
-		}
-
-		return tx.Model(&admin).Association("Roles").Replace(roles)
-	})
+	return db.Model(&admin).Association("Roles").Replace(roles)
 }

@@ -2,11 +2,17 @@ package system
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"log/slog"
 	"time"
+
+	"gorm.io/gorm"
 
 	systemDto "NetyAdmin/internal/interface/admin/dto/system"
 	systemEntity "NetyAdmin/internal/domain/entity/system"
 	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/errorx"
 	systemRepo "NetyAdmin/internal/repository/system"
 )
@@ -26,12 +32,14 @@ type ButtonService interface {
 type buttonService struct {
 	buttonRepo systemRepo.ButtonRepository
 	cacheMgr   cache.LazyCacheManager
+	tm         *database.TransactionManager
 }
 
-func NewButtonService(buttonRepo systemRepo.ButtonRepository, cacheMgr cache.LazyCacheManager) ButtonService {
+func NewButtonService(buttonRepo systemRepo.ButtonRepository, cacheMgr cache.LazyCacheManager, tm *database.TransactionManager) ButtonService {
 	return &buttonService{
 		buttonRepo: buttonRepo,
 		cacheMgr:   cacheMgr,
+		tm:         tm,
 	}
 }
 
@@ -67,7 +75,11 @@ func (s *buttonService) List(ctx context.Context, req *systemDto.ButtonQuery) ([
 func (s *buttonService) GetByID(ctx context.Context, id uint) (*systemDto.ButtonVO, error) {
 	button, err := s.buttonRepo.GetByID(ctx, id)
 	if err != nil {
-		return nil, errorx.New(errorx.CodeNotFound, "按钮不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errorx.New(errorx.CodeNotFound, "按钮不存在")
+		}
+		slog.Error("buttonRepo.GetByID failed", "buttonID", id, "err", err)
+		return nil, fmt.Errorf("buttonRepo.GetByID: %w", err)
 	}
 
 	return &systemDto.ButtonVO{
@@ -99,7 +111,9 @@ func (s *buttonService) Create(ctx context.Context, req *systemDto.CreateButtonR
 		return 0, err
 	}
 
-	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACMenu)
+	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACMenu); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagRBACMenu, "err", err)
+	}
 
 	return button.ID, nil
 }
@@ -107,7 +121,11 @@ func (s *buttonService) Create(ctx context.Context, req *systemDto.CreateButtonR
 func (s *buttonService) Update(ctx context.Context, req *systemDto.UpdateButtonReq) error {
 	button, err := s.buttonRepo.GetByID(ctx, req.ID)
 	if err != nil {
-		return errorx.New(errorx.CodeNotFound, "按钮不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errorx.New(errorx.CodeNotFound, "按钮不存在")
+		}
+		slog.Error("buttonRepo.GetByID failed", "buttonID", req.ID, "err", err)
+		return fmt.Errorf("buttonRepo.GetByID: %w", err)
 	}
 
 	if req.Code != "" && req.Code != button.Code {
@@ -126,17 +144,35 @@ func (s *buttonService) Update(ctx context.Context, req *systemDto.UpdateButtonR
 
 	err = s.buttonRepo.Update(ctx, button)
 	if err == nil {
-		_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACMenu, cache.TagRBACRole)
+		if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACMenu, cache.TagRBACRole); cErr != nil {
+			slog.Error("invalidate cache failed", "tag", cache.TagRBACMenu, "err", cErr)
+		}
 	}
 	return err
 }
 
 func (s *buttonService) Delete(ctx context.Context, id uint) error {
-	err := s.buttonRepo.Delete(ctx, id)
-	if err == nil {
-		_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACMenu, cache.TagRBACRole)
+	// TM 单事务原子完成「清理 admin_role_buttons 关联 + 硬删除 button」。
+	// 任一步失败整体回滚，避免「关联已清但 button 未删」或「button 已删但关联未清」的中间态。
+	txCtx, tx := s.tm.Begin(ctx)
+	if err := s.buttonRepo.ClearRoleButtons(txCtx, id); err != nil {
+		slog.Error("button delete: clear role buttons failed", "buttonID", id, "err", err)
+		s.tm.Rollback(tx)
+		return err
 	}
-	return err
+	if err := s.buttonRepo.Delete(txCtx, id); err != nil {
+		slog.Error("button delete: delete button failed", "buttonID", id, "err", err)
+		s.tm.Rollback(tx)
+		return err
+	}
+	if err := s.tm.Commit(tx); err != nil {
+		slog.Error("button delete: commit failed", "buttonID", id, "err", err)
+		return err
+	}
+	if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACMenu, cache.TagRBACRole); cErr != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagRBACMenu, "err", cErr)
+	}
+	return nil
 }
 
 func (s *buttonService) GetByMenuID(ctx context.Context, menuID uint) ([]*systemDto.ButtonVO, error) {

@@ -161,7 +161,7 @@ server/
         ├── log/                  # 日志服务
         ├── open_platform/        # 开放平台服务（AppService含GetAppStorageDriver）
         ├── storage/              # 存储服务（RecordService含应用存储配置解析）
-        └── system/               # 系统管理服务
+        └── system/               # 系统管理服务（含 CaptchaService 验证码生成/校验，位于 service/system/captcha.go）
 	```
 
 ### 2.1 核心依赖
@@ -263,9 +263,10 @@ NetyAdmin 使用 `TransactionManager`（TM）统一管理数据库事务。TM �
 │  TransactionManager（无状态单例，DI 复用）              │
 │                                                        │
 │  Begin(ctx) → (txCtx, tx)  开启事务，注入 context      │
-│  Commit(tx)  → 提交 + 执行 AfterCommit 钩子            │
+│  Commit(tx)  → 提交                                    │
 │  Rollback(tx) → 回滚                                   │
-│  AfterCommit(tx, func()) → 注册提交后回调              │
+│  WithTransaction(ctx, fn) → 闭包事务（推荐）            │
+│    自动处理 panic/error 路径的 Rollback                │
 └───────────────────────────────────────────────────────┘
                              │
                              ▼
@@ -281,6 +282,7 @@ NetyAdmin 使用 `TransactionManager`（TM）统一管理数据库事务。TM �
 | 规则 | 说明 |
 |------|------|
 | **Repository 不自管事务** | 禁止使用 `r.db.Transaction(func(tx){...})` 或 `r.db.WithContext(ctx).Transaction(...)` |
+| **Repository 不返回业务错误** | 禁止 `errorx.New(...)`，只返回原始 GORM 错误（如 `gorm.ErrRecordNotFound`）；业务错误码映射（`CodeNotFound`/`CodeInternalError` 等）由 Service 层通过 `errors.Is(err, gorm.ErrRecordNotFound)` 完成 |
 | **多步写操作必须用 TM** | 两个以上 repo 调用必须用 `tm.Begin → tm.Commit/Rollback` |
 | **所有 repo 调用传 txCtx** | 事务内的 repo 调用必须用 `txCtx`（Begin 返回的 context），不是原始 `ctx` |
 | **缓存失效在 Commit 之后** | 缓存失效 / 事件发布必须在 `tm.Commit()` 成功之后执行 |
@@ -401,7 +403,35 @@ type someService struct {
 }
 ```
 
-### 5.3 DTO/Entity 隔离规范
+### 5.3 可信代理配置（防止 IPAC 绕过）
+
+Gin 默认信任所有代理，`c.ClientIP()` 会取 `X-Forwarded-For` 头的第一个值。攻击者只需在请求头中伪造 `X-Forwarded-For: 1.2.3.4` 即可让 `c.ClientIP()` 返回伪造的 IP，从而绕过 IPAC 的 IP 黑 / 白名单。
+
+**强制要求**：server 启动时必须调用 `r.SetTrustedProxies(cfg.Server.TrustedProxies)` 配置可信代理。
+
+```go
+// cmd/server/main.go 或 app/init.go
+r := gin.New()
+r.SetTrustedProxies(cfg.Server.TrustedProxies)  // 必须在路由注册前调用
+```
+
+**配置项**（`config.toml`）：
+
+```toml
+[server]
+# 可信代理 IP/CIDR 列表，默认空数组 = 不信任任何代理
+trusted_proxies = []
+# 生产环境部署在 Nginx/CDN 后须填写真实代理 IP/CIDR，例如：
+# trusted_proxies = ["127.0.0.1", "10.0.0.0/8", "172.16.0.0/12"]
+```
+
+**行为**：
+
+- 默认空数组 `[]` = 不信任任何代理 → `c.ClientIP()` 回退到 `RemoteAddr`（TCP 真实源 IP）
+- 配置后，仅当请求直接来自可信代理 IP 时，才会解析 `X-Forwarded-For`；否则回退到 `RemoteAddr`
+- IPAC 中间件依赖 `c.ClientIP()` 取客户端 IP，必须保证此值可信
+
+### 5.4 DTO/Entity 隔离规范
 
 **为什么需要隔离？**
 - Handler 只做协议转换（参数绑定 + 调 Service + 统一响应），不应知道 entity 结构
@@ -541,9 +571,41 @@ func TestCode_Message(t *testing.T) {
 cd server
 go test ./...                          # 全部测试
 go test ./internal/pkg/errorx/... -v   # 指定包，详细输出
+go test ./internal/service/... -v      # 业务层测试（含 admin_auth / user_auth / menu / storage 等）
 ```
 
 参考实现：`internal/pkg/errorx/errorx_test.go`
+
+### 6.4 覆盖率门禁
+
+Service 层覆盖率门禁：**≥ 70%**。
+
+```bash
+cd server
+bash scripts/test-coverage.sh
+```
+
+脚本执行 `go test -coverprofile=cover.out -coverpkg=./... ./...`，生成：
+
+| 产物 | 说明 |
+|------|------|
+| `cover.out` | Go 覆盖率 profile，可被 coveralls / codecov 消费 |
+| `cover.html` | 可读 HTML 覆盖率报告，便于本地查看 |
+
+门禁规则：
+- Service 层（`internal/service/...`）平均覆盖率 **≥ 70%**，未达标脚本以非零退出码退出
+- 新增 Service 方法必须配套单元测试（参考 `admin_auth_test.go` / `user_auth_test.go` / `menu_test.go` / `record_test.go`）
+- Mock 策略：手写 mock 结构体实现接口（项目无 `testify/mock` 依赖）；TM 依赖场景用 sqlite in-memory 支撑 `Begin/Commit/Rollback`
+
+#### Repository 集成测试（TODO）
+
+当前基线仅覆盖 Service 层单元测试。Repository 集成测试基础设施（`testcontainers-go` + PostgreSQL）暂未引入，后续可按需补充：
+
+```
+TODO: 引入 github.com/testcontainers/testcontainers-go
+TODO: 封装 TestRepo helper：启动 PostgreSQL 容器 + AutoMigrate + 返回 *gorm.DB
+TODO: 至少 1 个 Repository 集成测试样例（如 repository/system/admin_test.go）
+```
 
 ---
 
@@ -597,3 +659,402 @@ swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal
 - [存储模块详解](./server-module-storage.md)
 - [日志模块详解](./server-module-log.md)
 - [数据迁移详解](./server-module-migration.md)
+
+---
+
+## 12-Factor 配置
+
+NetyAdmin 遵循 [12-Factor App](https://12factor.net/) 配置原则：**配置存储在环境变量中**，与代码分离，便于跨环境部署与密钥轮换。
+
+### 配置优先级
+
+加载顺序：**环境变量 > TOML > 零值**。
+
+`config.Load` 内部先用 TOML 反序列化 `config.toml`，再通过 `reflect` 遍历 `Config` 结构体，对带 `env:"NETYADMIN_XXX"` 标签的字段用环境变量覆盖。环境变量未设置时保留 TOML 值；显式设置为空字符串时覆盖为空（`os.LookupEnv` 语义）。
+
+> 仅叶子字段支持 env 覆盖；`map` 类型字段（如 `ignore_transactions`、`task.jobs`）不参与覆盖，仍由 TOML 配置。`[]string` 类型字段（如 `[cors].allowed_origins`）支持逗号分隔的 env 覆盖（空字符串 = 空切片，符合 fail-closed 语义）。
+
+### 支持环境变量覆盖的字段
+
+| 字段 | 环境变量 | 说明 |
+|------|---------|------|
+| `[server].port` | `NETYADMIN_SERVER_PORT` | HTTP 端口 |
+| `[server].mode` | `NETYADMIN_SERVER_MODE` | `debug` / `release`（生产） |
+| `[server].handler_timeout` | `NETYADMIN_SERVER_HANDLER_TIMEOUT` | 请求处理超时（http.TimeoutHandler），默认 25s，应略小于 read/write_timeout |
+| `[server].shutdown_timeout` | `NETYADMIN_SERVER_SHUTDOWN_TIMEOUT` | 优雅关闭超时（srv.Shutdown 等待时长），默认 30s |
+| `[database].host` | `NETYADMIN_DB_HOST` | PostgreSQL 主机 |
+| `[database].port` | `NETYADMIN_DB_PORT` | PostgreSQL 端口 |
+| `[database].user` | `NETYADMIN_DB_USER` | PostgreSQL 用户名 |
+| `[database].password` | `NETYADMIN_DB_PASSWORD` | PostgreSQL 密码（**敏感**） |
+| `[database].dbname` | `NETYADMIN_DB_NAME` | PostgreSQL 库名 |
+| `[database].sslmode` | `NETYADMIN_DB_SSLMODE` | SSL 模式 |
+| `[redis].host` | `NETYADMIN_REDIS_HOST` | Redis 主机 |
+| `[redis].port` | `NETYADMIN_REDIS_PORT` | Redis 端口 |
+| `[redis].password` | `NETYADMIN_REDIS_PASSWORD` | Redis 密码（**敏感**） |
+| `[jwt].secret` | `NETYADMIN_JWT_SECRET` | JWT 签名密钥（**敏感**） |
+| `[security].aes_key` | `NETYADMIN_AES_KEY` | AES 加解密密钥（**敏感**） |
+| `[email].password` | `NETYADMIN_EMAIL_PASSWORD` | SMTP 密码（**敏感**） |
+| `[sms].secret_id` | `NETYADMIN_SMS_SECRET_ID` | SMS SecretID（**敏感**） |
+| `[sms].secret_key` | `NETYADMIN_SMS_SECRET_KEY` | SMS SecretKey（**敏感**） |
+| `[bus].driver` | `NETYADMIN_BUS_DRIVER` | 事件总线驱动（`redis` / `memory`） |
+| `[sentry].dsn` | `NETYADMIN_SENTRY_DSN` | Sentry DSN |
+| `[sentry].environment` | `NETYADMIN_SENTRY_ENVIRONMENT` | Sentry 环境标识 |
+| `[sentry].release` | `NETYADMIN_SENTRY_RELEASE` | Sentry 版本号 |
+| `[cors].allowed_origins` | `NETYADMIN_CORS_ALLOWED_ORIGINS` | CORS 白名单（逗号分隔） |
+| `[security_headers].csp` | `NETYADMIN_SECURITY_HEADERS_CSP` | Content-Security-Policy 头内容 |
+
+### 仓库配置文件
+
+- 仓库提交的配置文件为 **`server/config.example.toml`**（模板），所有敏感值已替换为 `<CHANGE_ME_IN_PRODUCTION>` 占位符。
+- **运行时不直接读取 `config.example.toml`**：部署时需先复制为 `config.toml` 并填入真实值，或仅通过环境变量覆盖。
+- 复制命令：
+  ```bash
+  cp server/config.example.toml server/config.toml
+  ```
+- 本地开发：直接编辑 `config.toml`（建议加入 `.gitignore`，避免误提交真实密钥）。
+- 容器化部署：仅注入环境变量，`config.toml` 可保留占位符（启动期 `ValidateConfig` 会校验最终值）。
+
+### 启动期强校验（`ValidateConfig`）
+
+`cmd/server/main.go` 在 `config.Load` 之后、`InitDB` 之前调用 `config.ValidateConfig(cfg)`：
+
+- `mode == "debug"` 时**跳过**校验（开发环境允许使用默认值便于快速启动）。
+- `mode != "debug"`（生产 / 预发布）时，以下字段不得为默认值或 `<CHANGE_ME_IN_PRODUCTION>` 占位符，否则 `log.Fatal` 拒绝启动：
+
+  | 字段 | 禁止值 |
+  |------|--------|
+  | `[database].password` | `123456` / `<CHANGE_ME_IN_PRODUCTION>` |
+  | `[jwt].secret` | `your-secret-key-change-in-production` / `<CHANGE_ME_IN_PRODUCTION>` |
+  | `[security].aes_key` | `netyadmin-aes-key-32-chars-long!` / `<CHANGE_ME_IN_PRODUCTION>` |
+  | `[email].password`（仅 `email.enabled = true`） | `your-password` / `<CHANGE_ME_IN_PRODUCTION>` |
+
+### 生产部署 Checklist
+
+1. `cp config.example.toml config.toml`，或仅依赖环境变量（推荐）。
+2. 设置 `[server].mode = "release"`（或 `NETYADMIN_SERVER_MODE=release`）。
+3. 通过环境变量注入所有敏感值：
+   ```bash
+   export NETYADMIN_DB_PASSWORD='强密码'
+   export NETYADMIN_JWT_SECRET='随机32字节密钥'
+   export NETYADMIN_AES_KEY='随机32字节密钥'
+   export NETYADMIN_REDIS_PASSWORD='Redis密码'
+   export NETYADMIN_EMAIL_PASSWORD='SMTP密码'      # 若启用邮件
+   export NETYADMIN_SMS_SECRET_ID='SMS SecretID'   # 若启用短信
+   export NETYADMIN_SMS_SECRET_KEY='SMS SecretKey'
+   ```
+4. 启动服务：`./server`。若任一敏感值仍为占位符，进程会 `log.Fatal` 退出。
+5. 验证：日志中出现「服务器启动」即表示配置校验通过。
+
+---
+
+## CORS 跨域配置
+
+NetyAdmin 通过 `[cors]` 配置项实现 **Origin 白名单** 跨域策略，使用 `github.com/gin-contrib/cors` 实现。
+
+### 配置项
+
+```toml
+[cors]
+# 允许跨域的来源白名单（精确匹配，不支持通配符）
+# 空数组 = 拒绝所有跨域请求（fail-closed）
+allowed_origins = ["http://localhost:5173"]
+```
+
+环境变量覆盖：
+
+```bash
+export NETYADMIN_CORS_ALLOWED_ORIGINS='https://admin.example.com,https://app.example.com'
+```
+
+### 安全策略
+
+- **精确匹配白名单**：原 `AllowOriginFunc: func(origin string) bool { return true }` 的反射行为已废弃，存在 CSRF 与 Cookie 泄露风险（任意站点可携带 Cookie 访问后端 API）。
+- **空白名单 fail-closed**：未配置 `allowed_origins` 时拒绝所有跨域请求，强制运维显式列出可信来源。
+- **AllowCredentials: true**：仅对白名单内的 Origin 生效，允许携带 Cookie。该字段不能与 `AllowAllOrigins=true` 同时使用（库会 panic），改用 `AllowOriginFunc` 做白名单校验是库官方推荐的安全等价表达。
+- **MaxAge = 24h**：预检结果缓存 24 小时，减少 OPTIONS 请求频率。
+- **AllowMethods / AllowHeaders**：覆盖 RESTful 全部写读语义，与原自研实现保持一致。
+
+### 中间件链顺序
+
+```
+RequestID → CORS → SecurityHeaders → Recovery → sentrygin → ...
+```
+
+参见 [RULES.md §六](../RULES.md) 中间件链顺序。
+
+---
+
+## 安全响应头（Security Headers）
+
+NetyAdmin 通过 `middleware.SecurityHeaders` 中间件设置一组安全响应头，缓解常见的 Web 攻击向量。
+
+### 配置项
+
+```toml
+[security_headers]
+# Content-Security-Policy 头内容（为空时不设置该头）
+csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+```
+
+环境变量覆盖：
+
+```bash
+export NETYADMIN_SECURITY_HEADERS_CSP="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+```
+
+### 响应头清单
+
+| 响应头 | 值 | 说明 |
+|--------|-----|------|
+| `X-Content-Type-Options` | `nosniff` | 防 MIME 嗅探 |
+| `X-Frame-Options` | `DENY` | 防点击劫持（同源 deny） |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | 控制 Referer 头泄露 |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` | HSTS，仅 HTTPS 时下发，强制浏览器 1 年内使用 HTTPS |
+| `Content-Security-Policy` | 可配置（默认 `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'`） | CSP 防 XSS 注入 |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` | 禁用敏感浏览器能力 |
+
+### 设计要点
+
+- **HSTS 仅 HTTPS 下发**：`Strict-Transport-Security` 仅在 `c.Request.TLS != nil` 时设置，避免 HTTP 降级场景下被中间人拦截后变成不可逆的 HSTS 锁定。若部署在反向代理后由代理终止 TLS，需确保代理正确转发 `X-Forwarded-Proto` 并由 Gin 信任该代理（参见 [server].trusted_proxies）。
+- **CSP 可配置**：默认值允许同源脚本与样式（`'unsafe-inline'` 用于 Vue 注入的内联样式）。生产环境建议进一步收紧：移除 `'unsafe-inline'`，改用 nonce 或 hash。`csp` 为空时不设置该头，保持向后兼容性。
+- **已移除 X-XSS-Protection**：现代浏览器（Chrome 78+ / Edge / Firefox）已弃用并移除该过滤器，启用反而可能引入 XSS 攻击面（参见 [MDN](https://developer.mozilla.org/docs/Web/HTTP/Headers/X-XSS-Protection)）。防御 XSS 应使用 Content-Security-Policy。
+
+---
+
+## 优雅关闭（Graceful Shutdown）
+
+NetyAdmin 实现了多阶段优雅关闭流程，确保在收到 `SIGINT` / `SIGTERM` 信号后，在途请求能被处理完成、内部缓冲能被刷盘、数据库连接能被正确释放，避免数据丢失与半完成状态。
+
+### 关闭序列
+
+```
+SIGINT / SIGTERM
+       │
+       ▼
+1. 活跃事务检查（slog.Error 告警）
+       │
+       ▼
+2. srv.Shutdown(ctx)        ← 等待在途 HTTP 请求完成（最多 ShutdownTimeout）
+       │
+       ▼
+3. dbHealthChecker.Stop()  ← 停止健康检查探活
+       │
+       ▼
+4. taskManager.Stop()       ← 停止 cron 调度 + 等待 worker 退出（5s drain 超时）
+       │
+       ▼
+5. logBus.Stop()            ← flush 所有日志桶到 DB（5s drain 超时）
+       │
+       ▼
+6. eventBus.Close()        ← 关闭 Redis 订阅 goroutine
+       │
+       ▼
+7. sqlDB.Close()            ← 关闭数据库连接池（必须在 task/logBus drain 之后）
+       │
+       ▼
+8. Sentry.Flush(2s)        ← 刷盘未发送的 Sentry 事件
+       │
+       ▼
+进程退出
+```
+
+### 配置项
+
+```toml
+[server]
+# 优雅关闭超时（srv.Shutdown 等待在途请求的最大时长）。
+# 零值 = 默认 30s。环境变量：NETYADMIN_SERVER_SHUTDOWN_TIMEOUT
+shutdown_timeout = "30s"
+```
+
+环境变量覆盖：
+
+```bash
+export NETYADMIN_SERVER_SHUTDOWN_TIMEOUT=45s
+```
+
+### 关键设计要点
+
+#### 1. 活跃事务计数器（TM ActiveTransactions）
+
+`TransactionManager` 内部维护一个 `atomic.Int64` 活跃事务计数器：
+
+- `Begin()` 递增
+- `Commit()` / `Rollback()` 递减
+- `ActiveTransactions() int64` 公开查询接口
+
+优雅关闭时若 `ActiveTransactions() > 0`，会 `slog.Error` 告警并记录数量。这些未提交事务在 `srv.Shutdown` 等待在途请求退出时可能被强制中断，导致数据丢失。运维人员应关注此告警，排查是否有长事务阻塞或事务未正确 Commit/Rollback。
+
+```go
+// internal/pkg/database/tx_manager.go
+type TransactionManager struct {
+    db            *gorm.DB
+    activeTxCount atomic.Int64
+}
+
+func (tm *TransactionManager) Begin(ctx context.Context) (context.Context, *Tx) {
+    db := tm.db.WithContext(ctx).Begin()
+    tx := &Tx{DB: db}
+    tm.activeTxCount.Add(1)  // 递增
+    return context.WithValue(ctx, TxKey, tx), tx
+}
+
+func (tm *TransactionManager) ActiveTransactions() int64 {
+    return tm.activeTxCount.Load()
+}
+```
+
+#### 2. drain 超时保护（5s）
+
+`taskManager.Stop()` 和 `logBus.Stop()` 内部都用 `wg.Wait()` 等待 worker 退出。若 worker 卡死（如外部依赖故障），会导致整个关闭流程卡死，最终被 K8s / systemd 的 `SIGKILL` 强杀。
+
+`app.go` 用 `stopWithTimeout` 包装这两个调用，最多等待 5s：
+
+```go
+func (a *App) stopWithTimeout(name string, stopFn func()) {
+    done := make(chan struct{})
+    go func() {
+        defer func() {
+            if r := recover(); r != nil {
+                slog.Error("drain panic", "component", name, "panic", r)
+            }
+            close(done)
+        }()
+        stopFn()
+    }()
+    select {
+    case <-done:
+        slog.Info("drain 完成", "component", name)
+    case <-time.After(drainTimeout):  // 5s
+        slog.Warn("drain 超时，放弃等待（进程退出时由 OS 回收 goroutine）",
+            "component", name, "timeout", drainTimeout)
+    }
+}
+```
+
+超时后仅 `slog.Warn` 告警并继续后续关闭步骤，不阻塞进程退出。仍在执行的 goroutine 由 OS 在进程退出时回收。
+
+#### 3. 数据库连接池关闭时机
+
+`sqlDB.Close()` 必须在 `taskManager.Stop()` 和 `logBus.Stop()` 完成之后执行。原因：
+
+- **taskManager 的 cron / interval 任务**可能在退出前最后执行一次，需要 DB 连接
+- **logBus 的 flush worker** 需要把缓冲的日志批量写入 DB
+
+若先关闭连接池，这些 drain 操作会因连接已关闭而失败，导致任务数据丢失或日志未刷盘。
+
+```go
+// 4. taskManager + logBus drain（带 5s 超时）
+a.stopWithTimeout("taskManager", a.taskManager.Stop)
+a.stopWithTimeout("logBus", a.logBus.Stop)
+
+// 5. eventBus 关闭
+_ = a.eventBus.Close()
+
+// 6. 关闭数据库连接池（必须在 drain 之后）
+if sqlDB, err := a.db.DB(); err == nil && sqlDB != nil {
+    if err := sqlDB.Close(); err != nil {
+        slog.Warn("关闭数据库连接池失败", "error", err)
+    }
+}
+```
+
+### 运维观测建议
+
+- **`active_transactions > 0` 告警**：优雅关闭时有未提交事务，应排查长事务
+- **`drain 超时` 告警**：taskManager / logBus drain 超过 5s 未完成，应排查 worker 卡死原因
+- **`ShutdownTimeout` 调优**：若在途请求量大，可适当调大（如 60s）；若需要快速重启，可调小（如 10s）
+
+---
+
+## Timeout 中间件返回 503
+
+NetyAdmin 用 `http.TimeoutHandler` 包装 gin engine，当请求处理超过阈值时返回 HTTP 503 + JSON 错误体，而非依赖连接层超时（客户端会收到空响应或连接重置）。
+
+### 配置项
+
+```toml
+[server]
+# 请求处理超时（http.TimeoutHandler 包装 engine）。
+# 应略小于 read_timeout / write_timeout，确保超时时由中间件返回 503 + JSON 错误体，
+# 而非连接层超时断开（客户端收到空响应 / 连接重置）。
+# 零值 = 默认 25s。环境变量：NETYADMIN_SERVER_HANDLER_TIMEOUT
+handler_timeout = "25s"
+read_timeout = 120
+write_timeout = 120
+```
+
+环境变量覆盖：
+
+```bash
+export NETYADMIN_SERVER_HANDLER_TIMEOUT=20s
+```
+
+### 超时响应
+
+超时时返回：
+
+```
+HTTP/1.1 503 Service Unavailable
+Content-Type: text/plain; charset=utf-8
+X-Content-Type-Options: nosniff
+
+{"code":"100011","msg":"请求超时"}
+```
+
+> 注：`http.TimeoutHandler` 由 stdlib 实现，固定设置 `Content-Type: text/plain`，无法自定义 header。客户端应按 body 内容（JSON 字符串）解析，而非依赖 content-type。
+
+### 与原 context.WithTimeout 中间件的区别
+
+| 项 | 原实现（context.WithTimeout） | 新实现（http.TimeoutHandler） |
+|---|---|---|
+| **超时后行为** | 仅向 ctx 注入 deadline，不拦截响应 | 在新 goroutine 执行底层 handler，超时主动写入 503 + body |
+| **客户端收到** | 空响应 / 连接重置（连接层超时断开） | 503 + `{"code":"100011","msg":"请求超时"}` |
+| **handler 是否感知** | 是（ctx.Done() 触发） | 否（底层 handler 在新 goroutine 继续执行，结果被丢弃） |
+| **可观测性** | 客户端无法区分「服务挂了」与「请求超时」 | 客户端可明确识别为请求超时 |
+
+### 与 ReadTimeout / WriteTimeout 的协调
+
+`handler_timeout` 应略小于 `read_timeout` / `write_timeout`，确保：
+
+1. `http.TimeoutHandler` 先于连接层超时触发
+2. 503 错误体能完整写入响应（在连接断开之前）
+3. 客户端收到结构化错误体而非空响应
+
+默认值：`handler_timeout = 25s` < `read_timeout = write_timeout = 120s`，留有 95s 余量。
+
+### 包装位置
+
+`http.TimeoutHandler` 包装整个 gin engine，而非作为 gin 中间件。原因：
+
+- gin 中间件无法主动终止已开始的 handler chain（`c.Next()` 后无法回滚）
+- `http.TimeoutHandler` 在 stdlib 层用新 goroutine 隔离执行，超时时由 stdlib 主动写入响应
+
+```go
+// internal/app/app.go
+wrappedHandler := middleware.WrapWithTimeout(a.engine, handlerTimeout)
+
+srv := &http.Server{
+    Handler: wrappedHandler,  // 包装后的 handler
+    ...
+}
+```
+
+```go
+// internal/middleware/timeout.go
+func WrapWithTimeout(handler http.Handler, timeout time.Duration) http.Handler {
+    if timeout <= 0 {
+        return handler  // 零值不启用超时
+    }
+    return http.TimeoutHandler(handler, timeout, TimedOutBody)
+}
+```
+
+### 关于错误码 100011
+
+`errorx.CodeRequestTimeout`（100011，"请求超时"）专用于 `http.TimeoutHandler` 触发的请求处理超时响应，与限流码 `CodeTooManyRequest`（100006，"请求过于频繁"）数值解耦：
+
+- **限流路径**：`CodeTooManyRequest` (100006) + msg "请求过于频繁"，HTTP 429
+- **超时路径**：`CodeRequestTimeout` (100011) + msg "请求超时"，HTTP 503
+
+客户端可仅凭 `code` 字段区分两种语义（限流 vs 超时），无需依赖 HTTP 状态码或 msg 文案。详见 `docs/status-codes.md` 4.1 节。

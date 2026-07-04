@@ -1,13 +1,19 @@
-package content
+package admin
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"log/slog"
 	"time"
+
+	"gorm.io/gorm"
 
 	contentEntity "NetyAdmin/internal/domain/entity/content"
 	contentDto "NetyAdmin/internal/interface/admin/dto/content"
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/configsync"
+	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/errorx"
 	contentRepo "NetyAdmin/internal/repository/content"
 	storageService "NetyAdmin/internal/service/storage"
@@ -26,17 +32,21 @@ type BannerGroupService interface {
 
 type bannerGroupService struct {
 	repo           contentRepo.ContentBannerGroupRepository
+	bannerItemRepo contentRepo.ContentBannerItemRepository
 	storageService storageService.ConfigService
 	cache          cache.LazyCacheManager
 	watcher        configsync.ConfigWatcher
+	tm             *database.TransactionManager
 }
 
-func NewBannerGroupService(repo contentRepo.ContentBannerGroupRepository, storageService storageService.ConfigService, cache cache.LazyCacheManager, watcher configsync.ConfigWatcher) BannerGroupService {
+func NewBannerGroupService(repo contentRepo.ContentBannerGroupRepository, bannerItemRepo contentRepo.ContentBannerItemRepository, storageService storageService.ConfigService, cache cache.LazyCacheManager, watcher configsync.ConfigWatcher, tm *database.TransactionManager) BannerGroupService {
 	return &bannerGroupService{
 		repo:           repo,
+		bannerItemRepo: bannerItemRepo,
 		storageService: storageService,
 		cache:          cache,
 		watcher:        watcher,
+		tm:             tm,
 	}
 }
 
@@ -62,7 +72,11 @@ func (s *bannerGroupService) Create(ctx context.Context, adminID uint, req *cont
 	if req.StorageConfigID != nil && *req.StorageConfigID > 0 {
 		_, err := s.storageService.GetByID(ctx, *req.StorageConfigID)
 		if err != nil {
-			return nil, errorx.New(errorx.CodeNotFound, "存储配置不存在")
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, errorx.New(errorx.CodeNotFound, "存储配置不存在")
+			}
+			slog.Error("storageService.GetByID failed", "storageConfigID", *req.StorageConfigID, "err", err)
+			return nil, fmt.Errorf("storageService.GetByID: %w", err)
 		}
 	}
 
@@ -103,7 +117,9 @@ func (s *bannerGroupService) Create(ctx context.Context, adminID uint, req *cont
 		return nil, err
 	}
 
-	_ = s.cache.InvalidateByTags(ctx, cache.TagContentBanner)
+	if err := s.cache.InvalidateByTags(ctx, cache.TagContentBanner); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagContentBanner, "err", err)
+	}
 
 	return group, nil
 }
@@ -159,7 +175,11 @@ func (s *bannerGroupService) Update(ctx context.Context, adminID uint, id uint, 
 		if *req.StorageConfigID > 0 {
 			_, err := s.storageService.GetByID(ctx, *req.StorageConfigID)
 			if err != nil {
-				return nil, errorx.New(errorx.CodeNotFound, "存储配置不存在")
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return nil, errorx.New(errorx.CodeNotFound, "存储配置不存在")
+				}
+				slog.Error("storageService.GetByID failed", "storageConfigID", *req.StorageConfigID, "err", err)
+				return nil, fmt.Errorf("storageService.GetByID: %w", err)
 			}
 		}
 		group.StorageConfigID = req.StorageConfigID
@@ -178,25 +198,43 @@ func (s *bannerGroupService) Update(ctx context.Context, adminID uint, id uint, 
 		return nil, err
 	}
 
-	_ = s.cache.InvalidateByTags(ctx, cache.TagContentBanner)
+	if err := s.cache.InvalidateByTags(ctx, cache.TagContentBanner); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagContentBanner, "err", err)
+	}
 
 	return group, nil
 }
 
 func (s *bannerGroupService) Delete(ctx context.Context, id uint) error {
-	hasBanners, err := s.repo.HasBanners(ctx, id)
+	// TM 单事务原子完成「前置校验 + 硬删除」。
+	// 避免 TOCTOU 竞态：检查与删除之间被并发请求插入 Banner 项。
+	txCtx, tx := s.tm.Begin(ctx)
+
+	itemCount, err := s.bannerItemRepo.CountByGroupID(txCtx, id)
 	if err != nil {
-		return err
+		slog.Error("banner group delete: count items failed", "groupID", id, "err", err)
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeInternalError, "查询 Banner 项失败")
 	}
-	if hasBanners {
-		return errorx.New(errorx.CodeBadRequest, "该Banner组下存在Banner项，无法删除")
+	if itemCount > 0 {
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeBannerGroupHasItems)
 	}
 
-	if err := s.repo.Delete(ctx, id); err != nil {
-		return err
+	if err := s.repo.Delete(txCtx, id); err != nil {
+		slog.Error("banner group delete: delete failed", "groupID", id, "err", err)
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeInternalError, "Banner 组删除失败")
 	}
 
-	_ = s.cache.InvalidateByTags(ctx, cache.TagContentBanner)
+	if err := s.tm.Commit(tx); err != nil {
+		slog.Error("banner group delete: commit failed", "groupID", id, "err", err)
+		return errorx.New(errorx.CodeInternalError, "事务提交失败")
+	}
+
+	if err := s.cache.InvalidateByTags(ctx, cache.TagContentBanner); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagContentBanner, "err", err)
+	}
 	return nil
 }
 

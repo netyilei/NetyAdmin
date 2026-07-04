@@ -23,7 +23,7 @@ const (
 )
 
 type ContentArticle struct {
-	entity.Model
+	entity.HardModel
 	entity.Operator
 	CategoryID    uint          `gorm:"column:category_id;not null;comment:分类ID" json:"categoryId"`
 	Title         string        `gorm:"column:title;type:varchar(200);not null;comment:文章标题" json:"title"`

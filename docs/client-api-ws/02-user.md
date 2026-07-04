@@ -152,13 +152,18 @@ POST /client/v1/user/login
 | code | 说明 |
 |------|------|
 | `100001` | 参数校验失败 |
+| `100006` | 请求过于频繁（IP 维度限流，HTTP 429） |
 | `100009` | 验证码错误 |
 | `100010` | 验证码必填（启用了验证码但未提供） |
-| `101001` | 用户不存在 |
-| `101002` | 用户已禁用 |
-| `101003` | 密码错误 |
+| `101001` | 用户不存在（msg 统一为「用户名或密码错误」） |
+| `101002` | 用户已禁用（msg 统一为「用户名或密码错误」） |
+| `101003` | 密码错误（msg 统一为「用户名或密码错误」） |
 | `101007` | 账户已锁定（密码错误次数过多） |
 | `101009` | 密码强度不足 |
+
+> **安全说明**：
+> - **IP 维度限流**（Task 3）：单 IP 在 `[login_ratelimit].window`（默认 1 分钟）内最多 `[login_ratelimit].max`（默认 10）次 Login / RefreshToken 请求，超限返回 `100006`（请求过于频繁，HTTP 429）；与 per-account 锁定独立，针对单 IP 撞库场景
+> - **Login 失败文案统一**（Task 3.4）：为消除用户名枚举，`101001` / `101002` / `101003` 在 Login 路径统一返回 msg「用户名或密码错误」，前端不应据 msg 区分用户不存在 / 已禁用 / 密码错误
 
 ---
 
@@ -172,7 +177,17 @@ POST /client/v1/user/refresh-token
 
 **权限**：开放平台签名
 
-**请求参数**（Query）：
+> **⚠️ BREAKING 变更（2026-07-05）**：
+> 此接口从 URL query `?refreshToken=xxx` 改为 JSON body `{"refreshToken":"xxx"}` 传递。
+> 旧版前端需同步调整，避免 refresh token 泄露到 access log / URL / 浏览器历史。
+
+**请求头**：
+
+| Header | 必填 | 说明 |
+|--------|------|------|
+| `Content-Type` | 是 | `application/json` |
+
+**请求参数**（JSON Body）：
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
@@ -180,8 +195,13 @@ POST /client/v1/user/refresh-token
 
 **请求示例**：
 
-```
-POST /client/v1/user/refresh-token?refreshToken=eyJhbGciOiJIUzI1NiIs...
+```http
+POST /client/v1/user/refresh-token
+Content-Type: application/json
+
+{
+  "refreshToken": "eyJhbGciOiJIUzI1NiIs..."
+}
 ```
 
 **响应示例**：
@@ -210,7 +230,7 @@ POST /client/v1/user/refresh-token?refreshToken=eyJhbGciOiJIUzI1NiIs...
 
 | code | 说明 |
 |------|------|
-| `100001` | 缺少刷新令牌 |
+| `100001` | 缺少刷新令牌（body 未提供 `refreshToken` 或为空字符串） |
 | `101005` | 令牌已过期 |
 | `101006` | 令牌无效 |
 
@@ -333,8 +353,12 @@ PUT /client/v1/user/profile
 | nickName | string | 否 | 昵称 |
 | avatar | string | 否 | 头像 URL |
 | gender | string | 否 | 性别：`0` / `1` / `2` |
-| email | string | 否 | 邮箱（格式校验，最大 100 字符） |
-| phone | string | 否 | 手机号 |
+| email | string | 否 | 邮箱（格式校验，最大 100 字符；修改时需配合 `emailCode`） |
+| phone | string | 否 | 手机号（修改时需配合 `phoneCode`） |
+| emailCode | string | 条件必填 | 邮箱验证码（修改 `email` 时必填，需先调 `POST /client/v1/auth/send-code` 发送邮箱验证码） |
+| phoneCode | string | 条件必填 | 手机验证码（修改 `phone` 时必填，需先调 `POST /client/v1/auth/send-code` 发送短信验证码） |
+
+> **安全说明**：修改 `email` / `phone` 必须提供对应渠道的验证码，确保新联系方式归属当前用户。仅修改 `nickName` / `avatar` / `gender` 无需验证码。
 
 **请求示例**：
 
@@ -571,13 +595,22 @@ POST /client/v1/user/upload-record
 
 ## 十二、退出登录
 
-使当前 Token 失效，退出登录状态。
+使当前 access token 失效，并将 refresh token 加入黑名单，退出登录状态。
 
 ```
 POST /client/v1/user/logout
 ```
 
 **权限**：开放平台签名 + 用户 JWT
+
+**请求头**：
+
+| Header | 必填 | 说明 |
+|--------|------|------|
+| `Authorization` | 是 | `Bearer <accessToken>` |
+| `X-Refresh-Token` | 是 | 当前用户的 refresh token。服务端会将其加入黑名单（TTL = 剩余有效期），避免登出后 refresh token 仍可换发新 access token。 |
+
+> **强制要求**：`X-Refresh-Token` 为必填项。缺失或为空字符串时接口返回 `100001`（缺少刷新令牌），拒绝执行登出。这确保登出操作能完整失效 refresh token，避免登出后 refresh token 仍可换发新 access token 的安全风险。
 
 **请求参数**：无
 
@@ -591,8 +624,13 @@ POST /client/v1/user/logout
 }
 ```
 
+> **说明**：退出登录后：
+> - 当前 access token 立即失效。
+> - refresh token 会写入黑名单（TTL = 剩余有效期），后续刷新令牌请求会被拒绝。
+
 **可能错误码**：
 
 | code | 说明 |
 |------|------|
+| `100001` | 参数错误（缺少 `X-Refresh-Token` header 或为空，msg 为「缺少刷新令牌」） |
 | `100002` | 未授权 |

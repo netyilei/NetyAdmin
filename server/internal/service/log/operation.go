@@ -4,11 +4,12 @@ import (
 	"context"
 
 	logVO "NetyAdmin/internal/domain/vo/log"
+	logDto "NetyAdmin/internal/interface/admin/dto/log"
 	logRepo "NetyAdmin/internal/repository/log"
 )
 
 type OperationService interface {
-	List(ctx context.Context, req *logRepo.OperationQuery) (*logVO.OperationListVO, error)
+	List(ctx context.Context, req *logDto.OperationQueryReq) (*logVO.OperationListVO, error)
 	Delete(ctx context.Context, id uint) error
 	DeleteBatch(ctx context.Context, ids []uint) error
 }
@@ -21,8 +22,17 @@ func NewOperationService(logRepo *logRepo.OperationRepository) OperationService 
 	return &operationService{logRepo: logRepo}
 }
 
-func (s *operationService) List(ctx context.Context, req *logRepo.OperationQuery) (*logVO.OperationListVO, error) {
-	logs, total, err := s.logRepo.List(ctx, req)
+func (s *operationService) List(ctx context.Context, req *logDto.OperationQueryReq) (*logVO.OperationListVO, error) {
+	// service 层接收 admin DTO，内部构造 repository query（spec B10：service 不应依赖 handler 构造的 repo 类型）
+	repoQuery := &logRepo.OperationQuery{
+		AdminID:   req.AdminID,
+		Action:    req.Action,
+		StartDate: req.StartDate,
+		EndDate:   req.EndDate,
+		Page:      req.Current,
+		PageSize:  req.Size,
+	}
+	logs, total, err := s.logRepo.List(ctx, repoQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -44,8 +54,8 @@ func (s *operationService) List(ctx context.Context, req *logRepo.OperationQuery
 
 	return &logVO.OperationListVO{
 		Records: list,
-		Current: req.Page,
-		Size:    req.PageSize,
+		Current: req.Current,
+		Size:    req.Size,
 		Total:   total,
 	}, nil
 }

@@ -7,11 +7,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	openEntity "NetyAdmin/internal/domain/entity/open_platform"
-	storageEntity "NetyAdmin/internal/domain/entity/storage"
 	userVO "NetyAdmin/internal/domain/vo/user"
 	clientDto "NetyAdmin/internal/interface/client/dto/v1"
-	storageDto "NetyAdmin/internal/interface/admin/dto/storage"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
 	storagePkg "NetyAdmin/internal/pkg/storage"
@@ -20,11 +17,11 @@ import (
 )
 
 type UserHandler struct {
-	userSvc   userSvcPkg.UserService
+	userSvc   userSvcPkg.UserClientService
 	recordSvc storageService.RecordService
 }
 
-func NewUserHandler(userSvc userSvcPkg.UserService, recordSvc storageService.RecordService) *UserHandler {
+func NewUserHandler(userSvc userSvcPkg.UserClientService, recordSvc storageService.RecordService) *UserHandler {
 	return &UserHandler{
 		userSvc:   userSvc,
 		recordSvc: recordSvc,
@@ -108,11 +105,11 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 
 // UpdateProfile 更新个人资料
 // @Summary      更新个人资料
-// @Description  更新当前登录用户的个人资料信息
+// @Description  更新当前登录用户的个人资料信息；变更邮箱需提供 emailCode、变更手机需提供 phoneCode 验证码
 // @Tags         客户端-用户
 // @Accept       json
 // @Produce      json
-// @Param        req body clientDto.UserUpdateProfileReq true "更新个人资料请求"
+// @Param        req body clientDto.UserUpdateProfileReq true "更新个人资料请求（emailCode/phoneCode 分别为邮箱/手机变更验证码）"
 // @Success      200 {object} response.Response "操作成功"
 // @Router       /client/v1/user/profile [put]
 func (h *UserHandler) UpdateProfile(c *gin.Context) {
@@ -237,17 +234,21 @@ func (h *UserHandler) GetUploadToken(c *gin.Context) {
 		fileName = fmt.Sprintf("upload-%d.bin", time.Now().UnixNano())
 	}
 
+	// 从 gin context 读取基础类型值，避免在 handler 层做 entity 类型断言
 	var appKey string
 	var configID uint
-	if appObj, exists := c.Get("currentOpenApp"); exists {
-		app, ok := appObj.(*openEntity.App)
-		if ok {
-			appKey = app.AppKey
-			configID = app.StorageID
+	if appKeyVal, exists := c.Get("currentAppKey"); exists {
+		if v, ok := appKeyVal.(string); ok {
+			appKey = v
+		}
+	}
+	if storageIDVal, exists := c.Get("currentAppStorageID"); exists {
+		if v, ok := storageIDVal.(uint); ok {
+			configID = v
 		}
 	}
 
-	credReq := &storageDto.GetCredentialsReq{
+	credReq := &storageService.CredentialsRequest{
 		ConfigID:     configID,
 		FileName:     fileName,
 		ContentType:  c.Query("contentType"),
@@ -255,7 +256,7 @@ func (h *UserHandler) GetUploadToken(c *gin.Context) {
 		BusinessID:   c.Query("businessId"),
 	}
 
-	cred, err := h.recordSvc.GetUploadCredentials(c.Request.Context(), credReq, appKey, storageEntity.UploadSourceUser, userID)
+	cred, err := h.recordSvc.GetUploadCredentials(c.Request.Context(), credReq, appKey, string(clientDto.UploadSourceUser), userID)
 	if err != nil {
 		response.Fail(c, err)
 		return
@@ -306,10 +307,11 @@ func (h *UserHandler) RecordUpload(c *gin.Context) {
 
 // Logout 退出登录
 // @Summary      退出登录
-// @Description  当前登录用户退出登录并失效令牌
+// @Description  当前登录用户退出登录并失效令牌（同时将 refresh token 加入黑名单）
 // @Tags         客户端-用户
 // @Accept       json
 // @Produce      json
+// @Param        X-Refresh-Token header string true "刷新令牌（必填，用于加入黑名单）"
 // @Success      200 {object} response.Response "操作成功"
 // @Router       /client/v1/user/logout [post]
 func (h *UserHandler) Logout(c *gin.Context) {
@@ -320,13 +322,25 @@ func (h *UserHandler) Logout(c *gin.Context) {
 	}
 	authHeader := c.GetHeader("Authorization")
 	token := strings.TrimPrefix(authHeader, "Bearer ")
+	// 提取 refresh token，用于加入黑名单（防止登出后 refresh token 仍可换取新 access token）
+	refreshToken := c.GetHeader("X-Refresh-Token")
+	if refreshToken == "" {
+		response.FailWithCode(c, errorx.CodeInvalidParams, "缺少刷新令牌")
+		return
+	}
 
-	if err := h.userSvc.Logout(c.Request.Context(), userID, token); err != nil {
+	if err := h.userSvc.Logout(c.Request.Context(), userID, token, refreshToken); err != nil {
 		response.Fail(c, err)
 		return
 	}
 
 	response.Success(c, nil)
+}
+
+// refreshTokenReq 用于 RefreshToken 接口的请求体（BREAKING：从 URL query 改为 body 传递）
+// 旧版前端需将 ?refreshToken=xxx 改为 JSON body {"refreshToken":"xxx"}
+type refreshTokenReq struct {
+	RefreshToken string `json:"refreshToken" binding:"required"`
 }
 
 // RefreshToken 刷新令牌
@@ -335,21 +349,19 @@ func (h *UserHandler) Logout(c *gin.Context) {
 // @Tags         客户端-用户
 // @Accept       json
 // @Produce      json
-// @Param        refreshToken query string true "刷新令牌"
+// @Param        body body refreshTokenReq true "刷新令牌请求体"
 // @Success      200 {object} response.Response "操作成功"
 // @Router       /client/v1/user/refresh-token [post]
 func (h *UserHandler) RefreshToken(c *gin.Context) {
-	refreshToken := c.Query("refreshToken")
-	if refreshToken == "" {
+	var req refreshTokenReq
+	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithCode(c, errorx.CodeInvalidParams, "缺少刷新令牌")
 		return
 	}
-
-	loginVO, err := h.userSvc.RefreshToken(c.Request.Context(), refreshToken)
+	loginVO, err := h.userSvc.RefreshToken(c.Request.Context(), req.RefreshToken)
 	if err != nil {
 		response.Fail(c, err)
 		return
 	}
-
 	response.Success(c, loginVO)
 }

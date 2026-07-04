@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"gorm.io/gorm"
 
 	msgEntity "NetyAdmin/internal/domain/entity/message"
+	msgDto "NetyAdmin/internal/interface/admin/dto/message"
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/errorx"
 	msgPkg "NetyAdmin/internal/pkg/message"
@@ -26,13 +28,13 @@ type MessageService interface {
 	// SendDirect 直接发送消息
 	SendDirect(ctx context.Context, channel string, receiver string, title string, content string) error
 	// ListTemplates 获取模板列表
-	ListTemplates(ctx context.Context, query *msgRepo.MsgRepoQuery) ([]*msgEntity.MsgTemplate, int64, error)
+	ListTemplates(ctx context.Context, req *msgDto.MsgTemplateQuery) ([]*msgEntity.MsgTemplate, int64, error)
 	// ListRecords 获取记录列表
-	ListRecords(ctx context.Context, query *msgRepo.MsgRepoQuery) ([]*msgEntity.MsgRecord, int64, error)
+	ListRecords(ctx context.Context, req *msgDto.MsgRecordQuery) ([]*msgEntity.MsgRecord, int64, error)
 
 	// Template Admin
-	CreateTemplate(ctx context.Context, tpl *msgEntity.MsgTemplate) error
-	UpdateTemplate(ctx context.Context, tpl *msgEntity.MsgTemplate) error
+	CreateTemplate(ctx context.Context, req *msgDto.CreateTemplateReq) error
+	UpdateTemplate(ctx context.Context, id uint64, req *msgDto.UpdateTemplateReq) error
 	DeleteTemplate(ctx context.Context, id uint64) error
 
 	// Record Admin
@@ -112,24 +114,92 @@ func (s *messageService) SendDirect(ctx context.Context, channel string, receive
 	return s.dispatcher.Dispatch(ctx, "msg_send_job", rec.ID, task.WeightNormal)
 }
 
-func (s *messageService) ListTemplates(ctx context.Context, query *msgRepo.MsgRepoQuery) ([]*msgEntity.MsgTemplate, int64, error) {
-	return s.repo.ListTemplates(ctx, query)
+func (s *messageService) ListTemplates(ctx context.Context, req *msgDto.MsgTemplateQuery) ([]*msgEntity.MsgTemplate, int64, error) {
+	// service 层接收 admin DTO，内部构造 repository query（spec B10：service 不应依赖 handler 构造的 repo 类型）
+	repoQuery := &msgRepo.MsgRepoQuery{
+		Page:     req.Current,
+		PageSize: req.Size,
+		Channel:  req.Channel,
+		Code:     req.Code,
+		Name:     req.Name,
+		Status:   req.Status,
+	}
+	return s.repo.ListTemplates(ctx, repoQuery)
 }
 
-func (s *messageService) ListRecords(ctx context.Context, query *msgRepo.MsgRepoQuery) ([]*msgEntity.MsgRecord, int64, error) {
-	return s.repo.ListRecords(ctx, query)
+func (s *messageService) ListRecords(ctx context.Context, req *msgDto.MsgRecordQuery) ([]*msgEntity.MsgRecord, int64, error) {
+	// service 层接收 admin DTO，内部构造 repository query（spec B10：service 不应依赖 handler 构造的 repo 类型）
+	repoQuery := &msgRepo.MsgRepoQuery{
+		Page:     req.Current,
+		PageSize: req.Size,
+		Channel:  req.Channel,
+		Receiver: req.Receiver,
+		Status:   req.Status,
+	}
+	return s.repo.ListRecords(ctx, repoQuery)
 }
 
-func (s *messageService) CreateTemplate(ctx context.Context, tpl *msgEntity.MsgTemplate) error {
-	return s.repo.CreateTemplate(ctx, tpl)
-}
-
-func (s *messageService) UpdateTemplate(ctx context.Context, tpl *msgEntity.MsgTemplate) error {
-	if err := s.repo.UpdateTemplate(ctx, tpl); err != nil {
+func (s *messageService) CreateTemplate(ctx context.Context, req *msgDto.CreateTemplateReq) error {
+	// code 唯一性预校验
+	existing, err := s.repo.GetTemplateByCode(ctx, req.Code)
+	if err == nil && existing != nil {
+		return errorx.New(errorx.CodeAlreadyExists, "模板编码已存在")
+	}
+	// 构造 entity
+	tpl := &msgEntity.MsgTemplate{
+		Code:          req.Code,
+		Name:          req.Name,
+		Channel:       req.Channel,
+		Title:         req.Title,
+		Content:       req.Content,
+		ProviderTplID: req.ProviderTplID,
+		Status:        req.Status,
+	}
+	if tpl.Status == 0 {
+		tpl.Status = msgEntity.MsgTplStatusEnabled // 默认启用
+	}
+	if err := s.repo.CreateTemplate(ctx, tpl); err != nil {
 		return err
 	}
-	// 失效缓存
-	return s.cacheMgr.InvalidateByTags(ctx, cache.TagMsgTemplate)
+	// 失效缓存（与 Update/Delete 风格统一）
+	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagMsgTemplate); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagMsgTemplate, "err", err)
+	}
+	return nil
+}
+
+func (s *messageService) UpdateTemplate(ctx context.Context, id uint64, req *msgDto.UpdateTemplateReq) error {
+	// 先查旧记录（保留 ID/CreatedAt/DeletedAt 不被覆盖）
+	existing, err := s.repo.GetTemplateByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errorx.New(errorx.CodeNotFound, "消息模板不存在")
+		}
+		slog.Error("repo.GetTemplateByID failed", "templateID", id, "err", err)
+		return fmt.Errorf("repo.GetTemplateByID: %w", err)
+	}
+	// code 唯一性预校验（排除自身）
+	if existing.Code != req.Code {
+		conflict, err := s.repo.GetTemplateByCode(ctx, req.Code)
+		if err == nil && conflict != nil && conflict.ID != id {
+			return errorx.New(errorx.CodeAlreadyExists, "模板编码已存在")
+		}
+	}
+	// patch 旧 entity（保留 ID/CreatedAt/DeletedAt）
+	existing.Code = req.Code
+	existing.Name = req.Name
+	existing.Channel = req.Channel
+	existing.Title = req.Title
+	existing.Content = req.Content
+	existing.ProviderTplID = req.ProviderTplID
+	existing.Status = req.Status
+	if err := s.repo.UpdateTemplate(ctx, existing); err != nil {
+		return err
+	}
+	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagMsgTemplate); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagMsgTemplate, "err", err)
+	}
+	return nil
 }
 
 func (s *messageService) DeleteTemplate(ctx context.Context, id uint64) error {

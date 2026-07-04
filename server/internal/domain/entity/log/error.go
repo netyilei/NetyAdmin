@@ -7,7 +7,7 @@ import (
 )
 
 type Error struct {
-	entity.Model
+	entity.HardModel
 	Level           string    `gorm:"column:level;size:20;not null;comment:日志级别" json:"level"`
 	Message         string    `gorm:"column:message;type:text;not null;comment:错误信息" json:"message"`
 	Stack           string    `gorm:"column:stack;type:text;comment:堆栈信息" json:"stack"`
@@ -36,6 +36,10 @@ func (e *Error) GetLogType() LogType {
 
 func (e *Error) GetCreatedAt() time.Time {
 	return e.CreatedAt
+}
+
+func (e *Error) GetRequestID() string {
+	return e.RequestID
 }
 
 const (

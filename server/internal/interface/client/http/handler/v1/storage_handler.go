@@ -1,10 +1,7 @@
 package v1
 
 import (
-	openEntity "NetyAdmin/internal/domain/entity/open_platform"
-	storageEntity "NetyAdmin/internal/domain/entity/storage"
 	clientDto "NetyAdmin/internal/interface/client/dto/v1"
-	storageDto "NetyAdmin/internal/interface/admin/dto/storage"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
 	storagePkg "NetyAdmin/internal/pkg/storage"
@@ -36,18 +33,15 @@ func (h *ClientStorageHandler) GetUploadCredentials(c *gin.Context) {
 		return
 	}
 
-	appObj, exists := c.Get("currentOpenApp")
-	if !exists {
+	// 从 gin context 读取基础类型值，避免在 handler 层做 entity 类型断言
+	appKey := c.GetString("currentAppKey")
+	if appKey == "" {
 		response.FailWithCode(c, errorx.CodeUnauthorized, "未授权")
 		return
 	}
-	app, ok := appObj.(*openEntity.App)
-	if !ok {
-		response.FailWithCode(c, errorx.CodeInternalError, "上下文类型错误")
-		return
-	}
+	appID := c.GetString("appID")
 
-	credReq := &storageDto.GetCredentialsReq{
+	credReq := &storageService.CredentialsRequest{
 		FileName:     req.FileName,
 		ContentType:  req.ContentType,
 		FileSize:     req.FileSize,
@@ -55,7 +49,7 @@ func (h *ClientStorageHandler) GetUploadCredentials(c *gin.Context) {
 		BusinessID:   req.BusinessID,
 	}
 
-	result, err := h.recordSvc.GetUploadCredentials(c.Request.Context(), credReq, app.AppKey, storageEntity.UploadSourceClient, app.ID)
+	result, err := h.recordSvc.GetUploadCredentials(c.Request.Context(), credReq, appKey, string(clientDto.UploadSourceClient), appID)
 	if err != nil {
 		response.Fail(c, err)
 		return

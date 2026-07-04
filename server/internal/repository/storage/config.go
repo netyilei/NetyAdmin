@@ -7,6 +7,7 @@ import (
 
 	"NetyAdmin/internal/domain/entity"
 	storageEntity "NetyAdmin/internal/domain/entity/storage"
+	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/pagination"
 )
 
@@ -18,7 +19,8 @@ type ConfigRepository interface {
 	List(ctx context.Context, query *ConfigQuery) ([]*storageEntity.Config, int64, error)
 	GetAllEnabled(ctx context.Context) ([]*storageEntity.Config, error)
 	GetDefault(ctx context.Context) (*storageEntity.Config, error)
-	SetDefault(ctx context.Context, id uint) error
+	UnsetDefault(ctx context.Context) error
+	SetDefaultByID(ctx context.Context, id uint) error
 	ExistsByName(ctx context.Context, name string, excludeID ...uint) (bool, error)
 }
 
@@ -35,21 +37,26 @@ func NewConfigRepository(db *gorm.DB) ConfigRepository {
 	return &configRepository{db: db}
 }
 
+// getDB 从 context 中获取事务 DB，若不存在则回退到默认 db。
+func (r *configRepository) getDB(ctx context.Context) *gorm.DB {
+	return database.GetDB(ctx, r.db)
+}
+
 func (r *configRepository) Create(ctx context.Context, config *storageEntity.Config) error {
-	return r.db.WithContext(ctx).Create(config).Error
+	return r.getDB(ctx).Create(config).Error
 }
 
 func (r *configRepository) Update(ctx context.Context, config *storageEntity.Config) error {
-	return r.db.WithContext(ctx).Save(config).Error
+	return r.getDB(ctx).Save(config).Error
 }
 
 func (r *configRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&storageEntity.Config{}, id).Error
+	return r.getDB(ctx).Delete(&storageEntity.Config{}, id).Error
 }
 
 func (r *configRepository) GetByID(ctx context.Context, id uint) (*storageEntity.Config, error) {
 	var config storageEntity.Config
-	err := r.db.WithContext(ctx).First(&config, id).Error
+	err := r.getDB(ctx).First(&config, id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +64,14 @@ func (r *configRepository) GetByID(ctx context.Context, id uint) (*storageEntity
 }
 
 func (r *configRepository) List(ctx context.Context, query *ConfigQuery) ([]*storageEntity.Config, int64, error) {
-	db := r.db.WithContext(ctx).Model(&storageEntity.Config{})
+	if query.Current <= 0 {
+		query.Current = 1
+	}
+	if query.Size <= 0 {
+		query.Size = entity.DefaultPageSize
+	}
+
+	db := r.getDB(ctx).Model(&storageEntity.Config{})
 
 	var total int64
 	if err := db.Count(&total).Error; err != nil {
@@ -65,9 +79,6 @@ func (r *configRepository) List(ctx context.Context, query *ConfigQuery) ([]*sto
 	}
 
 	var configs []*storageEntity.Config
-	if query.Size <= 0 {
-		query.Size = entity.DefaultPageSize
-	}
 
 	err := db.Order("is_default DESC, created_at DESC").
 		Scopes(pagination.Paginate(query.Current, query.Size)).
@@ -81,7 +92,7 @@ func (r *configRepository) List(ctx context.Context, query *ConfigQuery) ([]*sto
 
 func (r *configRepository) GetAllEnabled(ctx context.Context) ([]*storageEntity.Config, error) {
 	var configs []*storageEntity.Config
-	err := r.db.WithContext(ctx).
+	err := r.getDB(ctx).
 		Where("status = ?", entity.StatusEnabled).
 		Order("is_default DESC, created_at DESC").
 		Find(&configs).Error
@@ -93,7 +104,7 @@ func (r *configRepository) GetAllEnabled(ctx context.Context) ([]*storageEntity.
 
 func (r *configRepository) GetDefault(ctx context.Context) (*storageEntity.Config, error) {
 	var config storageEntity.Config
-	err := r.db.WithContext(ctx).
+	err := r.getDB(ctx).
 		Where("is_default = ? AND status = ?", true, entity.StatusEnabled).
 		First(&config).Error
 	if err != nil {
@@ -102,22 +113,22 @@ func (r *configRepository) GetDefault(ctx context.Context) (*storageEntity.Confi
 	return &config, nil
 }
 
-func (r *configRepository) SetDefault(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&storageEntity.Config{}).
-			Where("is_default = ?", true).
-			Update("is_default", false).Error; err != nil {
-			return err
-		}
+// UnsetDefault 清除所有 storage_config 的 is_default 标记
+func (r *configRepository) UnsetDefault(ctx context.Context) error {
+	return r.getDB(ctx).Model(&storageEntity.Config{}).
+		Where("is_default = ?", true).
+		Update("is_default", false).Error
+}
 
-		return tx.Model(&storageEntity.Config{}).
-			Where("id = ?", id).
-			Update("is_default", true).Error
-	})
+// SetDefaultByID 将指定 storage_config 设为默认
+func (r *configRepository) SetDefaultByID(ctx context.Context, id uint) error {
+	return r.getDB(ctx).Model(&storageEntity.Config{}).
+		Where("id = ?", id).
+		Update("is_default", true).Error
 }
 
 func (r *configRepository) ExistsByName(ctx context.Context, name string, excludeID ...uint) (bool, error) {
-	db := r.db.WithContext(ctx).Model(&storageEntity.Config{}).Where("name = ?", name)
+	db := r.getDB(ctx).Model(&storageEntity.Config{}).Where("name = ?", name)
 	if len(excludeID) > 0 {
 		db = db.Where("id != ?", excludeID[0])
 	}

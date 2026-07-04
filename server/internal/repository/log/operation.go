@@ -4,7 +4,9 @@ import (
 	"context"
 	"time"
 
+	"NetyAdmin/internal/domain/entity"
 	logEntity "NetyAdmin/internal/domain/entity/log"
+	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/pagination"
 
 	"gorm.io/gorm"
@@ -27,18 +29,30 @@ func NewOperationRepository(db *gorm.DB) *OperationRepository {
 	return &OperationRepository{db: db}
 }
 
+// getDB 根据 context 中是否携带事务，返回事务内的 *gorm.DB 或回退到 r.db
+func (r *OperationRepository) getDB(ctx context.Context) *gorm.DB {
+	return database.GetDB(ctx, r.db)
+}
+
 func (r *OperationRepository) BatchCreate(ctx context.Context, logs []*logEntity.Operation) error {
 	if len(logs) == 0 {
 		return nil
 	}
-	return r.db.WithContext(ctx).Create(&logs).Error
+	return r.getDB(ctx).Create(&logs).Error
 }
 
 func (r *OperationRepository) List(ctx context.Context, req *OperationQuery) ([]logEntity.Operation, int64, error) {
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+	if req.PageSize <= 0 {
+		req.PageSize = entity.DefaultPageSize
+	}
+
 	var logs []logEntity.Operation
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&logEntity.Operation{})
+	query := r.getDB(ctx).Model(&logEntity.Operation{})
 
 	if req.AdminID != 0 {
 		query = query.Where("admin_id = ?", req.AdminID)
@@ -72,13 +86,13 @@ func (r *OperationRepository) List(ctx context.Context, req *OperationQuery) ([]
 }
 
 func (r *OperationRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Unscoped().Delete(&logEntity.Operation{}, id).Error
+	return r.getDB(ctx).Unscoped().Delete(&logEntity.Operation{}, id).Error
 }
 
 func (r *OperationRepository) DeleteBatch(ctx context.Context, ids []uint) error {
-	return r.db.WithContext(ctx).Unscoped().Delete(&logEntity.Operation{}, ids).Error
+	return r.getDB(ctx).Unscoped().Delete(&logEntity.Operation{}, ids).Error
 }
 
 func (r *OperationRepository) DeleteBefore(ctx context.Context, before time.Time) error {
-	return r.db.WithContext(ctx).Unscoped().Where("created_at < ?", before).Delete(&logEntity.Operation{}).Error
+	return r.getDB(ctx).Unscoped().Where("created_at < ?", before).Delete(&logEntity.Operation{}).Error
 }

@@ -73,7 +73,8 @@ func (adminClaimsAccessor) TokenStoreKey(claims *jwtPkg.AdminClaims) string {
 func (adminClaimsAccessor) LookupAccount(ctx context.Context, claims *jwtPkg.AdminClaims) (*auth.AccountCheckResult, error) {
 	// 鉴权状态（token_version + status）走 L1+L2 缓存，DB QPS 降低 30x+。
 	// 双写一致性：
-	//   - 主动失效：invalidateAdminTokens 递增 token_version 时同步 InvalidateByTags
+	//   - 主动失效：Service 层 TM 事务（IncrementTokenVersion + Update/Delete）Commit 后调用
+	//     invalidateAdminAuthStateCache 同步 InvalidateByTags(TagAdminAuthByID)
 	//   - TTL 兜底：30s 过期保证极端情况下（PubSub 跨节点失效延迟）也能最终一致
 	//   - TokenVersion 比较保证：即使 status 缓存有 30s 漂移，旧 token 因 claims.TokenVersion
 	//     < DB.token_version 立即被拒，安全语义未被削弱

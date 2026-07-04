@@ -1,8 +1,13 @@
-package content
+package admin
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"log/slog"
 	"time"
+
+	"gorm.io/gorm"
 
 	contentEntity "NetyAdmin/internal/domain/entity/content"
 	contentDto "NetyAdmin/internal/interface/admin/dto/content"
@@ -45,7 +50,11 @@ func NewBannerItemService(
 func (s *bannerItemService) Create(ctx context.Context, adminID uint, req *contentDto.CreateContentBannerItemDTO) (*contentEntity.ContentBannerItem, error) {
 	group, err := s.groupRepo.GetByID(ctx, req.GroupID)
 	if err != nil {
-		return nil, errorx.New(errorx.CodeNotFound, "Banner组不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errorx.New(errorx.CodeNotFound, "Banner组不存在")
+		}
+		slog.Error("groupRepo.GetByID failed", "groupID", req.GroupID, "err", err)
+		return nil, fmt.Errorf("groupRepo.GetByID: %w", err)
 	}
 
 	count, err := s.repo.CountByGroupID(ctx, req.GroupID)
@@ -66,7 +75,11 @@ func (s *bannerItemService) Create(ctx context.Context, adminID uint, req *conte
 		if req.LinkArticleID != nil {
 			_, err := s.articleRepo.GetByID(ctx, *req.LinkArticleID)
 			if err != nil {
-				return nil, errorx.New(errorx.CodeNotFound, "关联文章不存在")
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return nil, errorx.New(errorx.CodeNotFound, "关联文章不存在")
+				}
+				slog.Error("articleRepo.GetByID failed", "articleID", *req.LinkArticleID, "err", err)
+				return nil, fmt.Errorf("articleRepo.GetByID: %w", err)
 			}
 		}
 	}
@@ -113,7 +126,9 @@ func (s *bannerItemService) Create(ctx context.Context, adminID uint, req *conte
 		return nil, err
 	}
 
-	_ = s.cache.InvalidateByTags(ctx, cache.TagContentBanner)
+	if err := s.cache.InvalidateByTags(ctx, cache.TagContentBanner); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagContentBanner, "err", err)
+	}
 
 	return item, nil
 }
@@ -140,7 +155,11 @@ func (s *bannerItemService) Update(ctx context.Context, adminID uint, id uint, r
 		if *req.LinkArticleID > 0 {
 			_, err := s.articleRepo.GetByID(ctx, *req.LinkArticleID)
 			if err != nil {
-				return nil, errorx.New(errorx.CodeNotFound, "关联文章不存在")
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return nil, errorx.New(errorx.CodeNotFound, "关联文章不存在")
+				}
+				slog.Error("articleRepo.GetByID failed", "articleID", *req.LinkArticleID, "err", err)
+				return nil, fmt.Errorf("articleRepo.GetByID: %w", err)
 			}
 		}
 		item.LinkArticleID = req.LinkArticleID
@@ -169,16 +188,20 @@ func (s *bannerItemService) Update(ctx context.Context, adminID uint, id uint, r
 		return nil, err
 	}
 
-	_ = s.cache.InvalidateByTags(ctx, cache.TagContentBanner)
+	if err := s.cache.InvalidateByTags(ctx, cache.TagContentBanner); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagContentBanner, "err", err)
+	}
 
 	return item, nil
 }
 
 func (s *bannerItemService) Delete(ctx context.Context, id uint) error {
 	if err := s.repo.Delete(ctx, id); err != nil {
-		return err
+		return fmt.Errorf("bannerItemRepo.Delete: %w", err)
 	}
-	_ = s.cache.InvalidateByTags(ctx, cache.TagContentBanner)
+	if err := s.cache.InvalidateByTags(ctx, cache.TagContentBanner); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagContentBanner, "err", err)
+	}
 	return nil
 }
 

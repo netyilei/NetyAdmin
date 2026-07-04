@@ -9,6 +9,7 @@ import (
 	openRepo "NetyAdmin/internal/repository/open_platform"
 	storageRepo "NetyAdmin/internal/repository/storage"
 	taskRepoPkg "NetyAdmin/internal/repository/task"
+	userRepo "NetyAdmin/internal/repository/user"
 )
 
 func AllJobs(
@@ -19,11 +20,13 @@ func AllJobs(
 	msgRepository msgRepo.MsgRepository,
 	openLogRepo openRepo.OpenLogRepository,
 	uploadRecordRepo storageRepo.RecordRepository,
+	userRepository userRepo.UserRepository,
 	watcher configsync.ConfigWatcher,
 ) []task.Task {
 	return []task.Task{
 		NewArticlePublishJob(articleRepo),                                                                    // 文章定时发布任务 (业务级)
 		NewSystemLogCleanupJob(taskLogRepo, opsLogRepo, errLogRepo, msgRepository, openLogRepo, watcher), // 日志清理任务 (运维级)
 		NewUploadRecordCleanupJob(uploadRecordRepo),                                                          // 上传记录过期清理任务 (运维级)
+		NewTokenHashCleanupJob(userRepository),                                                               // token hash 过期清理任务 (运维级)
 	}
 }

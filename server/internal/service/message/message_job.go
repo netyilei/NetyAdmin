@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	msgEntity "NetyAdmin/internal/domain/entity/message"
 	"NetyAdmin/internal/pkg/configsync"
+	"NetyAdmin/internal/pkg/database"
+	"NetyAdmin/internal/pkg/errorx"
 	msgPkg "NetyAdmin/internal/pkg/message"
 	"NetyAdmin/internal/pkg/task"
 	msgRepo "NetyAdmin/internal/repository/message"
@@ -17,13 +20,15 @@ type MsgSendJob struct {
 	repo    msgRepo.MsgRepository
 	drivers map[string]msgPkg.Driver
 	watcher configsync.ConfigWatcher
+	tm      *database.TransactionManager
 }
 
-func NewMsgSendJob(repo msgRepo.MsgRepository, drivers map[string]msgPkg.Driver, watcher configsync.ConfigWatcher) *MsgSendJob {
+func NewMsgSendJob(repo msgRepo.MsgRepository, drivers map[string]msgPkg.Driver, watcher configsync.ConfigWatcher, tm *database.TransactionManager) *MsgSendJob {
 	return &MsgSendJob{
 		repo:    repo,
 		drivers: drivers,
 		watcher: watcher,
+		tm:      tm,
 	}
 }
 
@@ -82,9 +87,14 @@ func (j *MsgSendJob) Execute(ctx context.Context, payload json.RawMessage) error
 	}
 
 	if rec.Channel == "internal" {
+		// TM 单事务原子完成「更新投递记录状态 + 创建内部信箱消息」，任一步失败整体回滚（fail-closed）。
+		// 消除「假成功」反模式：避免状态已置 Success 但信箱未投递。
+		txCtx, tx := j.tm.Begin(ctx)
 		rec.Status = msgEntity.MsgStatusSuccess
-		if err := j.repo.UpdateRecord(ctx, rec); err != nil {
-			return err
+		if err := j.repo.UpdateRecord(txCtx, rec); err != nil {
+			slog.Error("message job execute: update record failed", "recordID", rec.ID, "err", err)
+			j.tm.Rollback(tx)
+			return errorx.New(errorx.CodeInternalError, "消息投递失败")
 		}
 		msgType := 2
 		if rec.Receiver == "all" {
@@ -94,7 +104,16 @@ func (j *MsgSendJob) Execute(ctx context.Context, payload json.RawMessage) error
 			MsgRecordID: rec.ID,
 			Type:        msgType,
 		}
-		return j.repo.CreateInternal(ctx, internalMsg)
+		if err := j.repo.CreateInternal(txCtx, internalMsg); err != nil {
+			slog.Error("message job execute: create internal failed", "recordID", rec.ID, "err", err)
+			j.tm.Rollback(tx)
+			return errorx.New(errorx.CodeInternalError, "消息投递失败")
+		}
+		if err := j.tm.Commit(tx); err != nil {
+			slog.Error("message job execute: commit failed", "recordID", rec.ID, "err", err)
+			return errorx.New(errorx.CodeInternalError, "消息投递失败")
+		}
+		return nil
 	}
 
 	if !j.isChannelEnabled(rec.Channel) {

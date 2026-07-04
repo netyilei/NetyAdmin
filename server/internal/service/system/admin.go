@@ -4,15 +4,20 @@ package system
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"strconv"
 	"time"
+
+	"gorm.io/gorm"
 
 	systemEntity "NetyAdmin/internal/domain/entity/system"
 	systemDto "NetyAdmin/internal/interface/admin/dto/system"
 
 	systemVO "NetyAdmin/internal/domain/vo/system"
 	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
 	"NetyAdmin/internal/pkg/password"
@@ -22,7 +27,9 @@ import (
 
 type AdminService interface {
 	Login(ctx context.Context, req *systemDto.LoginReq) (*systemVO.LoginVO, error)
-	Logout(ctx context.Context, adminID uint, token string) error
+	// Logout 退出登录：删除 access token hash，并将 refresh token 写入黑名单（TTL 为其剩余有效期），
+	// 防止登出后 refresh token 仍可用于换取新 access token（P0-1 BUG 修复）。
+	Logout(ctx context.Context, adminID uint, accessToken, refreshToken string) error
 	RefreshToken(ctx context.Context, refreshToken string) (*systemVO.LoginVO, error)
 	GetAdminInfo(ctx context.Context, adminID uint) (*systemVO.AdminInfoVO, error)
 	GetProfile(ctx context.Context, adminID uint) (*systemVO.ProfileVO, error)
@@ -44,46 +51,28 @@ type adminService struct {
 	jwt        *jwt.JWT
 	cacheMgr   cache.LazyCacheManager
 	tokenStore userService.TokenStore
+	tm         *database.TransactionManager
 }
 
-func NewAdminService(adminRepo systemRepo.AdminRepository, roleRepo systemRepo.RoleRepository, jwtInstance *jwt.JWT, cacheMgr cache.LazyCacheManager, tokenStore userService.TokenStore) AdminService {
+func NewAdminService(adminRepo systemRepo.AdminRepository, roleRepo systemRepo.RoleRepository, jwtInstance *jwt.JWT, cacheMgr cache.LazyCacheManager, tokenStore userService.TokenStore, tm *database.TransactionManager) AdminService {
 	return &adminService{
 		adminRepo:  adminRepo,
 		roleRepo:   roleRepo,
 		jwt:        jwtInstance,
 		cacheMgr:   cacheMgr,
 		tokenStore: tokenStore,
+		tm:         tm,
 	}
 }
 
 // validateAdminPasswordStrength 校验管理员密码强度。
 // 委托给 pkg/password.ValidateStrength，使用管理员端默认配置（3 类字符）。
+// 注：原始校验错误用 slog 记录，message 不含 err.Error() 内部细节，避免泄露校验实现。
 func validateAdminPasswordStrength(pwd string) error {
 	if err := password.ValidateStrength(pwd, password.DefaultAdminStrengthConfig); err != nil {
-		return errorx.New(errorx.CodePasswordTooWeak, err.Error())
+		slog.Warn("admin password strength validation failed", "err", err)
+		return errorx.New(errorx.CodePasswordTooWeak, "密码强度不足")
 	}
-	return nil
-}
-
-// invalidateAdminTokens 全局失效管理员的所有旧 token（BUG #5 + 鉴权方案 C）。
-//
-// 职责切分（鉴权方案 C）：
-//   - TokenVersion 专职"用户粒度的全局失效"：改密/禁用/删除时递增
-//   - tokenStore 专职"单 token 粒度的精确失效"：仅登出单设备时用 Delete(单哈希)
-//
-// 因此本函数只递增 TokenVersion，不调 tokenStore.DeleteAll（版本号已全局兜底）。
-//
-// 用于 ChangePassword/Update/UpdateStatus 等非删除场景：
-//   - 递增 token_version（DB 操作）
-//   - 失效 auth_state 缓存（双写一致性，避免 30s TTL 窗口内旧 token 误判）
-//
-// Delete/DeleteBatch 不调用本函数：token_version 递增已合并到 DeleteWithTokenInvalidation 事务内，
-// 事务后直接调用 invalidateAdminAuthStateCache 失效缓存。
-func (s *adminService) invalidateAdminTokens(ctx context.Context, adminID uint) error {
-	if err := s.adminRepo.IncrementTokenVersion(ctx, adminID); err != nil {
-		return err
-	}
-	s.invalidateAdminAuthStateCache(ctx, adminID)
 	return nil
 }
 
@@ -119,7 +108,11 @@ func (s *adminService) GetAdminInfo(ctx context.Context, adminID uint) (*systemV
 	err := s.cacheMgr.Fetch(ctx, key, "admin", []string{cache.TagAdminInfo}, cache.TTL_RBAC, &vo, func() (interface{}, error) {
 		admin, err := s.adminRepo.GetByID(ctx, adminID)
 		if err != nil {
-			return nil, errorx.New(errorx.CodeUserNotFound)
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, errorx.New(errorx.CodeUserNotFound)
+			}
+			slog.Error("adminRepo.GetByID failed", "adminID", adminID, "err", err)
+			return nil, fmt.Errorf("adminRepo.GetByID: %w", err)
 		}
 
 		return &systemVO.AdminInfoVO{
@@ -136,7 +129,11 @@ func (s *adminService) GetAdminInfo(ctx context.Context, adminID uint) (*systemV
 func (s *adminService) GetProfile(ctx context.Context, adminID uint) (*systemVO.ProfileVO, error) {
 	admin, err := s.adminRepo.GetByID(ctx, adminID)
 	if err != nil {
-		return nil, errorx.New(errorx.CodeUserNotFound)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errorx.New(errorx.CodeUserNotFound)
+		}
+		slog.Error("adminRepo.GetByID failed", "adminID", adminID, "err", err)
+		return nil, fmt.Errorf("adminRepo.GetByID: %w", err)
 	}
 
 	return &systemVO.ProfileVO{
@@ -154,7 +151,11 @@ func (s *adminService) GetProfile(ctx context.Context, adminID uint) (*systemVO.
 func (s *adminService) UpdateProfile(ctx context.Context, adminID uint, req *systemDto.UpdateProfileReq) error {
 	admin, err := s.adminRepo.GetByID(ctx, adminID)
 	if err != nil {
-		return errorx.New(errorx.CodeUserNotFound)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errorx.New(errorx.CodeUserNotFound)
+		}
+		slog.Error("adminRepo.GetByID failed", "adminID", adminID, "err", err)
+		return fmt.Errorf("adminRepo.GetByID: %w", err)
 	}
 
 	admin.Nickname = req.Nickname
@@ -165,7 +166,9 @@ func (s *adminService) UpdateProfile(ctx context.Context, adminID uint, req *sys
 	err = s.adminRepo.Update(ctx, admin)
 	if err == nil {
 		// 失效管理员信息缓存，避免后台显示旧资料
-		_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagAdminInfo)
+		if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagAdminInfo); cErr != nil {
+			slog.Error("invalidate cache failed", "tag", cache.TagAdminInfo, "err", cErr)
+		}
 	}
 	return err
 }
@@ -173,7 +176,11 @@ func (s *adminService) UpdateProfile(ctx context.Context, adminID uint, req *sys
 func (s *adminService) ChangePassword(ctx context.Context, adminID uint, req *systemDto.ChangePasswordReq) error {
 	admin, err := s.adminRepo.GetByID(ctx, adminID)
 	if err != nil {
-		return errorx.New(errorx.CodeUserNotFound)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errorx.New(errorx.CodeUserNotFound)
+		}
+		slog.Error("adminRepo.GetByID failed", "adminID", adminID, "err", err)
+		return fmt.Errorf("adminRepo.GetByID: %w", err)
 	}
 
 	if err := password.Verify(admin.Password, req.OldPassword); err != nil {
@@ -197,12 +204,27 @@ func (s *adminService) ChangePassword(ctx context.Context, adminID uint, req *sy
 
 	admin.Password = hashedPassword
 
-	// 改密码：失效旧 token + 递增版本号（fail-closed）
-	if err := s.invalidateAdminTokens(ctx, adminID); err != nil {
+	// 改密：TM 单事务原子完成「递增 token_version + 更新管理员」（fail-closed）。
+	// 任一步失败整体回滚，避免「密码已改/版本号未变」或「版本号已变/密码未改」的中间态。
+	// 事务提交后失效 auth_state 缓存，避免 30s TTL 窗口内旧 token 误判。
+	txCtx, tx := s.tm.Begin(ctx)
+	if err := s.adminRepo.IncrementTokenVersion(txCtx, adminID); err != nil {
+		slog.Error("admin change password: increment token version failed", "adminID", adminID, "err", err)
+		s.tm.Rollback(tx)
 		return errorx.New(errorx.CodeInternalError, "令牌失效失败")
 	}
-
-	return s.adminRepo.Update(ctx, admin)
+	if err := s.adminRepo.Update(txCtx, admin); err != nil {
+		slog.Error("admin change password: update admin failed", "adminID", adminID, "err", err)
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeInternalError, "管理员更新失败")
+	}
+	if err := s.tm.Commit(tx); err != nil {
+		slog.Error("admin change password: commit failed", "adminID", adminID, "err", err)
+		return errorx.New(errorx.CodeInternalError, "事务提交失败")
+	}
+	// 事务提交后失效 auth_state 缓存
+	s.invalidateAdminAuthStateCache(ctx, adminID)
+	return nil
 }
 
 func (s *adminService) GetByID(ctx context.Context, id uint) (*systemEntity.Admin, error) {

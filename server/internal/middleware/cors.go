@@ -1,7 +1,13 @@
 // Package middleware 提供 HTTP 中间件。
 //
-// cors.go 基于 github.com/gin-contrib/cors v1.7.7 实现跨域中间件，
-// 替代原先自研的 27 行硬编码 CORS 实现。
+// cors.go 基于 github.com/gin-contrib/cors v1.7.7 实现跨域中间件。
+//
+// 安全策略：
+//   - Origin 白名单精确匹配（来自 config.toml 的 [cors].allowed_origins 或环境变量
+//     NETYADMIN_CORS_ALLOWED_ORIGINS，逗号分隔）。
+//   - 空白名单 = 拒绝所有跨域（fail-closed），生产环境必须显式配置可信来源。
+//   - AllowCredentials: true —— 仅对白名单内的 Origin 生效，允许携带 Cookie。
+//   - 不再使用 AllowOriginFunc: func(origin string) bool { return true } 反射行为。
 package middleware
 
 import (
@@ -35,17 +41,23 @@ var corsAllowedHeaders = []string{
 
 // CORS 跨域中间件。
 //
-// 策略说明（与原自研实现行为等价，避免引入破坏性变更）：
-//   - AllowOrigins 为空 + AllowOriginFunc 回调：反射请求方 Origin，等价于"允许所有来源"。
-//   - AllowCredentials: true —— 允许携带 Cookie。
-//   - AllowMethods / AllowHeaders / MaxAge 与原硬编码实现一致。
+// allowedOrigins 为允许的来源白名单（精确匹配）。空列表时拒绝所有跨域请求。
 //
 // gin-contrib/cors 在 AllowAllOrigins=true 且 AllowCredentials=true 时会 panic（属于不安全组合），
-// 因此这里使用 AllowOriginFunc 返回 true 的方式来表达"反射 Origin + 允许 Credentials"的语义，
-// 该写法是库官方推荐的安全等价表达。
-func CORS() gin.HandlerFunc {
+// 因此这里使用 AllowOriginFunc 对请求 Origin 做白名单校验，仅对白名单内 Origin 返回 true。
+// 该写法是库官方推荐的安全等价表达，且支持 AllowCredentials: true。
+func CORS(allowedOrigins []string) gin.HandlerFunc {
+	// 预构建 O(1) 查询表，避免每次请求线性扫描
+	allowSet := make(map[string]struct{}, len(allowedOrigins))
+	for _, o := range allowedOrigins {
+		allowSet[o] = struct{}{}
+	}
+
 	return cors.New(cors.Config{
-		AllowOriginFunc:  func(origin string) bool { return true },
+		AllowOriginFunc: func(origin string) bool {
+			_, ok := allowSet[origin]
+			return ok
+		},
 		AllowMethods:     corsAllowedMethods,
 		AllowHeaders:     corsAllowedHeaders,
 		AllowCredentials: true,

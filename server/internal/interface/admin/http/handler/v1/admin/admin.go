@@ -5,10 +5,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"NetyAdmin/internal/domain/entity"
 	systemDto "NetyAdmin/internal/interface/admin/dto/system"
 	"NetyAdmin/internal/middleware"
 	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/pagination"
 	"NetyAdmin/internal/pkg/response"
 	systemService "NetyAdmin/internal/service/system"
 )
@@ -44,12 +44,7 @@ func (h *AdminHandler) List(c *gin.Context) {
 		return
 	}
 
-	if req.Current <= 0 {
-		req.Current = 1
-	}
-	if req.Size <= 0 {
-		req.Size = entity.DefaultPageSize
-	}
+	req.Current, req.Size = pagination.NormalizePagination(req.Current, req.Size)
 
 	admins, total, err := h.adminService.List(c.Request.Context(), &req)
 	if err != nil {

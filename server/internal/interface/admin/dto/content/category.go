@@ -30,7 +30,6 @@ type CreateContentCategoryDTO struct {
 type UpdateContentCategoryDTO struct {
 	ParentID        uint   `json:"parentId" form:"parentId" binding:"omitempty"`
 	Name            string `json:"name" form:"name" binding:"omitempty,max=50"`
-	Code            string `json:"code" form:"code" binding:"omitempty,max=50"`
 	Icon            string `json:"icon" form:"icon" binding:"omitempty,max=100"`
 	Sort            int    `json:"sort" form:"sort" binding:"omitempty"`
 	StorageConfigID *uint  `json:"storageConfigId" form:"storageConfigId" binding:"omitempty"`

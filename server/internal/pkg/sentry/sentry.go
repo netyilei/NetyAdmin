@@ -1,9 +1,12 @@
 package sentry
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -54,6 +57,11 @@ func Init(cfg config.SentryConfig) error {
 		// sentrygin 默认对每个请求都创建事务，K8s 健康探针/静态资源等高频低价值请求
 		// 会污染 Sentry 性能面板（如 /health 每 10s 一次 × 20% 采样 ≈ 1700+/天）。
 		IgnoreTransactions: buildIgnoreTransactions(cfg.IgnoreTransactions),
+		// BeforeSend: 事件发送前做 PII 脱敏，防止 password/secret/token 等敏感字段值
+		// 与用户邮箱/IP 进入 Sentry 平台。详见 scrubEvent。
+		BeforeSend: func(event *sentry.Event, hint *sentry.EventHint) *sentry.Event {
+			return scrubEvent(event)
+		},
 	}
 
 	if err := sentry.Init(opts); err != nil {
@@ -140,6 +148,14 @@ func CaptureMessage(msg string) {
 }
 
 // SetUser 设置当前用户上下文（用于请求级关联）。
+//
+// PII 审计（SubTask 6.3）：
+//   - 此函数仅接收 admin 端 uint userID + username，不接收手机号/邮箱。
+//   - 全项目唯一的 sentry.User 注入点为 middleware/recovery.go 的 applySentryUser，
+//     其 client 端 userID 取自 c.Get("userID") (= JWT claims.UID = 用户实体 ULID，
+//     size:26 字符串)，admin 端取自 c.Get("adminID") (uint)。两者均不含 PII。
+//   - 即：User.ID 全链路无手机号/邮箱流入，BeforeSend 的 User.Email/IPAddress 兜底
+//     脱敏覆盖了第三方 SDK 自动采集的 IP（sentrygin 会注入 c.ClientIP()）。
 func SetUser(userID uint, username string) {
 	sentry.CurrentHub().Scope().SetUser(sentry.User{
 		ID:       strconv.FormatUint(uint64(userID), 10),
@@ -150,4 +166,118 @@ func SetUser(userID uint, username string) {
 // SetTag 设置全局标签。
 func SetTag(key, value string) {
 	sentry.CurrentHub().Scope().SetTag(key, value)
+}
+
+// --- BeforeSend PII 脱敏 ---
+//
+// Sentry BeforeSend 钩子在事件发送到 Sentry 平台前调用，是脱敏 PII 的最后一道关口。
+// 此处递归 scrub event.User / event.Contexts / event.Request.Data，将命中敏感字段名
+// 的值替换为 [REDACTED]，同时直接清空 event.User.Email / event.User.IPAddress。
+//
+// 注意：sentry-go v0.47.0 的 Event 已移除 Extra 字段，自定义附加数据通过
+// scope.SetContext(...) 写入 event.Contexts（map[string]Context，Context = map[string]any），
+// 故此处遍历 Contexts 而非 Extra。
+
+// redactedPlaceholder 是 PII 字段值的统一占位符。
+const redactedPlaceholder = "[REDACTED]"
+
+// maxScrubDepth 限制递归深度，防止恶意构造的深嵌套 map 导致栈溢出或循环引用。
+const maxScrubDepth = 10
+
+// sensitiveKeyPattern 匹配敏感字段名（小写，子串匹配）。
+// 命中以下任一关键词的字段值会被替换为 [REDACTED]：
+//   password / secret / token / appsecret / app_key / access_key / refresh_token
+//
+// 采用 unanchored 子串匹配，故 user_password、app_secret、access_token、authTokenV2
+// 等变体均能命中；case-insensitive 由调用方 strings.ToLower(key) 保证。
+var sensitiveKeyPattern = regexp.MustCompile(`password|secret|token|appsecret|app_key|access_key|refresh_token`)
+
+// isSensitiveKey 判断字段名是否敏感（case-insensitive 子串匹配）。
+func isSensitiveKey(key string) bool {
+	return sensitiveKeyPattern.MatchString(strings.ToLower(key))
+}
+
+// scrubEvent 对 Sentry 事件做 PII 脱敏，返回脱敏后的事件（原地修改）。
+// 处理范围：
+//   - event.User.Email / event.User.IPAddress：直接替换为 [REDACTED]
+//   - event.User.Data（map[string]string）：命中敏感 key 的 value 替换为 [REDACTED]
+//   - event.Contexts（map[string]map[string]any）：递归 scrub 每个 context 的键值
+//   - event.Request.Data（JSON 字符串）：解析后递归 scrub，再序列化回字符串
+//
+// event 为 nil 时返回 nil（防御性，避免 BeforeSend panic）。
+func scrubEvent(event *sentry.Event) *sentry.Event {
+	if event == nil {
+		return nil
+	}
+	// User.Email / User.IPAddress 直接脱敏（sentrygin 会自动注入 c.ClientIP()）
+	if event.User.Email != "" {
+		event.User.Email = redactedPlaceholder
+	}
+	if event.User.IPAddress != "" {
+		event.User.IPAddress = redactedPlaceholder
+	}
+	// User.Data：map[string]string，按 key 脱敏 value
+	for k := range event.User.Data {
+		if isSensitiveKey(k) {
+			event.User.Data[k] = redactedPlaceholder
+		}
+	}
+	// Contexts：递归脱敏每个 context 的 map[string]any
+	for _, ctx := range event.Contexts {
+		scrubMap(ctx, 0)
+	}
+	// Request.Data：JSON 字符串解析后递归脱敏
+	if event.Request != nil && event.Request.Data != "" {
+		event.Request.Data = scrubJSONString(event.Request.Data)
+	}
+	return event
+}
+
+// scrubMap 递归 scrub map[string]any，命中敏感 key 的值替换为 [REDACTED]，
+// 其余值递归处理。depth 超过 maxScrubDepth 时停止递归（保留原值，防循环引用）。
+func scrubMap(m map[string]any, depth int) {
+	if depth > maxScrubDepth {
+		return
+	}
+	for k, v := range m {
+		if isSensitiveKey(k) {
+			m[k] = redactedPlaceholder
+			continue
+		}
+		m[k] = scrubValue(v, depth+1)
+	}
+}
+
+// scrubValue 递归 scrub 任意值，处理 map[string]any 与 []any。
+func scrubValue(v any, depth int) any {
+	if depth > maxScrubDepth {
+		return v
+	}
+	switch val := v.(type) {
+	case map[string]any:
+		scrubMap(val, depth)
+		return val
+	case []any:
+		for i, item := range val {
+			val[i] = scrubValue(item, depth+1)
+		}
+		return val
+	default:
+		return v
+	}
+}
+
+// scrubJSONString 解析 JSON 字符串，递归 scrub 后重新序列化。
+// 解析失败（非合法 JSON）时原样返回，避免破坏事件可读性。
+func scrubJSONString(data string) string {
+	var parsed any
+	if err := json.Unmarshal([]byte(data), &parsed); err != nil {
+		return data
+	}
+	scrubbed := scrubValue(parsed, 0)
+	out, err := json.Marshal(scrubbed)
+	if err != nil {
+		return data
+	}
+	return string(out)
 }

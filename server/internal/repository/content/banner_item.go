@@ -8,6 +8,7 @@ import (
 
 	"NetyAdmin/internal/domain/entity"
 	content "NetyAdmin/internal/domain/entity/content"
+	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/pagination"
 )
 
@@ -42,21 +43,27 @@ func NewContentBannerItemRepository(db *gorm.DB) ContentBannerItemRepository {
 	return &contentBannerItemRepository{db: db}
 }
 
+// getDB 从 context 中获取事务 DB，若不存在则回退到默认 db。
+func (r *contentBannerItemRepository) getDB(ctx context.Context) *gorm.DB {
+	return database.GetDB(ctx, r.db)
+}
+
 func (r *contentBannerItemRepository) Create(ctx context.Context, item *content.ContentBannerItem) error {
-	return r.db.WithContext(ctx).Create(item).Error
+	return r.getDB(ctx).Create(item).Error
 }
 
 func (r *contentBannerItemRepository) Update(ctx context.Context, item *content.ContentBannerItem) error {
-	return r.db.WithContext(ctx).Save(item).Error
+	return r.getDB(ctx).Save(item).Error
 }
 
 func (r *contentBannerItemRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&content.ContentBannerItem{}, id).Error
+	// ContentBannerItem 为硬删除实体，使用 Unscoped 跳过软删除过滤
+	return r.getDB(ctx).Unscoped().Delete(&content.ContentBannerItem{}, id).Error
 }
 
 func (r *contentBannerItemRepository) GetByID(ctx context.Context, id uint) (*content.ContentBannerItem, error) {
 	var item content.ContentBannerItem
-	err := r.db.WithContext(ctx).First(&item, id).Error
+	err := r.getDB(ctx).First(&item, id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +72,7 @@ func (r *contentBannerItemRepository) GetByID(ctx context.Context, id uint) (*co
 
 func (r *contentBannerItemRepository) GetByIDWithGroup(ctx context.Context, id uint) (*content.ContentBannerItem, error) {
 	var item content.ContentBannerItem
-	err := r.db.WithContext(ctx).
+	err := r.getDB(ctx).
 		Preload("Group").
 		Preload("Article").
 		First(&item, id).Error
@@ -76,7 +83,14 @@ func (r *contentBannerItemRepository) GetByIDWithGroup(ctx context.Context, id u
 }
 
 func (r *contentBannerItemRepository) List(ctx context.Context, query *ContentBannerItemQuery) ([]*content.ContentBannerItem, int64, error) {
-	db := r.db.WithContext(ctx).Model(&content.ContentBannerItem{})
+	if query.Current <= 0 {
+		query.Current = 1
+	}
+	if query.Size <= 0 {
+		query.Size = entity.DefaultPageSize
+	}
+
+	db := r.getDB(ctx).Model(&content.ContentBannerItem{})
 
 	if query.GroupID > 0 {
 		db = db.Where("group_id = ?", query.GroupID)
@@ -100,9 +114,6 @@ func (r *contentBannerItemRepository) List(ctx context.Context, query *ContentBa
 	}
 
 	var items []*content.ContentBannerItem
-	if query.Size <= 0 {
-		query.Size = entity.DefaultPageSize
-	}
 
 	err := db.Preload("Group").
 		Preload("Article").
@@ -119,7 +130,7 @@ func (r *contentBannerItemRepository) List(ctx context.Context, query *ContentBa
 func (r *contentBannerItemRepository) GetByGroupID(ctx context.Context, groupID uint) ([]*content.ContentBannerItem, error) {
 	var items []*content.ContentBannerItem
 	now := time.Now()
-	err := r.db.WithContext(ctx).
+	err := r.getDB(ctx).
 		Where("group_id = ? AND status = ?", groupID, entity.StatusEnabled).
 		Where("(start_time IS NULL OR start_time <= ?) AND (end_time IS NULL OR end_time >= ?)", now, now).
 		Order("sort ASC, created_at DESC").
@@ -132,20 +143,20 @@ func (r *contentBannerItemRepository) GetByGroupID(ctx context.Context, groupID 
 
 func (r *contentBannerItemRepository) CountByGroupID(ctx context.Context, groupID uint) (int64, error) {
 	var count int64
-	err := r.db.WithContext(ctx).Model(&content.ContentBannerItem{}).
-		Where("group_id = ? AND status = ?", groupID, entity.StatusEnabled).
+	err := r.getDB(ctx).Model(&content.ContentBannerItem{}).
+		Where("group_id = ?", groupID).
 		Count(&count).Error
 	return count, err
 }
 
 func (r *contentBannerItemRepository) IncrementViewCount(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Model(&content.ContentBannerItem{}).
+	return r.getDB(ctx).Model(&content.ContentBannerItem{}).
 		Where("id = ?", id).
 		UpdateColumn("view_count", gorm.Expr("view_count + 1")).Error
 }
 
 func (r *contentBannerItemRepository) IncrementClickCount(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Model(&content.ContentBannerItem{}).
+	return r.getDB(ctx).Model(&content.ContentBannerItem{}).
 		Where("id = ?", id).
 		UpdateColumn("click_count", gorm.Expr("click_count + 1")).Error
 }

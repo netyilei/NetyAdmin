@@ -2,14 +2,21 @@ package storage
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"log/slog"
 	"strings"
 	"time"
+
+	"gorm.io/gorm"
 
 	"NetyAdmin/internal/domain/entity"
 	storageEntity "NetyAdmin/internal/domain/entity/storage"
 	storageDto "NetyAdmin/internal/interface/admin/dto/storage"
 	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/pagination"
 	"NetyAdmin/internal/pkg/pubsub"
 	"NetyAdmin/internal/pkg/storage"
 	"NetyAdmin/internal/pkg/utils"
@@ -37,6 +44,7 @@ type configService struct {
 	cache      cache.LazyCacheManager
 	eventBus   pubsub.EventBus
 	aesKey     string
+	tm         *database.TransactionManager
 }
 
 func NewConfigService(
@@ -46,6 +54,7 @@ func NewConfigService(
 	cache cache.LazyCacheManager,
 	eventBus pubsub.EventBus,
 	aesKey string,
+	tm *database.TransactionManager,
 ) ConfigService {
 	return &configService{
 		configRepo: configRepo,
@@ -54,6 +63,7 @@ func NewConfigService(
 		cache:      cache,
 		eventBus:   eventBus,
 		aesKey:     aesKey,
+		tm:         tm,
 	}
 }
 
@@ -68,7 +78,9 @@ func (s *configService) decryptSecretKey(secretKey string) string {
 
 func (s *configService) broadcastStorageUpdate(ctx context.Context) {
 	if s.eventBus != nil {
-		_ = s.eventBus.Publish(ctx, pubsub.TopicStorageSync, "storage_updated")
+		if err := s.eventBus.Publish(ctx, pubsub.TopicStorageSync, "storage_updated"); err != nil {
+			slog.Warn("publish storage update event failed", "topic", pubsub.TopicStorageSync, "err", err)
+		}
 	}
 }
 
@@ -78,7 +90,7 @@ func (s *configService) List(ctx context.Context, req *storageDto.ConfigQuery) (
 		Size:    req.Size,
 	}
 
-	query.Current, query.Size = utils.NormalizePaging(query.Current, query.Size)
+	query.Current, query.Size = pagination.NormalizePagination(query.Current, query.Size)
 
 	configs, total, err := s.configRepo.List(ctx, query)
 	if err != nil {
@@ -187,22 +199,42 @@ func (s *configService) Create(ctx context.Context, req *storageDto.CreateConfig
 		Remark:        req.Remark,
 	}
 
-	if err := s.configRepo.Create(ctx, config); err != nil {
-		return 0, err
+	// TM 单事务原子完成「创建配置 + 设为默认」，任一步失败整体回滚（fail-closed）。
+	txCtx, tx := s.tm.Begin(ctx)
+	if err := s.configRepo.Create(txCtx, config); err != nil {
+		slog.Error("storage config create: create failed", "err", err)
+		s.tm.Rollback(tx)
+		return 0, errorx.New(errorx.CodeInternalError, "存储配置创建失败")
 	}
-
 	if config.IsDefault {
-		_ = s.configRepo.SetDefault(ctx, config.ID)
+		if err := s.configRepo.UnsetDefault(txCtx); err != nil {
+			slog.Error("storage config create: unset default failed", "err", err)
+			s.tm.Rollback(tx)
+			return 0, errorx.New(errorx.CodeInternalError, "存储配置创建失败")
+		}
+		if err := s.configRepo.SetDefaultByID(txCtx, config.ID); err != nil {
+			slog.Error("storage config create: set default failed", "err", err)
+			s.tm.Rollback(tx)
+			return 0, errorx.New(errorx.CodeInternalError, "存储配置创建失败")
+		}
+	}
+	if err := s.tm.Commit(tx); err != nil {
+		slog.Error("storage config create: commit failed", "err", err)
+		return 0, errorx.New(errorx.CodeInternalError, "存储配置创建失败")
 	}
 
-	// 转换为 pkg/storage.Config 进行注册
+	// Commit 后：内存驱动注册 + 缓存失效（进程内状态不进事务）
 	pkgConfig := s.toPkgConfig(config)
 	if err := s.storageMgr.Register(pkgConfig); err != nil {
-		return 0, errorx.New(errorx.CodeInternalError, "存储配置验证失败: "+err.Error())
+		// 不暴露 err.Error() 内部细节，原始错误通过 slog 记录（spec B11）
+		slog.Error("storage register failed", "configID", config.ID, "err", err)
+		return 0, errorx.New(errorx.CodeInternalError, "存储配置验证失败")
 	}
 
 	// 清理缓存
-	_ = s.cache.InvalidateByTags(ctx, cache.TagStorageConfig)
+	if err := s.cache.InvalidateByTags(ctx, cache.TagStorageConfig); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagStorageConfig, "err", err)
+	}
 
 	s.broadcastStorageUpdate(ctx)
 
@@ -212,7 +244,11 @@ func (s *configService) Create(ctx context.Context, req *storageDto.CreateConfig
 func (s *configService) Update(ctx context.Context, req *storageDto.UpdateConfigReq, operatorID uint) error {
 	config, err := s.configRepo.GetByID(ctx, req.ID)
 	if err != nil {
-		return errorx.New(errorx.CodeNotFound, "配置不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errorx.New(errorx.CodeNotFound, "配置不存在")
+		}
+		slog.Error("configRepo.GetByID failed", "configID", req.ID, "err", err)
+		return fmt.Errorf("configRepo.GetByID: %w", err)
 	}
 
 	if config.Name != req.Name {
@@ -250,23 +286,43 @@ func (s *configService) Update(ctx context.Context, req *storageDto.UpdateConfig
 	config.Remark = req.Remark
 	config.UpdatedBy = operatorID
 
-	if err := s.configRepo.Update(ctx, config); err != nil {
-		return err
+	// TM 单事务原子完成「更新配置 + 设为默认」，任一步失败整体回滚（fail-closed）。
+	txCtx, tx := s.tm.Begin(ctx)
+	if err := s.configRepo.Update(txCtx, config); err != nil {
+		slog.Error("storage config update: update failed", "err", err)
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeInternalError, "存储配置更新失败")
 	}
-
 	if config.IsDefault {
-		_ = s.configRepo.SetDefault(ctx, config.ID)
+		if err := s.configRepo.UnsetDefault(txCtx); err != nil {
+			slog.Error("storage config update: unset default failed", "err", err)
+			s.tm.Rollback(tx)
+			return errorx.New(errorx.CodeInternalError, "存储配置更新失败")
+		}
+		if err := s.configRepo.SetDefaultByID(txCtx, config.ID); err != nil {
+			slog.Error("storage config update: set default failed", "err", err)
+			s.tm.Rollback(tx)
+			return errorx.New(errorx.CodeInternalError, "存储配置更新失败")
+		}
+	}
+	if err := s.tm.Commit(tx); err != nil {
+		slog.Error("storage config update: commit failed", "err", err)
+		return errorx.New(errorx.CodeInternalError, "存储配置更新失败")
 	}
 
-	// 热更新 storage.Manager
+	// Commit 后：热更新 storage.Manager + 缓存失效（进程内状态不进事务）
 	if config.IsEnabled() {
-		_ = s.storageMgr.Register(s.toPkgConfig(config))
+		if err := s.storageMgr.Register(s.toPkgConfig(config)); err != nil {
+			slog.Error("storage register failed", "configID", config.ID, "err", err)
+		}
 	} else {
 		s.storageMgr.Unregister(config.ID)
 	}
 
 	// 清理缓存
-	_ = s.cache.InvalidateByTags(ctx, cache.TagStorageConfig)
+	if err := s.cache.InvalidateByTags(ctx, cache.TagStorageConfig); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagStorageConfig, "err", err)
+	}
 
 	s.broadcastStorageUpdate(ctx)
 
@@ -286,7 +342,9 @@ func (s *configService) Delete(ctx context.Context, id uint) error {
 	s.storageMgr.Unregister(id)
 
 	// 清理缓存
-	_ = s.cache.InvalidateByTags(ctx, cache.TagStorageConfig)
+	if err := s.cache.InvalidateByTags(ctx, cache.TagStorageConfig); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagStorageConfig, "err", err)
+	}
 
 	s.broadcastStorageUpdate(ctx)
 
@@ -296,27 +354,48 @@ func (s *configService) Delete(ctx context.Context, id uint) error {
 func (s *configService) SetDefault(ctx context.Context, id uint) error {
 	config, err := s.configRepo.GetByID(ctx, id)
 	if err != nil {
-		return errorx.New(errorx.CodeNotFound, "配置不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errorx.New(errorx.CodeNotFound, "配置不存在")
+		}
+		slog.Error("configRepo.GetByID failed", "configID", id, "err", err)
+		return fmt.Errorf("configRepo.GetByID: %w", err)
 	}
 
 	if !config.IsEnabled() {
 		return errorx.New(errorx.CodeBadRequest, "只有启用的配置才能设为默认")
 	}
 
-	if err := s.configRepo.SetDefault(ctx, id); err != nil {
-		return err
+	// TM 单事务原子完成「清除旧默认 + 置新默认」，任一步失败整体回滚（fail-closed）。
+	txCtx, tx := s.tm.Begin(ctx)
+	if err := s.configRepo.UnsetDefault(txCtx); err != nil {
+		slog.Error("storage config set default: unset default failed", "err", err)
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeInternalError, "设置默认存储配置失败")
+	}
+	if err := s.configRepo.SetDefaultByID(txCtx, id); err != nil {
+		slog.Error("storage config set default: set default failed", "err", err)
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeInternalError, "设置默认存储配置失败")
+	}
+	if err := s.tm.Commit(tx); err != nil {
+		slog.Error("storage config set default: commit failed", "err", err)
+		return errorx.New(errorx.CodeInternalError, "设置默认存储配置失败")
 	}
 
-	// 重新同步 Manager 状态
+	// Commit 后：重注册 Manager + 缓存失效（进程内状态不进事务）
 	configs, _ := s.configRepo.GetAllEnabled(ctx)
 	for _, config := range configs {
 		if config.IsEnabled() {
-			_ = s.storageMgr.Register(s.toPkgConfig(config))
+			if err := s.storageMgr.Register(s.toPkgConfig(config)); err != nil {
+				slog.Error("storage register failed", "configID", config.ID, "err", err)
+			}
 		}
 	}
 
 	// 清理缓存
-	_ = s.cache.InvalidateByTags(ctx, cache.TagStorageConfig)
+	if err := s.cache.InvalidateByTags(ctx, cache.TagStorageConfig); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagStorageConfig, "err", err)
+	}
 
 	s.broadcastStorageUpdate(ctx)
 
@@ -326,13 +405,19 @@ func (s *configService) SetDefault(ctx context.Context, id uint) error {
 func (s *configService) TestUpload(ctx context.Context, req *storageDto.TestUploadReq) (string, error) {
 	config, err := s.configRepo.GetByID(ctx, req.ConfigID)
 	if err != nil {
-		return "", errorx.New(errorx.CodeNotFound, "配置不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", errorx.New(errorx.CodeNotFound, "配置不存在")
+		}
+		slog.Error("configRepo.GetByID failed", "configID", req.ConfigID, "err", err)
+		return "", fmt.Errorf("configRepo.GetByID: %w", err)
 	}
 
 	pkgConfig := s.toPkgConfig(config)
 	driver, err := storage.NewMinioDriver(pkgConfig)
 	if err != nil {
-		return "", errorx.New(errorx.CodeInternalError, "创建存储驱动失败: "+err.Error())
+		// 不暴露 err.Error() 内部细节，原始错误通过 slog 记录（spec B11）
+		slog.Error("storage driver create failed", "configID", req.ConfigID, "err", err)
+		return "", errorx.New(errorx.CodeInternalError, "创建存储驱动失败")
 	}
 
 	key := "test/" + storage.GenerateObjectKey("test.txt", config.PathPrefix)
@@ -340,10 +425,14 @@ func (s *configService) TestUpload(ctx context.Context, req *storageDto.TestUplo
 
 	result, err := driver.Upload(ctx, key, content, int64(len(req.Content)), "text/plain")
 	if err != nil {
-		return "", errorx.New(errorx.CodeInternalError, "测试上传失败: "+err.Error())
+		// 不暴露 err.Error() 内部细节，原始错误通过 slog 记录（spec B11）
+		slog.Error("storage test upload failed", "configID", req.ConfigID, "key", key, "err", err)
+		return "", errorx.New(errorx.CodeInternalError, "测试上传失败")
 	}
 
-	_ = driver.Delete(ctx, key)
+	if dErr := driver.Delete(ctx, key); dErr != nil {
+		slog.Warn("delete storage file failed", "key", key, "err", dErr)
+	}
 
 	return result.URL, nil
 }
@@ -355,7 +444,9 @@ func (s *configService) LoadAllConfigs(ctx context.Context) error {
 	}
 
 	for _, config := range configs {
-		_ = s.storageMgr.Register(s.toPkgConfig(config))
+		if err := s.storageMgr.Register(s.toPkgConfig(config)); err != nil {
+			slog.Error("storage register failed", "configID", config.ID, "err", err)
+		}
 	}
 
 	return nil
@@ -364,7 +455,11 @@ func (s *configService) LoadAllConfigs(ctx context.Context) error {
 func (s *configService) GetPresignedUploadURL(ctx context.Context, configID uint, fileName string, contentType string) (string, string, error) {
 	config, err := s.configRepo.GetByID(ctx, configID)
 	if err != nil {
-		return "", "", errorx.New(errorx.CodeNotFound, "配置不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", "", errorx.New(errorx.CodeNotFound, "配置不存在")
+		}
+		slog.Error("configRepo.GetByID failed", "configID", configID, "err", err)
+		return "", "", fmt.Errorf("configRepo.GetByID: %w", err)
 	}
 
 	if !config.IsEnabled() {

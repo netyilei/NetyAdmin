@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	systemEntity "NetyAdmin/internal/domain/entity/system"
+	authPkg "NetyAdmin/internal/pkg/auth"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
 
@@ -105,7 +105,7 @@ func IsSuperAdminFromContext(c *gin.Context) bool {
 		return false
 	}
 	for _, roleCode := range roleCodes {
-		if roleCode == systemEntity.SuperRoleCode {
+		if roleCode == authPkg.SuperRoleCode {
 			return true
 		}
 	}

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -83,6 +84,11 @@ func RequireAuth[C jwtv5.Claims](
 		if tokenStore != nil {
 			userIDKey := accessor.TokenStoreKey(claims)
 			if _, err := tokenStore.Get(c.Request.Context(), userIDKey, HashToken(token)); err != nil {
+				// P1-6: 记录原始错误用于排查（如 Redis 故障、token hash 不匹配等）。
+				// 失败原因可能是：1) Redis 故障；2) 用户在其他设备登录导致 token hash 被覆盖；
+				// 3) 管理员强制下线。无论哪种原因，对客户端的响应都是统一的"会话已过期"。
+				slog.Error("RequireAuth: tokenStore.Get failed",
+					"userIDKey", userIDKey, "error", err)
 				response.FailWithCode(c, errorx.CodeUnauthorized, "会话已过期或已在别处登录")
 				c.Abort()
 				return
@@ -93,8 +99,15 @@ func RequireAuth[C jwtv5.Claims](
 		// 校验细节（包括版本号比较）由 accessor.LookupAccount 内部完成，
 		// 中间件只关心最终结果（status + setContext）。
 		result, err := accessor.LookupAccount(c.Request.Context(), claims)
+		// P1-7: 区分"账户不存在"（CodeUnauthorized）与"账户禁用"（CodeUserDisabled）。
+		// - err != nil 或 result == nil：账户查询失败或不存在，返回 CodeUnauthorized
+		// - result.Status != StatusEnabled：账户存在但被禁用或会话已失效，返回 CodeUserDisabled
+		// 原代码统一返回 CodeUserDisabled 但 message 是"账户不存在"，错误码与消息语义不一致。
 		if err != nil || result == nil {
-			response.FailWithCode(c, errorx.CodeUserDisabled, "账户不存在")
+			if err != nil {
+				slog.Error("RequireAuth: LookupAccount failed", "error", err)
+			}
+			response.FailWithCode(c, errorx.CodeUnauthorized, "账户不存在")
 			c.Abort()
 			return
 		}
@@ -112,6 +125,11 @@ func RequireAuth[C jwtv5.Claims](
 // StatusEnabled 是账户启用状态常量，与 entity.StatusEnabled 一致。
 // 在 auth 包独立声明以避免 pkg/auth 反向依赖 domain/entity。
 const StatusEnabled = "1"
+
+// SuperRoleCode 是超级管理员角色 Code，与 entity/system.SuperRoleCode 同值 "R_SUPER"。
+// 在 pkg/auth 独立声明以避免 middleware 反向依赖 domain/entity（BFF 隔离原则）。
+// service 层仍使用 entity/system.SuperRoleCode（service 可依赖 entity）。
+const SuperRoleCode = "R_SUPER"
 
 // extractBearerToken 从 Authorization 头提取 Bearer token。
 // 返回空字符串表示缺失或格式错误。

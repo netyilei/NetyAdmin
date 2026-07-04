@@ -10,6 +10,13 @@ import (
 	"NetyAdmin/internal/pkg/errorx"
 )
 
+// customSentinelErr 是测试用的自定义错误类型，用于验证 errors.As 能穿透 BizError 的 Unwrap 链。
+type customSentinelErr struct {
+	msg string
+}
+
+func (e *customSentinelErr) Error() string { return e.msg }
+
 func TestCode_Message(t *testing.T) {
 	tests := []struct {
 		name string
@@ -93,23 +100,120 @@ func TestBizError_Error(t *testing.T) {
 	var _ error = err
 }
 
-func TestIs(t *testing.T) {
-	bizErr := errorx.New(errorx.CodeUserNotFound)
+// TestNewWithErr 验证 NewWithErr 构造的 BizError 正确携带原始错误链。
+func TestNewWithErr(t *testing.T) {
+	original := errors.New("gorm: record not found")
 
-	t.Run("matching code returns true", func(t *testing.T) {
-		assert.True(t, errorx.Is(bizErr, errorx.CodeUserNotFound))
+	t.Run("Err field preserved", func(t *testing.T) {
+		err := errorx.NewWithErr(errorx.CodeUserNotFound, original)
+		assert.Equal(t, errorx.CodeUserNotFound, err.Code)
+		assert.Equal(t, "用户不存在", err.Message)
+		assert.Same(t, original, err.Err)
 	})
 
-	t.Run("different code returns false", func(t *testing.T) {
-		assert.False(t, errorx.Is(bizErr, errorx.CodeForbidden))
+	t.Run("custom message overrides default", func(t *testing.T) {
+		err := errorx.NewWithErr(errorx.CodeUserNotFound, original, "用户不存在（自定义）")
+		assert.Equal(t, "用户不存在（自定义）", err.Message)
+		assert.Same(t, original, err.Err)
 	})
 
-	t.Run("non-BizError returns false", func(t *testing.T) {
-		plainErr := errors.New("plain error")
-		assert.False(t, errorx.Is(plainErr, errorx.CodeUserNotFound))
+	t.Run("nil err behaves like New", func(t *testing.T) {
+		err := errorx.NewWithErr(errorx.CodeUserNotFound, nil)
+		assert.Equal(t, errorx.CodeUserNotFound, err.Code)
+		assert.Nil(t, err.Err)
+		assert.Equal(t, "用户不存在", err.Error())
 	})
 
-	t.Run("nil returns false", func(t *testing.T) {
-		assert.False(t, errorx.Is(nil, errorx.CodeUserNotFound))
+	t.Run("Error() includes wrapped err", func(t *testing.T) {
+		err := errorx.NewWithErr(errorx.CodeUserNotFound, original)
+		assert.Equal(t, "用户不存在: gorm: record not found", err.Error())
+	})
+
+	t.Run("empty custom message falls back to default", func(t *testing.T) {
+		err := errorx.NewWithErr(errorx.CodeUserNotFound, original, "")
+		assert.Equal(t, "用户不存在", err.Message)
+	})
+}
+
+// TestBizError_Unwrap 验证 Unwrap 返回原始错误，支持 errors.As / errors.Is 穿透。
+func TestBizError_Unwrap(t *testing.T) {
+	t.Run("Unwrap returns wrapped err", func(t *testing.T) {
+		original := errors.New("db connection lost")
+		err := errorx.NewWithErr(errorx.CodeInternalError, original)
+		assert.Same(t, original, err.Unwrap())
+	})
+
+	t.Run("Unwrap returns nil when no wrapped err", func(t *testing.T) {
+		err := errorx.New(errorx.CodeUserNotFound)
+		assert.Nil(t, err.Unwrap())
+	})
+
+	t.Run("errors.As can reach wrapped error through BizError", func(t *testing.T) {
+		sentinel := &customSentinelErr{msg: "sentinel"}
+		err := errorx.NewWithErr(errorx.CodeInternalError, sentinel)
+
+		var target *customSentinelErr
+		assert.True(t, errors.As(err, &target))
+		assert.Equal(t, "sentinel", target.msg)
+	})
+}
+
+// TestBizError_Is_Method 验证 BizError.Is 方法支持 errors.Is 穿透 fmt.Errorf("%w") 包装链。
+func TestBizError_Is_Method(t *testing.T) {
+	t.Run("errors.Is matches same code (direct)", func(t *testing.T) {
+		err := errorx.New(errorx.CodeUserNotFound)
+		assert.True(t, errors.Is(err, errorx.New(errorx.CodeUserNotFound)))
+	})
+
+	t.Run("errors.Is does not match different code", func(t *testing.T) {
+		err := errorx.New(errorx.CodeUserNotFound)
+		assert.False(t, errors.Is(err, errorx.New(errorx.CodeForbidden)))
+	})
+
+	t.Run("errors.Is matches through fmt.Errorf %w wrap", func(t *testing.T) {
+		bizErr := errorx.New(errorx.CodeUserNotFound)
+		wrapped := fmt.Errorf("service layer: %w", bizErr)
+		assert.True(t, errors.Is(wrapped, errorx.New(errorx.CodeUserNotFound)))
+	})
+
+	t.Run("errors.Is matches through NewWithErr wrap", func(t *testing.T) {
+		original := errors.New("gorm: record not found")
+		bizErr := errorx.NewWithErr(errorx.CodeUserNotFound, original)
+		// errors.Is(bizErr, errorx.New(CodeUserNotFound)) 通过 Is 方法匹配
+		assert.True(t, errors.Is(bizErr, errorx.New(errorx.CodeUserNotFound)))
+		// errors.Is(bizErr, original) 通过 Unwrap 链匹配
+		assert.True(t, errors.Is(bizErr, original))
+	})
+
+	t.Run("errors.Is does not match non-BizError target", func(t *testing.T) {
+		err := errorx.New(errorx.CodeUserNotFound)
+		assert.False(t, errors.Is(err, errors.New("plain error")))
+	})
+
+	t.Run("errors.Is matches through nested wrap chain", func(t *testing.T) {
+		bizErr := errorx.NewWithErr(errorx.CodeRoleNotFound, errors.New("db err"))
+		middle := fmt.Errorf("repo: %w", bizErr)
+		outer := fmt.Errorf("service: %w", middle)
+		assert.True(t, errors.Is(outer, errorx.New(errorx.CodeRoleNotFound)))
+	})
+}
+
+// TestErrorsAs_Pattern 验证推荐的 errors.As 模式可正确取出 BizError 业务码。
+func TestErrorsAs_Pattern(t *testing.T) {
+	t.Run("errors.As extracts BizError through wrap", func(t *testing.T) {
+		bizErr := errorx.New(errorx.CodeUserNotFound, "用户不存在")
+		wrapped := fmt.Errorf("service: %w", bizErr)
+
+		var target *errorx.BizError
+		assert.True(t, errors.As(wrapped, &target))
+		assert.Equal(t, errorx.CodeUserNotFound, target.Code)
+		assert.Equal(t, "用户不存在", target.Message)
+	})
+
+	t.Run("errors.As returns false for plain error", func(t *testing.T) {
+		plainErr := errors.New("plain")
+		var target *errorx.BizError
+		assert.False(t, errors.As(plainErr, &target))
+		assert.Nil(t, target)
 	})
 }

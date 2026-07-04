@@ -1,4 +1,4 @@
--- Banner项表
+-- Banner项表（硬删除表，无 deleted_at 列）
 CREATE TABLE IF NOT EXISTS content_banner_item (
     id BIGSERIAL PRIMARY KEY,
     group_id BIGINT NOT NULL,
@@ -20,8 +20,7 @@ CREATE TABLE IF NOT EXISTS content_banner_item (
     created_by BIGINT,
     updated_by BIGINT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    deleted_at BIGINT DEFAULT 0
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_content_banner_item_group ON content_banner_item(group_id);

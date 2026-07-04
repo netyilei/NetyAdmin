@@ -7,8 +7,8 @@ import (
 
 	openDto "NetyAdmin/internal/interface/admin/dto/open_platform"
 	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/pagination"
 	"NetyAdmin/internal/pkg/response"
-	openRepo "NetyAdmin/internal/repository/open_platform"
 	openSvc "NetyAdmin/internal/service/open_platform"
 )
 
@@ -42,19 +42,10 @@ func (h *OpenLogHandler) List(c *gin.Context) {
 		response.FailWithCode(c, errorx.CodeInvalidParams)
 		return
 	}
+	req.Current, req.Size = pagination.NormalizePagination(req.Current, req.Size)
 
-	query := &openRepo.OpenLogRepoQuery{
-		Page:       req.Current,
-		PageSize:   req.Size,
-		AppID:      req.AppID,
-		AppKey:     req.AppKey,
-		ApiPath:    req.ApiPath,
-		StatusCode: req.StatusCode,
-		StartTime:  req.StartTime,
-		EndTime:    req.EndTime,
-	}
-
-	list, total, err := h.svc.ListLogs(c.Request.Context(), query)
+	// 收敛 Handler 跨层调用（spec B10）：service 接收 admin DTO，不再依赖 handler 构造 repo query
+	list, total, err := h.svc.ListLogs(c.Request.Context(), &req)
 	if err != nil {
 		response.Fail(c, err)
 		return

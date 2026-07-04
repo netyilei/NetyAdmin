@@ -1,18 +1,27 @@
 package user
 
-// user_auth.go - 客户端认证相关方法：注册、登录、刷新令牌、重置密码
+// user_auth.go - 客户端用户服务：UserClientService 接口、userClientService 实现，
+// 以及全部 client 端方法（注册、登录、刷新令牌、个人资料、改密、登出、注销、找回密码、发送验证码目标解析）。
+//
+// 仅 import client/dto/v1，不 import admin/dto/user，保证 BFF 端隔离（spec D4）。
+// 共享横切逻辑（密码强度校验、登录锁清理）通过嵌入 userBase 复用。
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"log/slog"
 	"strconv"
 	"time"
+
+	"gorm.io/gorm"
 
 	userEntity "NetyAdmin/internal/domain/entity/user"
 	clientDto "NetyAdmin/internal/interface/client/dto/v1"
 
 	"NetyAdmin/internal/domain/entity"
-	authPkg "NetyAdmin/internal/pkg/auth"
 	userVO "NetyAdmin/internal/domain/vo/user"
+	authPkg "NetyAdmin/internal/pkg/auth"
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
@@ -20,7 +29,37 @@ import (
 	"NetyAdmin/internal/pkg/utils"
 )
 
-func (s *userService) Register(ctx context.Context, req *clientDto.UserRegisterReq) (string, error) {
+// UserClientService 是 client 端用户服务接口。
+// 仅包含 client handler 调用的方法，入参为 client DTO（禁止 entity 入参，spec D4）。
+type UserClientService interface {
+	Register(ctx context.Context, req *clientDto.UserRegisterReq) (string, error)
+	Login(ctx context.Context, req *clientDto.UserLoginReq, ip string) (*userVO.UserLoginVO, error)
+	RefreshToken(ctx context.Context, refreshToken string) (*userVO.UserLoginVO, error)
+	GetInfo(ctx context.Context, userID string) (*userVO.UserInfoVO, error)
+	UpdateProfile(ctx context.Context, userID string, req *clientDto.UserUpdateProfileReq) error
+	ChangePassword(ctx context.Context, userID string, req *clientDto.UserChangePasswordReq) error
+	// Logout 退出登录：删除 access token hash，并将 refresh token 写入黑名单（TTL 为其剩余有效期），
+	// 防止登出后 refresh token 仍可用于换取新 access token（P0-1 BUG 修复）。
+	Logout(ctx context.Context, userID string, accessToken, refreshToken string) error
+	ResetPassword(ctx context.Context, req *clientDto.UserResetPasswordReq) error
+	DeleteAccount(ctx context.Context, userID string) error
+	// ResolveSendCodeTarget 解析发送验证码目标。
+	// 登录场景：根据 username 查找用户，校验状态，根据 verifyConfig.VerifyType 返回 email/phone 作为 target
+	// 注册/找回密码场景：直接使用传入的 target，不查找用户
+	// 返回值：verifyConfig（用于 handler 判断 enabled/type），target（用于实际发送），error
+	ResolveSendCodeTarget(ctx context.Context, scene, username, target string) (*VerifyConfig, string, error)
+}
+
+type userClientService struct {
+	userBase
+}
+
+// NewUserClientService 基于 userBase 构造 client 端用户服务。
+func NewUserClientService(base userBase) UserClientService {
+	return &userClientService{userBase: base}
+}
+
+func (s *userClientService) Register(ctx context.Context, req *clientDto.UserRegisterReq) (string, error) {
 	target := req.Phone
 	if target == "" {
 		target = req.Email
@@ -41,18 +80,33 @@ func (s *userService) Register(ctx context.Context, req *clientDto.UserRegisterR
 	}
 
 	// 1. 检查唯一性
-	exists, _ := s.repo.ExistsByUsername(ctx, req.Username)
+	// Repo 错误仅 Warn 不阻断：DB 真正不可用时后续 Create 会失败兜底，
+	// DB 间歇故障时唯一性约束（DB 层 UNIQUE index）仍能在 Create 阶段拦截重复。
+	// 不再静默吞错 `_ = ...`：失败需可观测，便于排查 DB 间歇故障。
+	exists, existsErr := s.repo.ExistsByUsername(ctx, req.Username)
+	if existsErr != nil {
+		slog.Warn("ExistsByUsername query failed (rely on DB unique constraint as fallback)",
+			"username", req.Username, "error", existsErr)
+	}
 	if exists {
 		return "", errorx.New(errorx.CodeUserAlreadyExists, "用户名已存在")
 	}
 	if req.Phone != "" {
-		exists, _ = s.repo.ExistsByPhone(ctx, req.Phone)
+		exists, existsErr = s.repo.ExistsByPhone(ctx, req.Phone)
+		if existsErr != nil {
+			slog.Warn("ExistsByPhone query failed (rely on DB unique constraint as fallback)",
+				"phone", req.Phone, "error", existsErr)
+		}
 		if exists {
 			return "", errorx.New(errorx.CodeUserAlreadyExists, "手机号已存在")
 		}
 	}
 	if req.Email != "" {
-		exists, _ = s.repo.ExistsByEmail(ctx, req.Email)
+		exists, existsErr = s.repo.ExistsByEmail(ctx, req.Email)
+		if existsErr != nil {
+			slog.Warn("ExistsByEmail query failed (rely on DB unique constraint as fallback)",
+				"email", req.Email, "error", existsErr)
+		}
 		if exists {
 			return "", errorx.New(errorx.CodeUserAlreadyExists, "邮箱已存在")
 		}
@@ -87,7 +141,7 @@ func (s *userService) Register(ctx context.Context, req *clientDto.UserRegisterR
 	return user.ID, nil
 }
 
-func (s *userService) Login(ctx context.Context, req *clientDto.UserLoginReq, ip string) (*userVO.UserLoginVO, error) {
+func (s *userClientService) Login(ctx context.Context, req *clientDto.UserLoginReq, ip string) (*userVO.UserLoginVO, error) {
 	// 1. 图形验证码校验 (captcha_config → user_login_enabled)
 	captchaVal, _ := s.configWatcher.GetConfig("captcha_config", "user_login_enabled")
 	captchaEnabled := captchaVal == "true" || captchaVal == "1"
@@ -103,11 +157,20 @@ func (s *userService) Login(ctx context.Context, req *clientDto.UserLoginReq, ip
 	// 2. 查找用户
 	user, err := s.repo.GetByUsername(ctx, req.Username)
 	if err != nil {
-		return nil, errorx.New(errorx.CodeUserNotFound, "用户不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// 统一登录失败文案为「用户名或密码错误」，消除用户名枚举（Task 3.4）。
+			// 仅 Login 路径返回该文案；RefreshToken/GetInfo 等其他路径保留各自原有错误消息。
+			// 错误码保留 CodeUserNotFound 便于内部审计/日志区分根因。
+			return nil, errorx.New(errorx.CodeUserNotFound, "用户名或密码错误")
+		}
+		slog.Error("repo.GetByUsername failed", "username", req.Username, "err", err)
+		return nil, fmt.Errorf("repo.GetByUsername: %w", err)
 	}
 
 	if user.Status == entity.StatusDisabled {
-		return nil, errorx.New(errorx.CodeUserDisabled, "账户已禁用")
+		// 统一登录失败文案（Task 3.4）：禁用账户在 Login 路径返回「用户名或密码错误」，
+		// 避免攻击者通过差异响应枚举存在的用户名。错误码仍为 CodeUserDisabled 便于审计。
+		return nil, errorx.New(errorx.CodeUserDisabled, "用户名或密码错误")
 	}
 
 	// 2.5 登录锁定检查
@@ -160,16 +223,31 @@ func (s *userService) Login(ctx context.Context, req *clientDto.UserLoginReq, ip
 		if locked {
 			return nil, errorx.New(errorx.CodeUserLocked, msg)
 		}
-		return nil, errorx.New(errorx.CodePasswordWrong, msg)
+		// 统一登录失败文案（Task 3.4）：密码错误时返回「用户名或密码错误」，
+		// 避免攻击者通过差异响应枚举存在的用户名。错误码保留 CodePasswordWrong 便于审计；
+		// msg（含剩余尝试次数）被覆盖以避免泄露用户存在性。
+		return nil, errorx.New(errorx.CodePasswordWrong, "用户名或密码错误")
 	}
 
 	authPkg.ClearLoginRetry(ctx, s.cacheMgr, cache.KeyLoginRetryCount(user.ID))
 
 	// 5. 更新登录信息
+	// 注意：此处必须用 UpdateFields（列级 Updates），不能用 repo.Update（Save 全字段）。
+	// 原因：Login 与 admin 端禁用/改密/删除等敏感操作可能并发——
+	// 敏感操作通过 IncrementTokenVersion 递增 token_version 后，若 Login 仍走 Save 全字段，
+	// 会用查询时拿到的旧 token_version / status 覆盖 DB 已提交的新值，
+	// 导致「禁用用户被 Login 覆盖回启用态」或「版本号递增被覆盖回旧值」的并发覆盖 BUG。
+	// 仅更新 last_login_at / last_login_ip 两个字段即可满足登录记录需求。
+	// user.LastLoginAt / user.LastLoginIP 仍保留赋值，用于后续 VO 返回或日志输出。
 	now := time.Now()
 	user.LastLoginAt = &now
 	user.LastLoginIP = ip
-	_ = s.repo.Update(ctx, user)
+	if err := s.repo.UpdateFields(ctx, user.ID, map[string]interface{}{
+		"last_login_at": now,
+		"last_login_ip": ip,
+	}); err != nil {
+		slog.Warn("update user login info failed", "userID", user.ID, "err", err)
+	}
 
 	// 6. 生成令牌
 	claims := s.jwt.NewUserClaims(user.ID, req.Platform, jwt.AccessToken, user.TokenVersion)
@@ -197,7 +275,7 @@ func (s *userService) Login(ctx context.Context, req *clientDto.UserLoginReq, ip
 	}, nil
 }
 
-func (s *userService) RefreshToken(ctx context.Context, refreshToken string) (*userVO.UserLoginVO, error) {
+func (s *userClientService) RefreshToken(ctx context.Context, refreshToken string) (*userVO.UserLoginVO, error) {
 	claims := &jwt.UserClaims{}
 	if err := s.jwt.ParseToken(refreshToken, claims); err != nil {
 		return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌无效")
@@ -207,17 +285,30 @@ func (s *userService) RefreshToken(ctx context.Context, refreshToken string) (*u
 	}
 
 	blacklistKey := cache.KeyAuthBlacklistRefreshToken(refreshToken)
-	exists, _ := s.cacheMgr.Exists(ctx, blacklistKey)
+	exists, err := s.cacheMgr.Exists(ctx, blacklistKey)
+	if err != nil {
+		// fail-closed：缓存查询异常时拒绝刷新，避免失效令牌被重新签发
+		return nil, errorx.New(errorx.CodeUnauthorized, "会话校验异常，请重新登录")
+	}
 	if exists {
 		return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌已失效，请重新登录")
 	}
 
 	user, err := s.repo.GetByID(ctx, claims.UID)
 	if err != nil {
-		return nil, errorx.New(errorx.CodeUserNotFound, "用户不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errorx.New(errorx.CodeUserNotFound, "用户不存在")
+		}
+		slog.Error("repo.GetByID failed", "userID", claims.UID, "err", err)
+		return nil, fmt.Errorf("repo.GetByID: %w", err)
 	}
 	if user.Status == entity.StatusDisabled {
 		return nil, errorx.New(errorx.CodeUserDisabled, "账户已禁用")
+	}
+	// 最严格方案：比较 token 携带的版本号与 DB 当前版本号，版本号过期即拒（spec A1）。
+	// 改密/禁用/删除等敏感操作递增 TokenVersion 后，旧 refresh token 立即失效。
+	if claims.TokenVersion < user.TokenVersion {
+		return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌已失效，请重新登录")
 	}
 
 	newClaims := s.jwt.NewUserClaims(user.ID, claims.Platform, jwt.AccessToken, user.TokenVersion)
@@ -232,19 +323,21 @@ func (s *userService) RefreshToken(ctx context.Context, refreshToken string) (*u
 		return nil, errorx.New(errorx.CodeInternalError, "刷新令牌失败")
 	}
 
-	// 刷新令牌：先失效该用户所有旧 token hash（含旧 access token，防止泄露后被继续使用），
-	// 再写入新 access + refresh hash。
-	// 注意：此处只清 tokenStore 哈希，不递增 TokenVersion——
-	// refresh 不应失效其他设备的合法会话（版本号递增会波及所有设备）。
-	// 刷新令牌：失效旧会话哈希（含旧 access，防泄露）+ 写入新对（统一走 ReplaceSessionForRefresh，含 nil 守卫）
-	if err := authPkg.ReplaceSessionForRefresh(ctx, s.tokenStore, user.ID, token, newRefreshToken,
+	// 刷新令牌：仅删除当前会话的旧 refresh hash，再写入新 access + refresh hash 对。
+	// 不调用 DeleteAll——多设备登录场景下，刷新一个 token 不应踢掉该用户其他设备的合法会话（P1-A 修复）。
+	// 旧 access hash 不删：当前入参仅含旧 refresh token，无法定位旧 access hash；
+	// 旧 access 由其自然过期或下次 Logout 清理，不影响其他设备。
+	// 不递增 TokenVersion——版本号递增由改密/禁用/删除等敏感操作负责。
+	if err := authPkg.DeleteAndReplaceSession(ctx, s.tokenStore, user.ID, refreshToken, token, newRefreshToken,
 		time.Unix(newClaims.ExpiresAt.Unix(), 0), time.Unix(newRefreshClaims.ExpiresAt.Unix(), 0)); err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "令牌存储失败")
 	}
 
 	remainingTTL := time.Until(time.Unix(claims.ExpiresAt.Unix(), 0))
 	if remainingTTL > 0 {
-		_ = s.cacheMgr.Set(ctx, blacklistKey, "1", remainingTTL)
+		if err := s.cacheMgr.Set(ctx, blacklistKey, "1", remainingTTL); err != nil {
+			slog.Error("set blacklist cache failed", "key", blacklistKey, "err", err)
+		}
 	}
 
 	return &userVO.UserLoginVO{
@@ -254,7 +347,167 @@ func (s *userService) RefreshToken(ctx context.Context, refreshToken string) (*u
 	}, nil
 }
 
-func (s *userService) ResetPassword(ctx context.Context, req *clientDto.UserResetPasswordReq) error {
+func (s *userClientService) GetInfo(ctx context.Context, userID string) (*userVO.UserInfoVO, error) {
+	user, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errorx.New(errorx.CodeUserNotFound, "用户不存在")
+		}
+		slog.Error("repo.GetByID failed", "userID", userID, "err", err)
+		return nil, fmt.Errorf("repo.GetByID: %w", err)
+	}
+
+	return &userVO.UserInfoVO{
+		ID:          user.ID,
+		Username:    user.Username,
+		Nickname:    user.Nickname,
+		Avatar:      user.Avatar,
+		Phone:       user.Phone,
+		Email:       user.Email,
+		Gender:      user.Gender,
+		Status:      user.Status,
+		LastLoginAt: user.LastLoginAt,
+	}, nil
+}
+
+func (s *userClientService) UpdateProfile(ctx context.Context, userID string, req *clientDto.UserUpdateProfileReq) error {
+	user, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errorx.New(errorx.CodeUserNotFound, "用户不存在")
+		}
+		slog.Error("repo.GetByID failed", "userID", userID, "err", err)
+		return fmt.Errorf("repo.GetByID: %w", err)
+	}
+
+	if req.Nickname != "" {
+		user.Nickname = req.Nickname
+	}
+	if req.Avatar != "" {
+		user.Avatar = req.Avatar
+	}
+	if req.Gender != "" {
+		user.Gender = req.Gender
+	}
+
+	// 邮箱变更需验证码（仅当邮箱真正变更时才校验，避免未变更也要求验证码）
+	if req.Email != "" && req.Email != user.Email {
+		if req.EmailCode == "" {
+			return errorx.New(errorx.CodeCaptchaRequired, "邮箱变更需提供验证码")
+		}
+		ok, err := s.verifySvc.VerifyAndClearCode(ctx, SceneChangeEmail, req.Email, req.EmailCode)
+		if err != nil || !ok {
+			return errorx.New(errorx.CodeCaptchaInvalid, "邮箱验证码错误或已过期")
+		}
+		exists, _ := s.repo.ExistsByEmail(ctx, req.Email, userID)
+		if exists {
+			return errorx.New(errorx.CodeUserAlreadyExists, "邮箱已占用")
+		}
+		user.Email = req.Email
+	}
+
+	// 手机变更需验证码（仅当手机真正变更时才校验，避免未变更也要求验证码）
+	if req.Phone != "" && req.Phone != user.Phone {
+		if req.PhoneCode == "" {
+			return errorx.New(errorx.CodeCaptchaRequired, "手机变更需提供验证码")
+		}
+		ok, err := s.verifySvc.VerifyAndClearCode(ctx, SceneChangePhone, req.Phone, req.PhoneCode)
+		if err != nil || !ok {
+			return errorx.New(errorx.CodeCaptchaInvalid, "手机验证码错误或已过期")
+		}
+		exists, _ := s.repo.ExistsByPhone(ctx, req.Phone, userID)
+		if exists {
+			return errorx.New(errorx.CodeUserAlreadyExists, "手机号已占用")
+		}
+		user.Phone = req.Phone
+	}
+
+	return s.repo.Update(ctx, user)
+}
+
+func (s *userClientService) ChangePassword(ctx context.Context, userID string, req *clientDto.UserChangePasswordReq) error {
+	user, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errorx.New(errorx.CodeUserNotFound, "用户不存在")
+		}
+		slog.Error("repo.GetByID failed", "userID", userID, "err", err)
+		return fmt.Errorf("repo.GetByID: %w", err)
+	}
+
+	if err := passwordPkg.Verify(user.Password, req.OldPassword); err != nil {
+		return errorx.New(errorx.CodePasswordWrong, "原密码错误")
+	}
+
+	// 新旧密码不能相同，防止用户设置相同密码降低安全性
+	if req.NewPassword == req.OldPassword {
+		return errorx.New(errorx.CodeInvalidParams, "新密码不能与旧密码相同")
+	}
+
+	// 校验密码强度
+	if err := s.validatePasswordStrength(ctx, req.NewPassword); err != nil {
+		return err
+	}
+
+	hashedPassword, err := passwordPkg.Hash(req.NewPassword)
+	if err != nil {
+		return errorx.New(errorx.CodeInternalError, "密码加密失败")
+	}
+	user.Password = hashedPassword
+
+	// 改密：TM 单事务原子完成「递增 token_version + 更新用户」（fail-closed）。
+	// 任一步失败整体回滚，避免「密码已改但版本号未递增」或「版本号递增但密码未改」的中间态（spec A3）。
+	// clearLoginLockCache 在事务前调用（Redis 操作不进事务）。
+	s.clearLoginLockCache(ctx, userID)
+	txCtx, tx := s.tm.Begin(ctx)
+	if err := s.repo.IncrementTokenVersion(txCtx, userID); err != nil {
+		slog.Error("user change password: increment token version failed", "userID", userID, "err", err)
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeInternalError, "令牌失效失败")
+	}
+	if err := s.repo.Update(txCtx, user); err != nil {
+		slog.Error("user change password: update user failed", "userID", userID, "err", err)
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeInternalError, "用户更新失败")
+	}
+	if err := s.tm.Commit(tx); err != nil {
+		slog.Error("user change password: commit failed", "userID", userID, "err", err)
+		return errorx.New(errorx.CodeInternalError, "事务提交失败")
+	}
+	return nil
+}
+
+// Logout 退出登录：删旧 access token hash + 将 refresh token 加入黑名单（TTL 为其剩余有效期）。
+// 修复 P0-1 BUG：原实现仅删除 access token hash，refresh token 仍可用于换取新 access token。
+// 此处将 refresh token 写入黑名单（与 RefreshToken 中相同黑名单 key），使后续 RefreshToken 调用被拒绝。
+func (s *userClientService) Logout(ctx context.Context, userID string, accessToken, refreshToken string) error {
+	// 删旧 access token hash（tokenStore 为空时跳过，与原行为一致）
+	if s.tokenStore != nil {
+		accessHash := authPkg.HashToken(accessToken)
+		if err := s.tokenStore.Delete(ctx, userID, accessHash); err != nil {
+			// 删除失败不阻断，继续处理 refresh token 黑名单
+			slog.Warn("logout: delete access token hash failed", "userID", userID, "err", err)
+		}
+	}
+	// 将 refresh token 写入黑名单，TTL 为其剩余有效期
+	// 解析 refresh token 拿到 ExpiresAt（校验签名，仅取过期时间用于 TTL）；
+	// ParseToken 失败（无效 token）则不写黑名单——反正无效 token 也用不了
+	if refreshToken != "" {
+		claims := &jwt.UserClaims{}
+		if err := s.jwt.ParseToken(refreshToken, claims); err == nil {
+			remainingTTL := time.Until(time.Unix(claims.ExpiresAt.Unix(), 0))
+			if remainingTTL > 0 {
+				blacklistKey := cache.KeyAuthBlacklistRefreshToken(refreshToken)
+				if err := s.cacheMgr.Set(ctx, blacklistKey, "1", remainingTTL); err != nil {
+					slog.Error("logout: set refresh blacklist failed", "userID", userID, "err", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (s *userClientService) ResetPassword(ctx context.Context, req *clientDto.UserResetPasswordReq) error {
 	verifyConfig, _ := s.verifySvc.GetVerifyConfig(ctx, SceneResetPassword)
 	if verifyConfig != nil && verifyConfig.Enabled {
 		if req.Code == "" {
@@ -275,7 +528,11 @@ func (s *userService) ResetPassword(ctx context.Context, req *clientDto.UserRese
 	}
 
 	if err != nil {
-		return errorx.New(errorx.CodeUserNotFound, "用户不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errorx.New(errorx.CodeUserNotFound, "用户不存在")
+		}
+		slog.Error("repo.GetByEmail/GetByPhone failed", "target", req.Target, "err", err)
+		return fmt.Errorf("repo.GetByEmail/GetByPhone: %w", err)
 	}
 
 	if user.Status == entity.StatusDisabled {
@@ -293,10 +550,102 @@ func (s *userService) ResetPassword(ctx context.Context, req *clientDto.UserRese
 	}
 	user.Password = hashedPassword
 
-	// 重置密码：失效旧 token + 递增版本号（fail-closed）
-	if err := s.invalidateUserTokens(ctx, user.ID); err != nil {
+	// 重置密码：TM 单事务原子完成「递增 token_version + 更新用户」（fail-closed）。
+	// 任一步失败整体回滚，避免「密码已改但版本号未递增」或「版本号递增但密码未改」的中间态（spec A3）。
+	// clearLoginLockCache 在事务前调用（Redis 操作不进事务）。
+	s.clearLoginLockCache(ctx, user.ID)
+	txCtx, tx := s.tm.Begin(ctx)
+	if err := s.repo.IncrementTokenVersion(txCtx, user.ID); err != nil {
+		slog.Error("user reset password: increment token version failed", "userID", user.ID, "err", err)
+		s.tm.Rollback(tx)
 		return errorx.New(errorx.CodeInternalError, "令牌失效失败")
 	}
+	if err := s.repo.Update(txCtx, user); err != nil {
+		slog.Error("user reset password: update user failed", "userID", user.ID, "err", err)
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeInternalError, "用户更新失败")
+	}
+	if err := s.tm.Commit(tx); err != nil {
+		slog.Error("user reset password: commit failed", "userID", user.ID, "err", err)
+		return errorx.New(errorx.CodeInternalError, "事务提交失败")
+	}
+	return nil
+}
 
-	return s.repo.Update(ctx, user)
+// DeleteAccount 注销账号：TM 单事务原子完成「递增 token_version + 软删除」（fail-closed）。
+// 任一步失败整体回滚，避免「版本号已变但主数据未删」或「主数据已删但版本号未变」的中间态。
+// clearLoginLockCache 在事务前调用（Redis 操作不进事务）。
+func (s *userClientService) DeleteAccount(ctx context.Context, userID string) error {
+	s.clearLoginLockCache(ctx, userID)
+	txCtx, tx := s.tm.Begin(ctx)
+	if err := s.repo.IncrementTokenVersion(txCtx, userID); err != nil {
+		slog.Error("user delete account: increment token version failed", "userID", userID, "err", err)
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeInternalError, "令牌失效失败")
+	}
+	if err := s.repo.Delete(txCtx, userID); err != nil {
+		slog.Error("user delete account: delete user failed", "userID", userID, "err", err)
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeInternalError, "账号注销失败")
+	}
+	if err := s.tm.Commit(tx); err != nil {
+		slog.Error("user delete account: commit failed", "userID", userID, "err", err)
+		return errorx.New(errorx.CodeInternalError, "事务提交失败")
+	}
+	return nil
+}
+
+// ResolveSendCodeTarget 解析发送验证码目标（spec B10：handler 不再跨层调用 repository）。
+//
+// 业务逻辑（迁移自 client/handler/v1/auth_handler.go SendCode）：
+//   - 登录场景（scene == "login"）：根据 username 查找用户 → 校验状态 → 获取 verifyConfig
+//     → 据 verifyConfig.VerifyType 选择 user.Email 或 user.Phone 作为 target
+//   - 注册/找回密码场景：直接使用传入的 target（手机号或邮箱），不查找用户
+//
+// 调用方职责：拿到 verifyConfig 与 target 后，调用 verifySvc.SendCode(scene, target, ...) 实际发送。
+func (s *userClientService) ResolveSendCodeTarget(ctx context.Context, scene, username, target string) (*VerifyConfig, string, error) {
+	if scene == SceneLogin {
+		if username == "" {
+			return nil, "", errorx.New(errorx.CodeInvalidParams, "登录场景需提供 username")
+		}
+		user, err := s.repo.GetByUsername(ctx, username)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, "", errorx.New(errorx.CodeUserNotFound, "用户不存在")
+			}
+			slog.Error("repo.GetByUsername failed", "username", username, "err", err)
+			return nil, "", fmt.Errorf("repo.GetByUsername: %w", err)
+		}
+		if user.Status == entity.StatusDisabled {
+			return nil, "", errorx.New(errorx.CodeUserDisabled, "账户已禁用")
+		}
+
+		verifyConfig, _ := s.verifySvc.GetVerifyConfig(ctx, scene)
+		if verifyConfig == nil || !verifyConfig.Enabled {
+			return nil, "", errorx.New(errorx.CodeInvalidParams, "当前场景未启用消息验证")
+		}
+
+		switch verifyConfig.VerifyType {
+		case "email":
+			if user.Email == "" {
+				return nil, "", errorx.New(errorx.CodeInvalidParams, "该用户未绑定邮箱")
+			}
+			return verifyConfig, user.Email, nil
+		case "sms":
+			if user.Phone == "" {
+				return nil, "", errorx.New(errorx.CodeInvalidParams, "该用户未绑定手机号")
+			}
+			return verifyConfig, user.Phone, nil
+		default:
+			return nil, "", errorx.New(errorx.CodeInvalidParams, "未配置验证方式")
+		}
+	}
+
+	// 注册/找回密码场景：直接使用 target（手机号或邮箱）
+	if target == "" {
+		return nil, "", errorx.New(errorx.CodeInvalidParams, "需提供 target (手机号或邮箱)")
+	}
+	// 仍需返回 verifyConfig，便于 handler 决定是否要求图形验证码等
+	verifyConfig, _ := s.verifySvc.GetVerifyConfig(ctx, scene)
+	return verifyConfig, target, nil
 }

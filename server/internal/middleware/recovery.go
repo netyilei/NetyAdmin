@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/requestid"
 	"NetyAdmin/internal/pkg/response"
 	logService "NetyAdmin/internal/service/log"
 )
@@ -29,16 +30,27 @@ func Recovery(errorLogSvc logService.ErrorService) gin.HandlerFunc {
 
 				adminIDUint := extractAdminIDUint(c)
 
-				errorLogSvc.LogPanic(
-					c.Request.Context(),
-					err,
-					requestID,
-					c.Request.URL.Path,
-					c.Request.Method,
-					c.ClientIP(),
-					c.Request.UserAgent(),
-					adminIDUint,
-				)
+				// LogPanic 调用包裹内层 recover：LogPanic 内部若 panic（如 DB 卡死、
+				// log_bus 阻塞 panic）不会导致进程崩溃。内层 recover 仅记录到 slog.Error，
+				// 不影响外层 Recovery 中间件返回 500 给客户端。
+				func() {
+					defer func() {
+						if e := recover(); e != nil {
+							slog.Error("Recovery: LogPanic panicked",
+								"panic", e, "requestID", requestID, "path", c.Request.URL.Path)
+						}
+					}()
+					errorLogSvc.LogPanic(
+						c.Request.Context(),
+						err,
+						requestID,
+						c.Request.URL.Path,
+						c.Request.Method,
+						c.ClientIP(),
+						c.Request.UserAgent(),
+						adminIDUint,
+					)
+				}()
 
 				response.FailWithStatus(c, http.StatusInternalServerError, errorx.CodeInternalError, "服务器内部错误")
 				c.Abort()
@@ -55,8 +67,14 @@ func RequestID() gin.HandlerFunc {
 		if requestID == "" {
 			requestID = uuid.New().String()
 		}
+		// 1. 保留 gin.Context 中的 requestID 字符串，向后兼容 c.GetString("requestID")
+		//    （recovery / sentry_tag_setter / response.Fail / Logger 等老路径仍读此值）
 		c.Set("requestID", requestID)
 		c.Header("X-Request-ID", requestID)
+		// 2. 注入到 c.Request.Context()，让 service / repository 通过 ctx 读取
+		//    （requestid.FromContext(ctx) / slogutil.LoggerFromContext(ctx)）
+		//    c.Request.WithContext 必须赋值回 c.Request，否则 ctx 不会生效
+		c.Request = c.Request.WithContext(requestid.WithRequestID(c.Request.Context(), requestID))
 		c.Next()
 	}
 }

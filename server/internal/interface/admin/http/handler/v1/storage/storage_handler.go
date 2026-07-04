@@ -6,9 +6,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	storageEntity "NetyAdmin/internal/domain/entity/storage"
 	storageDto "NetyAdmin/internal/interface/admin/dto/storage"
 	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/pagination"
 	"NetyAdmin/internal/pkg/response"
 	storagePkg "NetyAdmin/internal/pkg/storage"
 	storageService "NetyAdmin/internal/service/storage"
@@ -45,6 +45,7 @@ func (h *StorageHandler) GetStorageConfigList(c *gin.Context) {
 		response.FailWithCode(c, errorx.CodeInvalidParams)
 		return
 	}
+	req.Current, req.Size = pagination.NormalizePagination(req.Current, req.Size)
 
 	configs, total, err := h.configService.List(c.Request.Context(), &req)
 	if err != nil {
@@ -261,8 +262,24 @@ func (h *StorageHandler) GetUploadRecordList(c *gin.Context) {
 		response.FailWithCode(c, errorx.CodeInvalidParams)
 		return
 	}
+	req.Current, req.Size = pagination.NormalizePagination(req.Current, req.Size)
 
-	records, total, err := h.recordService.List(c.Request.Context(), &req)
+	// admin DTO → service 层入参契约（service 不再依赖 admin DTO）
+	listReq := &storageService.RecordListRequest{
+		FileName:        req.FileName,
+		Source:          req.Source,
+		SourceID:        req.SourceID,
+		BusinessType:    req.BusinessType,
+		BusinessID:      req.BusinessID,
+		MimeType:        req.MimeType,
+		StorageConfigID: req.StorageConfigID,
+		AppID:           req.AppID,
+		StartTime:       req.StartTime,
+		EndTime:         req.EndTime,
+		Current:         req.Current,
+		Size:            req.Size,
+	}
+	records, total, err := h.recordService.List(c.Request.Context(), listReq)
 	if err != nil {
 		response.Fail(c, err)
 		return
@@ -366,13 +383,41 @@ func (h *StorageHandler) GetUploadCredentials(c *gin.Context) {
 
 	sourceID := fmt.Sprintf("%d", c.GetUint("adminID"))
 
-	result, err := h.recordService.GetUploadCredentials(c.Request.Context(), &req, "", storageEntity.UploadSourceAdmin, sourceID)
+	// admin DTO → service 层入参契约（service 不再依赖 admin DTO）
+	credReq := &storageService.CredentialsRequest{
+		ConfigID:     req.ConfigID,
+		FileName:     req.FileName,
+		ContentType:  req.ContentType,
+		FileSize:     req.FileSize,
+		BusinessType: req.BusinessType,
+		BusinessID:   req.BusinessID,
+		SourceInfo:   req.SourceInfo,
+	}
+
+	result, err := h.recordService.GetUploadCredentials(c.Request.Context(), credReq, "", string(storageDto.UploadSourceAdmin), sourceID)
 	if err != nil {
 		response.Fail(c, err)
 		return
 	}
 
-	response.Success(c, result)
+	// service 返回值 → admin 响应 DTO
+	response.Success(c, &storageDto.Credentials{
+		URL:         result.URL,
+		Method:      result.Method,
+		Headers:     result.Headers,
+		ExpiresAt:   result.ExpiresAt,
+		ObjectKey:   result.ObjectKey,
+		Domain:      result.Domain,
+		FinalURL:    result.FinalURL,
+		ConfigID:    result.ConfigID,
+		Region:      result.Region,
+		Bucket:      result.Bucket,
+		Endpoint:    result.Endpoint,
+		PathPrefix:  result.PathPrefix,
+		MaxFileSize: result.MaxFileSize,
+		RecordID:    result.RecordID,
+		Secret:      result.Secret,
+	})
 }
 
 // CreateUploadRecord 上传成功通知：根据 recordId + secret 校验后将 pending 记录置为 uploaded。

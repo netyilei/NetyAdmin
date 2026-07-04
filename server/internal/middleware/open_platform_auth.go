@@ -19,9 +19,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	openEntity "NetyAdmin/internal/domain/entity/open_platform"
-	"NetyAdmin/internal/pkg/cache"
+	openDto "NetyAdmin/internal/interface/admin/dto/open_platform"
+	"NetyAdmin/internal/pkg/auth"
 	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/recovery"
+	"NetyAdmin/internal/pkg/requestid"
 	"NetyAdmin/internal/pkg/response"
 	ipacSvcPkg "NetyAdmin/internal/service/ipac"
 	openSvcPkg "NetyAdmin/internal/service/open_platform"
@@ -71,7 +73,7 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 
 			headerBytes, _ := json.Marshal(c.Request.Header)
 
-			log := &openEntity.OpenPlatformLog{
+			logReq := &openDto.RecordOpenLogReq{
 				AppID:         appIDStr,
 				AppKey:        appKey,
 				ApiPath:       c.Request.URL.Path,
@@ -82,11 +84,17 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 				RequestHeader: sanitizeHeaderValue(string(headerBytes)),
 				RequestBody:   sanitizeBody(string(requestBody)),
 				ResponseBody:  sanitizeBody(writer.body.String()),
-				CreatedAt:     startTime,
+				// Task 8.5: 从 c.Request.Context() 提取 request_id，
+				// 由 middleware.RequestID 中间件注入；service 层透传到 entity 后写入 DB。
+				// 注意：GoSafe 闭包内执行 logSvc.Record 时已脱离原请求 ctx 生命周期，
+				// 因此必须在 defer 之前取出 requestID，不能依赖 c.Request.Context() 仍然存活。
+				RequestID: requestid.FromContext(c.Request.Context()),
 			}
 
-			// 异步记录
-			go logSvc.Record(context.Background(), log)
+			// 异步记录（GoSafe 包裹 recover + Sentry 上报，防止 panic 影响节点）
+			recovery.GoSafe("open_platform:record", func() {
+				logSvc.Record(context.Background(), logReq)
+			})
 		}()
 
 		if appKey == "" || timestampStr == "" || nonce == "" || signature == "" {
@@ -118,8 +126,8 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 			return
 		}
 
-		// 3. 检查应用状态
-		if app.Status == openEntity.AppStatusDisabled {
+		// 3. 检查应用状态（auth.AppStatusDisabled 镜像 entity 常量，避免 middleware 直接 import entity）
+		if app.Status == auth.AppStatusDisabled {
 			response.FailWithCode(c, errorx.CodeAppDisabled, "应用已被禁用")
 			c.Abort()
 			return
@@ -139,17 +147,7 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 			return
 		}
 
-		// 5. Nonce 防重放 (使用缓存模块)
-		// nonce TTL 调整为 2 分钟，覆盖整个时间戳容差窗口（±60s 共 120s），防止窗口尾端的 nonce 过期后被重放
-		nonceKey := cache.KeyAppNonce(appKey, nonce)
-		set, err := appSvc.GetCacheMgr().SetNX(c.Request.Context(), nonceKey, "1", 2*time.Minute)
-		if err != nil || !set {
-			response.FailWithCode(c, errorx.CodeSignatureFailed, "重复的请求 (Nonce)")
-			c.Abort()
-			return
-		}
-
-		// 6. 解密 AppSecret
+		// 5. 解密 AppSecret
 		appSecret, err := appSvc.GetAppSecret(c.Request.Context(), app)
 		if err != nil {
 			response.FailWithCode(c, errorx.CodeInternalError, "系统错误")
@@ -157,16 +155,27 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 			return
 		}
 
-		// 7. 构造待签名字符串 (StringToSign)
+		// 6. 构造待签名字符串 (StringToSign)
 		stringToSign := constructStringToSign(c, timestampStr, nonce, requestBody)
 
-		// 8. 计算 HMAC-SHA256 签名
+		// 7. 计算 HMAC-SHA256 签名
 		expectedSignature := computeHmacSha256(appSecret, stringToSign)
 
 		// 使用 hmac.Equal 进行恒定时间比较，防止时序攻击推导签名
 		// 注意：直接比较字符串（!=）会因为短路比较泄露字节差异信息
 		if !hmac.Equal([]byte(signature), []byte(expectedSignature)) {
 			response.FailWithCode(c, errorx.CodeSignatureFailed, "签名验证失败")
+			c.Abort()
+			return
+		}
+
+		// 8. Nonce 防重放 (使用缓存模块) - 移到签名验证之后
+		// 顺序变更原因：原顺序在签名验证前 SetNX，攻击者可用任意 nonce 占用缓存槽位 2 分钟，
+		// 造成 DoS 向量。现仅在签名验证通过后才 SetNX，消除 DoS 风险。
+		// nonce TTL 调整为 2 分钟，覆盖整个时间戳容差窗口（±60s 共 120s）。
+		set, err := appSvc.TryConsumeNonce(c.Request.Context(), appKey, nonce, 2*time.Minute)
+		if err != nil || !set {
+			response.FailWithCode(c, errorx.CodeSignatureFailed, "重复的请求 (Nonce)")
 			c.Abort()
 			return
 		}
@@ -187,10 +196,9 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 			return
 		}
 
+		// 路由未匹配时 Gin 会直接返回 404，根本不会进入本中间件，因此
+		// c.FullPath() 在此处必有值，无需 fallback 到 c.Request.URL.Path。
 		matchedPath := c.FullPath()
-		if matchedPath == "" {
-			matchedPath = c.Request.URL.Path
-		}
 		currentApi := strings.ToUpper(c.Request.Method) + ":" + matchedPath
 
 		matched := false
@@ -207,9 +215,25 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 			return
 		}
 
-		// 将 appID 存入上下文供后续使用
+		// 将 appID / currentAppContext / 基础类型值存入上下文供后续使用
 		c.Set("appID", app.ID)
-		c.Set("currentOpenApp", app)
+		// 构造 AppContext（仅基础类型）注入 gin.Context，避免将 *open_platform.App entity
+		// 直接暴露给 handler（Task 15：中间件 / handler 不再 import openEntity；
+		// service 层 GetAppByKey 返回 entity 是设计例外，详见 SHARED.md）。
+		appCtx := &auth.AppContext{
+			ID:               app.ID,
+			AppKey:           app.AppKey,
+			StorageID:        strconv.FormatUint(uint64(app.StorageID), 10),
+			Status:           app.Status,
+			QuotaConfig:      app.QuotaConfig,
+			CacheTTL:         app.CacheTTL,
+			IPFilterEnabled:  app.IPFilterEnabled,
+			RateLimitEnabled: app.RateLimitEnabled,
+		}
+		c.Set("currentAppContext", appCtx)
+		// 同时存入基础类型值，供 client handler 直接读取（向后兼容：user_handler.go / storage_handler.go 仍读这些字段）
+		c.Set("currentAppKey", app.AppKey)
+		c.Set("currentAppStorageID", app.StorageID)
 		c.Next()
 	}
 }

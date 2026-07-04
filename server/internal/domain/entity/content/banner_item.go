@@ -6,7 +6,7 @@ import (
 )
 
 type ContentBannerItem struct {
-	entity.Model
+	entity.HardModel
 	entity.Operator
 	GroupID       uint       `gorm:"column:group_id;not null;comment:Banner组ID" json:"groupId"`
 	Title         string     `gorm:"column:title;type:varchar(200);not null;comment:Banner标题" json:"title"`

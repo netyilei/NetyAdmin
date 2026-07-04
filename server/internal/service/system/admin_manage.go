@@ -3,9 +3,13 @@ package system
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
+
+	"gorm.io/gorm"
 
 	"NetyAdmin/internal/domain/entity"
 	systemEntity "NetyAdmin/internal/domain/entity/system"
@@ -126,7 +130,11 @@ func (s *adminService) Update(ctx context.Context, req *systemDto.UpdateAdminReq
 
 	admin, err := s.adminRepo.GetByID(ctx, req.ID)
 	if err != nil {
-		return errorx.New(errorx.CodeUserNotFound)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errorx.New(errorx.CodeUserNotFound)
+		}
+		slog.Error("adminRepo.GetByID failed", "adminID", req.ID, "err", err)
+		return fmt.Errorf("adminRepo.GetByID: %w", err)
 	}
 
 	// 目标已是超级管理员，拒绝修改，防止篡改超管
@@ -145,7 +153,7 @@ func (s *adminService) Update(ctx context.Context, req *systemDto.UpdateAdminReq
 
 	exists, err := s.adminRepo.ExistsByUsername(ctx, req.Username, req.ID)
 	if err != nil {
-		return err
+		return fmt.Errorf("adminRepo.ExistsByUsername: %w", err)
 	}
 	if exists {
 		return errorx.New(errorx.CodeUserAlreadyExists)
@@ -177,7 +185,7 @@ func (s *adminService) Update(ctx context.Context, req *systemDto.UpdateAdminReq
 	if len(req.Roles) > 0 {
 		roles, err := s.roleRepo.GetByCodes(ctx, req.Roles)
 		if err != nil {
-			return err
+			return fmt.Errorf("roleRepo.GetByCodes: %w", err)
 		}
 		// 校验角色全部存在，部分角色不存在时拒绝更新
 		if len(roles) != len(req.Roles) {
@@ -205,28 +213,66 @@ func (s *adminService) Update(ctx context.Context, req *systemDto.UpdateAdminReq
 	}
 	// 空 Roles 保持原有角色不变，避免误清空导致权限丢失
 
-	// 先更新管理员基础字段（Save 不会更新 many2many 关联）
-	// 清空 Roles 避免 Save 尝试处理关联
+	// 敏感字段变更判定（密码/状态禁用/角色变更）
+	sensitiveChanged := req.Password != "" || admin.Status != entity.StatusEnabled || rolesChanged
+
+	// 清空 Roles 避免 Save 尝试处理关联（Save 仅更新主数据）
 	admin.Roles = nil
-	err = s.adminRepo.Update(ctx, admin)
-	if err != nil {
-		return err
-	}
 
-	// 若角色变更，使用 UpdateRoles 更新 many2many 关联
-	if len(newRoleIDs) > 0 {
-		if err := s.adminRepo.UpdateRoles(ctx, req.ID, newRoleIDs); err != nil {
-			return err
+	if sensitiveChanged {
+		// 敏感分支：TM 单事务原子完成「递增 token_version + Save 主数据 + 更新角色关联」（fail-closed）。
+		// 任一步失败整体回滚，避免「密码已改/版本号未变」或「角色已变/版本号未变」的中间态。
+		txCtx, tx := s.tm.Begin(ctx)
+		if err := s.adminRepo.IncrementTokenVersion(txCtx, req.ID); err != nil {
+			slog.Error("admin update: increment token version failed", "adminID", req.ID, "err", err)
+			s.tm.Rollback(tx)
+			return errorx.New(errorx.CodeInternalError, "管理员更新失败")
+		}
+		if err := s.adminRepo.Update(txCtx, admin); err != nil {
+			slog.Error("admin update: save admin failed", "adminID", req.ID, "err", err)
+			s.tm.Rollback(tx)
+			return errorx.New(errorx.CodeInternalError, "管理员更新失败")
+		}
+		// 若角色变更，在同一事务内更新 many2many 关联
+		if len(newRoleIDs) > 0 {
+			if err := s.adminRepo.UpdateRoles(txCtx, req.ID, newRoleIDs); err != nil {
+				slog.Error("admin update: update roles failed", "adminID", req.ID, "err", err)
+				s.tm.Rollback(tx)
+				return errorx.New(errorx.CodeInternalError, "管理员更新失败")
+			}
+		}
+		if err := s.tm.Commit(tx); err != nil {
+			slog.Error("admin update: commit failed", "adminID", req.ID, "err", err)
+			return errorx.New(errorx.CodeInternalError, "事务提交失败")
+		}
+	} else {
+		// 非敏感字段更新：TM 单事务原子完成「更新主数据 + 更新角色关联」（fail-closed）。
+		// 任一步失败整体回滚，避免「基础信息已改但角色未变」的中间态。
+		txCtx, tx := s.tm.Begin(ctx)
+		if err := s.adminRepo.Update(txCtx, admin); err != nil {
+			slog.Error("admin update: save admin failed", "adminID", req.ID, "err", err)
+			s.tm.Rollback(tx)
+			return errorx.New(errorx.CodeInternalError, "管理员更新失败")
+		}
+		if len(newRoleIDs) > 0 {
+			if err := s.adminRepo.UpdateRoles(txCtx, req.ID, newRoleIDs); err != nil {
+				slog.Error("admin update: update roles failed", "adminID", req.ID, "err", err)
+				s.tm.Rollback(tx)
+				return errorx.New(errorx.CodeInternalError, "管理员更新失败")
+			}
+		}
+		if err := s.tm.Commit(tx); err != nil {
+			slog.Error("admin update: commit failed", "adminID", req.ID, "err", err)
+			return errorx.New(errorx.CodeInternalError, "事务提交失败")
 		}
 	}
 
-	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagAdminInfo)
-	// 若修改了密码、禁用了账户或变更了角色，强制失效该管理员所有 token
-	// 角色变更后旧 Token 仍有效会导致被移除权限的管理员继续访问
-	if req.Password != "" || admin.Status != entity.StatusEnabled || rolesChanged {
-		if err := s.invalidateAdminTokens(ctx, req.ID); err != nil {
-			return errorx.New(errorx.CodeInternalError, "令牌失效失败")
-		}
+	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagAdminInfo); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagAdminInfo, "err", err)
+	}
+	// 敏感分支事务已递增 TokenVersion，事务后失效 auth_state 缓存
+	if sensitiveChanged {
+		s.invalidateAdminAuthStateCache(ctx, req.ID)
 	}
 	return nil
 }
@@ -239,19 +285,40 @@ func (s *adminService) Delete(ctx context.Context, id uint, operatorID uint) err
 
 	admin, err := s.adminRepo.GetByID(ctx, id)
 	if err != nil {
-		return errorx.New(errorx.CodeUserNotFound)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errorx.New(errorx.CodeUserNotFound)
+		}
+		slog.Error("adminRepo.GetByID failed", "adminID", id, "err", err)
+		return fmt.Errorf("adminRepo.GetByID: %w", err)
 	}
 
 	if admin.IsSuperAdmin() {
 		return errorx.New(errorx.CodeCannotDeleteSuper)
 	}
 
-	// 单事务原子完成「清理角色关联 + 递增 token_version + 软删除」，与 user 侧语义一致。
-	// 避免旧的 invalidateAdminTokens + adminRepo.Delete 两步分离导致的中间态。
-	if err := s.adminRepo.DeleteWithTokenInvalidation(ctx, id); err != nil {
-		return errorx.New(errorx.CodeInternalError, fmt.Sprintf("管理员 %d 删除失败（事务回滚）：%s", id, err.Error()))
+	// TM 单事务原子完成「清理角色关联 + 递增 token_version + 软删除」。
+	// 任一步失败整体回滚，避免「角色关联已清/版本号已变但主数据未删」的中间态。
+	// 事务提交后失效缓存：auth_state（按 adminID 精准）+ admin:info（全局，列表/详情页可能引用）。
+	txCtx, tx := s.tm.Begin(ctx)
+	if err := s.adminRepo.ClearRoles(txCtx, id); err != nil {
+		slog.Error("admin delete: clear roles failed", "adminID", id, "err", err)
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeInternalError, fmt.Sprintf("管理员 %d 删除失败", id))
 	}
-	// 事务提交后失效缓存：auth_state（按 adminID 精准）+ admin:info（全局，列表/详情页可能引用）
+	if err := s.adminRepo.IncrementTokenVersion(txCtx, id); err != nil {
+		slog.Error("admin delete: increment token version failed", "adminID", id, "err", err)
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeInternalError, fmt.Sprintf("管理员 %d 删除失败", id))
+	}
+	if err := s.adminRepo.Delete(txCtx, id); err != nil {
+		slog.Error("admin delete: delete admin failed", "adminID", id, "err", err)
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeInternalError, fmt.Sprintf("管理员 %d 删除失败", id))
+	}
+	if err := s.tm.Commit(tx); err != nil {
+		slog.Error("admin delete: commit failed", "adminID", id, "err", err)
+		return errorx.New(errorx.CodeInternalError, fmt.Sprintf("管理员 %d 删除失败", id))
+	}
 	s.invalidateAdminAuthStateCache(ctx, id)
 	s.invalidateAdminInfoCache(ctx)
 	return nil
@@ -262,9 +329,9 @@ func (s *adminService) DeleteBatch(ctx context.Context, ids []uint, operatorID u
 	// 业务规则拒绝（自我保护/超管保护/不存在）走 continue 跳过并记录，不阻断整个批量。
 	//
 	// 设计权衡（vs 旧 fail-open 实现）：
-	//   - 旧实现：invalidateAdminTokens 与 Delete 分离，Inc 失败仅记录 errs 不阻断，
+	//   - 旧实现：IncrementTokenVersion 与 Delete 分离，Inc 失败仅记录 errs 不阻断，
 	//     可能出现"已删但版本号未递增"的中间态（旧 token 仍能通过版本号校验）
-	//   - 新实现：单事务原子保证，事务失败立即返回；业务规则拒绝仍 continue
+	//   - 新实现：TM 单事务原子保证，事务失败立即返回；业务规则拒绝仍 continue
 	var skipped []string
 	for _, id := range ids {
 		if id == operatorID {
@@ -273,18 +340,46 @@ func (s *adminService) DeleteBatch(ctx context.Context, ids []uint, operatorID u
 		}
 		admin, err := s.adminRepo.GetByID(ctx, id)
 		if err != nil {
-			skipped = append(skipped, fmt.Sprintf("管理员 %d：不存在", id))
-			continue
+			// 业务规则：不存在的 ID 跳过（fail-closed 语义仅针对事务失败）
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				skipped = append(skipped, fmt.Sprintf("管理员 %d：不存在", id))
+				continue
+			}
+			// DB 错误（非 record not found）：fail-closed 立即返回，已删除的 id 保持，未处理的不受影响
+			slog.Error("admin delete batch: GetByID failed", "adminID", id, "err", err)
+			s.invalidateAdminInfoCache(ctx)
+			return fmt.Errorf("adminRepo.GetByID (id=%d): %w", id, err)
 		}
 		if admin.IsSuperAdmin() {
 			skipped = append(skipped, fmt.Sprintf("管理员 %d：不允许删除超级管理员", id))
 			continue
 		}
-		if err := s.adminRepo.DeleteWithTokenInvalidation(ctx, id); err != nil {
+		// TM 单事务原子完成「清理角色关联 + 递增 token_version + 软删除」
+		txCtx, tx := s.tm.Begin(ctx)
+		if err := s.adminRepo.ClearRoles(txCtx, id); err != nil {
+			slog.Error("admin delete batch: clear roles failed", "adminID", id, "err", err)
+			s.tm.Rollback(tx)
 			// 事务失败立即返回（fail-closed）：已提交的 id 保持删除状态，未处理的 id 不受影响
 			// 但已成功删除的 id 会导致列表/详情页缓存过期，必须失效 TagAdminInfo
 			s.invalidateAdminInfoCache(ctx)
-			return errorx.New(errorx.CodeInternalError, fmt.Sprintf("管理员 %d 删除失败（事务回滚）：%s", id, err.Error()))
+			return errorx.New(errorx.CodeInternalError, fmt.Sprintf("管理员 %d 删除失败", id))
+		}
+		if err := s.adminRepo.IncrementTokenVersion(txCtx, id); err != nil {
+			slog.Error("admin delete batch: increment token version failed", "adminID", id, "err", err)
+			s.tm.Rollback(tx)
+			s.invalidateAdminInfoCache(ctx)
+			return errorx.New(errorx.CodeInternalError, fmt.Sprintf("管理员 %d 删除失败", id))
+		}
+		if err := s.adminRepo.Delete(txCtx, id); err != nil {
+			slog.Error("admin delete batch: delete admin failed", "adminID", id, "err", err)
+			s.tm.Rollback(tx)
+			s.invalidateAdminInfoCache(ctx)
+			return errorx.New(errorx.CodeInternalError, fmt.Sprintf("管理员 %d 删除失败", id))
+		}
+		if err := s.tm.Commit(tx); err != nil {
+			slog.Error("admin delete batch: commit failed", "adminID", id, "err", err)
+			s.invalidateAdminInfoCache(ctx)
+			return errorx.New(errorx.CodeInternalError, fmt.Sprintf("管理员 %d 删除失败", id))
 		}
 		s.invalidateAdminAuthStateCache(ctx, id)
 	}

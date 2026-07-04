@@ -2,18 +2,23 @@ package system
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
+	"strings"
 	"time"
+
+	"gorm.io/gorm"
 
 	"NetyAdmin/internal/domain/entity"
 	systemEntity "NetyAdmin/internal/domain/entity/system"
 	systemVO "NetyAdmin/internal/domain/vo/system"
 	systemDto "NetyAdmin/internal/interface/admin/dto/system"
 	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/utils"
 	systemRepo "NetyAdmin/internal/repository/system"
-	"strings"
 )
 
 type RoleService interface {
@@ -39,6 +44,7 @@ type roleService struct {
 	apiRepo    systemRepo.APIRepository
 	buttonRepo systemRepo.ButtonRepository
 	cacheMgr   cache.LazyCacheManager
+	tm         *database.TransactionManager
 }
 
 func NewRoleService(
@@ -47,6 +53,7 @@ func NewRoleService(
 	apiRepo systemRepo.APIRepository,
 	buttonRepo systemRepo.ButtonRepository,
 	cacheMgr cache.LazyCacheManager,
+	tm *database.TransactionManager,
 ) RoleService {
 	return &roleService{
 		roleRepo:   roleRepo,
@@ -54,6 +61,7 @@ func NewRoleService(
 		apiRepo:    apiRepo,
 		buttonRepo: buttonRepo,
 		cacheMgr:   cacheMgr,
+		tm:         tm,
 	}
 }
 
@@ -92,7 +100,11 @@ func (s *roleService) List(ctx context.Context, req *systemDto.RoleQuery) ([]*sy
 func (s *roleService) GetByID(ctx context.Context, id uint) (*systemVO.RoleVO, error) {
 	role, err := s.roleRepo.GetByID(ctx, id)
 	if err != nil {
-		return nil, errorx.New(errorx.CodeNotFound, "角色不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errorx.New(errorx.CodeNotFound, "角色不存在")
+		}
+		slog.Error("roleRepo.GetByID failed", "roleID", id, "err", err)
+		return nil, fmt.Errorf("roleRepo.GetByID: %w", err)
 	}
 
 	menuIDs := make([]uint, 0, len(role.Menus))
@@ -160,29 +172,19 @@ func (s *roleService) Create(ctx context.Context, req *systemDto.CreateRoleReq, 
 }
 
 func (s *roleService) Update(ctx context.Context, req *systemDto.UpdateRoleReq, operatorID uint) error {
+	// 复用 old 实例做 patch 后 Save，避免构造新 entity 导致 CreatedAt 等零值字段覆盖数据库已有值（Save 是全字段更新）。
+	// Code 为业务唯一标识，创建后不可变更，Update 不修改 Code（基座设计原则）。
 	role, err := s.roleRepo.GetByID(ctx, req.ID)
 	if err != nil {
-		return errorx.New(errorx.CodeNotFound, "角色不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errorx.New(errorx.CodeNotFound, "角色不存在")
+		}
+		slog.Error("roleRepo.GetByID failed", "roleID", req.ID, "err", err)
+		return fmt.Errorf("roleRepo.GetByID: %w", err)
 	}
 
 	if role.Code == systemEntity.SuperRoleCode {
 		return errorx.New(errorx.CodeCannotModifySuper, "不允许修改超级管理员角色")
-	}
-
-	// 禁止将普通角色编码修改为超级管理员编码，防止提权
-	if req.Code != "" && req.Code == systemEntity.SuperRoleCode {
-		return errorx.New(errorx.CodeCannotModifySuper, "不允许修改为超级管理员角色编码")
-	}
-
-	if req.Code != "" && req.Code != role.Code {
-		exists, err := s.roleRepo.ExistsByCode(ctx, req.Code, req.ID)
-		if err != nil {
-			return err
-		}
-		if exists {
-			return errorx.New(errorx.CodeAlreadyExists, "角色编码已存在")
-		}
-		role.Code = req.Code
 	}
 
 	role.Name = req.Name
@@ -190,52 +192,124 @@ func (s *roleService) Update(ctx context.Context, req *systemDto.UpdateRoleReq, 
 	role.Status = req.Status
 	role.UpdatedBy = operatorID
 
-	err = s.roleRepo.Update(ctx, role)
-	if err == nil {
-		_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu)
+	if err := s.roleRepo.Update(ctx, role); err != nil {
+		return err
 	}
-	return err
+	// Code 未变更，只需失效当前 RBAC 缓存（角色 + 菜单）
+	if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagRBACRole, "err", cErr)
+	}
+	return nil
 }
 
 func (s *roleService) Delete(ctx context.Context, id uint) error {
+	// 事务前预校验：取角色 + 超管保护（用原始 ctx，不进事务）
 	role, err := s.roleRepo.GetByID(ctx, id)
 	if err != nil {
-		return errorx.New(errorx.CodeNotFound, "角色不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errorx.New(errorx.CodeNotFound, "角色不存在")
+		}
+		slog.Error("roleRepo.GetByID failed", "roleID", id, "err", err)
+		return fmt.Errorf("roleRepo.GetByID: %w", err)
 	}
 
 	if role.Code == systemEntity.SuperRoleCode {
 		return errorx.New(errorx.CodeCannotDeleteSuper, "不允许删除超级管理员角色")
 	}
 
-	err = s.roleRepo.Delete(ctx, id)
-	if err == nil {
-		_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu)
+	// 用 WithTransaction 闭包 API 包裹「清理 admin_user_roles + 清理权限关联表 + 硬删除 role」三步原子写。
+	// 任一步失败自动 Rollback；panic 自动 Rollback 后重抛让 recovery 中间件捕获 + Sentry 上报。
+	// 事务提交后失效 RBAC 缓存（角色 + 菜单）。
+	err = s.tm.WithTransaction(ctx, func(txCtx context.Context) error {
+		if err := s.roleRepo.ClearUserRoles(txCtx, id); err != nil {
+			slog.Error("role delete: clear user roles failed", "roleID", id, "err", err)
+			return errorx.New(errorx.CodeInternalError, fmt.Sprintf("角色 %d 删除失败", id))
+		}
+		if err := s.roleRepo.ClearPermissions(txCtx, id); err != nil {
+			slog.Error("role delete: clear permissions failed", "roleID", id, "err", err)
+			return errorx.New(errorx.CodeInternalError, fmt.Sprintf("角色 %d 删除失败", id))
+		}
+		if err := s.roleRepo.Delete(txCtx, id); err != nil {
+			slog.Error("role delete: delete role failed", "roleID", id, "err", err)
+			return errorx.New(errorx.CodeInternalError, fmt.Sprintf("角色 %d 删除失败", id))
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
-	return err
+	if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagRBACRole, "err", cErr)
+	}
+	return nil
 }
 
 func (s *roleService) DeleteBatch(ctx context.Context, ids []uint) error {
-	var errs []string
+	// 逐条事务 fail-closed：任一 id 事务失败立即返回错误（已提交的 id 保持删除状态）。
+	// 业务规则拒绝（不存在/超管保护）走 continue 跳过并记录，不阻断整个批量。
+	// 设计权衡同 admin DeleteBatch：TM 单事务原子保证，事务失败立即返回；业务规则拒绝仍 continue。
+	var skipped []string
 	for _, id := range ids {
 		role, err := s.roleRepo.GetByID(ctx, id)
 		if err != nil {
-			errs = append(errs, fmt.Sprintf("角色 %d：不存在", id))
-			continue
+			// 业务规则：不存在的 ID 跳过（fail-closed 语义仅针对事务失败）
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				skipped = append(skipped, fmt.Sprintf("角色 %d：不存在", id))
+				continue
+			}
+			// DB 错误（非 record not found）：fail-closed 立即返回，已删除的 id 保持，未处理的不受影响
+			slog.Error("role delete batch: GetByID failed", "roleID", id, "err", err)
+			if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
+				slog.Error("invalidate cache failed after GetByID failure", "tag", cache.TagRBACRole, "err", cErr)
+			}
+			return fmt.Errorf("roleRepo.GetByID (id=%d): %w", id, err)
 		}
 		if role.Code == systemEntity.SuperRoleCode {
-			errs = append(errs, fmt.Sprintf("角色 %d：不允许删除超级管理员角色", id))
+			skipped = append(skipped, fmt.Sprintf("角色 %d：不允许删除超级管理员角色", id))
 			continue
 		}
-		if err := s.roleRepo.Delete(ctx, id); err != nil {
-			errs = append(errs, fmt.Sprintf("角色 %d：%s", id, err.Error()))
-			continue
+		// TM 单事务原子完成「清理 admin_user_roles + 清理权限关联表 + 硬删除 role」
+		txCtx, tx := s.tm.Begin(ctx)
+		if err := s.roleRepo.ClearUserRoles(txCtx, id); err != nil {
+			slog.Error("role delete batch: clear user roles failed", "roleID", id, "err", err)
+			s.tm.Rollback(tx)
+			// 事务失败立即返回（fail-closed）：已提交的 id 保持删除状态，未处理的 id 不受影响
+			// 但已成功删除的 id 会导致 RBAC 缓存过期，必须失效
+			if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
+				slog.Error("invalidate cache failed after tx failure", "tag", cache.TagRBACRole, "err", cErr)
+			}
+			return errorx.New(errorx.CodeInternalError, fmt.Sprintf("角色 %d 删除失败", id))
+		}
+		if err := s.roleRepo.ClearPermissions(txCtx, id); err != nil {
+			slog.Error("role delete batch: clear permissions failed", "roleID", id, "err", err)
+			s.tm.Rollback(tx)
+			if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
+				slog.Error("invalidate cache failed after tx failure", "tag", cache.TagRBACRole, "err", cErr)
+			}
+			return errorx.New(errorx.CodeInternalError, fmt.Sprintf("角色 %d 删除失败", id))
+		}
+		if err := s.roleRepo.Delete(txCtx, id); err != nil {
+			slog.Error("role delete batch: delete role failed", "roleID", id, "err", err)
+			s.tm.Rollback(tx)
+			if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
+				slog.Error("invalidate cache failed after tx failure", "tag", cache.TagRBACRole, "err", cErr)
+			}
+			return errorx.New(errorx.CodeInternalError, fmt.Sprintf("角色 %d 删除失败", id))
+		}
+		if err := s.tm.Commit(tx); err != nil {
+			slog.Error("role delete batch: commit failed", "roleID", id, "err", err)
+			if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
+				slog.Error("invalidate cache failed after tx failure", "tag", cache.TagRBACRole, "err", cErr)
+			}
+			return errorx.New(errorx.CodeInternalError, fmt.Sprintf("角色 %d 删除失败", id))
 		}
 	}
-	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu)
-
-	// 收集错误并返回聚合错误，避免静默吞错导致数据不一致
-	if len(errs) > 0 {
-		return errorx.New(errorx.CodeInternalError, fmt.Sprintf("部分角色删除失败：%s", strings.Join(errs, "; ")))
+	// 全部处理完成后，失效 RBAC 缓存（角色 + 菜单）
+	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagRBACRole, "err", err)
+	}
+	if len(skipped) > 0 {
+		return errorx.New(errorx.CodeForbidden, fmt.Sprintf("部分角色被跳过：%s", strings.Join(skipped, "; ")))
 	}
 	return nil
 }
@@ -264,7 +338,11 @@ func (s *roleService) GetRoleMenusWithHome(ctx context.Context, roleID uint) (ma
 	err := s.cacheMgr.Fetch(ctx, key, "rbac_menu", []string{cache.TagRBACRole}, cache.TTL_RBAC, &result, func() (interface{}, error) {
 		role, err := s.roleRepo.GetByID(ctx, roleID)
 		if err != nil {
-			return nil, errorx.New(errorx.CodeNotFound, "角色不存在")
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, errorx.New(errorx.CodeNotFound, "角色不存在")
+			}
+			slog.Error("roleRepo.GetByID failed", "roleID", roleID, "err", err)
+			return nil, fmt.Errorf("roleRepo.GetByID: %w", err)
 		}
 
 		menuIds := utils.SliceMap(role.Menus, func(m *systemEntity.Menu) uint { return m.ID })
@@ -285,7 +363,11 @@ func (s *roleService) GetRoleMenusWithHome(ctx context.Context, roleID uint) (ma
 func (s *roleService) UpdateMenus(ctx context.Context, roleID uint, menuIDs []uint, homeRouteName string) error {
 	role, err := s.roleRepo.GetByID(ctx, roleID)
 	if err != nil {
-		return errorx.New(errorx.CodeNotFound, "角色不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errorx.New(errorx.CodeNotFound, "角色不存在")
+		}
+		slog.Error("roleRepo.GetByID failed", "roleID", roleID, "err", err)
+		return fmt.Errorf("roleRepo.GetByID: %w", err)
 	}
 
 	if role.Code == systemEntity.SuperRoleCode {
@@ -308,7 +390,9 @@ func (s *roleService) UpdateMenus(ctx context.Context, roleID uint, menuIDs []ui
 
 	err = s.roleRepo.Update(ctx, role)
 	if err == nil {
-		_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu)
+		if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
+			slog.Error("invalidate cache failed", "tag", cache.TagRBACRole, "err", cErr)
+		}
 	}
 	return err
 }
@@ -319,7 +403,11 @@ func (s *roleService) GetRoleButtons(ctx context.Context, roleID uint) ([]uint, 
 	err := s.cacheMgr.Fetch(ctx, key, "rbac_menu", []string{cache.TagRBACRole}, cache.TTL_RBAC, &buttonIDs, func() (interface{}, error) {
 		role, err := s.roleRepo.GetByID(ctx, roleID)
 		if err != nil {
-			return nil, errorx.New(errorx.CodeNotFound, "角色不存在")
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, errorx.New(errorx.CodeNotFound, "角色不存在")
+			}
+			slog.Error("roleRepo.GetByID failed", "roleID", roleID, "err", err)
+			return nil, fmt.Errorf("roleRepo.GetByID: %w", err)
 		}
 
 		return utils.SliceMap(role.Buttons, func(b *systemEntity.Button) uint { return b.ID }), nil
@@ -330,7 +418,11 @@ func (s *roleService) GetRoleButtons(ctx context.Context, roleID uint) ([]uint, 
 func (s *roleService) UpdateButtons(ctx context.Context, roleID uint, buttonIDs []uint) error {
 	role, err := s.roleRepo.GetByID(ctx, roleID)
 	if err != nil {
-		return errorx.New(errorx.CodeNotFound, "角色不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errorx.New(errorx.CodeNotFound, "角色不存在")
+		}
+		slog.Error("roleRepo.GetByID failed", "roleID", roleID, "err", err)
+		return fmt.Errorf("roleRepo.GetByID: %w", err)
 	}
 
 	if role.Code == systemEntity.SuperRoleCode {
@@ -344,7 +436,9 @@ func (s *roleService) UpdateButtons(ctx context.Context, roleID uint, buttonIDs 
 
 	err = s.roleRepo.Update(ctx, role)
 	if err == nil {
-		_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole)
+		if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole); cErr != nil {
+			slog.Error("invalidate cache failed", "tag", cache.TagRBACRole, "err", cErr)
+		}
 	}
 	return err
 }
@@ -355,7 +449,11 @@ func (s *roleService) GetRoleAPIs(ctx context.Context, roleID uint) ([]uint, err
 	err := s.cacheMgr.Fetch(ctx, key, "rbac_auth", []string{cache.TagRBACRole}, cache.TTL_RBAC, &apiIDs, func() (interface{}, error) {
 		role, err := s.roleRepo.GetByID(ctx, roleID)
 		if err != nil {
-			return nil, errorx.New(errorx.CodeNotFound, "角色不存在")
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, errorx.New(errorx.CodeNotFound, "角色不存在")
+			}
+			slog.Error("roleRepo.GetByID failed", "roleID", roleID, "err", err)
+			return nil, fmt.Errorf("roleRepo.GetByID: %w", err)
 		}
 
 		return utils.SliceMap(role.Apis, func(a *systemEntity.API) uint { return a.ID }), nil
@@ -366,7 +464,11 @@ func (s *roleService) GetRoleAPIs(ctx context.Context, roleID uint) ([]uint, err
 func (s *roleService) UpdateAPIs(ctx context.Context, roleID uint, apiIDs []uint) error {
 	role, err := s.roleRepo.GetByID(ctx, roleID)
 	if err != nil {
-		return errorx.New(errorx.CodeNotFound, "角色不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errorx.New(errorx.CodeNotFound, "角色不存在")
+		}
+		slog.Error("roleRepo.GetByID failed", "roleID", roleID, "err", err)
+		return fmt.Errorf("roleRepo.GetByID: %w", err)
 	}
 
 	if role.Code == systemEntity.SuperRoleCode {
@@ -381,7 +483,9 @@ func (s *roleService) UpdateAPIs(ctx context.Context, roleID uint, apiIDs []uint
 	err = s.roleRepo.Update(ctx, role)
 	if err == nil {
 		// 失效角色相关缓存（包括权限 ID 列表和鉴权所用的 API 列表）
-		_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole)
+		if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole); cErr != nil {
+			slog.Error("invalidate cache failed", "tag", cache.TagRBACRole, "err", cErr)
+		}
 	}
 	return err
 }

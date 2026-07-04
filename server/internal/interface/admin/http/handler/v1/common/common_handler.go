@@ -1,25 +1,18 @@
 package common
 
 import (
-	"strconv"
-
-	"NetyAdmin/internal/pkg/captcha"
-	"NetyAdmin/internal/pkg/configsync"
-	"NetyAdmin/internal/pkg/response"
-
 	"github.com/gin-gonic/gin"
+
+	"NetyAdmin/internal/pkg/response"
+	systemService "NetyAdmin/internal/service/system"
 )
 
 type CommonHandler struct {
-	captchaMgr *captcha.Manager
-	watcher    configsync.ConfigWatcher
+	captchaSvc systemService.CaptchaService
 }
 
-func NewCommonHandler(captchaMgr *captcha.Manager, watcher configsync.ConfigWatcher) *CommonHandler {
-	return &CommonHandler{
-		captchaMgr: captchaMgr,
-		watcher:    watcher,
-	}
+func NewCommonHandler(captchaSvc systemService.CaptchaService) *CommonHandler {
+	return &CommonHandler{captchaSvc: captchaSvc}
 }
 
 // @Summary      获取验证码
@@ -30,30 +23,7 @@ func NewCommonHandler(captchaMgr *captcha.Manager, watcher configsync.ConfigWatc
 // @Success      200 {object} response.Response "验证码信息"
 // @Router       /admin/v1/common/captcha [get]
 func (h *CommonHandler) GetCaptcha(c *gin.Context) {
-	// 获取验证码配置
-	configs := h.watcher.GetGroupConfigs("captcha_config")
-	
-	captchaType := configs["captcha_type"]
-	if captchaType == "" {
-		captchaType = "digit"
-	}
-	
-	width, _ := strconv.Atoi(configs["captcha_width"])
-	if width <= 0 {
-		width = 240
-	}
-	
-	height, _ := strconv.Atoi(configs["captcha_height"])
-	if height <= 0 {
-		height = 80
-	}
-	
-	length, _ := strconv.Atoi(configs["captcha_length"])
-	if length <= 0 {
-		length = 4
-	}
-
-	id, b64s, err := h.captchaMgr.Generate(captchaType, width, height, length)
+	id, b64s, err := h.captchaSvc.Generate(c.Request.Context(), "admin_login")
 	if err != nil {
 		response.Fail(c, err)
 		return

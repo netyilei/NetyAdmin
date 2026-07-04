@@ -7,6 +7,7 @@ import (
 
 	systemDto "NetyAdmin/internal/interface/admin/dto/system"
 	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/pagination"
 	"NetyAdmin/internal/pkg/response"
 )
 
@@ -29,6 +30,7 @@ func (h *SystemHandler) GetAdminRoleList(c *gin.Context) {
 		response.FailWithCode(c, errorx.CodeInvalidParams, "参数错误")
 		return
 	}
+	req.Current, req.Size = pagination.NormalizePagination(req.Current, req.Size)
 
 	roles, total, err := h.roleService.List(c.Request.Context(), &req)
 	if err != nil {

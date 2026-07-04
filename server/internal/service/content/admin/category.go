@@ -1,13 +1,19 @@
-package content
+package admin
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"log/slog"
 	"time"
+
+	"gorm.io/gorm"
 
 	contentEntity "NetyAdmin/internal/domain/entity/content"
 	contentDto "NetyAdmin/internal/interface/admin/dto/content"
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/configsync"
+	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/utils"
 	contentRepo "NetyAdmin/internal/repository/content"
@@ -26,17 +32,21 @@ type CategoryService interface {
 
 type categoryService struct {
 	repo           contentRepo.ContentCategoryRepository
+	articleRepo    contentRepo.ContentArticleRepository
 	storageService storageService.ConfigService
 	cache          cache.LazyCacheManager
 	watcher        configsync.ConfigWatcher
+	tm             *database.TransactionManager
 }
 
-func NewCategoryService(repo contentRepo.ContentCategoryRepository, storageService storageService.ConfigService, cache cache.LazyCacheManager, watcher configsync.ConfigWatcher) CategoryService {
+func NewCategoryService(repo contentRepo.ContentCategoryRepository, articleRepo contentRepo.ContentArticleRepository, storageService storageService.ConfigService, cache cache.LazyCacheManager, watcher configsync.ConfigWatcher, tm *database.TransactionManager) CategoryService {
 	return &categoryService{
 		repo:           repo,
+		articleRepo:    articleRepo,
 		storageService: storageService,
 		cache:          cache,
 		watcher:        watcher,
+		tm:             tm,
 	}
 }
 
@@ -74,7 +84,11 @@ func (s *categoryService) Create(ctx context.Context, adminID uint, req *content
 	if req.StorageConfigID != nil && *req.StorageConfigID > 0 {
 		_, err := s.storageService.GetByID(ctx, *req.StorageConfigID)
 		if err != nil {
-			return nil, errorx.New(errorx.CodeNotFound, "存储配置不存在")
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, errorx.New(errorx.CodeNotFound, "存储配置不存在")
+			}
+			slog.Error("storageService.GetByID failed", "storageConfigID", *req.StorageConfigID, "err", err)
+			return nil, fmt.Errorf("storageService.GetByID: %w", err)
 		}
 	}
 
@@ -97,7 +111,9 @@ func (s *categoryService) Create(ctx context.Context, adminID uint, req *content
 	}
 
 	// 失效树缓存
-	_ = s.cache.InvalidateByTags(ctx, cache.TagContentCategoryTree)
+	if err := s.cache.InvalidateByTags(ctx, cache.TagContentCategoryTree); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagContentCategoryTree, "err", err)
+	}
 
 	return category, nil
 }
@@ -105,18 +121,11 @@ func (s *categoryService) Create(ctx context.Context, adminID uint, req *content
 func (s *categoryService) Update(ctx context.Context, adminID uint, id uint, req *contentDto.UpdateContentCategoryDTO) (*contentEntity.ContentCategory, error) {
 	category, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		return nil, errorx.New(errorx.CodeNotFound, "分类不存在")
-	}
-
-	if req.Code != "" && req.Code != category.Code {
-		exists, err := s.repo.ExistsByCode(ctx, req.Code, id)
-		if err != nil {
-			return nil, err
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errorx.New(errorx.CodeNotFound, "分类不存在")
 		}
-		if exists {
-			return nil, errorx.New(errorx.CodeAlreadyExists, "分类编码已存在")
-		}
-		category.Code = req.Code
+		slog.Error("repo.GetByID failed", "categoryID", id, "err", err)
+		return nil, fmt.Errorf("repo.GetByID: %w", err)
 	}
 
 	if req.Name != "" {
@@ -143,7 +152,11 @@ func (s *categoryService) Update(ctx context.Context, adminID uint, id uint, req
 		if *req.StorageConfigID > 0 {
 			_, err := s.storageService.GetByID(ctx, *req.StorageConfigID)
 			if err != nil {
-				return nil, errorx.New(errorx.CodeNotFound, "存储配置不存在")
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return nil, errorx.New(errorx.CodeNotFound, "存储配置不存在")
+				}
+				slog.Error("storageService.GetByID failed", "storageConfigID", *req.StorageConfigID, "err", err)
+				return nil, fmt.Errorf("storageService.GetByID: %w", err)
 			}
 		}
 		category.StorageConfigID = req.StorageConfigID
@@ -161,42 +174,69 @@ func (s *categoryService) Update(ctx context.Context, adminID uint, id uint, req
 	}
 
 	// 失效树缓存
-	_ = s.cache.InvalidateByTags(ctx, cache.TagContentCategoryTree)
+	if err := s.cache.InvalidateByTags(ctx, cache.TagContentCategoryTree); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagContentCategoryTree, "err", err)
+	}
 
 	return category, nil
 }
 
 func (s *categoryService) Delete(ctx context.Context, id uint) error {
-	hasChildren, err := s.repo.HasChildren(ctx, id)
+	// TM 单事务原子完成「前置校验 + 硬删除」。
+	// 避免 TOCTOU 竞态：检查与删除之间被并发请求插入文章或子分类。
+	txCtx, tx := s.tm.Begin(ctx)
+
+	// 前置校验：有文章则拒绝
+	articleCount, err := s.articleRepo.CountByCategory(txCtx, id)
 	if err != nil {
-		return err
+		slog.Error("category delete: count articles failed", "categoryID", id, "err", err)
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeInternalError, "查询分类下文章失败")
 	}
-	if hasChildren {
-		return errorx.New(errorx.CodeBadRequest, "该分类下存在子分类，无法删除")
+	if articleCount > 0 {
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeCategoryHasArticles)
 	}
 
-	hasArticles, err := s.repo.HasArticles(ctx, id)
+	// 前置校验：有子分类则拒绝
+	childrenCount, err := s.repo.CountChildren(txCtx, id)
 	if err != nil {
-		return err
+		slog.Error("category delete: count children failed", "categoryID", id, "err", err)
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeInternalError, "查询子分类失败")
 	}
-	if hasArticles {
-		return errorx.New(errorx.CodeBadRequest, "该分类下存在文章，无法删除")
+	if childrenCount > 0 {
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeCategoryHasChildren)
 	}
 
-	if err := s.repo.Delete(ctx, id); err != nil {
-		return err
+	// 执行硬删除
+	if err := s.repo.Delete(txCtx, id); err != nil {
+		slog.Error("category delete: delete failed", "categoryID", id, "err", err)
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeInternalError, "分类删除失败")
+	}
+
+	if err := s.tm.Commit(tx); err != nil {
+		slog.Error("category delete: commit failed", "categoryID", id, "err", err)
+		return errorx.New(errorx.CodeInternalError, "事务提交失败")
 	}
 
 	// 失效树缓存
-	_ = s.cache.InvalidateByTags(ctx, cache.TagContentCategoryTree)
-
+	if err := s.cache.InvalidateByTags(ctx, cache.TagContentCategoryTree); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagContentCategoryTree, "err", err)
+	}
 	return nil
 }
 
 func (s *categoryService) GetByID(ctx context.Context, id uint) (*contentEntity.ContentCategory, error) {
 	category, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		return nil, errorx.New(errorx.CodeNotFound, "分类不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errorx.New(errorx.CodeNotFound, "分类不存在")
+		}
+		slog.Error("repo.GetByID failed", "categoryID", id, "err", err)
+		return nil, fmt.Errorf("repo.GetByID: %w", err)
 	}
 	return category, nil
 }
@@ -225,7 +265,9 @@ func (s *categoryService) GetTree(ctx context.Context, forceRefresh bool) ([]con
 
 	// 如果强制刷新，先失效标签
 	if forceRefresh {
-		_ = s.cache.InvalidateByTags(ctx, cache.TagContentCategoryTree)
+		if err := s.cache.InvalidateByTags(ctx, cache.TagContentCategoryTree); err != nil {
+			slog.Error("invalidate cache failed", "tag", cache.TagContentCategoryTree, "err", err)
+		}
 	}
 
 	err := s.cache.Fetch(ctx, cacheKey, "content_category_cache", []string{cache.TagContentCategoryTree}, s.getCategoryCacheTTL(), &tree, loader)

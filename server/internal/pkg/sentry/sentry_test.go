@@ -1,10 +1,12 @@
 package sentry
 
 import (
+	"encoding/json"
 	"regexp"
 	"strings"
 	"testing"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -110,4 +112,124 @@ func TestIgnoreTransactions_NoFalsePositive(t *testing.T) {
 			assert.False(t, matchesIgnore(t, patterns, txn), "不应误伤业务事务: %s", txn)
 		})
 	}
+}
+
+// --- BeforeSend PII 脱敏测试（Task 6） ---
+//
+// sentry-go v0.47.0 的 Event 已移除 Extra 字段，自定义附加数据写入 event.Contexts
+// （map[string]Context，Context = map[string]any）。以下测试用 event.Contexts["extra"]
+// 承载"Extra map"语义，验证 scrubEvent 行为。
+
+// TestScrubEvent_ExtraMap 验证 Contexts["extra"] 中命中敏感 key 的 value 被替换为
+// [REDACTED]，其余 value 保留。对应 SubTask 6.4 Test 1。
+func TestScrubEvent_ExtraMap(t *testing.T) {
+	event := &sentry.Event{
+		Contexts: map[string]sentry.Context{
+			"extra": {
+				"password": "abc",
+				"other":    "keep",
+			},
+		},
+	}
+	scrubEvent(event)
+	ctx := event.Contexts["extra"]
+	assert.Equal(t, "[REDACTED]", ctx["password"])
+	assert.Equal(t, "keep", ctx["other"])
+}
+
+// TestScrubEvent_NestedMap 验证递归 scrub 嵌套 map[string]any。对应 SubTask 6.4 Test 2。
+func TestScrubEvent_NestedMap(t *testing.T) {
+	event := &sentry.Event{
+		Contexts: map[string]sentry.Context{
+			"extra": {
+				"user": map[string]any{
+					"app_secret": "xyz",
+					"name":       "alice",
+				},
+			},
+		},
+	}
+	scrubEvent(event)
+	userMap := event.Contexts["extra"]["user"].(map[string]any)
+	assert.Equal(t, "[REDACTED]", userMap["app_secret"])
+	assert.Equal(t, "alice", userMap["name"])
+}
+
+// TestScrubEvent_UserEmail 验证 event.User.Email 与 User.IPAddress 直接替换为 [REDACTED]。
+// 对应 SubTask 6.4 Test 3。
+func TestScrubEvent_UserEmail(t *testing.T) {
+	event := &sentry.Event{
+		User: sentry.User{
+			Email:     "test@example.com",
+			IPAddress: "1.2.3.4",
+			ID:        "01H8XKJG1Z2Y3W4V5S6T7Q8PA9",
+		},
+	}
+	scrubEvent(event)
+	assert.Equal(t, "[REDACTED]", event.User.Email)
+	assert.Equal(t, "[REDACTED]", event.User.IPAddress)
+	// ULID 等 ID 不应被脱敏（仅 Email/IPAddress 直接清空）
+	assert.Equal(t, "01H8XKJG1Z2Y3W4V5S6T7Q8PA9", event.User.ID)
+}
+
+// TestScrubEvent_RequestData 验证 Request.Data（JSON 字符串）中的敏感字段被脱敏。
+// 对应 SubTask 6.4 Test 4。
+func TestScrubEvent_RequestData(t *testing.T) {
+	event := &sentry.Event{
+		Request: &sentry.Request{
+			Data: `{"refresh_token":"xxx","user_id":"u123"}`,
+		},
+	}
+	scrubEvent(event)
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(event.Request.Data), &parsed); err != nil {
+		t.Fatalf("Request.Data scrub 后非合法 JSON: %v", err)
+	}
+	assert.Equal(t, "[REDACTED]", parsed["refresh_token"])
+	assert.Equal(t, "u123", parsed["user_id"])
+}
+
+// TestIsSensitiveKey 验证 case-insensitive 子串匹配覆盖任务要求的全部关键词。
+func TestIsSensitiveKey(t *testing.T) {
+	cases := []struct {
+		key  string
+		want bool
+	}{
+		{"password", true},
+		{"PASSWORD", true},      // case-insensitive
+		{"user_password", true}, // 子串
+		{"App_Secret", true},    // 命中 secret（app_secret 含 secret 子串）
+		{"appsecret", true},     // 任务明示关键词
+		{"app_key", true},
+		{"access_key", true},
+		{"refresh_token", true},
+		{"REFRESH_TOKEN", true},
+		{"token", true},
+		{"authTokenV2", true}, // 命中 token 子串，case-insensitive
+		{"username", false},   // 不含任何敏感关键词
+		{"email", false},
+		{"name", false},
+		{"user_id", false},
+		{"id", false},
+	}
+	for _, c := range cases {
+		t.Run(c.key, func(t *testing.T) {
+			assert.Equal(t, c.want, isSensitiveKey(c.key))
+		})
+	}
+}
+
+// TestScrubEvent_NilEvent 验证 nil event 不 panic（防御性）。
+func TestScrubEvent_NilEvent(t *testing.T) {
+	assert.Nil(t, scrubEvent(nil))
+}
+
+// TestScrubEvent_RequestData_NonJSON 验证非合法 JSON 的 Request.Data 原样返回。
+func TestScrubEvent_RequestData_NonJSON(t *testing.T) {
+	raw := "not-a-json-body&refresh_token=xxx"
+	event := &sentry.Event{
+		Request: &sentry.Request{Data: raw},
+	}
+	scrubEvent(event)
+	assert.Equal(t, raw, event.Request.Data)
 }

@@ -2,18 +2,22 @@ package open_platform
 
 import (
 	"context"
+	"log/slog"
 
 	"NetyAdmin/internal/domain/entity/open_platform"
+	openDto "NetyAdmin/internal/interface/admin/dto/open_platform"
 	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/database"
+	"NetyAdmin/internal/pkg/errorx"
 	openRepo "NetyAdmin/internal/repository/open_platform"
 )
 
 type OpenApiService interface {
-	CreateApi(ctx context.Context, api *open_platform.OpenApi) error
-	UpdateApi(ctx context.Context, api *open_platform.OpenApi) error
+	CreateApi(ctx context.Context, req *openDto.CreateOpenApiReq) error
+	UpdateApi(ctx context.Context, req *openDto.UpdateOpenApiReq) error
 	DeleteApi(ctx context.Context, id uint64) error
 	GetApiByID(ctx context.Context, id uint64) (*open_platform.OpenApi, error)
-	ListApis(ctx context.Context, query *openRepo.OpenApiRepoQuery) ([]*open_platform.OpenApi, int64, error)
+	ListApis(ctx context.Context, req *openDto.OpenApiQuery) ([]*open_platform.OpenApi, int64, error)
 	ListAllApis(ctx context.Context) ([]*open_platform.OpenApi, error)
 	ListGroupedApis(ctx context.Context) (interface{}, error)
 
@@ -28,17 +32,27 @@ type openApiService struct {
 	apiRepo  openRepo.OpenApiRepository
 	appRepo  openRepo.AppRepository
 	cacheMgr cache.LazyCacheManager
+	tm       *database.TransactionManager
 }
 
-func NewOpenApiService(apiRepo openRepo.OpenApiRepository, appRepo openRepo.AppRepository, cacheMgr cache.LazyCacheManager) OpenApiService {
+func NewOpenApiService(apiRepo openRepo.OpenApiRepository, appRepo openRepo.AppRepository, cacheMgr cache.LazyCacheManager, tm *database.TransactionManager) OpenApiService {
 	return &openApiService{
 		apiRepo:  apiRepo,
 		appRepo:  appRepo,
 		cacheMgr: cacheMgr,
+		tm:       tm,
 	}
 }
 
-func (s *openApiService) CreateApi(ctx context.Context, api *open_platform.OpenApi) error {
+func (s *openApiService) CreateApi(ctx context.Context, req *openDto.CreateOpenApiReq) error {
+	api := &open_platform.OpenApi{
+		Method:      req.Method,
+		Path:        req.Path,
+		Name:        req.Name,
+		Group:       req.Group,
+		Description: req.Description,
+		Status:      req.Status,
+	}
 	if api.Group == "" {
 		api.Group = "default"
 	}
@@ -48,16 +62,31 @@ func (s *openApiService) CreateApi(ctx context.Context, api *open_platform.OpenA
 	if err := s.apiRepo.Create(ctx, api); err != nil {
 		return err
 	}
-	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagOpenApi)
+	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagOpenApi); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagOpenApi, "err", err)
+	}
 	return nil
 }
 
-func (s *openApiService) UpdateApi(ctx context.Context, api *open_platform.OpenApi) error {
+func (s *openApiService) UpdateApi(ctx context.Context, req *openDto.UpdateOpenApiReq) error {
+	api := &open_platform.OpenApi{
+		ID:          req.ID,
+		Method:      req.Method,
+		Path:        req.Path,
+		Name:        req.Name,
+		Group:       req.Group,
+		Description: req.Description,
+		Status:      req.Status,
+	}
 	if err := s.apiRepo.Update(ctx, api); err != nil {
 		return err
 	}
-	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagOpenApi)
-	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagApp)
+	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagOpenApi); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagOpenApi, "err", err)
+	}
+	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagApp); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagApp, "err", err)
+	}
 	return nil
 }
 
@@ -65,8 +94,12 @@ func (s *openApiService) DeleteApi(ctx context.Context, id uint64) error {
 	if err := s.apiRepo.Delete(ctx, id); err != nil {
 		return err
 	}
-	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagOpenApi)
-	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagApp)
+	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagOpenApi); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagOpenApi, "err", err)
+	}
+	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagApp); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagApp, "err", err)
+	}
 	return nil
 }
 
@@ -74,8 +107,18 @@ func (s *openApiService) GetApiByID(ctx context.Context, id uint64) (*open_platf
 	return s.apiRepo.GetByID(ctx, id)
 }
 
-func (s *openApiService) ListApis(ctx context.Context, query *openRepo.OpenApiRepoQuery) ([]*open_platform.OpenApi, int64, error) {
-	return s.apiRepo.List(ctx, query)
+func (s *openApiService) ListApis(ctx context.Context, req *openDto.OpenApiQuery) ([]*open_platform.OpenApi, int64, error) {
+	// service 层接收 admin DTO，内部构造 repository query（spec B10：service 不应依赖 handler 构造的 repo 类型）
+	repoQuery := &openRepo.OpenApiRepoQuery{
+		Page:     req.Current,
+		PageSize: req.Size,
+		Method:   req.Method,
+		Path:     req.Path,
+		Name:     req.Name,
+		Group:    req.Group,
+		Status:   req.Status,
+	}
+	return s.apiRepo.List(ctx, repoQuery)
 }
 
 func (s *openApiService) ListAllApis(ctx context.Context) ([]*open_platform.OpenApi, error) {
@@ -130,10 +173,22 @@ func (s *openApiService) UpdateScopeApis(ctx context.Context, scopeID uint64, ap
 	if _, err := s.appRepo.GetScopeGroupByID(ctx, scopeID); err != nil {
 		return err
 	}
-	if err := s.apiRepo.UpdateScopeApis(ctx, scopeID, apiIDs); err != nil {
-		return err
+	// TM 单事务原子完成「删除旧关联 + 创建新关联」，任一步失败整体回滚（fail-closed）。
+	// repo.UpdateScopeApis 内部已移除自管事务，由 service 层负责 TM 包裹。
+	txCtx, tx := s.tm.Begin(ctx)
+	if err := s.apiRepo.UpdateScopeApis(txCtx, scopeID, apiIDs); err != nil {
+		slog.Error("open api update scope apis: update scope apis failed", "scopeID", scopeID, "err", err)
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeInternalError, "Scope API 关联更新失败")
 	}
-	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagApp)
+	if err := s.tm.Commit(tx); err != nil {
+		slog.Error("open api update scope apis: commit failed", "scopeID", scopeID, "err", err)
+		return errorx.New(errorx.CodeInternalError, "Scope API 关联更新失败")
+	}
+	// 事务后失效缓存
+	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagApp); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagApp, "err", err)
+	}
 	return nil
 }
 

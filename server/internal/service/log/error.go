@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"runtime"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 )
 
 type ErrorService interface {
-	Log(ctx context.Context, log *logEntity.Error) error
+	Log(ctx context.Context, level, message, requestID, path, method, ip, userAgent string, adminID uint) error
 	LogPanic(ctx context.Context, err interface{}, requestID, path, method, ip, userAgent string, adminID uint)
 	LogError(ctx context.Context, err error, requestID, path, method, ip, userAgent string, adminID uint)
 	List(ctx context.Context, level string, resolved *bool, page, pageSize int) ([]logEntity.Error, int64, error)
@@ -40,9 +41,20 @@ func NewErrorService(logRepo *logRepo.ErrorRepository, configWatcher configsync.
 	}
 }
 
-func (s *errorService) Log(ctx context.Context, logRecord *logEntity.Error) error {
+func (s *errorService) Log(ctx context.Context, level, message, requestID, path, method, ip, userAgent string, adminID uint) error {
+	logRecord := &logEntity.Error{
+		Level:     level,
+		Message:   message,
+		RequestID: requestID,
+		Path:      path,
+		Method:    method,
+		AdminID:   adminID,
+		IP:        ip,
+		UserAgent: userAgent,
+	}
 	logRecord.Hash = s.generateHash(logRecord)
 	logRecord.LastOccurredAt = time.Now()
+	logRecord.Stack = s.getStack(3) // 跳过 runtime.Caller/getStack/Log 三层
 
 	useCache := s.configWatcher.IsCacheEnabled("err_log_cache")
 
@@ -59,29 +71,15 @@ func (s *errorService) Log(ctx context.Context, logRecord *logEntity.Error) erro
 }
 
 func (s *errorService) LogPanic(ctx context.Context, err interface{}, requestID, path, method, ip, userAgent string, adminID uint) {
-	s.logAt(ctx, logEntity.LogLevelPanic, fmt.Sprintf("%v", err), requestID, path, method, ip, userAgent, adminID)
+	if err := s.Log(ctx, logEntity.LogLevelPanic, fmt.Sprintf("%v", err), requestID, path, method, ip, userAgent, adminID); err != nil {
+		slog.Warn("log error failed", "level", logEntity.LogLevelPanic, "path", path, "method", method, "err", err)
+	}
 }
 
 func (s *errorService) LogError(ctx context.Context, err error, requestID, path, method, ip, userAgent string, adminID uint) {
-	s.logAt(ctx, logEntity.LogLevelError, err.Error(), requestID, path, method, ip, userAgent, adminID)
-}
-
-// logAt 是 LogPanic/LogError 的统一实现（重构清单 B-OTHER-6）。
-// 两方法仅 Level 与 Message 取值不同，构造 Error 实体 + 调 s.Log 的样板完全一致。
-// getStack(4) 跳过 runtime.Caller/getStack/logAt/LogPanic(or LogError) 四层，定位真正调用方。
-func (s *errorService) logAt(ctx context.Context, level string, message, requestID, path, method, ip, userAgent string, adminID uint) {
-	logRecord := &logEntity.Error{
-		Level:     level,
-		Message:   message,
-		Stack:     s.getStack(4),
-		RequestID: requestID,
-		Path:      path,
-		Method:    method,
-		AdminID:   adminID,
-		IP:        ip,
-		UserAgent: userAgent,
+	if err := s.Log(ctx, logEntity.LogLevelError, err.Error(), requestID, path, method, ip, userAgent, adminID); err != nil {
+		slog.Warn("log error failed", "level", logEntity.LogLevelError, "path", path, "method", method, "err", err)
 	}
-	_ = s.Log(ctx, logRecord)
 }
 
 func (s *errorService) generateHash(l *logEntity.Error) string {

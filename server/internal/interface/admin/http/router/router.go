@@ -22,6 +22,7 @@ import (
 	userAdminHandler "NetyAdmin/internal/interface/admin/http/handler/v1/user"
 	v1 "NetyAdmin/internal/interface/admin/http/router/v1"
 	"NetyAdmin/internal/middleware"
+	authPkg "NetyAdmin/internal/pkg/auth"
 	ipacService "NetyAdmin/internal/service/ipac"
 )
 
@@ -54,12 +55,13 @@ func NewRouter(
 	userAdminH *userAdminHandler.UserHandler,
 	ipacSvc ipacService.IPACService,
 	authVerifier middleware.AuthVerifier,
+	loginLimiter authPkg.LoginLimiter,
 ) *Router {
 	return &Router{
 		authVerifier: authVerifier,
 		ipacSvc:      ipacSvc,
 		routers: []v1.ModuleRouter{
-			v1.NewAuthRouter(authH),
+			v1.NewAuthRouter(authH, loginLimiter),
 			v1.NewCommonRouter(commonH),
 			v1.NewAdminRouter(adminH),
 			v1.NewStorageRouter(storageH),
@@ -77,9 +79,15 @@ func NewRouter(
 }
 
 func (r *Router) Register(engine *gin.Engine) {
-	// 注册全局中间件
-	// 注：请求 ID 由 wire.go 中全局注册的 RequestID() 中间件统一注入，此处不再重复注册。
-	engine.Use(middleware.IPACAuth(r.ipacSvc))
+	// 全局中间件（RequestID / CORS / SecurityHeaders / Recovery / Sentry / ErrorLogger /
+	// Timeout / Logger / OperationLogger）已在 wire.go 中通过 engine.Use 注册。
+	//
+	// IPACAuth 不再全局注册：原 engine.Use(middleware.IPACAuth(...)) 会应用到所有路由，
+	// 包括 /admin/v1/auth/login、/auth/refreshToken、/common/captcha 等公开路由。
+	// 当 ipacSvc.CheckIP 出错（fail-closed）时返回 CodeIPBlocked，会导致所有人都无法登录修复问题
+	// ——系统自锁风险违反"基座程序可用性"原则。
+	// 现改为在 authGroup / permissionGroup 路由组上注册，公开路由豁免 IPAC 检查。
+	// /health 端点在 wire.go:305 已先于 router.Register 注册，保持豁免。
 
 	r.registerV1(engine)
 
@@ -93,20 +101,25 @@ func (r *Router) registerV1(engine *gin.Engine) {
 	adminV1 := engine.Group("/admin/v1")
 
 	// 1. 不需要认证的接口 (如登录、获取上传凭证)
+	//    公开路由豁免 IPAC 检查，确保 IPAC 服务故障或误配 deny 规则时仍可登录修复问题。
 	publicGroup := adminV1.Group("")
 	for _, module := range r.routers {
 		module.RegisterPublic(publicGroup)
 	}
 
 	// 2. 需要认证，但不需要特定权限的接口 (如获取个人信息)
+	//    IPACAuth 在 JWTAuth 之前：IP 被拒绝的请求不浪费 JWT 验证时间。
 	authGroup := adminV1.Group("")
+	authGroup.Use(middleware.IPACAuth(r.ipacSvc))
 	authGroup.Use(middleware.JWTAuth())
 	for _, module := range r.routers {
 		module.RegisterAuth(authGroup)
 	}
 
 	// 3. 需要认证且需要特定权限的接口 (RBAC)
+	//    IPACAuth 在 JWTAuth 之前，与 authGroup 保持一致。
 	permissionGroup := adminV1.Group("")
+	permissionGroup.Use(middleware.IPACAuth(r.ipacSvc))
 	permissionGroup.Use(middleware.JWTAuth())
 	permissionGroup.Use(middleware.PermissionAuth(r.authVerifier))
 	for _, module := range r.routers {

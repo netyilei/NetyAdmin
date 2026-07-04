@@ -3,7 +3,6 @@ package dict
 import (
 	"strconv"
 
-	dictEntity "NetyAdmin/internal/domain/entity/dict"
 	dictDto "NetyAdmin/internal/interface/admin/dto/dict"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
@@ -97,14 +96,7 @@ func (h *DictHandler) CreateType(c *gin.Context) {
 		return
 	}
 
-	t := &dictEntity.DictType{
-		Name:        req.Name,
-		Code:        req.Code,
-		Status:      req.Status,
-		Description: req.Description,
-	}
-
-	if err := h.dictService.CreateType(c.Request.Context(), t); err != nil {
+	if err := h.dictService.CreateType(c.Request.Context(), &req); err != nil {
 		response.Fail(c, err)
 		return
 	}
@@ -127,15 +119,7 @@ func (h *DictHandler) UpdateType(c *gin.Context) {
 		return
 	}
 
-	t := &dictEntity.DictType{
-		Name:        req.Name,
-		Code:        req.Code,
-		Status:      req.Status,
-		Description: req.Description,
-	}
-	t.ID = req.ID
-
-	if err := h.dictService.UpdateType(c.Request.Context(), t); err != nil {
+	if err := h.dictService.UpdateType(c.Request.Context(), &req); err != nil {
 		response.Fail(c, err)
 		return
 	}
@@ -216,17 +200,7 @@ func (h *DictHandler) CreateData(c *gin.Context) {
 		return
 	}
 
-	d := &dictEntity.DictData{
-		DictCode: req.DictCode,
-		Label:    req.Label,
-		Value:    req.Value,
-		TagType:  req.TagType,
-		OrderBy:  req.OrderBy,
-		Status:   req.Status,
-		Remark:   req.Remark,
-	}
-
-	if err := h.dictService.CreateData(c.Request.Context(), d); err != nil {
+	if err := h.dictService.CreateData(c.Request.Context(), &req); err != nil {
 		response.Fail(c, err)
 		return
 	}
@@ -249,18 +223,7 @@ func (h *DictHandler) UpdateData(c *gin.Context) {
 		return
 	}
 
-	d := &dictEntity.DictData{
-		DictCode: req.DictCode,
-		Label:    req.Label,
-		Value:    req.Value,
-		TagType:  req.TagType,
-		OrderBy:  req.OrderBy,
-		Status:   req.Status,
-		Remark:   req.Remark,
-	}
-	d.ID = req.ID
-
-	if err := h.dictService.UpdateData(c.Request.Context(), d); err != nil {
+	if err := h.dictService.UpdateData(c.Request.Context(), &req); err != nil {
 		response.Fail(c, err)
 		return
 	}

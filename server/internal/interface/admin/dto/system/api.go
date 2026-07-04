@@ -15,6 +15,7 @@ type CreateAPIReq struct {
 	Path   string `json:"path" binding:"required"`
 	Method string `json:"method" binding:"required"`
 	Group  string `json:"group" binding:"required"`
+	MenuID uint   `json:"menuId" comment:"所属菜单ID"`
 	Desc   string `json:"desc"`
 }
 
@@ -24,6 +25,7 @@ type UpdateAPIReq struct {
 	Path   string `json:"path" binding:"required"`
 	Method string `json:"method" binding:"required"`
 	Group  string `json:"group"`
+	MenuID uint   `json:"menuId" comment:"所属菜单ID"`
 	Desc   string `json:"desc"`
 }
 

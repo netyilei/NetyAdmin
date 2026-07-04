@@ -17,6 +17,7 @@ const request = {
     alreadyExists: '资源已存在',
     captchaWrong: '验证码错误',
     captchaRequired: '验证码必填',
+    requestTimeout: '请求超时',
     userNotFound: '用户不存在',
     userDisabled: '用户已禁用',
     passwordWrong: '密码错误',

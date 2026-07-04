@@ -2,16 +2,13 @@ package ipac
 
 import (
 	"strconv"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
-	"NetyAdmin/internal/domain/entity"
-	ipacEntity "NetyAdmin/internal/domain/entity/ipac"
 	ipacDto "NetyAdmin/internal/interface/admin/dto/ipac"
 	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/pagination"
 	"NetyAdmin/internal/pkg/response"
-	ipacRepo "NetyAdmin/internal/repository/ipac"
 	ipacSvc "NetyAdmin/internal/service/ipac"
 )
 
@@ -44,17 +41,10 @@ func (h *IPACHandler) List(c *gin.Context) {
 		response.FailWithCode(c, errorx.CodeInvalidParams)
 		return
 	}
+	req.Current, req.Size = pagination.NormalizePagination(req.Current, req.Size)
 
-	query := &ipacRepo.IPACQuery{
-		AppID:    req.AppID,
-		IPAddr:   req.IPAddr,
-		Type:     req.Type,
-		Status:   req.Status,
-		Page:     req.Current,
-		PageSize: req.Size,
-	}
-
-	list, total, err := h.svc.List(c.Request.Context(), query)
+	// 收敛 Handler 跨层调用（spec B10）：service 接收 admin DTO，不再依赖 handler 构造 repo query
+	list, total, err := h.svc.List(c.Request.Context(), &req)
 	if err != nil {
 		response.Fail(c, err)
 		return
@@ -82,27 +72,7 @@ func (h *IPACHandler) Create(c *gin.Context) {
 
 	operatorID := c.GetUint("adminID")
 
-	item := &ipacEntity.IPAccessControl{
-		AppID:  req.AppID,
-		IPAddr: req.IPAddr,
-		Type:   req.Type,
-		Reason: req.Reason,
-		Status: req.Status,
-		Operator: entity.Operator{
-			CreatedBy: operatorID,
-		},
-	}
-
-	if req.ExpiredAt != nil && *req.ExpiredAt != "" {
-		t, err := time.Parse(time.DateTime, *req.ExpiredAt)
-		if err != nil {
-			response.FailWithCode(c, errorx.CodeInvalidParams, "过期时间格式错误")
-			return
-		}
-		item.ExpiredAt = &t
-	}
-
-	if err := h.svc.Create(c.Request.Context(), item); err != nil {
+	if err := h.svc.Create(c.Request.Context(), &req, operatorID); err != nil {
 		response.Fail(c, err)
 		return
 	}
@@ -129,28 +99,7 @@ func (h *IPACHandler) Update(c *gin.Context) {
 
 	operatorID := c.GetUint("adminID")
 
-	item := &ipacEntity.IPAccessControl{
-		Model: entity.Model{
-			ID: req.ID,
-		},
-		Type:   req.Type,
-		Reason: req.Reason,
-		Status: req.Status,
-		Operator: entity.Operator{
-			UpdatedBy: operatorID,
-		},
-	}
-
-	if req.ExpiredAt != nil && *req.ExpiredAt != "" {
-		t, err := time.Parse(time.DateTime, *req.ExpiredAt)
-		if err != nil {
-			response.FailWithCode(c, errorx.CodeInvalidParams, "过期时间格式错误")
-			return
-		}
-		item.ExpiredAt = &t
-	}
-
-	if err := h.svc.Update(c.Request.Context(), item); err != nil {
+	if err := h.svc.Update(c.Request.Context(), &req, operatorID); err != nil {
 		response.Fail(c, err)
 		return
 	}

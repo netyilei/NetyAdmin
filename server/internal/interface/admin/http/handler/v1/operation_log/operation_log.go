@@ -8,7 +8,6 @@ import (
 	logDto "NetyAdmin/internal/interface/admin/dto/log"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
-	logRepo "NetyAdmin/internal/repository/log"
 	logService "NetyAdmin/internal/service/log"
 )
 
@@ -42,16 +41,8 @@ func (h *OperationLogHandler) List(c *gin.Context) {
 	}
 	req.Normalize()
 
-	query := &logRepo.OperationQuery{
-		AdminID:   req.AdminID,
-		Action:    req.Action,
-		StartDate: req.StartDate,
-		EndDate:   req.EndDate,
-		Page:      req.Current,
-		PageSize:  req.Size,
-	}
-
-	result, err := h.svc.List(c.Request.Context(), query)
+	// 收敛 Handler 跨层调用（spec B10）：service 接收 admin DTO，不再依赖 handler 构造 repo query
+	result, err := h.svc.List(c.Request.Context(), &req)
 	if err != nil {
 		response.Fail(c, err)
 		return

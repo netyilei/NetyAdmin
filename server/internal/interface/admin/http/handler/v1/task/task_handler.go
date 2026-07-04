@@ -3,6 +3,7 @@ package task
 import (
 	taskDto "NetyAdmin/internal/interface/admin/dto/task"
 	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/pagination"
 	"NetyAdmin/internal/pkg/response"
 	taskSvc "NetyAdmin/internal/service/task"
 	"strconv"
@@ -29,7 +30,7 @@ func NewTaskHandler(taskSvc taskSvc.TaskService) *TaskHandler {
 func (h *TaskHandler) ListTasks(c *gin.Context) {
 	tasks, err := h.taskSvc.ListTasks(c.Request.Context())
 	if err != nil {
-		response.FailWithCode(c, errorx.CodeInternalError, "获取任务列表失败")
+		response.Fail(c, err)
 		return
 	}
 	response.Success(c, tasks)
@@ -52,7 +53,7 @@ func (h *TaskHandler) RunTask(c *gin.Context) {
 	}
 
 	if err := h.taskSvc.RunTask(c.Request.Context(), name); err != nil {
-		response.FailWithCode(c, errorx.CodeInternalError, "触发任务失败")
+		response.Fail(c, err)
 		return
 	}
 
@@ -172,7 +173,7 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        name query string false "任务名称"
-// @Param        page query int false "页码"
+// @Param        current query int false "页码"
 // @Param        size query int false "每页数量"
 // @Success      200 {object} response.Response "日志列表"
 // @Security    ApiKeyAuth
@@ -187,10 +188,11 @@ func (h *TaskHandler) ListLogs(c *gin.Context) {
 	if err != nil || size < 1 {
 		size = 20
 	}
+	page, size = pagination.NormalizePagination(page, size)
 
 	logs, total, err := h.taskSvc.ListLogs(c.Request.Context(), name, page, size)
 	if err != nil {
-		response.FailWithCode(c, errorx.CodeInternalError, "获取任务日志失败")
+		response.Fail(c, err)
 		return
 	}
 

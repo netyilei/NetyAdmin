@@ -1,27 +1,20 @@
 package open_platform
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 
-	openEntity "NetyAdmin/internal/domain/entity/open_platform"
 	openDto "NetyAdmin/internal/interface/admin/dto/open_platform"
 	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/pagination"
 	"NetyAdmin/internal/pkg/response"
-	openRepo "NetyAdmin/internal/repository/open_platform"
 	openSvc "NetyAdmin/internal/service/open_platform"
 )
 
 type AppHandler struct {
 	svc openSvc.AppService
-}
-
-func normalizeQuotaConfig(s string) string {
-	if s == "" {
-		return "{}"
-	}
-	return s
 }
 
 func NewAppHandler(svc openSvc.AppService) *AppHandler {
@@ -47,16 +40,10 @@ func (h *AppHandler) List(c *gin.Context) {
 		response.FailWithCode(c, errorx.CodeInvalidParams)
 		return
 	}
+	req.Current, req.Size = pagination.NormalizePagination(req.Current, req.Size)
 
-	query := &openRepo.AppRepoQuery{
-		Page:     req.Current,
-		PageSize: req.Size,
-		Name:     req.Name,
-		AppKey:   req.AppKey,
-		Status:   req.Status,
-	}
-
-	list, total, err := h.svc.ListApps(c.Request.Context(), query)
+	// 收敛 Handler 跨层调用（spec B10）：service 接收 admin DTO，不再依赖 handler 构造 repo query
+	list, total, err := h.svc.ListApps(c.Request.Context(), &req)
 	if err != nil {
 		response.Fail(c, err)
 		return
@@ -81,18 +68,7 @@ func (h *AppHandler) Create(c *gin.Context) {
 		return
 	}
 
-	app := &openEntity.App{
-		Name:             req.Name,
-		Status:           req.Status,
-		IPFilterEnabled:  req.IPFilterEnabled,
-		RateLimitEnabled: req.RateLimitEnabled,
-		Remark:           req.Remark,
-		QuotaConfig:      normalizeQuotaConfig(req.QuotaConfig),
-		CacheTTL:         req.CacheTTL,
-		StorageID:        req.StorageID,
-	}
-
-	if err := h.svc.CreateApp(c.Request.Context(), app, req.Scopes); err != nil {
+	if err := h.svc.CreateApp(c.Request.Context(), &req); err != nil {
 		response.Fail(c, err)
 		return
 	}
@@ -116,19 +92,7 @@ func (h *AppHandler) Update(c *gin.Context) {
 		return
 	}
 
-	app := &openEntity.App{
-		ID:               req.ID,
-		Name:             req.Name,
-		Status:           req.Status,
-		IPFilterEnabled:  req.IPFilterEnabled,
-		RateLimitEnabled: req.RateLimitEnabled,
-		Remark:           req.Remark,
-		QuotaConfig:      normalizeQuotaConfig(req.QuotaConfig),
-		CacheTTL:         req.CacheTTL,
-		StorageID:        req.StorageID,
-	}
-
-	if err := h.svc.UpdateApp(c.Request.Context(), app, req.Scopes); err != nil {
+	if err := h.svc.UpdateApp(c.Request.Context(), &req); err != nil {
 		response.Fail(c, err)
 		return
 	}
@@ -178,7 +142,8 @@ func (h *AppHandler) ResetSecret(c *gin.Context) {
 
 	newSecret, err := h.svc.ResetAppSecret(c.Request.Context(), req.ID)
 	if err != nil {
-		if errorx.Is(err, errorx.CodeNotFound) {
+		var bizErr *errorx.BizError
+		if errors.As(err, &bizErr) && bizErr.Code == errorx.CodeNotFound {
 			response.FailWithCode(c, errorx.CodeNotFound)
 			return
 		}
@@ -268,7 +233,7 @@ func (h *AppHandler) ListScopeGroups(c *gin.Context) {
 
 // CreateScopeGroup 新增权限分组
 func (h *AppHandler) CreateScopeGroup(c *gin.Context) {
-	var req openEntity.AppScopeGroup
+	var req openDto.CreateScopeGroupReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithCode(c, errorx.CodeInvalidParams)
 		return
@@ -283,7 +248,7 @@ func (h *AppHandler) CreateScopeGroup(c *gin.Context) {
 
 // UpdateScopeGroup 修改权限分组
 func (h *AppHandler) UpdateScopeGroup(c *gin.Context) {
-	var req openEntity.AppScopeGroup
+	var req openDto.UpdateScopeGroupReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithCode(c, errorx.CodeInvalidParams)
 		return

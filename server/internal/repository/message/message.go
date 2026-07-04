@@ -6,7 +6,9 @@ import (
 
 	"gorm.io/gorm"
 
+	"NetyAdmin/internal/domain/entity"
 	msgEntity "NetyAdmin/internal/domain/entity/message"
+	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/pagination"
 )
 
@@ -15,6 +17,7 @@ type MsgRepository interface {
 	CreateTemplate(ctx context.Context, tpl *msgEntity.MsgTemplate) error
 	UpdateTemplate(ctx context.Context, tpl *msgEntity.MsgTemplate) error
 	DeleteTemplate(ctx context.Context, id uint64) error
+	GetTemplateByID(ctx context.Context, id uint64) (*msgEntity.MsgTemplate, error)
 	GetTemplateByCode(ctx context.Context, code string) (*msgEntity.MsgTemplate, error)
 	ListTemplates(ctx context.Context, query *MsgRepoQuery) ([]*msgEntity.MsgTemplate, int64, error)
 
@@ -66,31 +69,51 @@ func NewMsgRepository(db *gorm.DB) MsgRepository {
 	return &msgRepository{db: db}
 }
 
+// getDB 根据 context 中是否携带事务，返回事务内的 *gorm.DB 或回退到 r.db
+func (r *msgRepository) getDB(ctx context.Context) *gorm.DB {
+	return database.GetDB(ctx, r.db)
+}
+
 // Template implementations
 func (r *msgRepository) CreateTemplate(ctx context.Context, tpl *msgEntity.MsgTemplate) error {
-	return r.db.WithContext(ctx).Create(tpl).Error
+	return r.getDB(ctx).Create(tpl).Error
 }
 
 func (r *msgRepository) UpdateTemplate(ctx context.Context, tpl *msgEntity.MsgTemplate) error {
-	return r.db.WithContext(ctx).Save(tpl).Error
+	return r.getDB(ctx).Save(tpl).Error
 }
 
 func (r *msgRepository) DeleteTemplate(ctx context.Context, id uint64) error {
-	return r.db.WithContext(ctx).Delete(&msgEntity.MsgTemplate{}, id).Error
+	return r.getDB(ctx).Unscoped().Delete(&msgEntity.MsgTemplate{}, id).Error
+}
+
+func (r *msgRepository) GetTemplateByID(ctx context.Context, id uint64) (*msgEntity.MsgTemplate, error) {
+	var tpl msgEntity.MsgTemplate
+	if err := r.getDB(ctx).First(&tpl, id).Error; err != nil {
+		return nil, err
+	}
+	return &tpl, nil
 }
 
 func (r *msgRepository) GetTemplateByCode(ctx context.Context, code string) (*msgEntity.MsgTemplate, error) {
 	var tpl msgEntity.MsgTemplate
-	if err := r.db.WithContext(ctx).Where("code = ? AND status = ?", code, msgEntity.MsgTplStatusEnabled).First(&tpl).Error; err != nil {
+	if err := r.getDB(ctx).Where("code = ? AND status = ?", code, msgEntity.MsgTplStatusEnabled).First(&tpl).Error; err != nil {
 		return nil, err
 	}
 	return &tpl, nil
 }
 
 func (r *msgRepository) ListTemplates(ctx context.Context, query *MsgRepoQuery) ([]*msgEntity.MsgTemplate, int64, error) {
+	if query.Page <= 0 {
+		query.Page = 1
+	}
+	if query.PageSize <= 0 {
+		query.PageSize = entity.DefaultPageSize
+	}
+
 	var list []*msgEntity.MsgTemplate
 	var total int64
-	db := r.db.WithContext(ctx).Model(&msgEntity.MsgTemplate{})
+	db := r.getDB(ctx).Model(&msgEntity.MsgTemplate{})
 
 	if query.Channel != "" {
 		db = db.Where("channel = ?", query.Channel)
@@ -114,9 +137,16 @@ func (r *msgRepository) ListTemplates(ctx context.Context, query *MsgRepoQuery) 
 }
 
 func (r *msgRepository) ListUserInternalMsgs(ctx context.Context, userID string, page, pageSize int, readFilter *int) ([]*UserInternalMsg, int64, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = entity.DefaultPageSize
+	}
+
 	var total int64
 
-	countDB := r.db.WithContext(ctx).
+	countDB := r.getDB(ctx).
 		Table("msg_internal mi").
 		Joins("JOIN msg_records mr ON mi.msg_record_id = mr.id").
 		Joins("LEFT JOIN msg_internal_reads mir ON mir.msg_internal_id = mi.id AND mir.user_id = ?", userID).
@@ -135,7 +165,7 @@ func (r *msgRepository) ListUserInternalMsgs(ctx context.Context, userID string,
 	}
 
 	var results []*UserInternalMsg
-	queryDB := r.db.WithContext(ctx).
+	queryDB := r.getDB(ctx).
 		Table("msg_internal mi").
 		Select("mi.id as msg_internal_id, mi.msg_record_id, mi.type, mr.title, mr.content, CASE WHEN mir.id IS NOT NULL THEN true ELSE false END as is_read, mir.read_at, mr.created_at").
 		Joins("JOIN msg_records mr ON mi.msg_record_id = mr.id").
@@ -161,7 +191,7 @@ func (r *msgRepository) ListUserInternalMsgs(ctx context.Context, userID string,
 
 func (r *msgRepository) GetInternalMsgDetail(ctx context.Context, msgInternalID uint64, userID string) (*UserInternalMsg, error) {
 	var result UserInternalMsg
-	err := r.db.WithContext(ctx).
+	err := r.getDB(ctx).
 		Table("msg_internal mi").
 		Select("mi.id as msg_internal_id, mi.msg_record_id, mi.type, mr.title, mr.content, CASE WHEN mir.id IS NOT NULL THEN true ELSE false END as is_read, mir.read_at, mr.created_at").
 		Joins("JOIN msg_records mr ON mi.msg_record_id = mr.id").
@@ -181,12 +211,12 @@ func (r *msgRepository) MarkInternalMsgRead(ctx context.Context, msgInternalID u
 		UserID:        userID,
 		ReadAt:        time.Now(),
 	}
-	return r.db.WithContext(ctx).Where("msg_internal_id = ? AND user_id = ?", msgInternalID, userID).FirstOrCreate(read).Error
+	return r.getDB(ctx).Where("msg_internal_id = ? AND user_id = ?", msgInternalID, userID).FirstOrCreate(read).Error
 }
 
 func (r *msgRepository) MarkAllInternalMsgRead(ctx context.Context, userID string) error {
 	var unreadIDs []uint64
-	err := r.db.WithContext(ctx).
+	err := r.getDB(ctx).
 		Table("msg_internal mi").
 		Select("mi.id").
 		Joins("JOIN msg_records mr ON mi.msg_record_id = mr.id").
@@ -212,12 +242,12 @@ func (r *msgRepository) MarkAllInternalMsgRead(ctx context.Context, userID strin
 		})
 	}
 
-	return r.db.WithContext(ctx).CreateInBatches(reads, 100).Error
+	return r.getDB(ctx).CreateInBatches(reads, 100).Error
 }
 
 func (r *msgRepository) CountUnreadInternalMsgs(ctx context.Context, userID string) (int64, error) {
 	var count int64
-	err := r.db.WithContext(ctx).
+	err := r.getDB(ctx).
 		Table("msg_internal mi").
 		Joins("JOIN msg_records mr ON mi.msg_record_id = mr.id").
 		Joins("LEFT JOIN msg_internal_reads mir ON mir.msg_internal_id = mi.id AND mir.user_id = ?", userID).
@@ -228,34 +258,41 @@ func (r *msgRepository) CountUnreadInternalMsgs(ctx context.Context, userID stri
 }
 
 func (r *msgRepository) CreateInternal(ctx context.Context, msg *msgEntity.MsgInternal) error {
-	return r.db.WithContext(ctx).Create(msg).Error
+	return r.getDB(ctx).Create(msg).Error
 }
 
 func (r *msgRepository) DeleteRecordsBefore(ctx context.Context, before time.Time) error {
-	return r.db.WithContext(ctx).Where("created_at < ?", before).Delete(&msgEntity.MsgRecord{}).Error
+	return r.getDB(ctx).Where("created_at < ?", before).Delete(&msgEntity.MsgRecord{}).Error
 }
 
 // Record implementations
 func (r *msgRepository) CreateRecord(ctx context.Context, rec *msgEntity.MsgRecord) error {
-	return r.db.WithContext(ctx).Create(rec).Error
+	return r.getDB(ctx).Create(rec).Error
 }
 
 func (r *msgRepository) UpdateRecord(ctx context.Context, rec *msgEntity.MsgRecord) error {
-	return r.db.WithContext(ctx).Save(rec).Error
+	return r.getDB(ctx).Save(rec).Error
 }
 
 func (r *msgRepository) GetRecordByID(ctx context.Context, id uint64) (*msgEntity.MsgRecord, error) {
 	var rec msgEntity.MsgRecord
-	if err := r.db.WithContext(ctx).First(&rec, id).Error; err != nil {
+	if err := r.getDB(ctx).First(&rec, id).Error; err != nil {
 		return nil, err
 	}
 	return &rec, nil
 }
 
 func (r *msgRepository) ListRecords(ctx context.Context, query *MsgRepoQuery) ([]*msgEntity.MsgRecord, int64, error) {
+	if query.Page <= 0 {
+		query.Page = 1
+	}
+	if query.PageSize <= 0 {
+		query.PageSize = entity.DefaultPageSize
+	}
+
 	var list []*msgEntity.MsgRecord
 	var total int64
-	db := r.db.WithContext(ctx).Model(&msgEntity.MsgRecord{})
+	db := r.getDB(ctx).Model(&msgEntity.MsgRecord{})
 
 	if query.Channel != "" {
 		db = db.Where("channel = ?", query.Channel)

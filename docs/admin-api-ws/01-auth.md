@@ -77,17 +77,20 @@ POST /admin/v1/auth/login
 - 连续 **5 次**密码错误将锁定账户 **15 分钟**
 - 锁定期间登录直接返回 `101007`（账户已锁定）
 - 登录成功后清除失败计数并更新最后登录时间
+- **IP 维度限流**（Task 3）：单 IP 在 `[login_ratelimit].window`（默认 1 分钟）内最多 `[login_ratelimit].max`（默认 10）次 Login / RefreshToken 请求，超限返回 `100006`（请求过于频繁，HTTP 429）；与 per-account 锁定独立，针对单 IP 撞库场景
+- **Login 失败文案统一**（Task 3.4）：为消除用户名枚举，`101001` / `101002` / `101003` 在 Login 路径统一返回 msg 「用户名或密码错误」，前端不应据 msg 区分用户不存在 / 已禁用 / 密码错误
 
 ### 常见错误码
 
 | 错误码 | 说明 |
 |--------|------|
 | `100001` | 参数错误（用户名或密码为空） |
+| `100006` | 请求过于频繁（IP 维度限流，HTTP 429） |
 | `100009` | 验证码错误 |
 | `100010` | 验证码必填 |
-| `101001` | 用户不存在 |
-| `101002` | 用户已禁用 |
-| `101003` | 密码错误 |
+| `101001` | 用户不存在（msg 统一为「用户名或密码错误」） |
+| `101002` | 用户已禁用（msg 统一为「用户名或密码错误」） |
+| `101003` | 密码错误（msg 统一为「用户名或密码错误」） |
 | `101007` | 账户已锁定 |
 
 ---
@@ -259,9 +262,13 @@ PUT /admin/v1/auth/profile
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `nickname` | string | 否 | 昵称 |
-| `phone` | string | 否 | 手机号 |
-| `email` | string | 否 | 邮箱（需符合邮箱格式，最大 100 字符） |
+| `phone` | string | 否 | 手机号（修改时需配合 `phoneCode`） |
+| `email` | string | 否 | 邮箱（需符合邮箱格式，最大 100 字符；修改时需配合 `emailCode`） |
 | `gender` | string | 否 | 性别（`0`:未知 `1`:男 `2`:女） |
+| `emailCode` | string | 条件必填 | 邮箱验证码（修改 `email` 时必填，需先调发送邮箱验证码接口获取） |
+| `phoneCode` | string | 条件必填 | 手机验证码（修改 `phone` 时必填，需先调发送短信验证码接口获取） |
+
+> **安全说明**：修改 `email` / `phone` 必须提供对应渠道的验证码，确保新联系方式归属当前用户。仅修改 `nickname` / `gender` 无需验证码。
 
 ### 请求示例
 
@@ -269,7 +276,9 @@ PUT /admin/v1/auth/profile
 {
   "nickname": "新昵称",
   "phone": "13900139000",
+  "phoneCode": "123456",
   "email": "newadmin@example.com",
+  "emailCode": "654321",
   "gender": "1"
 }
 ```
@@ -340,7 +349,7 @@ POST /admin/v1/auth/changePassword
 
 ## 7. 退出登录
 
-当前登录管理员退出登录，注销访问令牌。
+当前登录管理员退出登录，注销访问令牌并将刷新令牌加入黑名单。
 
 ```
 POST /admin/v1/auth/logout
@@ -350,11 +359,21 @@ POST /admin/v1/auth/logout
 
 认证接口（需 Bearer Token）
 
+### 请求头
+
+| Header | 必填 | 说明 |
+|--------|------|------|
+| `Authorization` | 是 | `Bearer <accessToken>` |
+| `X-Refresh-Token` | 是 | 当前用户的 refresh token。服务端会将其加入黑名单（TTL = 剩余有效期），避免登出后 refresh token 仍可换发新 access token。 |
+
+> **强制要求**：`X-Refresh-Token` 为必填项。缺失或为空字符串时接口返回 `100001`（缺少刷新令牌），拒绝执行登出。这确保登出操作能完整失效 refresh token，避免登出后 refresh token 仍可换发新 access token 的安全风险。
+
 ### 请求示例
 
 ```
 POST /admin/v1/auth/logout
 Authorization: Bearer <token>
+X-Refresh-Token: <refreshToken>
 ```
 
 ### 响应示例
@@ -368,4 +387,13 @@ Authorization: Bearer <token>
 }
 ```
 
-> 退出登录后，当前 Token 会从 TokenStore 中移除，立即失效。
+### 常见错误码
+
+| 错误码 | 说明 |
+|--------|------|
+| `100001` | 参数错误（缺少 `X-Refresh-Token` header 或为空，msg 为「缺少刷新令牌」） |
+| `100002` | 未授权 |
+
+> 退出登录后：
+> - 当前 access token 会从 TokenStore 中移除，立即失效。
+> - refresh token 会写入黑名单（TTL = 剩余有效期），后续刷新令牌请求会被拒绝。

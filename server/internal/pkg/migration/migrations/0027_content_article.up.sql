@@ -1,4 +1,4 @@
--- 文章表
+-- 文章表（硬删除表，无 deleted_at 列）
 CREATE TABLE IF NOT EXISTS content_article (
     id BIGSERIAL PRIMARY KEY,
     category_id BIGINT NOT NULL,
@@ -29,8 +29,7 @@ CREATE TABLE IF NOT EXISTS content_article (
     created_by BIGINT,
     updated_by BIGINT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    deleted_at BIGINT DEFAULT 0
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_content_article_category ON content_article(category_id);

@@ -7,6 +7,7 @@ import (
 
 	"NetyAdmin/internal/domain/entity"
 	dictEntity "NetyAdmin/internal/domain/entity/dict"
+	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/pagination"
 )
 
@@ -37,21 +38,26 @@ func NewDictRepository(db *gorm.DB) DictRepository {
 	return &dictRepository{db: db}
 }
 
+// getDB 从 context 中获取事务 DB，若不存在则回退到默认 db。
+func (r *dictRepository) getDB(ctx context.Context) *gorm.DB {
+	return database.GetDB(ctx, r.db)
+}
+
 func (r *dictRepository) CreateType(ctx context.Context, t *dictEntity.DictType) error {
-	return r.db.WithContext(ctx).Create(t).Error
+	return r.getDB(ctx).Create(t).Error
 }
 
 func (r *dictRepository) UpdateType(ctx context.Context, t *dictEntity.DictType) error {
-	return r.db.WithContext(ctx).Save(t).Error
+	return r.getDB(ctx).Save(t).Error
 }
 
 func (r *dictRepository) DeleteType(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&dictEntity.DictType{}, id).Error
+	return r.getDB(ctx).Delete(&dictEntity.DictType{}, id).Error
 }
 
 func (r *dictRepository) GetTypeById(ctx context.Context, id uint) (*dictEntity.DictType, error) {
 	var t dictEntity.DictType
-	if err := r.db.WithContext(ctx).First(&t, id).Error; err != nil {
+	if err := r.getDB(ctx).First(&t, id).Error; err != nil {
 		return nil, err
 	}
 	return &t, nil
@@ -59,16 +65,23 @@ func (r *dictRepository) GetTypeById(ctx context.Context, id uint) (*dictEntity.
 
 func (r *dictRepository) GetTypeByCode(ctx context.Context, code string) (*dictEntity.DictType, error) {
 	var t dictEntity.DictType
-	if err := r.db.WithContext(ctx).Where("code = ?", code).First(&t).Error; err != nil {
+	if err := r.getDB(ctx).Where("code = ?", code).First(&t).Error; err != nil {
 		return nil, err
 	}
 	return &t, nil
 }
 
 func (r *dictRepository) ListType(ctx context.Context, name, code, status string, page, pageSize int) ([]dictEntity.DictType, int64, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = entity.DefaultPageSize
+	}
+
 	var list []dictEntity.DictType
 	var total int64
-	query := r.db.WithContext(ctx).Model(&dictEntity.DictType{})
+	query := r.getDB(ctx).Model(&dictEntity.DictType{})
 	if name != "" {
 		query = query.Where("name LIKE ?", "%"+name+"%")
 	}
@@ -87,24 +100,24 @@ func (r *dictRepository) ListType(ctx context.Context, name, code, status string
 }
 
 func (r *dictRepository) CreateData(ctx context.Context, d *dictEntity.DictData) error {
-	return r.db.WithContext(ctx).Create(d).Error
+	return r.getDB(ctx).Create(d).Error
 }
 
 func (r *dictRepository) UpdateData(ctx context.Context, d *dictEntity.DictData) error {
-	return r.db.WithContext(ctx).Save(d).Error
+	return r.getDB(ctx).Save(d).Error
 }
 
 func (r *dictRepository) DeleteData(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&dictEntity.DictData{}, id).Error
+	return r.getDB(ctx).Delete(&dictEntity.DictData{}, id).Error
 }
 
 func (r *dictRepository) DeleteDataByTypeCode(ctx context.Context, typeCode string) error {
-	return r.db.WithContext(ctx).Where("dict_code = ?", typeCode).Delete(&dictEntity.DictData{}).Error
+	return r.getDB(ctx).Where("dict_code = ?", typeCode).Delete(&dictEntity.DictData{}).Error
 }
 
 func (r *dictRepository) GetDataById(ctx context.Context, id uint) (*dictEntity.DictData, error) {
 	var d dictEntity.DictData
-	if err := r.db.WithContext(ctx).First(&d, id).Error; err != nil {
+	if err := r.getDB(ctx).First(&d, id).Error; err != nil {
 		return nil, err
 	}
 	return &d, nil
@@ -112,14 +125,21 @@ func (r *dictRepository) GetDataById(ctx context.Context, id uint) (*dictEntity.
 
 func (r *dictRepository) ListData(ctx context.Context, dictCode string) ([]dictEntity.DictData, error) {
 	var list []dictEntity.DictData
-	err := r.db.WithContext(ctx).Where("dict_code = ? AND status = ?", dictCode, entity.StatusEnabled).Order("order_by ASC").Find(&list).Error
+	err := r.getDB(ctx).Where("dict_code = ? AND status = ?", dictCode, entity.StatusEnabled).Order("order_by ASC").Find(&list).Error
 	return list, err
 }
 
 func (r *dictRepository) ListDataFull(ctx context.Context, dictCode, label, status string, page, pageSize int) ([]dictEntity.DictData, int64, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = entity.DefaultPageSize
+	}
+
 	var list []dictEntity.DictData
 	var total int64
-	query := r.db.WithContext(ctx).Model(&dictEntity.DictData{})
+	query := r.getDB(ctx).Model(&dictEntity.DictData{})
 	if dictCode != "" {
 		query = query.Where("dict_code = ?", dictCode)
 	}

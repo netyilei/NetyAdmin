@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 
 	systemEntity "NetyAdmin/internal/domain/entity/system"
-	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/database"
 )
 
 type ConfigRepository interface {
@@ -26,16 +26,17 @@ func NewConfigRepository(db *gorm.DB) ConfigRepository {
 	return &configRepository{db: db}
 }
 
+// getDB 取当前 context 下的 *gorm.DB：若 ctx 中存在事务句柄则复用事务，否则回退到 r.db。
+func (r *configRepository) getDB(ctx context.Context) *gorm.DB {
+	return database.GetDB(ctx, r.db)
+}
+
 func (r *configRepository) GetByGroupAndKey(ctx context.Context, groupName, configKey string) (*systemEntity.SysConfig, error) {
 	var config systemEntity.SysConfig
-	err := r.db.WithContext(ctx).
+	err := r.getDB(ctx).
 		Where("group_name = ? AND config_key = ?", groupName, configKey).
 		First(&config).Error
-
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errorx.New(errorx.CodeNotFound, "配置不存在")
-		}
 		return nil, err
 	}
 	return &config, nil
@@ -43,7 +44,7 @@ func (r *configRepository) GetByGroupAndKey(ctx context.Context, groupName, conf
 
 func (r *configRepository) GetByGroup(ctx context.Context, groupName string) ([]*systemEntity.SysConfig, error) {
 	var configs []*systemEntity.SysConfig
-	err := r.db.WithContext(ctx).
+	err := r.getDB(ctx).
 		Where("group_name = ?", groupName).
 		Find(&configs).Error
 	return configs, err
@@ -51,25 +52,25 @@ func (r *configRepository) GetByGroup(ctx context.Context, groupName string) ([]
 
 func (r *configRepository) GetAll(ctx context.Context) ([]*systemEntity.SysConfig, error) {
 	var configs []*systemEntity.SysConfig
-	err := r.db.WithContext(ctx).Find(&configs).Error
+	err := r.getDB(ctx).Find(&configs).Error
 	return configs, err
 }
 
 func (r *configRepository) Upsert(ctx context.Context, config *systemEntity.SysConfig) error {
 	var existing systemEntity.SysConfig
-	err := r.db.WithContext(ctx).
+	err := r.getDB(ctx).
 		Where("group_name = ? AND config_key = ?", config.GroupName, config.ConfigKey).
 		First(&existing).Error
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return r.db.WithContext(ctx).Create(config).Error
+			return r.getDB(ctx).Create(config).Error
 		}
 		return err
 	}
 
 	config.ID = existing.ID
-	return r.db.WithContext(ctx).Model(&existing).Updates(map[string]interface{}{
+	return r.getDB(ctx).Model(&existing).Updates(map[string]interface{}{
 		"config_value": config.ConfigValue,
 		"value_type":   config.ValueType,
 		"description":  config.Description,
@@ -78,5 +79,5 @@ func (r *configRepository) Upsert(ctx context.Context, config *systemEntity.SysC
 }
 
 func (r *configRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&systemEntity.SysConfig{}, id).Error
+	return r.getDB(ctx).Unscoped().Delete(&systemEntity.SysConfig{}, id).Error
 }

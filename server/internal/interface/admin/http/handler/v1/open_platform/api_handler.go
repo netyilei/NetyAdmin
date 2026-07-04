@@ -6,11 +6,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	openEntity "NetyAdmin/internal/domain/entity/open_platform"
 	openDto "NetyAdmin/internal/interface/admin/dto/open_platform"
 	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/pagination"
 	"NetyAdmin/internal/pkg/response"
-	openRepo "NetyAdmin/internal/repository/open_platform"
 	openSvc "NetyAdmin/internal/service/open_platform"
 )
 
@@ -43,18 +42,10 @@ func (h *OpenApiHandler) List(c *gin.Context) {
 		response.FailWithCode(c, errorx.CodeInvalidParams)
 		return
 	}
+	req.Current, req.Size = pagination.NormalizePagination(req.Current, req.Size)
 
-	query := &openRepo.OpenApiRepoQuery{
-		Page:     req.Current,
-		PageSize: req.Size,
-		Method:   req.Method,
-		Path:     req.Path,
-		Name:     req.Name,
-		Group:    req.Group,
-		Status:   req.Status,
-	}
-
-	list, total, err := h.svc.ListApis(c.Request.Context(), query)
+	// 收敛 Handler 跨层调用（spec B10）：service 接收 admin DTO，不再依赖 handler 构造 repo query
+	list, total, err := h.svc.ListApis(c.Request.Context(), &req)
 	if err != nil {
 		response.Fail(c, err)
 		return
@@ -79,16 +70,7 @@ func (h *OpenApiHandler) Create(c *gin.Context) {
 		return
 	}
 
-	api := &openEntity.OpenApi{
-		Method:      req.Method,
-		Path:        req.Path,
-		Name:        req.Name,
-		Group:       req.Group,
-		Description: req.Description,
-		Status:      req.Status,
-	}
-
-	if err := h.svc.CreateApi(c.Request.Context(), api); err != nil {
+	if err := h.svc.CreateApi(c.Request.Context(), &req); err != nil {
 		slog.Error("[OpenApi] Create error", "err", err)
 		response.Fail(c, err)
 		return
@@ -113,17 +95,7 @@ func (h *OpenApiHandler) Update(c *gin.Context) {
 		return
 	}
 
-	api := &openEntity.OpenApi{
-		ID:          req.ID,
-		Method:      req.Method,
-		Path:        req.Path,
-		Name:        req.Name,
-		Group:       req.Group,
-		Description: req.Description,
-		Status:      req.Status,
-	}
-
-	if err := h.svc.UpdateApi(c.Request.Context(), api); err != nil {
+	if err := h.svc.UpdateApi(c.Request.Context(), &req); err != nil {
 		slog.Error("[OpenApi] Update error", "err", err)
 		response.Fail(c, err)
 		return

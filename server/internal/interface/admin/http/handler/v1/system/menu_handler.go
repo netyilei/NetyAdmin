@@ -1,13 +1,13 @@
 package system
 
 import (
-	"fmt"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 
 	systemDto "NetyAdmin/internal/interface/admin/dto/system"
 	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/pagination"
 	"NetyAdmin/internal/pkg/response"
 )
 
@@ -30,6 +30,7 @@ func (h *SystemHandler) GetAdminMenuList(c *gin.Context) {
 		response.FailWithCode(c, errorx.CodeInvalidParams, "参数错误")
 		return
 	}
+	req.Current, req.Size = pagination.NormalizePagination(req.Current, req.Size)
 
 	menus, total, err := h.menuService.List(c.Request.Context(), &req)
 	if err != nil {
@@ -244,14 +245,9 @@ func (h *SystemHandler) DeleteAdminMenus(c *gin.Context) {
 		}
 	}
 
-	var failedIDs []uint
-	for _, id := range req.MenuIds {
-		if err := h.menuService.Delete(c.Request.Context(), id); err != nil {
-			failedIDs = append(failedIDs, id)
-		}
-	}
-	if len(failedIDs) > 0 {
-		response.FailWithCode(c, errorx.CodeInternalError, fmt.Sprintf("部分菜单删除失败，失败ID: %v", failedIDs))
+	// fail-closed 语义：事务失败立即返回错误；业务规则拒绝（不存在/有子菜单）走 skipped 由 Service 聚合返回。
+	if err := h.menuService.DeleteBatch(c.Request.Context(), req.MenuIds); err != nil {
+		response.Fail(c, err)
 		return
 	}
 

@@ -97,6 +97,7 @@
 | `100008` | `CodeAlreadyExists` | `alreadyExists` | 资源已存在 | Resource already exists |
 | `100009` | `CodeCaptchaWrong` | `captchaWrong` | 验证码错误 | Captcha is incorrect |
 | `100010` | `CodeCaptchaRequired` | `captchaRequired` | 验证码必填 | Captcha is required |
+| `100011` | `CodeRequestTimeout` | `requestTimeout` | 请求超时 | Request timeout |
 
 > **健康检查**：健康检查端点（`/health`）返回 HTTP 200 状态码，不经过业务状态码流程，由 `hellofresh/health-go` 中间件直接处理。
 

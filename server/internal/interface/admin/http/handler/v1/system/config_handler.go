@@ -6,20 +6,17 @@ import (
 	systemDto "NetyAdmin/internal/interface/admin/dto/system"
 	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/errorx"
-	msgPkg "NetyAdmin/internal/pkg/message"
 	"NetyAdmin/internal/pkg/response"
 	systemService "NetyAdmin/internal/service/system"
 )
 
 type ConfigHandler struct {
-	configSvc  systemService.ConfigService
-	emailDriver msgPkg.Driver
+	configSvc systemService.ConfigService
 }
 
-func NewConfigHandler(configSvc systemService.ConfigService, emailDriver msgPkg.Driver) *ConfigHandler {
+func NewConfigHandler(configSvc systemService.ConfigService) *ConfigHandler {
 	return &ConfigHandler{
-		configSvc:  configSvc,
-		emailDriver: emailDriver,
+		configSvc: configSvc,
 	}
 }
 
@@ -96,13 +93,8 @@ func (h *ConfigHandler) TestEmail(c *gin.Context) {
 		return
 	}
 
-	if h.emailDriver == nil {
-		response.FailWithCode(c, errorx.CodeInternalError, "邮件驱动未初始化")
-		return
-	}
-
-	err := h.emailDriver.Send(c.Request.Context(), req.Receiver, "NetyAdmin 测试邮件", "<h2>测试邮件</h2><p>这是一封来自 NetyAdmin 的测试邮件，如果您收到了此邮件，说明邮件配置正确。</p>", nil)
-	if err != nil {
+	// 收敛 Handler 跨层调用（spec B10）：邮件发送下沉到 service，handler 不再直接调 emailDriver
+	if err := h.configSvc.TestEmail(c.Request.Context(), req.Receiver); err != nil {
 		response.Fail(c, err)
 		return
 	}

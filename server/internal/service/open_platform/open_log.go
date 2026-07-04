@@ -4,14 +4,15 @@ import (
 	"context"
 
 	"NetyAdmin/internal/domain/entity/open_platform"
+	openDto "NetyAdmin/internal/interface/admin/dto/open_platform"
 	openRepo "NetyAdmin/internal/repository/open_platform"
 )
 
 type RecordFunc func(ctx context.Context, log *open_platform.OpenPlatformLog) error
 
 type OpenLogService interface {
-	Record(ctx context.Context, log *open_platform.OpenPlatformLog) error
-	ListLogs(ctx context.Context, query *openRepo.OpenLogRepoQuery) ([]*open_platform.OpenPlatformLog, int64, error)
+	Record(ctx context.Context, req *openDto.RecordOpenLogReq) error
+	ListLogs(ctx context.Context, req *openDto.OpenLogQuery) ([]*open_platform.OpenPlatformLog, int64, error)
 	GetLog(ctx context.Context, id uint64) (*open_platform.OpenPlatformLog, error)
 	DeleteBatch(ctx context.Context, ids []uint64) error
 	ClearOldLogs(ctx context.Context, days int) error
@@ -29,12 +30,39 @@ func NewOpenLogService(repo openRepo.OpenLogRepository, recordFunc RecordFunc) O
 	}
 }
 
-func (s *openLogService) Record(ctx context.Context, log *open_platform.OpenPlatformLog) error {
+func (s *openLogService) Record(ctx context.Context, req *openDto.RecordOpenLogReq) error {
+	log := &open_platform.OpenPlatformLog{
+		AppID:         req.AppID,
+		AppKey:        req.AppKey,
+		ApiPath:       req.ApiPath,
+		ApiMethod:     req.ApiMethod,
+		ClientIP:      req.ClientIP,
+		StatusCode:    req.StatusCode,
+		Latency:       req.Latency,
+		RequestHeader: req.RequestHeader,
+		RequestBody:   req.RequestBody,
+		ResponseBody:  req.ResponseBody,
+		ErrorMsg:      req.ErrorMsg,
+		// Task 8.5: 透传 request_id 到 entity，便于通过 request_id 关联异步日志与原始请求。
+		// recordFunc 闭包由 wire.go 注入（多态分发给 logBus.Record），最终写入 DB。
+		RequestID: req.RequestID,
+	}
 	return s.recordFunc(ctx, log)
 }
 
-func (s *openLogService) ListLogs(ctx context.Context, query *openRepo.OpenLogRepoQuery) ([]*open_platform.OpenPlatformLog, int64, error) {
-	return s.repo.List(ctx, query)
+func (s *openLogService) ListLogs(ctx context.Context, req *openDto.OpenLogQuery) ([]*open_platform.OpenPlatformLog, int64, error) {
+	// service 层接收 admin DTO，内部构造 repository query（spec B10：service 不应依赖 handler 构造的 repo 类型）
+	repoQuery := &openRepo.OpenLogRepoQuery{
+		Page:       req.Current,
+		PageSize:   req.Size,
+		AppID:      req.AppID,
+		AppKey:     req.AppKey,
+		ApiPath:    req.ApiPath,
+		StatusCode: req.StatusCode,
+		StartTime:  req.StartTime,
+		EndTime:    req.EndTime,
+	}
+	return s.repo.List(ctx, repoQuery)
 }
 
 func (s *openLogService) GetLog(ctx context.Context, id uint64) (*open_platform.OpenPlatformLog, error) {

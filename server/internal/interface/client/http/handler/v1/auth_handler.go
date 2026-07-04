@@ -3,27 +3,23 @@ package v1
 import (
 	"github.com/gin-gonic/gin"
 
-	"NetyAdmin/internal/pkg/captcha"
-	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
-	userRepo "NetyAdmin/internal/repository/user"
+	systemService "NetyAdmin/internal/service/system"
 	userService "NetyAdmin/internal/service/user"
 )
 
 type AuthHandler struct {
-	verifySvc userService.VerificationService
-	captcha   *captcha.Manager
-	watcher   configsync.ConfigWatcher
-	userRepo  userRepo.UserRepository
+	verifySvc  userService.VerificationService
+	captchaSvc systemService.CaptchaService
+	userSvc    userService.UserClientService
 }
 
-func NewAuthHandler(verifySvc userService.VerificationService, captcha *captcha.Manager, watcher configsync.ConfigWatcher, userRepo userRepo.UserRepository) *AuthHandler {
+func NewAuthHandler(verifySvc userService.VerificationService, captchaSvc systemService.CaptchaService, userSvc userService.UserClientService) *AuthHandler {
 	return &AuthHandler{
-		verifySvc: verifySvc,
-		captcha:   captcha,
-		watcher:   watcher,
-		userRepo:  userRepo,
+		verifySvc:  verifySvc,
+		captchaSvc: captchaSvc,
+		userSvc:    userSvc,
 	}
 }
 
@@ -36,7 +32,7 @@ func NewAuthHandler(verifySvc userService.VerificationService, captcha *captcha.
 // @Success      200 {object} response.Response "操作成功"
 // @Router       /client/v1/auth/captcha [get]
 func (h *AuthHandler) Captcha(c *gin.Context) {
-	id, b64s, err := h.captcha.Generate("digit", 120, 40, 4)
+	id, b64s, err := h.captchaSvc.Generate(c.Request.Context(), "user_login")
 	if err != nil {
 		response.FailWithCode(c, errorx.CodeInternalError, "验证码生成失败")
 		return
@@ -64,38 +60,13 @@ func (h *AuthHandler) SceneConfig(c *gin.Context) {
 		return
 	}
 
-	var captchaEnabled bool
-	switch scene {
-	case "login":
-		val, _ := h.watcher.GetConfig("captcha_config", "user_login_enabled")
-		captchaEnabled = val == "true" || val == "1"
-	case "register":
-		val, _ := h.watcher.GetConfig("captcha_config", "user_register_enabled")
-		captchaEnabled = val == "true" || val == "1"
-	case "reset_password":
-		val, _ := h.watcher.GetConfig("captcha_config", "user_reset_pwd_captcha_enabled")
-		captchaEnabled = val == "true" || val == "1"
-	default:
-		response.FailWithCode(c, errorx.CodeInvalidParams, "不支持的业务场景")
+	config, err := h.verifySvc.GetSceneCaptchaConfig(c.Request.Context(), scene)
+	if err != nil {
+		response.Fail(c, err)
 		return
 	}
 
-	verifyConfig, _ := h.verifySvc.GetVerifyConfig(c.Request.Context(), scene)
-
-	result := gin.H{
-		"scene":          scene,
-		"captchaEnabled": captchaEnabled,
-	}
-
-	if verifyConfig != nil {
-		result["verifyEnabled"] = verifyConfig.Enabled
-		result["verifyType"] = verifyConfig.VerifyType
-	} else {
-		result["verifyEnabled"] = false
-		result["verifyType"] = ""
-	}
-
-	response.Success(c, result)
+	response.Success(c, config)
 }
 
 // SendCode 发送验证码
@@ -122,54 +93,15 @@ func (h *AuthHandler) SendCode(c *gin.Context) {
 		return
 	}
 
-	var target string
-	if req.Scene == "login" {
-		if req.Username == "" {
-			response.FailWithCode(c, errorx.CodeInvalidParams, "登录场景需提供 username")
-			return
-		}
-		user, err := h.userRepo.GetByUsername(c.Request.Context(), req.Username)
-		if err != nil {
-			response.FailWithCode(c, errorx.CodeUserNotFound, "用户不存在")
-			return
-		}
-		if user.Status == "0" {
-			response.FailWithCode(c, errorx.CodeUserDisabled, "账户已禁用")
-			return
-		}
-
-		verifyConfig, _ := h.verifySvc.GetVerifyConfig(c.Request.Context(), req.Scene)
-		if verifyConfig == nil || !verifyConfig.Enabled {
-			response.FailWithCode(c, errorx.CodeInvalidParams, "当前场景未启用消息验证")
-			return
-		}
-
-		switch verifyConfig.VerifyType {
-		case "email":
-			if user.Email == "" {
-				response.FailWithCode(c, errorx.CodeInvalidParams, "该用户未绑定邮箱")
-				return
-			}
-			target = user.Email
-		case "sms":
-			if user.Phone == "" {
-				response.FailWithCode(c, errorx.CodeInvalidParams, "该用户未绑定手机号")
-				return
-			}
-			target = user.Phone
-		default:
-			response.FailWithCode(c, errorx.CodeInvalidParams, "未配置验证方式")
-			return
-		}
-	} else {
-		if req.Target == "" {
-			response.FailWithCode(c, errorx.CodeInvalidParams, "需提供 target (手机号或邮箱)")
-			return
-		}
-		target = req.Target
+	// 收敛 Handler 跨层调用（spec B10）：通过 service.ResolveSendCodeTarget
+	// 统一解析发送目标（登录场景查找用户绑定联系方式，注册/找回密码场景直接使用 target）。
+	_, target, err := h.userSvc.ResolveSendCodeTarget(c.Request.Context(), req.Scene, req.Username, req.Target)
+	if err != nil {
+		response.Fail(c, err)
+		return
 	}
 
-	err := h.verifySvc.SendCode(c.Request.Context(), req.Scene, target, req.CaptchaKey, req.CaptchaCode)
+	err = h.verifySvc.SendCode(c.Request.Context(), req.Scene, target, req.CaptchaKey, req.CaptchaCode)
 	if err != nil {
 		response.Fail(c, err)
 		return

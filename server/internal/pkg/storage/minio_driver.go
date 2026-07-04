@@ -302,7 +302,7 @@ func toObjectInfo(key string, stat minio.ObjectInfo) *ObjectInfo {
 // MimeTypeByExt 根据文件名扩展名推断 MIME 类型。
 //
 // 适用于上传凭证签发场景（此时还没有文件内容，只有文件名），
-// 替代原来 record.go 中 DetectMimeType([]byte{}) 的空参占位 hack（重构清单 B-OTHER-13）。
+// 按文件名扩展名推断 MIME 类型，替代原 record.go 中空参 DetectMimeType 调用。
 // 扩展名未命中映射表时返回 application/octet-stream。
 func MimeTypeByExt(fileName string) string {
 	ext := strings.ToLower(filepath.Ext(fileName))

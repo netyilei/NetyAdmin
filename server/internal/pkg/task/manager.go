@@ -14,6 +14,9 @@ import (
 
 	"NetyAdmin/internal/config"
 	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/recovery"
+	"NetyAdmin/internal/pkg/requestid"
+	"NetyAdmin/internal/pkg/slogutil"
 )
 
 // Manager 任务调度引擎
@@ -35,6 +38,7 @@ type Manager struct {
 	cronIDs   map[string]cron.EntryID  // 记录 Cron 任务 ID
 	intervals map[string]chan struct{} // 记录 Interval 任务停止通道 (按任务名隔离)
 	cancel    context.CancelFunc       // 用于停止所有 Worker
+	stopOnce  sync.Once                // 保护 stopChan 的 close 操作，避免 double-close panic
 }
 
 // NewManager 创建调度引擎
@@ -130,7 +134,11 @@ func (m *Manager) Start(ctx context.Context) {
 			m.mu.Lock()
 			m.intervals[tc.metadata.Name] = stopChan
 			m.mu.Unlock()
-			go m.runIntervalTask(ctx, tc.task, tc.metadata, stopChan)
+			// 异步执行间隔任务（GoSafe 包裹 recover + Sentry 上报，防止 panic 导致任务静默退出）
+			// runIntervalTask 内部 defer m.wg.Done() 在 panic 时仍会触发
+			recovery.GoSafe("task:interval", func() {
+				m.runIntervalTask(ctx, tc.task, tc.metadata, stopChan)
+			})
 		case TypeCron:
 			m.registerCronTask(ctx, tc.task, tc.metadata)
 		}
@@ -143,6 +151,10 @@ func (m *Manager) Start(ctx context.Context) {
 }
 
 // Dispatch 投递子任务 (实现 Dispatcher 接口)
+//
+// Task 8.6: 从 ctx 提取 request_id 写入 msg.RequestID，跨 goroutine 传播；
+// Worker 在 executePayload 中通过 requestid.WithRequestID 恢复到子 ctx，
+// 让任务执行期间的 slog / Sentry 上报能关联到原始触发请求。
 func (m *Manager) Dispatch(ctx context.Context, taskName string, payload interface{}, weight int) error {
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -150,8 +162,9 @@ func (m *Manager) Dispatch(ctx context.Context, taskName string, payload interfa
 	}
 
 	msg := &Message{
-		TaskName: taskName,
-		Payload:  data,
+		TaskName:  taskName,
+		Payload:   data,
+		RequestID: requestid.FromContext(ctx),
 	}
 
 	if err := m.queue.Push(ctx, msg, weight); err != nil {
@@ -170,39 +183,62 @@ func (m *Manager) startWorkers(ctx context.Context) {
 
 	for i := 0; i < workerCount; i++ {
 		m.wg.Add(1)
-		go func(workerID int) {
+		workerID := i
+		// GoSafe 包裹 recover + Sentry 上报，防止单个任务 panic 导致 Worker 静默退出。
+		// defer m.wg.Done() 在 fn 内部，panic 时仍会触发（defer 在 recover 捕获前执行）。
+		recovery.GoSafe("task:worker", func() {
 			defer m.wg.Done()
 			for {
+				// 改造说明（P2-5）：
+				// 原实现把 m.queue.Pop 放在 select 的 default 分支里，
+				// 当 ctx/stopChan 都无信号、且 Pop 立即返回（如 LocalQueue 100ms 超时返回 nil）时，
+				// default 会被立即命中形成空轮询，极端情况下 CPU 100%。
+				// 现改为：先用非阻塞 select 检查停止信号，再在 select 之外调用 Pop。
+				// Pop 内部自带阻塞语义（RedisQueue BRPop 5s、LocalQueue select+100ms time.After，
+				// 且都监听 ctx.Done），无消息时挂起 Worker，不会自旋。
 				select {
 				case <-ctx.Done():
 					return
 				case <-m.stopChan:
 					return
 				default:
-					msg, err := m.queue.Pop(ctx)
-					if err != nil {
-						slog.Error("任务引擎 Worker Pop 消息失败", "worker", workerID, "error", err)
-						time.Sleep(time.Second) // 发生错误稍后重试
-						continue
-					}
-					if msg == nil {
-						continue // 超时无消息
-					}
-
-					m.executePayload(ctx, msg)
 				}
+
+				msg, err := m.queue.Pop(ctx)
+				if err != nil {
+					// ctx 取消时 Pop 可能返回 ctx.Err，属正常退出路径，不当作错误记录
+					if ctx.Err() != nil {
+						return
+					}
+					slog.Error("任务引擎 Worker Pop 消息失败", "worker", workerID, "error", err)
+					time.Sleep(time.Second) // 发生错误稍后重试
+					continue
+				}
+				if msg == nil {
+					continue // 超时无消息
+				}
+
+				m.executePayload(ctx, msg)
 			}
-		}(i)
+		})
 	}
 }
 
 func (m *Manager) executePayload(ctx context.Context, msg *Message) {
+	// Task 8.6: 从 msg.RequestID 恢复 request_id 到子 ctx，
+	// 让 t.Execute 内部的 slog / Sentry 上报能关联到原始触发请求。
+	if msg.RequestID != "" {
+		ctx = requestid.WithRequestID(ctx, msg.RequestID)
+	}
+	// Task 8.3: 用 slogutil.LoggerFromContext 替代裸 slog，自动携带 request_id 字段。
+	logger := slogutil.LoggerFromContext(ctx)
+
 	m.mu.RLock()
 	t, exists := m.tasks[msg.TaskName]
 	m.mu.RUnlock()
 
 	if !exists {
-		slog.Error("任务引擎消费者执行失败: 任务未注册", "name", msg.TaskName)
+		logger.Error("任务引擎消费者执行失败: 任务未注册", "name", msg.TaskName)
 		return
 	}
 
@@ -230,7 +266,7 @@ func (m *Manager) executePayload(ctx context.Context, msg *Message) {
 	if err != nil {
 		info.Status = "error"
 		info.Message = err.Error()
-		slog.Error("任务载荷执行失败", "name", msg.TaskName, "error", err)
+		logger.Error("任务载荷执行失败", "name", msg.TaskName, "error", err)
 	}
 
 	m.mu.Lock()
@@ -273,14 +309,21 @@ func (m *Manager) StartTask(ctx context.Context, name string) error {
 
 	switch meta.Type {
 	case TypeOnce:
-		go m.execute(ctx, t)
+		// 异步执行单次任务（GoSafe 包裹 recover + Sentry 上报，防止 panic 影响调度引擎）
+		recovery.GoSafe("task:once", func() {
+			m.execute(ctx, t)
+		})
 	case TypeInterval:
 		m.wg.Add(1)
 		stopChan := make(chan struct{})
 		m.mu.Lock()
 		m.intervals[name] = stopChan
 		m.mu.Unlock()
-		go m.runIntervalTask(ctx, t, meta, stopChan)
+		// 异步执行间隔任务（GoSafe 包裹 recover + Sentry 上报，防止 panic 导致任务静默退出）
+		// runIntervalTask 内部 defer m.wg.Done() 在 panic 时仍会触发
+		recovery.GoSafe("task:interval", func() {
+			m.runIntervalTask(ctx, t, meta, stopChan)
+		})
 	case TypeCron:
 		m.registerCronTask(ctx, t, meta)
 	}
@@ -341,7 +384,11 @@ func (m *Manager) UpdateTaskSpec(ctx context.Context, name string, enabled bool,
 // ReloadTask 根据当前配置重启单个任务
 func (m *Manager) ReloadTask(ctx context.Context, name string) error {
 	// 1. 先尝试停止 (无论当前配置如何)
-	_ = m.StopTask(name)
+	// StopTask 失败仅 Warn：reload 会继续尝试 StartTask，残留旧实例由 cron 调度去重兜底。
+	if err := m.StopTask(name); err != nil {
+		slog.Warn("ReloadTask: StopTask failed (will attempt StartTask anyway)",
+			"name", name, "error", err)
+	}
 
 	// 2. 获取最新元数据
 	m.mu.RLock()
@@ -373,10 +420,12 @@ func (m *Manager) ManualRun(ctx context.Context, name string) error {
 	}
 
 	m.wg.Add(1)
-	go func() {
+	// GoSafe 包裹 recover + Sentry 上报，防止手动触发的任务 panic 影响调度引擎。
+	// defer m.wg.Done() 在 fn 内部，panic 时仍会触发（defer 在 recover 捕获前执行）。
+	recovery.GoSafe("task:manual", func() {
 		defer m.wg.Done()
 		m.execute(ctx, t)
-	}()
+	})
 
 	return nil
 }
@@ -462,8 +511,13 @@ func (m *Manager) execute(ctx context.Context, t Task) {
 		}
 
 		// 执行完毕后释放锁
+		// Del 失败仅 Warn：锁自带 1 小时 TTL 兜底，失败时下一小时后自动过期，
+		// 不会永久卡住其他实例（参见 SetArgs 的 TTL=1h 设置上方）。
 		defer func() {
-			_ = m.redis.Del(ctx, lockKey)
+			if err := m.redis.Del(ctx, lockKey).Err(); err != nil {
+				slog.Warn("task: release distributed lock failed (will auto-expire via TTL)",
+					"name", name, "lockKey", lockKey, "error", err)
+			}
 		}()
 	}
 
@@ -504,9 +558,17 @@ func (m *Manager) Stop() {
 	if m.cancel != nil {
 		m.cancel() // 取消 Worker 上下文，Worker 的 Pop 阻塞会立刻退出
 	}
-	close(m.stopChan) // 通知 Interval 任务退出
+	// sync.Once 保护：Stop() 可能被优雅关闭流程多次调用（如 signal handler + main 退出），
+	// 重复 close channel 会 panic。sync.Once 确保仅第一次调用执行 close。
+	m.stopOnce.Do(func() {
+		close(m.stopChan) // 通知 Interval 任务退出
+	})
 	if m.queue != nil {
-		_ = m.queue.Close()
+		// queue.Close 失败仅 Warn：进程即将退出，残留资源由 OS 回收。
+		if err := m.queue.Close(); err != nil {
+			slog.Warn("task manager: queue.Close failed (process exiting, OS will reclaim)",
+				"error", err)
+		}
 	}
 
 	// 等待所有正在执行的任务完成 (包括 Interval 和正在跑的 Cron)
@@ -585,9 +647,12 @@ func (m *Manager) registerCronTask(ctx context.Context, t Task, meta TaskMetadat
 	entryID, err := m.cron.AddFunc(meta.Spec, func() {
 		// 生产级增强：定时任务进入 WaitGroup 保护，防止进程退出时任务被腰斩
 		m.wg.Add(1)
-		defer m.wg.Done()
-
-		m.execute(ctx, t)
+		// GoSafe 包裹 recover + Sentry 上报，防止定时任务 panic 影响调度引擎。
+		// defer m.wg.Done() 在 fn 内部，panic 时仍会触发（defer 在 recover 捕获前执行）。
+		recovery.GoSafe("task:cron", func() {
+			defer m.wg.Done()
+			m.execute(ctx, t)
+		})
 	})
 	if err != nil {
 		slog.Error("任务 Cron 表达式无效", "name", meta.Name, "spec", meta.Spec, "error", err)

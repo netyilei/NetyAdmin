@@ -1,6 +1,6 @@
 package dto
 
-import "NetyAdmin/internal/domain/entity"
+import "NetyAdmin/internal/pkg/pagination"
 
 type PageQuery struct {
 	Current int `form:"current" json:"current"`
@@ -12,14 +12,14 @@ func (p *PageQuery) Offset() int {
 		p.Current = 1
 	}
 	if p.Size <= 0 {
-		p.Size = entity.DefaultPageSize
+		p.Size = pagination.DefaultPageSize
 	}
 	return (p.Current - 1) * p.Size
 }
 
 func (p *PageQuery) Limit() int {
 	if p.Size <= 0 {
-		p.Size = entity.DefaultPageSize
+		p.Size = pagination.DefaultPageSize
 	}
 	return p.Size
 }

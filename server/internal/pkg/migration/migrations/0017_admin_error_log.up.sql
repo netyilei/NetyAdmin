@@ -1,9 +1,8 @@
--- 错误日志表
+-- 错误日志表（硬删除表，无 deleted_at 列）
 CREATE TABLE IF NOT EXISTS admin_error_log (
     id BIGSERIAL PRIMARY KEY,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    deleted_at BIGINT DEFAULT 0,
     -- Basic Info
     level VARCHAR(20) NOT NULL,
     message TEXT NOT NULL,
@@ -24,7 +23,6 @@ CREATE TABLE IF NOT EXISTS admin_error_log (
     last_occurred_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_admin_error_log_deleted ON admin_error_log(deleted_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_error_log_hash ON admin_error_log(hash);
 CREATE INDEX IF NOT EXISTS idx_admin_error_log_group_id ON admin_error_log(group_id);
 

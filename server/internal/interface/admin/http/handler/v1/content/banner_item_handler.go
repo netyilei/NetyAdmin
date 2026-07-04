@@ -8,7 +8,7 @@ import (
 	contentDto "NetyAdmin/internal/interface/admin/dto/content"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
-	contentService "NetyAdmin/internal/service/content"
+	contentService "NetyAdmin/internal/service/content/admin"
 )
 
 type ContentBannerItemHandler struct {

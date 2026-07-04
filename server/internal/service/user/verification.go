@@ -8,6 +8,7 @@ import (
 	msgSvc "NetyAdmin/internal/service/message"
 	"context"
 	"crypto/rand"
+	"log/slog"
 	"math/big"
 	"strconv"
 	"time"
@@ -20,6 +21,8 @@ const (
 	SceneResetPassword = "reset_password"
 	SceneLogin         = "login"
 	SceneBind          = "bind"
+	SceneChangeEmail   = "change_email" // 邮箱变更验证码场景
+	SceneChangePhone   = "change_phone" // 手机变更验证码场景
 )
 
 // VerifyConfig 验证配置响应
@@ -29,9 +32,20 @@ type VerifyConfig struct {
 	Scene      string `json:"scene"`
 }
 
+// SceneCaptchaConfig 场景验证配置（图形验证码 + 消息验证二合一）
+// 收敛 handler 跨层调用（spec B10）：handler 不再直接调 configsync.ConfigWatcher
+type SceneCaptchaConfig struct {
+	Scene          string `json:"scene"`
+	CaptchaEnabled bool   `json:"captchaEnabled"` // 图形验证码开关 (captcha_config.{scene}_enabled)
+	VerifyEnabled  bool   `json:"verifyEnabled"`  // 消息验证开关 (user_config.{scene}_verify)
+	VerifyType     string `json:"verifyType"`     // 消息验证类型 email/sms (user_config.{scene}_verify_type)
+}
+
 type VerificationService interface {
 	// GetVerifyConfig 获取验证配置
 	GetVerifyConfig(ctx context.Context, scene string) (*VerifyConfig, error)
+	// GetSceneCaptchaConfig 一次返回 scene 的图形验证码开关 + 消息验证开关/类型
+	GetSceneCaptchaConfig(ctx context.Context, scene string) (*SceneCaptchaConfig, error)
 	// SendCode 发送验证码 (自动判断是手机还是邮箱)
 	// captchaKey 和 captchaCode 用于二次验证，防止接口被恶意轰炸
 	SendCode(ctx context.Context, scene, target, captchaKey, captchaCode string) error
@@ -87,6 +101,30 @@ func (s *verificationService) GetVerifyConfig(ctx context.Context, scene string)
 	return config, nil
 }
 
+func (s *verificationService) GetSceneCaptchaConfig(ctx context.Context, scene string) (*SceneCaptchaConfig, error) {
+	captchaKey := sceneCaptchaKey(scene)
+	if captchaKey == "" {
+		return nil, errorx.New(errorx.CodeInvalidParams, "不支持的业务场景")
+	}
+
+	// 图形验证码开关
+	val, _ := s.watcher.GetConfig("captcha_config", captchaKey)
+	captchaEnabled := val == "true" || val == "1"
+
+	// 消息验证开关 + 类型（复用现有 GetVerifyConfig 逻辑）
+	verifyConfig, _ := s.GetVerifyConfig(ctx, scene)
+
+	result := &SceneCaptchaConfig{
+		Scene:          scene,
+		CaptchaEnabled: captchaEnabled,
+	}
+	if verifyConfig != nil {
+		result.VerifyEnabled = verifyConfig.Enabled
+		result.VerifyType = verifyConfig.VerifyType
+	}
+	return result, nil
+}
+
 func (s *verificationService) SendCode(ctx context.Context, scene, target, captchaKey, captchaCode string) error {
 	// 0. 图形验证码二次校验 (Synergy)
 	// 如果配置开启了图形验证码，则必须校验，防止接口轰炸。
@@ -124,7 +162,9 @@ func (s *verificationService) SendCode(ctx context.Context, scene, target, captc
 	}
 
 	// 4. 设置频率限制
-	_ = s.cacheMgr.Set(ctx, limitKey, "1", 60*time.Second)
+	if err := s.cacheMgr.Set(ctx, limitKey, "1", 60*time.Second); err != nil {
+		slog.Warn("set rate limit cache failed", "key", limitKey, "err", err)
+	}
 
 	// 5. 调用消息服务发送
 	// 模板代码约定：VERIFY_CODE
@@ -150,7 +190,9 @@ func (s *verificationService) VerifyCode(ctx context.Context, scene, target, cod
 	var attemptStr string
 	_ = s.cacheMgr.Get(ctx, attemptKey, &attemptStr)
 	if n, err := strconv.Atoi(attemptStr); err == nil && n >= 5 {
-		_ = s.cacheMgr.Delete(ctx, cache.KeyVerificationCode(scene, target))
+		if dErr := s.cacheMgr.Delete(ctx, cache.KeyVerificationCode(scene, target)); dErr != nil {
+			slog.Warn("delete verification code cache failed", "scene", scene, "target", target, "err", dErr)
+		}
 		return false, nil
 	}
 
@@ -164,7 +206,9 @@ func (s *verificationService) VerifyCode(ctx context.Context, scene, target, cod
 	if storedCode != code {
 		n, _ := strconv.Atoi(attemptStr)
 		n++
-		_ = s.cacheMgr.Set(ctx, attemptKey, strconv.Itoa(n), 10*time.Minute)
+		if err := s.cacheMgr.Set(ctx, attemptKey, strconv.Itoa(n), 10*time.Minute); err != nil {
+			slog.Warn("set attempt count cache failed", "key", attemptKey, "err", err)
+		}
 		return false, nil
 	}
 
@@ -175,7 +219,9 @@ func (s *verificationService) VerifyAndClearCode(ctx context.Context, scene, tar
 	ok, err := s.VerifyCode(ctx, scene, target, code)
 	if ok {
 		cacheKey := cache.KeyVerificationCode(scene, target)
-		_ = s.cacheMgr.Delete(ctx, cacheKey)
+		if dErr := s.cacheMgr.Delete(ctx, cacheKey); dErr != nil {
+			slog.Warn("delete verification code cache failed", "key", cacheKey, "err", dErr)
+		}
 	}
 	return ok, err
 }

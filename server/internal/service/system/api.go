@@ -2,11 +2,17 @@ package system
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"log/slog"
 	"time"
 
-	systemDto "NetyAdmin/internal/interface/admin/dto/system"
+	"gorm.io/gorm"
+
 	systemEntity "NetyAdmin/internal/domain/entity/system"
+	systemDto "NetyAdmin/internal/interface/admin/dto/system"
 	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/errorx"
 	systemRepo "NetyAdmin/internal/repository/system"
 )
@@ -25,12 +31,14 @@ type APIService interface {
 type apiService struct {
 	apiRepo  systemRepo.APIRepository
 	cacheMgr cache.LazyCacheManager
+	tm       *database.TransactionManager
 }
 
-func NewAPIService(apiRepo systemRepo.APIRepository, cacheMgr cache.LazyCacheManager) APIService {
+func NewAPIService(apiRepo systemRepo.APIRepository, cacheMgr cache.LazyCacheManager, tm *database.TransactionManager) APIService {
 	return &apiService{
 		apiRepo:  apiRepo,
 		cacheMgr: cacheMgr,
+		tm:       tm,
 	}
 }
 
@@ -73,7 +81,11 @@ func (s *apiService) List(ctx context.Context, req *systemDto.APIQuery) ([]*syst
 func (s *apiService) GetByID(ctx context.Context, id uint) (*systemDto.APIVO, error) {
 	api, err := s.apiRepo.GetByID(ctx, id)
 	if err != nil {
-		return nil, errorx.New(errorx.CodeNotFound, "API不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errorx.New(errorx.CodeNotFound, "API不存在")
+		}
+		slog.Error("apiRepo.GetByID failed", "apiID", id, "err", err)
+		return nil, fmt.Errorf("apiRepo.GetByID: %w", err)
 	}
 
 	item := &systemDto.APIVO{
@@ -104,6 +116,7 @@ func (s *apiService) Create(ctx context.Context, req *systemDto.CreateAPIReq) (u
 	}
 
 	api := &systemEntity.API{
+		MenuID:      req.MenuID,
 		Name:        req.Name,
 		Method:      req.Method,
 		Path:        req.Path,
@@ -114,7 +127,9 @@ func (s *apiService) Create(ctx context.Context, req *systemDto.CreateAPIReq) (u
 		return 0, err
 	}
 
-	_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACAPI)
+	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACAPI); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagRBACAPI, "err", err)
+	}
 
 	return api.ID, nil
 }
@@ -122,7 +137,11 @@ func (s *apiService) Create(ctx context.Context, req *systemDto.CreateAPIReq) (u
 func (s *apiService) Update(ctx context.Context, req *systemDto.UpdateAPIReq) error {
 	api, err := s.apiRepo.GetByID(ctx, req.ID)
 	if err != nil {
-		return errorx.New(errorx.CodeNotFound, "API不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errorx.New(errorx.CodeNotFound, "API不存在")
+		}
+		slog.Error("apiRepo.GetByID failed", "apiID", req.ID, "err", err)
+		return fmt.Errorf("apiRepo.GetByID: %w", err)
 	}
 
 	if req.Method != "" && req.Path != "" && (req.Method != api.Method || req.Path != api.Path) {
@@ -138,21 +157,44 @@ func (s *apiService) Update(ctx context.Context, req *systemDto.UpdateAPIReq) er
 	api.Name = req.Name
 	api.Method = req.Method
 	api.Path = req.Path
+	api.MenuID = req.MenuID
 	api.Description = req.Desc
 
 	err = s.apiRepo.Update(ctx, api)
 	if err == nil {
-		_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACAPI, cache.TagRBACRole)
+		if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACAPI, cache.TagRBACRole); cErr != nil {
+			slog.Error("invalidate cache failed", "tag", cache.TagRBACAPI, "err", cErr)
+		}
 	}
 	return err
 }
 
 func (s *apiService) Delete(ctx context.Context, id uint) error {
-	err := s.apiRepo.Delete(ctx, id)
-	if err == nil {
-		_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACAPI, cache.TagRBACRole)
+	// TM 单事务原子完成「清理 admin_role_apis 关联 + 硬删除 api」。
+	// 任一步失败整体回滚，避免「关联已清但 api 未删」或「api 已删但关联未清」的中间态。
+	txCtx, tx := s.tm.Begin(ctx)
+	if err := s.apiRepo.ClearRoleApis(txCtx, id); err != nil {
+		slog.Error("api delete: clear role apis failed", "apiID", id, "err", err)
+		s.tm.Rollback(tx)
+		return err
 	}
-	return err
+	if err := s.apiRepo.Delete(txCtx, id); err != nil {
+		slog.Error("api delete: delete api failed", "apiID", id, "err", err)
+		s.tm.Rollback(tx)
+		return err
+	}
+	if err := s.tm.Commit(tx); err != nil {
+		slog.Error("api delete: commit failed", "apiID", id, "err", err)
+		return err
+	}
+	// 事务后失效缓存：
+	//   - TagRBACAPI：KeyAllApis（api 实体被硬删除，全局 api 列表缓存过期）
+	//   - TagRBACRole：KeyRoleApis / KeyRoleApiIDs（admin_role_apis 关联被清理，角色权限缓存过期）
+	//   - TagRBACMenu：KeyMenuApiTree（api 挂在 menu 下，menu 的 Apis 关联变化，menu-api 树缓存过期）
+	if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACAPI, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
+		slog.Error("invalidate cache failed", "tags", []string{cache.TagRBACAPI, cache.TagRBACRole, cache.TagRBACMenu}, "err", cErr)
+	}
+	return nil
 }
 
 func (s *apiService) GetByMenuID(ctx context.Context, menuID uint) ([]*systemDto.APIVO, error) {

@@ -3,15 +3,28 @@ port = 9090
 mode = "debug"
 read_timeout = 120
 write_timeout = 120
+# 请求处理超时（http.TimeoutHandler 包装 engine）。
+# 应略小于 read_timeout / write_timeout，确保超时时由中间件返回 503 + JSON 错误体，
+# 而非连接层超时断开（客户端收到空响应 / 连接重置）。
+# 零值 = 默认 25s。环境变量：NETYADMIN_SERVER_HANDLER_TIMEOUT
+handler_timeout = "25s"
+# 优雅关闭超时（srv.Shutdown 等待在途请求的最大时长）。
+# 零值 = 默认 30s。环境变量：NETYADMIN_SERVER_SHUTDOWN_TIMEOUT
+shutdown_timeout = "30s"
 # 多机部署时设为 true：启动时会校验 [bus] driver 是否为 "redis"，
 # 若仍为 memory 模式会打印 WARN（缓存/IPAC/配置失效不会跨节点同步）。
 multi_node = false
+# 可信代理 IP 或 IPv4 CIDR 列表（如 ["127.0.0.1", "10.0.0.0/8"]）。
+# 空数组（默认）= 不信任任何代理：c.ClientIP() 直接回退到 RemoteAddr，
+# 攻击者无法通过伪造 X-Forwarded-For / X-Real-IP 头绕过 IPAC 白名单/黑名单。
+# 生产环境如部署在 Nginx / CDN 之后，必须填写真实代理 IP/CIDR 才能正确解析客户端真实 IP。
+trusted_proxies = []
 
 [database]
 host = "localhost"
 port = 5432
 user = "postgres"
-password = "123456"
+password = "<CHANGE_ME_IN_PRODUCTION>"
 dbname = "so"
 sslmode = "disable"
 max_idle = 10
@@ -32,7 +45,7 @@ local_max_entry_kb = 500 # 单条缓存记录最大大小 (KB)
 local_ttl_min = 10       # 本地缓存默认过期时间 (分钟)
 
 [jwt]
-secret = "your-secret-key-change-in-production"
+secret = "<CHANGE_ME_IN_PRODUCTION>"
 expiration = 168
 
 [migration]
@@ -63,7 +76,7 @@ enabled = false
 host = "smtp.example.com"
 port = 465
 user = "your-email@example.com"
-password = "your-password"
+password = "<CHANGE_ME_IN_PRODUCTION>"
 from = "your-email@example.com"
 ssl = true
 starttls = false
@@ -84,6 +97,17 @@ sign_name = ""
 # driver = "memory"   # 单机模式：基于内存 channel，无需 Redis
 # 不设置则根据 Redis.Enabled 自动选择（Redis 启用 -> redis，否则 -> memory）
 
+[pubsub]
+# 事件总线分发工作池配置（Task 23）。
+# 消费 loop 收到消息后，通过 dispatchQueue 投递给 N 个 worker 并行调用 handler，
+# 替代原本的 per-event goroutine，避免高吞吐场景下 goroutine 数量爆炸。
+#   - workers：worker 协程数。零值 = 默认 16。环境变量：NETYADMIN_PUBSUB_WORKERS
+#   - queue_size：dispatch 队列缓冲容量。零值 = 默认 1024。环境变量：NETYADMIN_PUBSUB_QUEUE_SIZE
+# 队列满时 dispatch 阻塞（backpressure），让消费 loop 反压到上游 Publish；
+# 关闭时（Close）先停止消费 loop，再关闭 dispatchQueue，worker 排空后退出。
+workers = 16
+queue_size = 1024
+
 [sentry]
 # DSN 为空时自动禁用 Sentry，不影响正常运行
 # 联调时配置后，Go 后端的 panic 和错误会同步上报到 Sentry 看板
@@ -102,3 +126,26 @@ traces_sample_rate = 0.2
 # 默认（无需配置即生效）：/health（K8s 探针）、/favicon、/assets/（前端静态资源）
 # 此处配置会追加到默认清单之上，举例：
 # ignore_transactions = ["/api/v1/ping", "/metrics"]
+
+[cors]
+# 跨域资源共享白名单（精确匹配，不支持通配符）。
+# 空数组 = 拒绝所有跨域请求（fail-closed）。
+# 生产环境必须显式列出可信前端来源，避免任意站点携带 Cookie 访问后端 API。
+# 环境变量覆盖：NETYADMIN_CORS_ALLOWED_ORIGINS（逗号分隔，如 "https://admin.example.com,https://app.example.com"）
+allowed_origins = ["http://localhost:5173"]
+
+[security_headers]
+# Content-Security-Policy 头内容（为空时不设置该头）。
+# 默认值允许同源脚本与样式（'unsafe-inline' 用于 Vue 注入的内联样式）。
+# 生产环境建议进一步收紧：移除 'unsafe-inline'，改用 nonce 或 hash。
+# 环境变量覆盖：NETYADMIN_SECURITY_HEADERS_CSP
+csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+
+[login_ratelimit]
+# 登录端点 IP 维度限流（仅作用于 admin /auth/login + /auth/refreshToken
+# 与 client /user/login + /user/refresh-token 路由，不影响其他接口）。
+# 算法：Redis ZSET 滑动窗口（ZADD + ZREMRANGEBYSCORE + ZCARD）。
+# Redis 未配置（cache disabled）时限流器降级为 no-op（fail-open），不阻断登录关键路径。
+# 环境变量覆盖：NETYADMIN_LOGIN_RATELIMIT_WINDOW / NETYADMIN_LOGIN_RATELIMIT_MAX
+window = "1m"  # 滑动窗口时长
+max = 10       # 窗口内单个 IP 允许的最大登录尝试次数

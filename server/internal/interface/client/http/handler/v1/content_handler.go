@@ -1,29 +1,29 @@
 package v1
 
 import (
+	"log/slog"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 
-	contentEntity "NetyAdmin/internal/domain/entity/content"
 	clientDto "NetyAdmin/internal/interface/client/dto/v1"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
-	contentService "NetyAdmin/internal/service/content"
+	contentClientService "NetyAdmin/internal/service/content/client"
 )
 
 type ContentHandler struct {
-	articleSvc     contentService.ArticleService
-	categorySvc    contentService.CategoryService
-	bannerGroupSvc contentService.BannerGroupService
-	bannerItemSvc  contentService.BannerItemService
+	articleSvc     contentClientService.ArticleService
+	categorySvc    contentClientService.CategoryService
+	bannerGroupSvc contentClientService.BannerGroupService
+	bannerItemSvc  contentClientService.BannerItemService
 }
 
 func NewContentHandler(
-	articleSvc contentService.ArticleService,
-	categorySvc contentService.CategoryService,
-	bannerGroupSvc contentService.BannerGroupService,
-	bannerItemSvc contentService.BannerItemService,
+	articleSvc contentClientService.ArticleService,
+	categorySvc contentClientService.CategoryService,
+	bannerGroupSvc contentClientService.BannerGroupService,
+	bannerItemSvc contentClientService.BannerItemService,
 ) *ContentHandler {
 	return &ContentHandler{
 		articleSvc:     articleSvc,
@@ -64,15 +64,10 @@ func (h *ContentHandler) ListArticles(c *gin.Context) {
 		return
 	}
 
-	articles, total, err := h.articleSvc.ListPublishedByCategoryIDs(c.Request.Context(), req.Page, req.PageSize, ids, req.Keyword)
+	items, total, err := h.articleSvc.ListPublishedVO(c.Request.Context(), req.Page, req.PageSize, ids, req.Keyword)
 	if err != nil {
 		response.Fail(c, err)
 		return
-	}
-
-	items := make([]clientDto.ClientArticleItemVO, 0, len(articles))
-	for _, a := range articles {
-		items = append(items, articleToItemVO(a))
 	}
 
 	response.SuccessWithPage(c, req.Page, req.PageSize, total, items)
@@ -94,15 +89,20 @@ func (h *ContentHandler) GetArticle(c *gin.Context) {
 		return
 	}
 
-	article, err := h.articleSvc.GetPublishedByID(c.Request.Context(), uint(id))
+	article, err := h.articleSvc.GetPublishedVO(c.Request.Context(), uint(id))
 	if err != nil {
 		response.Fail(c, err)
 		return
 	}
 
-	_ = h.articleSvc.IncrementViewCount(c.Request.Context(), uint(id))
+	// IncrementViewCount 是 best-effort 浏览数自增：失败仅 Warn 不阻断响应
+	// （响应已写入 article 数据，浏览数少计一次不影响正确性，下次访问会补上）。
+	if err := h.articleSvc.IncrementViewCount(c.Request.Context(), uint(id)); err != nil {
+		slog.Warn("IncrementViewCount failed (best-effort, response not affected)",
+			"articleID", id, "error", err)
+	}
 
-	response.Success(c, articleToDetailVO(article))
+	response.Success(c, article)
 }
 
 // @Summary      点赞文章
@@ -144,13 +144,13 @@ func (h *ContentHandler) GetBannerGroupByCode(c *gin.Context) {
 		return
 	}
 
-	group, err := h.bannerGroupSvc.GetByCode(c.Request.Context(), code)
+	group, err := h.bannerGroupSvc.GetByCodeVO(c.Request.Context(), code)
 	if err != nil {
 		response.Fail(c, err)
 		return
 	}
 
-	response.Success(c, bannerGroupToClientVO(group))
+	response.Success(c, group)
 }
 
 // @Summary      点击Banner
@@ -175,95 +175,4 @@ func (h *ContentHandler) ClickBanner(c *gin.Context) {
 	}
 
 	response.Success(c, nil)
-}
-
-func articleToItemVO(a *contentEntity.ContentArticle) clientDto.ClientArticleItemVO {
-	categoryName := ""
-	if a.Category != nil {
-		categoryName = a.Category.Name
-	}
-	return clientDto.ClientArticleItemVO{
-		ID:           a.ID,
-		CategoryID:   a.CategoryID,
-		CategoryName: categoryName,
-		Title:        a.Title,
-		TitleColor:   a.TitleColor,
-		CoverImage:   a.CoverImage,
-		Summary:      a.Summary,
-		ContentType:  string(a.ContentType),
-		Author:       a.Author,
-		Source:       a.Source,
-		IsTop:        a.IsTop,
-		IsHot:        a.IsHot,
-		IsRecommend:  a.IsRecommend,
-		ViewCount:    a.ViewCount,
-		LikeCount:    a.LikeCount,
-		CommentCount: a.CommentCount,
-		PublishedAt:  a.PublishedAt,
-		CreatedAt:    a.CreatedAt,
-	}
-}
-
-func articleToDetailVO(a *contentEntity.ContentArticle) clientDto.ClientArticleDetailVO {
-	categoryName := ""
-	if a.Category != nil {
-		categoryName = a.Category.Name
-	}
-	return clientDto.ClientArticleDetailVO{
-		ID:           a.ID,
-		CategoryID:   a.CategoryID,
-		CategoryName: categoryName,
-		Title:        a.Title,
-		TitleColor:   a.TitleColor,
-		CoverImage:   a.CoverImage,
-		Summary:      a.Summary,
-		Content:      a.Content,
-		ContentType:  string(a.ContentType),
-		Author:       a.Author,
-		Source:       a.Source,
-		Keywords:     a.Keywords,
-		Tags:         a.Tags,
-		IsTop:        a.IsTop,
-		IsHot:        a.IsHot,
-		IsRecommend:  a.IsRecommend,
-		AllowComment: a.AllowComment,
-		ViewCount:    a.ViewCount,
-		LikeCount:    a.LikeCount,
-		CommentCount: a.CommentCount,
-		PublishedAt:  a.PublishedAt,
-		CreatedAt:    a.CreatedAt,
-	}
-}
-
-func bannerGroupToClientVO(g *contentEntity.ContentBannerGroup) clientDto.ClientBannerGroupVO {
-	banners := make([]clientDto.ClientBannerItemVO, 0, len(g.Banners))
-	for _, b := range g.Banners {
-		if !b.IsInTimeRange() {
-			continue
-		}
-		banners = append(banners, clientDto.ClientBannerItemVO{
-			ID:           b.ID,
-			Title:        b.Title,
-			Subtitle:     b.Subtitle,
-			ImageURL:     b.ImageURL,
-			ImageAlt:     b.ImageAlt,
-			LinkType:     string(b.LinkType),
-			LinkURL:      b.LinkURL,
-			Content:      b.Content,
-			CustomParams: b.CustomParams,
-			Sort:         b.Sort,
-		})
-	}
-	return clientDto.ClientBannerGroupVO{
-		ID:          g.ID,
-		Name:        g.Name,
-		Code:        g.Code,
-		Description: g.Description,
-		Position:    g.Position,
-		Width:       g.Width,
-		Height:      g.Height,
-		AutoPlay:    g.AutoPlay,
-		Interval:    g.Interval,
-		Banners:     banners,
-	}
 }

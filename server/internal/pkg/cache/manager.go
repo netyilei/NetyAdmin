@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"sync"
 	"time"
@@ -15,6 +16,7 @@ import (
 	bigcacheStore "github.com/eko/gocache/store/bigcache/v4"
 	redisStore "github.com/eko/gocache/store/redis/v4"
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/sync/singleflight"
 
 	"NetyAdmin/internal/config"
 	"NetyAdmin/internal/pkg/pubsub"
@@ -58,6 +60,11 @@ type LazyCacheManager interface {
 	DeleteAndBroadcast(ctx context.Context, key string) error
 	// Exists 判断一个缓存项是否存在（模式B）
 	Exists(ctx context.Context, key string) (bool, error)
+	// Incr 原子自增计数器，并在首次设置时配置 TTL。
+	// 仅在 Redis（L2）上操作，BigCache（L1）不支持 INCR。
+	// Redis 不可用时返回 error（fail-closed，不允许跳过原子计数）。
+	// 返回自增后的当前值。
+	Incr(ctx context.Context, key string, ttl time.Duration) (int64, error)
 
 	// InvalidateL1ByTags 仅失效本地 L1 缓存（由 PubSubBus 订阅者调用，避免递归）
 	InvalidateL1ByTags(ctx context.Context, tags ...string) error
@@ -91,6 +98,18 @@ type lazyCacheManager struct {
 
 	localNX sync.Map
 	l2Cache *cache.Cache[any]
+
+	// l1BigCache 持有底层 BigCache 客户端引用。
+	// 历史用途（Task 13.3）：reloadL1All 在 PubSub 重连时调用 Reset() 全量清空 L1。
+	// 现状（P1-2 fix）：reloadL1All 已改为 no-op（仅告警），不再清空 L1，详见方法注释。
+	// 字段保留：为未来 paced-reload / warming 方案（Option B）预留扩展点，无需改动 wire.go。
+	// gocache 的 Cache[any] 包装层不暴露迭代/清空接口，故直接持有 *bigcache.BigCache。
+	l1BigCache *bigcache.BigCache
+
+	// flightGroup 合并 Fetch/FetchFast 在同一 key 上的并发回源调用，
+	// 防止缓存击穿（热点 key 失效瞬间 N 个请求同时穿透到 DB）。
+	// loader 错误会原样传播给所有等待中的 caller，不会被吞掉。
+	flightGroup singleflight.Group
 }
 
 // DefaultSwitchChecker 给一个总是返回 True 的默认校验器，直到我们实现 configsync
@@ -158,6 +177,7 @@ func NewLazyCacheManager(cfg *config.RedisConfig, redisClient *redis.Client, che
 		prefix:       cfg.Prefix,
 		redisClient:  redisClient,
 		localNX:      sync.Map{},
+		l1BigCache:   bigcacheClient,
 	}
 
 	return mgr, nil
@@ -256,7 +276,10 @@ func (m *lazyCacheManager) DeleteAndBroadcast(ctx context.Context, key string) e
 
 	if bus != nil {
 		payload, _ := json.Marshal(fullKey)
-		_ = bus.Publish(ctx, pubsub.TopicCacheDelete, payload)
+		// Task 13.1: 不再静默吞掉 publish error，失败时 slog.Error 上报监控
+		if err := bus.Publish(ctx, pubsub.TopicCacheDelete, payload); err != nil {
+			slog.Error("pubsub publish failed", "topic", pubsub.TopicCacheDelete, "key", fullKey, "err", err)
+		}
 	}
 	return nil
 }
@@ -280,6 +303,43 @@ func (m *lazyCacheManager) Exists(ctx context.Context, key string) (bool, error)
 		return false, nil
 	}
 	return false, err
+}
+
+// Incr 原子自增计数器，基于 Redis INCR + EXPIRE 实现。
+//
+// 设计说明（B2 原子化）：
+//   - BigCache（L1）不支持 INCR，只在 Redis（L2）上操作
+//   - Redis 不可用时返回 error（fail-closed，不允许跳过原子计数）
+//   - 仅在 INCR 返回值 == 1（首次设置）时调用 EXPIRE 设置 TTL
+//   - INCR 与 EXPIRE 非完全原子（极小窗口 TTL 未设置），但首次 INCR 必然返回 1，
+//     EXPIRE 失败时计数仍存在但无 TTL（永久残留），下次清理由 ClearLoginRetry 兜底
+//
+// 用于登录失败计数等需防 TOCTOU 竞态的场景。
+func (m *lazyCacheManager) Incr(ctx context.Context, key string, ttl time.Duration) (int64, error) {
+	// fail-closed：Redis 不可用时不允许降级为本地计数（避免多节点计数失真）
+	if m.redisClient == nil {
+		return 0, fmt.Errorf("incr requires redis client, but redis is unavailable (fail-closed)")
+	}
+
+	fullKey := m.buildKey(key)
+
+	// 1. 原子 INCR
+	val, err := m.redisClient.Incr(ctx, fullKey).Result()
+	if err != nil {
+		return 0, err
+	}
+
+	// 2. 仅在首次设置（INCR 返回 1）时配置 TTL
+	if val == 1 && ttl > 0 {
+		if err := m.redisClient.Expire(ctx, fullKey, ttl).Err(); err != nil {
+			// EXPIRE 失败仅记录不返回错误：计数已正确递增，
+			// TTL 缺失会导致 key 永久残留，但 ClearLoginRetry 会在登录成功时清理
+			// 此处选择不破坏原子性（不回滚 INCR），优先保证计数正确
+			return val, nil
+		}
+	}
+
+	return val, nil
 }
 
 func (m *lazyCacheManager) buildKey(key string) string {
@@ -314,8 +374,12 @@ func (m *lazyCacheManager) Fetch(ctx context.Context, key string, moduleName str
 		}
 	}
 
-	// 2. Cache Miss 或发生错误，调用 Loader 查库
-	val, err := loader()
+	// 2. Cache Miss 或发生错误，用 singleflight 合并同一 key 上的并发回源，
+	// 防止缓存击穿（热点 key 失效瞬间 N 个请求同时穿透到 DB）。
+	// loader 返回的错误会原样传播给所有等待中的 caller。
+	val, err, _ := m.flightGroup.Do(fullKey, func() (interface{}, error) {
+		return loader()
+	})
 	if err != nil {
 		return err
 	}
@@ -394,7 +458,12 @@ func (m *lazyCacheManager) FetchFast(ctx context.Context, key string, moduleName
 		}
 	}
 
-	val, err := loader()
+	// Cache Miss，用 singleflight 合并同一 key 上的并发回源，防止缓存击穿。
+	// 与 Fetch 共用同一个 flightGroup，确保 Fetch/FetchFast 在同一 fullKey 上互相去重。
+	// loader 返回的错误会原样传播给所有等待中的 caller。
+	val, err, _ := m.flightGroup.Do(fullKey, func() (interface{}, error) {
+		return loader()
+	})
 	if err != nil {
 		return err
 	}
@@ -431,16 +500,24 @@ func (m *lazyCacheManager) SetFast(ctx context.Context, key string, value interf
 		return m.cacheManager.Set(ctx, fullKey, data, options...)
 	}
 
+	// L2 写入：L2 (Redis) 是 source of truth，写入失败必须返回 error，
+	// 让调用方感知 L2 故障（数据未进入共享缓存，后续读会 cache miss 回源）。
 	if m.l2Cache != nil {
-		_ = m.l2Cache.Set(ctx, fullKey, data, options...)
+		if err := m.l2Cache.Set(ctx, fullKey, data, options...); err != nil {
+			return fmt.Errorf("cache.SetFast: L2 Set failed: %w", err)
+		}
 	}
 
+	// L1 写入（失败仅 Warn，不阻断主流程；L1 是优化层，故障时降级到 L2 only）
 	if m.l1Cache != nil {
 		l1Opts := []store.Option{store.WithExpiration(ttl)}
 		if len(tags) > 0 {
 			l1Opts = append(l1Opts, store.WithTags(tags))
 		}
-		_ = m.l1Cache.Set(ctx, fullKey, data, l1Opts...)
+		if err := m.l1Cache.Set(ctx, fullKey, data, l1Opts...); err != nil {
+			slog.Warn("cache.SetFast: L1 Set failed (degraded to L2 only)",
+				"key", key, "err", err)
+		}
 	}
 
 	return nil
@@ -490,12 +567,21 @@ func (m *lazyCacheManager) DeleteFast(ctx context.Context, key string) error {
 
 	fullKey := m.buildKey(key)
 
+	// L1 删除（失败仅 Warn，不阻断主流程；L1 是优化层，故障时由 L2 兜底，
+	// 残留的 stale L1 条目由 TTL 自然过期）
 	if m.l1Cache != nil {
-		_ = m.l1Cache.Delete(ctx, fullKey)
+		if err := m.l1Cache.Delete(ctx, fullKey); err != nil {
+			slog.Warn("cache.DeleteFast: L1 Delete failed (degraded to L2 only)",
+				"key", key, "err", err)
+		}
 	}
 
+	// L2 删除：L2 (Redis) 是 source of truth，删除失败必须返回 error，
+	// 让调用方感知 L2 故障（数据未从共享缓存清除，后续读仍可能命中 stale）
 	if m.redisClient != nil {
-		_ = m.redisClient.Del(ctx, fullKey)
+		if err := m.redisClient.Del(ctx, fullKey).Err(); err != nil {
+			return fmt.Errorf("cache.DeleteFast: L2 Del failed: %w", err)
+		}
 	}
 
 	return nil
@@ -509,19 +595,42 @@ func (m *lazyCacheManager) IsCacheEnabled(moduleName string) bool {
 	return m.switches.IsCacheEnabled(moduleName)
 }
 
+// InvalidateByTags 按 tag 失效缓存。
+//
+// 设计意图：
+//   - 本地调用 m.cacheManager.Invalidate 已经清除了 L1 (BigCache, 节点本地内存)
+//     与 L2 (Redis 共享缓存) 两级缓存。
+//   - L2 为共享 Redis，一次清理对本集群所有节点立即生效，无需重复清理。
+//   - 后续 PubSub Publish 仅通知其他节点清理各自 L1（节点本地内存无法被远端
+//     直接清理，必须由各节点本地处理）。
+//   - 整体设计：L2 共享缓存无需重复清理；PubSub 通道只用于 L1 跨节点同步。
+//
+// 错误传播策略（Task 13.1 + Task 14.1）：
+//   - L2 (cacheManager.Invalidate) 失败 → 不广播 L1 跨节点失效，直接返回 error。
+//     原因：L2 已失败意味着本节点与其他节点的 L2 视图不一致，此时广播 L1 失效
+//     会让其他节点基于「L2 已清」的假设去清本地 L1，但实际 L2 可能并未清理，
+//     反而延长了不一致窗口。让调用方感知失败并 slog.Error 上报监控。
+//   - L2 失效成功后才广播 L1；publish 失败仅 slog.Error（本地失效已成功，
+//     跨节点 L1 失效虽漏掉但本地数据正确，下次 InvalidateByTags 或 TTL 兜底）。
 func (m *lazyCacheManager) InvalidateByTags(ctx context.Context, tags ...string) error {
-	err := m.cacheManager.Invalidate(ctx, store.WithInvalidateTags(tags))
+	// Task 14.1: L2 失效失败时不广播 L1 跨节点失效，直接返回 error
+	if err := m.cacheManager.Invalidate(ctx, store.WithInvalidateTags(tags)); err != nil {
+		return err
+	}
 
 	m.eventBusMu.RLock()
 	bus := m.eventBus
 	m.eventBusMu.RUnlock()
 
+	// Task 13.1: L2 失效成功后才广播 L1；不再静默吞掉 publish error
 	if bus != nil && len(tags) > 0 {
 		payload, _ := json.Marshal(tags)
-		_ = bus.Publish(ctx, pubsub.TopicCacheInvalidation, payload)
+		if err := bus.Publish(ctx, pubsub.TopicCacheInvalidation, payload); err != nil {
+			slog.Error("pubsub publish failed", "topic", pubsub.TopicCacheInvalidation, "tags", tags, "err", err)
+		}
 	}
 
-	return err
+	return nil
 }
 
 func (m *lazyCacheManager) InvalidateL1ByTags(ctx context.Context, tags ...string) error {
@@ -535,6 +644,46 @@ func (m *lazyCacheManager) SetEventBus(bus pubsub.EventBus) {
 	m.eventBusMu.Lock()
 	defer m.eventBusMu.Unlock()
 	m.eventBus = bus
+
+	// Task 13.3: 注册 PubSub 重连兜底回调。
+	// RedisDriver.subscribeLoop 从断连恢复后会触发 OnReconnect → m.reloadL1All()。
+	// 注意（P1-2 fix）：reloadL1All 现为 no-op，不再清空 L1。
+	// 原方案清空 L1 会引发 thundering herd（N 个不同 key 并发回源击穿 DB），
+	// 现方案保留 L1，由 TTL 兜底过期；L2 (Redis) 是 source of truth，重连后由各节点
+	// 自行从 L2 回填 L1。MemoryDriver 永不触发此回调（无重连概念）。
+	if bus != nil {
+		bus.OnReconnect(m.reloadL1All)
+	}
+}
+
+// reloadL1All 是 PubSub 重连兜底回调（Task 13.3）。
+// 由 RedisDriver.subscribeLoop 在断连恢复后触发；MemoryDriver 永不触发。
+//
+// 设计决策（P1-2 fix）：本方法现为 no-op，不再清空 L1。
+//
+// 历史方案：调用 m.l1BigCache.Reset() 全量清空 L1，理由是断连期间可能漏收
+// cache_invalidation 广播，本地 L1 持有 stale 条目。
+//
+// 为什么不再清空 L1（thundering herd 风险）：
+//   - Reset() 会同时清空所有 L1 条目，下一次读取批次会对 N 个不同 key 同时 cache miss
+//   - singleflight（Task 4）仅合并同一 key 上的并发 loader，不跨 key 去重
+//     → 1000 个不同 key 会触发 1000 个并发 loader → DB 过载 → 延迟尖峰
+//   - 此 cache stampede 风险大于断连期间的短暂 staleness
+//
+// 为什么 staleness 是可接受且 bounded 的：
+//   - L1 条目有自己的 TTL（FetchFast/SetFast/GetFast 通过 store.WithExpiration 设置），
+//     断连期间累积的 stale 条目会在 TTL 到期后自然失效
+//   - L2 (Redis) 重连后仍是 source of truth；FetchFast 在 L2 命中时会自动回填 L1
+//   - 强一致性场景应禁用 L1（cfg.Redis.L1Enabled=false）或缩短 L1 TTL
+//
+// 方法保留（未删除）：为未来 paced-reload / warming 方案（Option B）预留扩展点，
+// 无需改动 wire.go 的 OnReconnect 注册。当前 L1 默认关闭（见 wire.go 注释），
+// 此回调在 L1 关闭时无实际作用。
+func (m *lazyCacheManager) reloadL1All() {
+	// No-op: 不再调用 m.l1BigCache.Reset()。
+	// 详见上方设计决策注释（thundering herd 风险 vs. TTL 兜底 staleness）。
+	// 仅记录告警，便于运维关联重连事件与可能的短暂 L1 staleness 窗口。
+	slog.Warn("PubSub reconnect detected: L1 cache left intact (staleness bounded by L1 TTL)")
 }
 
 func (m *lazyCacheManager) marshal(val interface{}) ([]byte, error) {

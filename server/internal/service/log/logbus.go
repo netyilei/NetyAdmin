@@ -2,12 +2,14 @@ package log
 
 import (
 	"context"
-	"log/slog"
 	"sync"
 	"time"
 
 	logEntity "NetyAdmin/internal/domain/entity/log"
 	"NetyAdmin/internal/pkg/configsync"
+	"NetyAdmin/internal/pkg/recovery"
+	"NetyAdmin/internal/pkg/requestid"
+	"NetyAdmin/internal/pkg/slogutil"
 	"NetyAdmin/internal/pkg/utils"
 )
 
@@ -62,7 +64,9 @@ func NewLogBusService(
 	s.loadConfig()
 
 	s.wg.Add(1)
-	go s.loop()
+	// 异步启动日志刷盘循环（GoSafe 包裹 recover + Sentry 上报，防止 panic 导致日志总线静默退出）
+	// s.loop 内部 defer b.wg.Done() 在 panic 时仍会触发（defer 在 recover 捕获前执行）
+	recovery.GoSafe("logbus:loop", s.loop)
 
 	return s
 }
@@ -183,7 +187,13 @@ func (b *logBusService) submitP2(entry logEntity.LogEntry) error {
 	added := b.tryAppend(entry)
 	b.mu.Unlock()
 	if !added {
-		slog.Warn("LogBus P2 日志丢弃", "type", entry.GetLogType())
+		// Task 8.3: 用 slogutil.LoggerFromContext 携带 request_id，
+		// 便于通过 request_id 关联到触发该日志的原始请求。
+		ctx := context.Background()
+		if rid := entry.GetRequestID(); rid != "" {
+			ctx = requestid.WithRequestID(ctx, rid)
+		}
+		slogutil.LoggerFromContext(ctx).Warn("LogBus P2 日志丢弃", "type", entry.GetLogType())
 	}
 	return nil
 }
@@ -279,8 +289,17 @@ func (b *logBusService) flushToWriter(writer LogBatchWriter, entries []logEntity
 	if len(entries) == 0 {
 		return
 	}
-	if err := writer.WriteBatch(context.Background(), entries); err != nil {
-		slog.Error("LogBus flush failed", "count", len(entries), "error", err)
+	// Task 8.3: 用 slogutil.LoggerFromContext 替代裸 slog，让日志自动携带 request_id。
+	// 异步刷盘场景下原始请求 ctx 早已不可用，从首条 entry 的 RequestID 恢复到子 ctx，
+	// 便于通过 request_id 关联到触发该批日志的原始请求。
+	// 若所有 entry 均无 RequestID，LoggerFromContext 返回 slog.Default()（保持原行为）。
+	ctx := context.Background()
+	if rid := entries[0].GetRequestID(); rid != "" {
+		ctx = requestid.WithRequestID(ctx, rid)
+	}
+	logger := slogutil.LoggerFromContext(ctx)
+	if err := writer.WriteBatch(ctx, entries); err != nil {
+		logger.Error("LogBus flush failed", "count", len(entries), "error", err)
 	}
 }
 

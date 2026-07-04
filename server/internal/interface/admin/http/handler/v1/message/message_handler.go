@@ -5,11 +5,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	msgEntity "NetyAdmin/internal/domain/entity/message"
 	msgDto "NetyAdmin/internal/interface/admin/dto/message"
 	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/pagination"
 	"NetyAdmin/internal/pkg/response"
-	msgRepo "NetyAdmin/internal/repository/message"
 	msgSvc "NetyAdmin/internal/service/message"
 )
 
@@ -41,17 +40,10 @@ func (h *MessageHandler) ListTemplates(c *gin.Context) {
 		response.FailWithCode(c, errorx.CodeInvalidParams)
 		return
 	}
+	req.Current, req.Size = pagination.NormalizePagination(req.Current, req.Size)
 
-	query := &msgRepo.MsgRepoQuery{
-		Page:     req.Current,
-		PageSize: req.Size,
-		Channel:  req.Channel,
-		Code:     req.Code,
-		Name:     req.Name,
-		Status:   req.Status,
-	}
-
-	list, total, err := h.svc.ListTemplates(c.Request.Context(), query)
+	// 收敛 Handler 跨层调用（spec B10）：service 接收 admin DTO，不再依赖 handler 构造 repo query
+	list, total, err := h.svc.ListTemplates(c.Request.Context(), &req)
 	if err != nil {
 		response.Fail(c, err)
 		return
@@ -79,16 +71,10 @@ func (h *MessageHandler) ListRecords(c *gin.Context) {
 		response.FailWithCode(c, errorx.CodeInvalidParams)
 		return
 	}
+	req.Current, req.Size = pagination.NormalizePagination(req.Current, req.Size)
 
-	query := &msgRepo.MsgRepoQuery{
-		Page:     req.Current,
-		PageSize: req.Size,
-		Channel:  req.Channel,
-		Receiver: req.Receiver,
-		Status:   req.Status,
-	}
-
-	list, total, err := h.svc.ListRecords(c.Request.Context(), query)
+	// 收敛 Handler 跨层调用（spec B10）：service 接收 admin DTO，不再依赖 handler 构造 repo query
+	list, total, err := h.svc.ListRecords(c.Request.Context(), &req)
 	if err != nil {
 		response.Fail(c, err)
 		return
@@ -126,14 +112,14 @@ func (h *MessageHandler) SendDirect(c *gin.Context) {
 // @Tags         消息管理
 // @Accept       json
 // @Produce      json
-// @Param        req body message.MsgTemplate true "模板信息"
+// @Param        req body message.CreateTemplateReq true "模板信息"
 // @Success      200 {object} response.Response "创建成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/message/templates [post]
 func (h *MessageHandler) CreateTemplate(c *gin.Context) {
-	var req msgEntity.MsgTemplate
+	var req msgDto.CreateTemplateReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithCode(c, errorx.CodeInvalidParams)
+		response.FailWithCode(c, errorx.CodeInvalidParams, "参数错误")
 		return
 	}
 
@@ -149,18 +135,26 @@ func (h *MessageHandler) CreateTemplate(c *gin.Context) {
 // @Tags         消息管理
 // @Accept       json
 // @Produce      json
-// @Param        req body message.MsgTemplate true "模板信息"
+// @Param        id path int true "模板ID"
+// @Param        req body message.UpdateTemplateReq true "模板信息"
 // @Success      200 {object} response.Response "更新成功"
 // @Security    ApiKeyAuth
-// @Router       /admin/v1/message/templates [put]
+// @Router       /admin/v1/message/templates/{id} [put]
 func (h *MessageHandler) UpdateTemplate(c *gin.Context) {
-	var req msgEntity.MsgTemplate
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.FailWithCode(c, errorx.CodeInvalidParams)
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		response.FailWithCode(c, errorx.CodeInvalidParams, "无效的模板ID")
 		return
 	}
 
-	if err := h.svc.UpdateTemplate(c.Request.Context(), &req); err != nil {
+	var req msgDto.UpdateTemplateReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithCode(c, errorx.CodeInvalidParams, "参数错误")
+		return
+	}
+
+	if err := h.svc.UpdateTemplate(c.Request.Context(), id, &req); err != nil {
 		response.Fail(c, err)
 		return
 	}

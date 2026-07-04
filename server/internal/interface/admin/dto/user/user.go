@@ -37,5 +37,5 @@ type UpdateUserReq struct {
 	Gender   string `json:"gender" binding:"omitempty,oneof=0 1 2"`
 	Phone    string `json:"phone"`
 	Email    string `json:"email" binding:"omitempty,email,max=100"`
-	Status   string `json:"status"`
+	Status   string `json:"status" binding:"omitempty,oneof=0 1"`
 }

@@ -3,24 +3,20 @@ package user
 import (
 	"github.com/gin-gonic/gin"
 
-	userEntity "NetyAdmin/internal/domain/entity/user"
 	userDto "NetyAdmin/internal/interface/admin/dto/user"
-	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/pagination"
 	"NetyAdmin/internal/pkg/response"
-	userRepo "NetyAdmin/internal/repository/user"
 	userSvc "NetyAdmin/internal/service/user"
 )
 
 type UserHandler struct {
-	svc      userSvc.UserService
-	cacheMgr cache.LazyCacheManager
+	svc userSvc.UserAdminService
 }
 
-func NewUserHandler(svc userSvc.UserService, cacheMgr cache.LazyCacheManager) *UserHandler {
+func NewUserHandler(svc userSvc.UserAdminService) *UserHandler {
 	return &UserHandler{
-		svc:      svc,
-		cacheMgr: cacheMgr,
+		svc: svc,
 	}
 }
 
@@ -46,36 +42,14 @@ func (h *UserHandler) List(c *gin.Context) {
 		response.FailWithCode(c, errorx.CodeInvalidParams)
 		return
 	}
+	req.Current, req.Size = pagination.NormalizePagination(req.Current, req.Size)
 
-	query := &userRepo.UserRepoQuery{
-		Username: req.Username,
-		Nickname: req.Nickname,
-		Gender:   req.Gender,
-		Phone:    req.Phone,
-		Email:    req.Email,
-		Status:   req.Status,
-	}
-
-	users, total, err := h.svc.List(c.Request.Context(), req.Current, req.Size, query)
+	// 收敛 Handler 跨层调用（spec B10）：locked 字段由 service 内部查询 cacheMgr 填充，
+	// handler 不再直接操作 cacheMgr，直接消费 service 返回的 []UserWithLock
+	items, total, err := h.svc.List(c.Request.Context(), &req)
 	if err != nil {
 		response.Fail(c, err)
 		return
-	}
-
-	type userWithLock struct {
-		userEntity.User
-		Locked bool `json:"locked"`
-	}
-
-	items := make([]userWithLock, 0, len(users))
-	for _, u := range users {
-		locked := false
-		var lockVal string
-		lockKey := cache.KeyLoginLock(u.ID)
-		if err := h.cacheMgr.Get(c.Request.Context(), lockKey, &lockVal); err == nil && lockVal != "" {
-			locked = true
-		}
-		items = append(items, userWithLock{User: u, Locked: locked})
 	}
 
 	response.SuccessWithPage(c, req.Current, req.Size, total, items)
@@ -120,18 +94,8 @@ func (h *UserHandler) Create(c *gin.Context) {
 		return
 	}
 
-	u := &userEntity.User{
-		Username: req.Username,
-		Password: req.Password,
-		Nickname: req.Nickname,
-		Avatar:   req.Avatar,
-		Gender:   req.Gender,
-		Phone:    req.Phone,
-		Email:    req.Email,
-		Status:   req.Status,
-	}
-
-	if err := h.svc.Create(c.Request.Context(), u); err != nil {
+	// entity 构造下沉到 service 层（spec D4：handler 不再构造 entity）
+	if err := h.svc.Create(c.Request.Context(), &req); err != nil {
 		response.Fail(c, err)
 		return
 	}
@@ -157,18 +121,8 @@ func (h *UserHandler) Update(c *gin.Context) {
 		return
 	}
 
-	u := &userEntity.User{
-		ID:       id,
-		Password: req.Password,
-		Nickname: req.Nickname,
-		Avatar:   req.Avatar,
-		Gender:   req.Gender,
-		Phone:    req.Phone,
-		Email:    req.Email,
-		Status:   req.Status,
-	}
-
-	if err := h.svc.Update(c.Request.Context(), u); err != nil {
+	// entity 构造下沉到 service 层（spec D4：handler 不再构造 entity）
+	if err := h.svc.Update(c.Request.Context(), id, &req); err != nil {
 		response.Fail(c, err)
 		return
 	}
@@ -213,10 +167,11 @@ func (h *UserHandler) UpdateStatus(c *gin.Context) {
 // @Router       /admin/v1/systemManage/users/{id}/unlock [post]
 func (h *UserHandler) Unlock(c *gin.Context) {
 	id := c.Param("id")
-	lockKey := cache.KeyLoginLock(id)
-	_ = h.cacheMgr.Delete(c.Request.Context(), lockKey)
-	retryKey := cache.KeyLoginRetryCount(id)
-	_ = h.cacheMgr.Delete(c.Request.Context(), retryKey)
+	// 收敛 Handler 跨层调用（spec B10）：解锁逻辑下沉到 service，handler 不再直接操作 cacheMgr
+	if err := h.svc.UnlockUser(c.Request.Context(), id); err != nil {
+		response.Fail(c, err)
+		return
+	}
 	response.Success(c, nil)
 }
 

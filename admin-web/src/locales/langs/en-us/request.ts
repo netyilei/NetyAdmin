@@ -17,6 +17,7 @@ const request = {
     alreadyExists: 'Resource already exists',
     captchaWrong: 'Captcha is incorrect',
     captchaRequired: 'Captcha is required',
+    requestTimeout: 'Request timeout',
     userNotFound: 'User not found',
     userDisabled: 'User disabled',
     passwordWrong: 'Incorrect password',

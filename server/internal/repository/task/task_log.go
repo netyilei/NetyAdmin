@@ -6,6 +6,10 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+
+	"NetyAdmin/internal/domain/entity"
+	"NetyAdmin/internal/pkg/database"
+	"NetyAdmin/internal/pkg/pagination"
 )
 
 type TaskLogRepository interface {
@@ -24,22 +28,34 @@ func NewTaskLogRepository(db *gorm.DB) TaskLogRepository {
 	return &taskLogRepository{db: db}
 }
 
+// getDB 根据 context 中是否携带事务，返回事务内的 *gorm.DB 或回退到 r.db
+func (r *taskLogRepository) getDB(ctx context.Context) *gorm.DB {
+	return database.GetDB(ctx, r.db)
+}
+
 func (r *taskLogRepository) Create(ctx context.Context, log *taskEntity.TaskLog) error {
-	return r.db.WithContext(ctx).Create(log).Error
+	return r.getDB(ctx).Create(log).Error
 }
 
 func (r *taskLogRepository) BatchCreate(ctx context.Context, logs []*taskEntity.TaskLog) error {
 	if len(logs) == 0 {
 		return nil
 	}
-	return r.db.WithContext(ctx).Create(&logs).Error
+	return r.getDB(ctx).Create(&logs).Error
 }
 
 func (r *taskLogRepository) List(ctx context.Context, name string, page, size int) ([]*taskEntity.TaskLog, int64, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if size <= 0 {
+		size = entity.DefaultPageSize
+	}
+
 	var logs []*taskEntity.TaskLog
 	var total int64
 
-	db := r.db.WithContext(ctx).Model(&taskEntity.TaskLog{})
+	db := r.getDB(ctx).Model(&taskEntity.TaskLog{})
 	if name != "" {
 		db = db.Where("name = ?", name)
 	}
@@ -49,10 +65,9 @@ func (r *taskLogRepository) List(ctx context.Context, name string, page, size in
 		return nil, 0, err
 	}
 
-	// 再执行分页查询
+	// 再执行分页查询（统一使用 Paginate scope，避免手写 Offset/Limit）
 	err := db.Order("id DESC").
-		Offset((page - 1) * size).
-		Limit(size).
+		Scopes(pagination.Paginate(page, size)).
 		Find(&logs).Error
 
 	return logs, total, err
@@ -60,7 +75,7 @@ func (r *taskLogRepository) List(ctx context.Context, name string, page, size in
 
 func (r *taskLogRepository) GetLatest(ctx context.Context, name string) (*taskEntity.TaskLog, error) {
 	var log taskEntity.TaskLog
-	err := r.db.WithContext(ctx).Where("name = ?", name).Order("id DESC").First(&log).Error
+	err := r.getDB(ctx).Where("name = ?", name).Order("id DESC").First(&log).Error
 	if err != nil {
 		return nil, err
 	}
@@ -68,5 +83,5 @@ func (r *taskLogRepository) GetLatest(ctx context.Context, name string) (*taskEn
 }
 
 func (r *taskLogRepository) DeleteBefore(ctx context.Context, before time.Time) error {
-	return r.db.WithContext(ctx).Unscoped().Where("created_at < ?", before).Delete(&taskEntity.TaskLog{}).Error
+	return r.getDB(ctx).Unscoped().Where("created_at < ?", before).Delete(&taskEntity.TaskLog{}).Error
 }

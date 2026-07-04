@@ -17,6 +17,7 @@ const (
 	CodeAlreadyExists   Code = 100008
 	CodeCaptchaInvalid  Code = 100009
 	CodeCaptchaRequired Code = 100010
+	CodeRequestTimeout  Code = 100011
 
 	CodeUserNotFound      Code = 101001
 	CodeUserDisabled      Code = 101002
@@ -81,6 +82,11 @@ const (
 	CodeTaskNotRunning     Code = 109007
 	CodeEmailTestFailed    Code = 109008
 
+	// 内容模块 (1016xx)
+	CodeCategoryHasArticles Code = 101601
+	CodeCategoryHasChildren Code = 101602
+	CodeBannerGroupHasItems Code = 101603
+
 	// 用户模块集成 (2006xx)
 	CodeCaptchaExpired          Code = 200601
 	CodeCaptchaSendTooFrequent  Code = 200604
@@ -100,6 +106,7 @@ var codeMessages = map[Code]string{
 	CodeAlreadyExists:   "资源已存在",
 	CodeCaptchaInvalid:  "验证码错误",
 	CodeCaptchaRequired: "验证码必填",
+	CodeRequestTimeout:  "请求超时",
 
 	CodeUserNotFound:      "用户不存在",
 	CodeUserDisabled:      "用户已禁用",
@@ -141,6 +148,11 @@ var codeMessages = map[Code]string{
 	// 系统配置模块 (1090xx)
 	CodeEmailTestFailed: "邮件测试发送失败",
 
+	// 任务调度模块 (109xxx)
+	CodeTaskNotFound:       "任务不存在",
+	CodeTaskAlreadyRunning: "任务已在运行中",
+	CodeTaskNotRunning:     "任务未在运行",
+
 	// 开放平台 (1013xx)
 	CodeAppKeyInvalid:   "AppKey无效",
 	CodeSignatureFailed: "签名验证失败",
@@ -161,6 +173,11 @@ var codeMessages = map[Code]string{
 	CodeUploadRecordExpired:    "上传凭证已过期",
 	CodeUploadRecordMismatch:   "上传记录与请求不匹配",
 
+	// 内容模块 (1016xx)
+	CodeCategoryHasArticles: "该分类下存在文章，请先移走或删除文章后再删除分类",
+	CodeCategoryHasChildren: "该分类下存在子分类，请先删除子分类后再删除父分类",
+	CodeBannerGroupHasItems: "该 Banner 组下存在 Banner 项，请先移走或删除 Banner 项后再删除组",
+
 	// 用户模块集成 (2006xx)
 	CodeCaptchaExpired:          "验证码已过期",
 	CodeCaptchaSendTooFrequent:  "发送过于频繁，请稍后再试",
@@ -178,9 +195,13 @@ func (c Code) String() string {
 	return fmt.Sprintf("%06d", int(c))
 }
 
+// BizError 表示业务错误，携带业务码 + 用户可见消息 + 可选的原始错误链。
+// Err 字段用于保留 Repository / 第三方库返回的原始错误（如 gorm.ErrRecordNotFound），
+// 便于 Sentry 上报与日志排查，同时不污染返回给前端的 Message。
 type BizError struct {
 	Code    Code
 	Message string
+	Err     error
 }
 
 func New(code Code, message ...string) *BizError {
@@ -191,13 +212,33 @@ func New(code Code, message ...string) *BizError {
 	return &BizError{Code: code, Message: msg}
 }
 
+// NewWithErr 构造一个携带原始错误链的 BizError。
+// 用于 Service 层在捕获 Repository 错误时，既要映射业务码，
+// 又要保留原始错误（如 gorm.ErrRecordNotFound）以便 Sentry/日志排查。
+// 当 err 为 nil 时等价于 New(code, message...)。
+func NewWithErr(code Code, err error, message ...string) *BizError {
+	bizErr := New(code, message...)
+	bizErr.Err = err
+	return bizErr
+}
+
 func (e *BizError) Error() string {
+	if e.Err != nil {
+		return e.Message + ": " + e.Err.Error()
+	}
 	return e.Message
 }
 
-func Is(err error, code Code) bool {
-	if bizErr, ok := err.(*BizError); ok {
-		return bizErr.Code == code
+// Is 支持 errors.Is 比较：当 target 也是 *BizError 且业务码相同时返回 true。
+// 这使得 errors.Is(wrappedBizErr, errorx.New(CodeXxx)) 可以穿透 fmt.Errorf("%w") 包装链。
+func (e *BizError) Is(target error) bool {
+	if t, ok := target.(*BizError); ok {
+		return e.Code == t.Code
 	}
 	return false
+}
+
+// Unwrap 返回被包装的原始错误，支持 errors.As / errors.Is 穿透 BizError 链路。
+func (e *BizError) Unwrap() error {
+	return e.Err
 }

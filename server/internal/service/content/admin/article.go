@@ -1,10 +1,15 @@
-package content
+package admin
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"log/slog"
 	"time"
 
-	"NetyAdmin/internal/pkg/utils"
+	"gorm.io/gorm"
+
+	"NetyAdmin/internal/pkg/pagination"
 	contentEntity "NetyAdmin/internal/domain/entity/content"
 	contentDto "NetyAdmin/internal/interface/admin/dto/content"
 	"NetyAdmin/internal/pkg/cache"
@@ -52,7 +57,11 @@ func (s *articleService) getArticleCacheTTL() time.Duration {
 func (s *articleService) Create(ctx context.Context, adminID uint, req *contentDto.CreateContentArticleDTO) (*contentEntity.ContentArticle, error) {
 	_, err := s.categoryRepo.GetByID(ctx, req.CategoryID)
 	if err != nil {
-		return nil, errorx.New(errorx.CodeNotFound, "分类不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errorx.New(errorx.CodeNotFound, "分类不存在")
+		}
+		slog.Error("categoryRepo.GetByID failed", "categoryID", req.CategoryID, "err", err)
+		return nil, fmt.Errorf("categoryRepo.GetByID: %w", err)
 	}
 
 	contentType := contentEntity.ContentTypeRichText
@@ -107,7 +116,9 @@ func (s *articleService) Create(ctx context.Context, adminID uint, req *contentD
 		return nil, err
 	}
 
-	_ = s.cache.InvalidateByTags(ctx, cache.TagContentArticle)
+	if err := s.cache.InvalidateByTags(ctx, cache.TagContentArticle); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagContentArticle, "err", err)
+	}
 
 	return article, nil
 }
@@ -115,13 +126,21 @@ func (s *articleService) Create(ctx context.Context, adminID uint, req *contentD
 func (s *articleService) Update(ctx context.Context, adminID uint, id uint, req *contentDto.UpdateContentArticleDTO) (*contentEntity.ContentArticle, error) {
 	article, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		return nil, errorx.New(errorx.CodeNotFound, "文章不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errorx.New(errorx.CodeNotFound, "文章不存在")
+		}
+		slog.Error("repo.GetByID failed", "articleID", id, "err", err)
+		return nil, fmt.Errorf("repo.GetByID: %w", err)
 	}
 
 	if req.CategoryID != nil {
 		_, err := s.categoryRepo.GetByID(ctx, *req.CategoryID)
 		if err != nil {
-			return nil, errorx.New(errorx.CodeNotFound, "分类不存在")
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, errorx.New(errorx.CodeNotFound, "分类不存在")
+			}
+			slog.Error("categoryRepo.GetByID failed", "categoryID", *req.CategoryID, "err", err)
+			return nil, fmt.Errorf("categoryRepo.GetByID: %w", err)
 		}
 		article.CategoryID = *req.CategoryID
 	}
@@ -182,23 +201,31 @@ func (s *articleService) Update(ctx context.Context, adminID uint, id uint, req 
 		return nil, err
 	}
 
-	_ = s.cache.InvalidateByTags(ctx, cache.TagContentArticle)
+	if err := s.cache.InvalidateByTags(ctx, cache.TagContentArticle); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagContentArticle, "err", err)
+	}
 
 	return article, nil
 }
 
 func (s *articleService) Delete(ctx context.Context, id uint) error {
 	if err := s.repo.Delete(ctx, id); err != nil {
-		return err
+		return fmt.Errorf("articleRepo.Delete: %w", err)
 	}
-	_ = s.cache.InvalidateByTags(ctx, cache.TagContentArticle)
+	if err := s.cache.InvalidateByTags(ctx, cache.TagContentArticle); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagContentArticle, "err", err)
+	}
 	return nil
 }
 
 func (s *articleService) GetByID(ctx context.Context, id uint) (*contentEntity.ContentArticle, error) {
 	article, err := s.repo.GetByIDWithCategory(ctx, id)
 	if err != nil {
-		return nil, errorx.New(errorx.CodeNotFound, "文章不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errorx.New(errorx.CodeNotFound, "文章不存在")
+		}
+		slog.Error("repo.GetByIDWithCategory failed", "articleID", id, "err", err)
+		return nil, fmt.Errorf("repo.GetByIDWithCategory: %w", err)
 	}
 	return article, nil
 }
@@ -235,12 +262,18 @@ func (s *articleService) List(ctx context.Context, query *contentDto.ContentArti
 // op 是具体的 repo 操作闭包。
 func (s *articleService) withArticleCacheInvalidation(ctx context.Context, id uint, op func(uint) error) error {
 	if _, err := s.repo.GetByID(ctx, id); err != nil {
-		return errorx.New(errorx.CodeNotFound, "文章不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errorx.New(errorx.CodeNotFound, "文章不存在")
+		}
+		slog.Error("repo.GetByID failed", "articleID", id, "err", err)
+		return fmt.Errorf("repo.GetByID: %w", err)
 	}
 	if err := op(id); err != nil {
-		return err
+		return fmt.Errorf("articleService.withArticleCacheInvalidation: %w", err)
 	}
-	_ = s.cache.InvalidateByTags(ctx, cache.TagContentArticle)
+	if err := s.cache.InvalidateByTags(ctx, cache.TagContentArticle); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagContentArticle, "err", err)
+	}
 	return nil
 }
 
@@ -263,7 +296,7 @@ func (s *articleService) SetTop(ctx context.Context, id uint, req *contentDto.Se
 }
 
 func (s *articleService) ListPublishedByCategoryIDs(ctx context.Context, page, pageSize int, categoryIDs []uint, keyword string) ([]*contentEntity.ContentArticle, int64, error) {
-	page, pageSize = utils.NormalizePaging(page, pageSize)
+	page, pageSize = pagination.NormalizePagination(page, pageSize)
 
 	var primaryCategoryID uint
 	if len(categoryIDs) > 0 {
@@ -308,7 +341,11 @@ func (s *articleService) GetPublishedByID(ctx context.Context, id uint) (*conten
 	loader := func() (interface{}, error) {
 		a, err := s.repo.GetByIDWithCategory(ctx, id)
 		if err != nil {
-			return nil, errorx.New(errorx.CodeNotFound, "文章不存在")
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, errorx.New(errorx.CodeNotFound, "文章不存在")
+			}
+			slog.Error("repo.GetByIDWithCategory failed", "articleID", id, "err", err)
+			return nil, fmt.Errorf("repo.GetByIDWithCategory: %w", err)
 		}
 		if !a.IsPublished() || !a.IsEnabled() {
 			return nil, errorx.New(errorx.CodeNotFound, "文章不存在")

@@ -27,6 +27,9 @@ func main() {
 		log.Fatalf("加载配置失败: %v", err)
 	}
 
+	// 2.1 启动期校验敏感配置（生产模式下拒绝默认值/占位符，符合 12-factor）
+	config.ValidateConfig(cfg)
+
 	// 3. 初始化数据库 (GORM)
 	db, err := app.InitDB(cfg)
 	if err != nil {

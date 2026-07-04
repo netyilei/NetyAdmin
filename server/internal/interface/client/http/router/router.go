@@ -6,6 +6,7 @@ import (
 	handler "NetyAdmin/internal/interface/client/http/handler/v1"
 	v1 "NetyAdmin/internal/interface/client/http/router/v1"
 	"NetyAdmin/internal/middleware"
+	authPkg "NetyAdmin/internal/pkg/auth"
 	ipacSvcPkg "NetyAdmin/internal/service/ipac"
 	openSvcPkg "NetyAdmin/internal/service/open_platform"
 )
@@ -29,6 +30,7 @@ func NewClientRouter(
 	apiSvc openSvcPkg.OpenApiService,
 	logSvc openSvcPkg.OpenLogService,
 	ipacSvc ipacSvcPkg.IPACService,
+	loginLimiter authPkg.LoginLimiter,
 ) *ClientRouter {
 	return &ClientRouter{
 		appSvc:  appSvc,
@@ -37,7 +39,7 @@ func NewClientRouter(
 		ipacSvc: ipacSvc,
 		routers: []v1.ClientModuleRouter{
 			v1.NewEchoRouter(echoH),
-			v1.NewUserRouter(userH),
+			v1.NewUserRouter(userH, loginLimiter),
 			v1.NewAuthRouter(authH),
 			v1.NewMessageRouter(messageH),
 			v1.NewContentRouter(contentH),

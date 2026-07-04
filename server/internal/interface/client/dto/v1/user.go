@@ -28,11 +28,13 @@ type UserResetPasswordReq struct {
 
 // UserUpdateProfileReq 更新个人资料请求
 type UserUpdateProfileReq struct {
-	Nickname string `json:"nickName"`
-	Avatar   string `json:"avatar"`
-	Gender   string `json:"gender" binding:"omitempty,oneof=0 1 2"`
-	Email    string `json:"email" binding:"omitempty,email,max=100"`
-	Phone    string `json:"phone"`
+	Nickname  string `json:"nickName"`
+	Avatar    string `json:"avatar"`
+	Gender    string `json:"gender" binding:"omitempty,oneof=0 1 2"`
+	Email     string `json:"email" binding:"omitempty,email,max=100"`
+	Phone     string `json:"phone"`
+	EmailCode string `json:"emailCode"` // 邮箱变更验证码（变更邮箱时必填）
+	PhoneCode string `json:"phoneCode"` // 手机变更验证码（变更手机时必填）
 }
 
 // UserChangePasswordReq 修改密码请求

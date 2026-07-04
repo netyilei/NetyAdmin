@@ -6,8 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	systemDto "NetyAdmin/internal/interface/admin/dto/system"
-	"NetyAdmin/internal/pkg/captcha"
-	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
 	systemService "NetyAdmin/internal/service/system"
@@ -24,15 +22,13 @@ type LoginRequest struct {
 
 type AuthHandler struct {
 	adminService systemService.AdminService
-	captchaMgr   *captcha.Manager
-	watcher      configsync.ConfigWatcher
+	captchaSvc   systemService.CaptchaService
 }
 
-func NewAuthHandler(adminService systemService.AdminService, captchaMgr *captcha.Manager, watcher configsync.ConfigWatcher) *AuthHandler {
+func NewAuthHandler(adminService systemService.AdminService, captchaSvc systemService.CaptchaService) *AuthHandler {
 	return &AuthHandler{
 		adminService: adminService,
-		captchaMgr:   captchaMgr,
-		watcher:      watcher,
+		captchaSvc:   captchaSvc,
 	}
 }
 
@@ -51,16 +47,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// 验证码校验逻辑
-	if val, exists := h.watcher.GetConfig("captcha_config", "admin_login_enabled"); exists && (val == "true" || val == "1") {
-		if body.CaptchaId == "" || body.CaptchaValue == "" {
-			response.FailWithCode(c, errorx.CodeCaptchaRequired, "")
-			return
-		}
-		if !h.captchaMgr.Verify(body.CaptchaId, body.CaptchaValue, true) {
-			response.FailWithCode(c, errorx.CodeCaptchaInvalid, "")
-			return
-		}
+	// 验证码校验（业务逻辑下沉到 CaptchaService）
+	if err := h.captchaSvc.Verify(c.Request.Context(), "admin_login", body.CaptchaId, body.CaptchaValue); err != nil {
+		response.Fail(c, err)
+		return
 	}
 
 	username := body.Username
@@ -218,10 +208,11 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 }
 
 // @Summary      退出登录
-// @Description  当前登录管理员退出登录，注销访问令牌
+// @Description  当前登录管理员退出登录，注销访问令牌（同时将 refresh token 加入黑名单）
 // @Tags         认证管理
 // @Accept       json
 // @Produce      json
+// @Param        X-Refresh-Token header string true "刷新令牌（必填，用于加入黑名单）"
 // @Success      200 {object} response.Response "退出成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/auth/logout [post]
@@ -234,8 +225,14 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 
 	authHeader := c.GetHeader("Authorization")
 	token := strings.TrimPrefix(authHeader, "Bearer ")
+	// 提取 refresh token，用于加入黑名单（防止登出后 refresh token 仍可换取新 access token）
+	refreshToken := c.GetHeader("X-Refresh-Token")
+	if refreshToken == "" {
+		response.FailWithCode(c, errorx.CodeInvalidParams, "缺少刷新令牌")
+		return
+	}
 
-	if err := h.adminService.Logout(c.Request.Context(), adminID, token); err != nil {
+	if err := h.adminService.Logout(c.Request.Context(), adminID, token, refreshToken); err != nil {
 		response.Fail(c, err)
 		return
 	}

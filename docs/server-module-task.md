@@ -371,7 +371,59 @@ func (t *DataSyncTask) Run(ctx context.Context) error {
 
 ---
 
-## 九、最佳实践
+## 九、内置任务清单
+
+NetyAdmin 默认注册以下任务（在 `internal/job/init.go` 中通过 `AllJobs` 注册）：
+
+| 任务名 | 类型 | 默认规则 | 权重 | 说明 |
+|--------|------|----------|------|------|
+| `article_publish` | interval | `1m` | Normal (50) | 文章定时发布扫描 |
+| `system_log_cleanup` | cron | `0 0 2 * * *` | Low (10) | 系统日志（任务/操作/错误/消息/开放平台）按保留天数清理 |
+| `upload_record_cleanup` | cron | `0 */30 * * * *` | Low (10) | 将超期未通知的 pending 上传记录标记为 expired |
+| `token_hash_cleanup` | cron | `0 0 * * * *` | Low (10) | 物理删除 `user_token_hashes` 表中 `expired_at < NOW()` 的过期 token hash 记录 |
+
+### 9.1 Token Hash 清理任务（`token_hash_cleanup`）
+
+#### 背景
+
+用户登录、刷新令牌、登出黑名单等流程会在 `user_token_hashes` 表写入 token hash 行（含 `expired_at` 过期时间）。即便 token 已过期失效，这些行仍会留在表中，长期运行后表会无限堆积，影响查询性能与存储空间。
+
+`0019_user_token_hashes.up.sql` 迁移已为 `expired_at` 列创建 `idx_user_token_expired` 索引，专门用于支撑过期清理的高效范围删除。
+
+#### 实现细节
+
+- **Repository 方法**：`UserRepository.DeleteExpiredTokenHashes(ctx) (int64, error)`
+  - SQL 语义：`DELETE FROM user_token_hashes WHERE expired_at < NOW()`
+  - `user_token_hashes` 表无 `soft_delete` 字段，`Delete` 即硬删除
+  - 通过 `r.getDB(ctx)` 复用 ctx 中携带的事务句柄（与项目其他 repo 方法一致）
+- **Job 实现**：`internal/job/token_hash_cleanup.go` 的 `TokenHashCleanupJob`
+  - Cron 表达式 `0 0 * * * *`（每小时整点执行一次，6 字段——任务引擎用 `cron.WithSeconds()` 初始化）
+  - 调用 repo 方法后，若 `affected > 0` 用 `slog.Info` 记录清理行数
+  - 失败时返回 error，由任务引擎的 `onFinish` 回调写入 `sys_task_logs` 表
+- **DI 注册**：`wire.go` 中 `job.AllJobs(...)` 调用追加 `repos.user` 参数；`init.go` 的 `AllJobs` 签名已同步增加 `userRepository userRepo.UserRepository` 形参
+
+#### 配置覆盖
+
+可通过 `config.toml` 的 `[task.jobs.token_hash_cleanup]` 覆盖默认配置：
+
+```toml
+[task.jobs.token_hash_cleanup]
+enabled = true
+type    = "cron"
+spec    = "0 0 * * * *"   # 每小时整点
+weight  = 10
+```
+
+#### 注意事项
+
+1. **幂等性**：删除操作天然幂等，重复执行不会产生副作用。
+2. **多机部署**：Redis 启用时，任务引擎通过 `cache.KeyTaskLock(prefix, "token_hash_cleanup")` 分布式锁确保多实例环境下同一时刻仅一个实例执行。
+3. **不在事务内**：单步删除操作，无需通过 `TransactionManager` 包裹。
+4. **与 Logout/RefreshToken 流程的关系**：用户主动 Logout 时会主动删除当前 access/refresh token hash（见 `service/user/user_auth.go`），本任务是兜底清理「用户未主动登出且 token 已过期」的残留行。
+
+---
+
+## 十、最佳实践
 
 1. **任务幂等性**：确保任务可以安全地重复执行
 2. **错误处理**：记录详细错误信息，但避免任务无限重试
@@ -381,7 +433,7 @@ func (t *DataSyncTask) Run(ctx context.Context) error {
 
 ---
 
-## 十、相关文档
+## 十一、相关文档
 
 - [Server架构设计](./server-architecture.md)
 - [配置热同步](./server-module-config.md)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -13,6 +14,10 @@ import (
 type Message struct {
 	TaskName string          `json:"task_name"`
 	Payload  json.RawMessage `json:"payload"`
+	// RequestID 由 Dispatch 时从 ctx 提取并填入（Task 8.6），
+	// Worker executePayload 在执行 Task 前恢复到子 ctx，
+	// 让任务执行期间的 slog / Sentry 上报能关联到原始触发请求。
+	RequestID string `json:"request_id,omitempty"`
 }
 
 // Queue 驱动接口
@@ -25,9 +30,10 @@ type Queue interface {
 // --- Local Multi-Channel 实现 ---
 
 type localQueue struct {
-	high   chan *Message
-	normal chan *Message
-	low    chan *Message
+	high      chan *Message
+	normal    chan *Message
+	low       chan *Message
+	closeOnce sync.Once // 保护 channel close 操作，避免 double-close panic
 }
 
 func NewLocalQueue(size int) Queue {
@@ -100,9 +106,13 @@ func (q *localQueue) Pop(ctx context.Context) (*Message, error) {
 }
 
 func (q *localQueue) Close() error {
-	close(q.high)
-	close(q.normal)
-	close(q.low)
+	// sync.Once 保护：Close() 可能被 Manager.Stop() 多次调用（如优雅关闭流程 + 测试 cleanup），
+	// 重复 close channel 会 panic。sync.Once 确保仅第一次调用执行 close。
+	q.closeOnce.Do(func() {
+		close(q.high)
+		close(q.normal)
+		close(q.low)
+	})
 	return nil
 }
 

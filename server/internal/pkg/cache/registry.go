@@ -100,13 +100,15 @@ func KeyAdminInfo(adminID uint) string {
 
 // KeyAdminAuthState 管理员鉴权状态缓存 Key（token_version + status）。
 // 用于 JWTAuth 中间件的高频路径，避免每次鉴权直查 DB。
-// TTL 较短（30s），失效由 invalidateAdminTokens 主动触发 + TTL 兜底。
+// TTL 较短（30s），失效由 Service 层 TM 事务 Commit 后调用 invalidateAdminAuthStateCache
+// 主动触发 InvalidateByTags(TagAdminAuthByID) + TTL 兜底。
 func KeyAdminAuthState(adminID uint) string {
 	return fmt.Sprintf("admin:%d:auth_state", adminID)
 }
 
 // TagAdminAuthByID 管理员鉴权状态缓存的按用户维度 Tag（用于精准失效）。
-// invalidateAdminTokens 递增 token_version 时同步失效该 admin 的 auth_state 缓存。
+// Service 层 TM 事务（IncrementTokenVersion + Update/Delete）Commit 后，
+// 调用 invalidateAdminAuthStateCache 同步失效该 admin 的 auth_state 缓存。
 func TagAdminAuthByID(adminID uint) string {
 	return fmt.Sprintf("admin:auth:%d", adminID)
 }

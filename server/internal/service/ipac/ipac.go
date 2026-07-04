@@ -2,11 +2,24 @@ package ipac
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net"
+	"sort"
+	"strings"
 	"sync"
+	"time"
+
+	"github.com/yl2chen/cidranger"
+	"gorm.io/gorm"
 
 	"NetyAdmin/internal/domain/entity/ipac"
+	ipacDto "NetyAdmin/internal/interface/admin/dto/ipac"
+	"NetyAdmin/internal/pkg/database"
+	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/pubsub"
 	ipacRepo "NetyAdmin/internal/repository/ipac"
 )
@@ -20,9 +33,9 @@ type IPACService interface {
 	NotifyAndReload(ctx context.Context) error
 
 	// CRUD
-	List(ctx context.Context, query *ipacRepo.IPACQuery) ([]*ipac.IPAccessControl, int64, error)
-	Create(ctx context.Context, item *ipac.IPAccessControl) error
-	Update(ctx context.Context, item *ipac.IPAccessControl) error
+	List(ctx context.Context, req *ipacDto.IPACQuery) ([]*ipac.IPAccessControl, int64, error)
+	Create(ctx context.Context, req *ipacDto.CreateIPACReq, operatorID uint) error
+	Update(ctx context.Context, req *ipacDto.UpdateIPACReq, operatorID uint) error
 	Delete(ctx context.Context, id uint) error
 	DeleteBatch(ctx context.Context, ids []uint) error
 }
@@ -30,29 +43,97 @@ type IPACService interface {
 type ipacService struct {
 	repo     ipacRepo.IPACRepository
 	eventBus pubsub.EventBus
+	tm       *database.TransactionManager
 
-	mu          sync.RWMutex
-	globalDeny  []*net.IPNet
-	globalAllow []*net.IPNet
+	mu sync.RWMutex
+	// 用 cidranger.Ranger (path-compressed trie) 替代 []*net.IPNet 线性扫描，
+	// 将 CheckIP 从 O(N) 降到 O(log N)。
+	// 语义约定：
+	//   - globalDeny / appRules[].Deny：始终为非空 Ranger（无规则时为空 trie，Contains 返回 false 即可，不需要区分"未配置"与"未命中"）
+	//   - globalAllow / appRules[].Allow：用 nil 表示"未配置白名单"，非 nil 表示"已配置且非空"。
+	//     nil 时跳过白名单 fail-closed 逻辑（与原 `len(s.globalAllow) > 0` 语义一致）；
+	//     非 nil 时 IP 必须 Contains 命中才放行，否则 fail-closed。
+	globalDeny  cidranger.Ranger
+	globalAllow cidranger.Ranger
 	appRules    map[string]appIPRules
+
+	// 缓存版本指纹（SubTask 22.3）：基于规则 ID + 应用 IP 过滤开关集合的 SHA256 摘要。
+	// ReloadCache 时先计算新指纹，与 cached 对比，相同则跳过重建（避免无效重建）。
+	cachedRuleFingerprint string
+	cachedAppStrategyFP   string
 }
 
 type appIPRules struct {
-	Allow           []*net.IPNet
-	Deny            []*net.IPNet
+	Allow           cidranger.Ranger // nil 表示未配置白名单
+	Deny            cidranger.Ranger // 始终非 nil（空 trie 也用 NewPCTrieRanger）
 	IPFilterEnabled bool
 }
 
-func NewIPACService(repo ipacRepo.IPACRepository, eventBus pubsub.EventBus) IPACService {
+func NewIPACService(repo ipacRepo.IPACRepository, eventBus pubsub.EventBus, tm *database.TransactionManager) IPACService {
 	s := &ipacService{
-		repo:     repo,
-		eventBus: eventBus,
-		appRules: make(map[string]appIPRules),
+		repo:       repo,
+		eventBus:   eventBus,
+		tm:         tm,
+		appRules:   make(map[string]appIPRules),
+		globalDeny: cidranger.NewPCTrieRanger(),
+		// globalAllow 初始为 nil，表示未配置白名单
 	}
 	// Initial load
-	_ = s.ReloadCache(context.Background())
+	if err := s.ReloadCache(context.Background()); err != nil {
+		slog.Warn("ipac initial reload cache failed", "err", err)
+	}
 
 	return s
+}
+
+// computeRuleFingerprint 计算规则集合的指纹（按 ID 排序后 SHA256）。
+// 用于 ReloadCache 的版本号 diff（SubTask 22.3）：指纹相同则跳过重建。
+func (s *ipacService) computeRuleFingerprint(rules []*ipac.IPAccessControl) string {
+	ids := make([]string, 0, len(rules))
+	for _, r := range rules {
+		// 含 ID + AppID + IPAddr + Type + Status + ExpiredAt，任一字段变更都会触发重建
+		expired := ""
+		if r.ExpiredAt != nil {
+			expired = r.ExpiredAt.UTC().Format(time.RFC3339Nano)
+		}
+		appID := ""
+		if r.AppID != nil {
+			appID = *r.AppID
+		}
+		ids = append(ids, fmt.Sprintf("%d|%s|%s|%d|%d|%s", r.ID, appID, r.IPAddr, r.Type, r.Status, expired))
+	}
+	sort.Strings(ids)
+	h := sha256.Sum256([]byte(strings.Join(ids, ";")))
+	return hex.EncodeToString(h[:])
+}
+
+// computeAppStrategyFingerprint 计算应用 IP 过滤开关集合的指纹。
+func (s *ipacService) computeAppStrategyFingerprint(appStrategies map[string]bool) string {
+	keys := make([]string, 0, len(appStrategies))
+	for k := range appStrategies {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	h := sha256.Sum256([]byte(strings.Join(keys, ";")))
+	return hex.EncodeToString(h[:])
+}
+
+// parseIPNet 解析 IP 或 CIDR 字符串为 *net.IPNet。
+// 输入为单 IP 时按 /32 (IPv4) 或 /128 (IPv6) 转 CIDR。
+func parseIPNet(ipAddr string) *net.IPNet {
+	_, ipNet, err := net.ParseCIDR(ipAddr)
+	if err == nil {
+		return ipNet
+	}
+	ip := net.ParseIP(ipAddr)
+	if ip == nil {
+		return nil
+	}
+	mask := net.CIDRMask(32, 32)
+	if ip.To4() == nil {
+		mask = net.CIDRMask(128, 128)
+	}
+	return &net.IPNet{IP: ip, Mask: mask}
 }
 
 func (s *ipacService) ReloadCache(ctx context.Context) error {
@@ -66,37 +147,52 @@ func (s *ipacService) ReloadCache(ctx context.Context) error {
 		return err
 	}
 
-	newGlobalDeny := make([]*net.IPNet, 0)
-	newGlobalAllow := make([]*net.IPNet, 0)
+	// SubTask 22.3：版本号 diff —— 指纹相同则跳过重建
+	ruleFP := s.computeRuleFingerprint(rules)
+	appFP := s.computeAppStrategyFingerprint(appStrategies)
+
+	s.mu.RLock()
+	sameRule := ruleFP == s.cachedRuleFingerprint
+	sameApp := appFP == s.cachedAppStrategyFP
+	s.mu.RUnlock()
+
+	if sameRule && sameApp {
+		// 规则集合与应用策略均未变更，跳过 trie 重建
+		return nil
+	}
+
+	newGlobalDeny := cidranger.NewPCTrieRanger()
+	var newGlobalAllow cidranger.Ranger // nil 表示未配置白名单
 	newAppRules := make(map[string]appIPRules)
 
 	for _, r := range rules {
-		_, ipNet, err := net.ParseCIDR(r.IPAddr)
-		if err != nil {
-			ip := net.ParseIP(r.IPAddr)
-			if ip == nil {
-				continue
-			}
-			mask := net.CIDRMask(32, 32)
-			if ip.To4() == nil {
-				mask = net.CIDRMask(128, 128)
-			}
-			ipNet = &net.IPNet{IP: ip, Mask: mask}
+		ipNet := parseIPNet(r.IPAddr)
+		if ipNet == nil {
+			continue
 		}
 
 		if r.AppID == nil || *r.AppID == "" {
 			if r.Type == ipac.IPACTypeDeny {
-				newGlobalDeny = append(newGlobalDeny, ipNet)
+				_ = newGlobalDeny.Insert(cidranger.NewBasicRangerEntry(*ipNet))
 			} else {
-				newGlobalAllow = append(newGlobalAllow, ipNet)
+				if newGlobalAllow == nil {
+					newGlobalAllow = cidranger.NewPCTrieRanger()
+				}
+				_ = newGlobalAllow.Insert(cidranger.NewBasicRangerEntry(*ipNet))
 			}
 		} else {
 			appID := *r.AppID
 			ar := newAppRules[appID]
+			if ar.Deny == nil {
+				ar.Deny = cidranger.NewPCTrieRanger()
+			}
 			if r.Type == ipac.IPACTypeDeny {
-				ar.Deny = append(ar.Deny, ipNet)
+				_ = ar.Deny.Insert(cidranger.NewBasicRangerEntry(*ipNet))
 			} else {
-				ar.Allow = append(ar.Allow, ipNet)
+				if ar.Allow == nil {
+					ar.Allow = cidranger.NewPCTrieRanger()
+				}
+				_ = ar.Allow.Insert(cidranger.NewBasicRangerEntry(*ipNet))
 			}
 			newAppRules[appID] = ar
 		}
@@ -104,6 +200,10 @@ func (s *ipacService) ReloadCache(ctx context.Context) error {
 
 	for appID := range appStrategies {
 		ar := newAppRules[appID]
+		if ar.Deny == nil {
+			ar.Deny = cidranger.NewPCTrieRanger()
+		}
+		// ar.Allow 保留 nil（表示该 app 未配置白名单）
 		ar.IPFilterEnabled = true
 		newAppRules[appID] = ar
 	}
@@ -112,6 +212,8 @@ func (s *ipacService) ReloadCache(ctx context.Context) error {
 	s.globalDeny = newGlobalDeny
 	s.globalAllow = newGlobalAllow
 	s.appRules = newAppRules
+	s.cachedRuleFingerprint = ruleFP
+	s.cachedAppStrategyFP = appFP
 	s.mu.Unlock()
 
 	return nil
@@ -127,24 +229,21 @@ func (s *ipacService) CheckIP(ctx context.Context, ipStr string, appID *string) 
 	defer s.mu.RUnlock()
 
 	// 1. 全局封禁 (Global Deny) - 优先级最高
-	for _, ipNet := range s.globalDeny {
-		if ipNet.Contains(ip) {
+	// globalDeny 始终非 nil（构造时初始化为空 trie），无规则时 Contains 返回 false
+	if s.globalDeny != nil {
+		contains, err := s.globalDeny.Contains(ip)
+		if err == nil && contains {
 			return false, nil
 		}
 	}
 
 	// 2. 全局放行 (Global Allow) - 白名单语义（fail-closed）
-	// 配置了全局 Allow 列表时，IP 必须在其中才放行，否则拒绝
+	// 配置了全局 Allow 列表时（非 nil），IP 必须在其中才放行，否则拒绝
 	// 这与应用级 Allow 的语义保持一致，避免全局白名单形同虚设
-	if len(s.globalAllow) > 0 {
-		inGlobalAllow := false
-		for _, ipNet := range s.globalAllow {
-			if ipNet.Contains(ip) {
-				inGlobalAllow = true
-				break
-			}
-		}
-		if !inGlobalAllow {
+	// nil 表示未配置白名单，跳过此分支继续后续校验（与原 `len(s.globalAllow) > 0` 语义一致）
+	if s.globalAllow != nil {
+		contains, err := s.globalAllow.Contains(ip)
+		if err != nil || !contains {
 			return false, nil
 		}
 		return true, nil
@@ -156,25 +255,20 @@ func (s *ipacService) CheckIP(ctx context.Context, ipStr string, appID *string) 
 			if !rules.IPFilterEnabled {
 				return true, nil
 			}
-			// 先检查应用封禁
-			for _, ipNet := range rules.Deny {
-				if ipNet.Contains(ip) {
+			// 先检查应用封禁（rules.Deny 始终非 nil）
+			if rules.Deny != nil {
+				contains, err := rules.Deny.Contains(ip)
+				if err == nil && contains {
 					return false, nil
 				}
 			}
-			// 再检查应用放行
-			inAllow := false
-			for _, ipNet := range rules.Allow {
-				if ipNet.Contains(ip) {
-					inAllow = true
-					break
+			// 再检查应用放行（白名单语义）
+			// rules.Allow == nil 表示该 app 未配置白名单，跳过此分支走默认放行
+			if rules.Allow != nil {
+				contains, err := rules.Allow.Contains(ip)
+				if err != nil || !contains {
+					return false, nil // 白名单已配置但 IP 不在其中 → fail-closed
 				}
-			}
-			// 白名单语义：配置了 Allow 列表但 IP 不在其中，则拒绝（fail-closed）
-			if len(rules.Allow) > 0 && !inAllow {
-				return false, nil
-			}
-			if inAllow {
 				return true, nil
 			}
 		}
@@ -184,8 +278,17 @@ func (s *ipacService) CheckIP(ctx context.Context, ipStr string, appID *string) 
 	return true, nil
 }
 
-func (s *ipacService) List(ctx context.Context, query *ipacRepo.IPACQuery) ([]*ipac.IPAccessControl, int64, error) {
-	return s.repo.List(ctx, query)
+func (s *ipacService) List(ctx context.Context, req *ipacDto.IPACQuery) ([]*ipac.IPAccessControl, int64, error) {
+	// service 层接收 admin DTO，内部构造 repository query（spec B10：service 不应依赖 handler 构造的 repo 类型）
+	repoQuery := &ipacRepo.IPACQuery{
+		AppID:    req.AppID,
+		IPAddr:   req.IPAddr,
+		Type:     req.Type,
+		Status:   req.Status,
+		Page:     req.Current,
+		PageSize: req.Size,
+	}
+	return s.repo.List(ctx, repoQuery)
 }
 
 // notifyReload 广播 reload 通知给其他节点。失败仅记录日志，不阻断主流程
@@ -208,15 +311,66 @@ func (s *ipacService) NotifyAndReload(ctx context.Context) error {
 	return nil
 }
 
-func (s *ipacService) Create(ctx context.Context, item *ipac.IPAccessControl) error {
+// reloadCacheAndBroadcast 刷新本地缓存并广播给其他节点。
+// 用于 DeleteBatch 事务失败路径：前序已 commit 的删除需反映到内存，避免已删规则仍生效拦截用户。
+// 与 NotifyAndReload 的差异：本方法吞掉 ReloadCache 错误（仅记录日志），确保即使本地 reload 失败也尝试广播。
+func (s *ipacService) reloadCacheAndBroadcast(ctx context.Context) {
+	if err := s.ReloadCache(ctx); err != nil {
+		slog.Error("ipac reload cache failed", "err", err)
+	}
+	s.notifyReload(ctx)
+}
+
+func (s *ipacService) Create(ctx context.Context, req *ipacDto.CreateIPACReq, operatorID uint) error {
+	item := &ipac.IPAccessControl{
+		AppID:  req.AppID,
+		IPAddr: req.IPAddr,
+		Type:   req.Type,
+		Reason: req.Reason,
+		Status: req.Status,
+	}
+	item.CreatedBy = operatorID
+
+	if req.ExpiredAt != nil && *req.ExpiredAt != "" {
+		t, err := time.Parse(time.DateTime, *req.ExpiredAt)
+		if err != nil {
+			return errorx.New(errorx.CodeInvalidParams, "过期时间格式错误")
+		}
+		item.ExpiredAt = &t
+	}
+
 	if err := s.repo.Create(ctx, item); err != nil {
 		return err
 	}
 	return s.NotifyAndReload(ctx)
 }
 
-func (s *ipacService) Update(ctx context.Context, item *ipac.IPAccessControl) error {
-	if err := s.repo.Update(ctx, item); err != nil {
+func (s *ipacService) Update(ctx context.Context, req *ipacDto.UpdateIPACReq, operatorID uint) error {
+	// 先取旧值，再用 DTO 字段 patch，避免 repo.Save 全字段更新把 AppID/IPAddr 覆盖为零值
+	old, err := s.repo.GetByID(ctx, req.ID)
+	if err != nil {
+		// 区分「未找到」与真实 DB 错误（连接失败、查询超时等），避免把 DB 异常误判为 NotFound
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errorx.New(errorx.CodeNotFound, "IPAC 规则不存在")
+		}
+		slog.Error("ipacRepo.GetByID failed", "id", req.ID, "err", err)
+		return fmt.Errorf("ipac.Update: GetByID failed: %w", err)
+	}
+
+	old.Type = req.Type
+	old.Reason = req.Reason
+	old.Status = req.Status
+	old.UpdatedBy = operatorID
+
+	if req.ExpiredAt != nil && *req.ExpiredAt != "" {
+		t, err := time.Parse(time.DateTime, *req.ExpiredAt)
+		if err != nil {
+			return errorx.New(errorx.CodeInvalidParams, "过期时间格式错误")
+		}
+		old.ExpiredAt = &t
+	}
+
+	if err := s.repo.Update(ctx, old); err != nil {
 		return err
 	}
 	return s.NotifyAndReload(ctx)
@@ -230,8 +384,48 @@ func (s *ipacService) Delete(ctx context.Context, id uint) error {
 }
 
 func (s *ipacService) DeleteBatch(ctx context.Context, ids []uint) error {
-	if err := s.repo.DeleteBatch(ctx, ids); err != nil {
-		return err
+	// 逐条事务 fail-closed：任一 id 事务失败立即返回错误（已提交的 id 保持删除状态，未处理的 id 不受影响）。
+	// 业务规则拒绝（id 不存在 / 查询失败）走 continue 跳过并记录到 skipped，不阻断整个批量。
+	// 循环结束后调用一次 NotifyAndReload 即可（不必逐条广播），与 admin/role/user DeleteBatch 模式对齐。
+	//
+	// 设计权衡（vs 旧单批 SQL repo.DeleteBatch）：
+	//   - 旧实现：repo.DeleteBatch(ctx, ids) 一条 SQL 删除，无逐条事务边界，无法满足 RULES.md §13 fail-closed 语义
+	//   - 新实现：逐条 TM 单事务原子完成硬删除，事务失败 Rollback + 立即 return，已提交 id 不回滚（符合「逐条」语义）
+	//   - 性能：N 个 id = N 次事务，DeleteBatch 是低频管理操作，可接受
+	var skipped []string
+	for _, id := range ids {
+		// 检查存在性（不进事务，避免事务内的查询成本）
+		exists, err := s.repo.ExistsByID(ctx, id)
+		if err != nil {
+			skipped = append(skipped, fmt.Sprintf("IPAC 规则 %d：查询失败 %v", id, err))
+			continue
+		}
+		if !exists {
+			skipped = append(skipped, fmt.Sprintf("IPAC 规则 %d：不存在", id))
+			continue
+		}
+		// TM 单事务原子完成硬删除（fail-closed）
+		txCtx, tx := s.tm.Begin(ctx)
+		if err := s.repo.Delete(txCtx, id); err != nil {
+			slog.Error("ipac delete batch: delete failed", "id", id, "err", err)
+			s.tm.Rollback(tx)
+			// 前序已 commit 的删除需反映到内存缓存，避免已删规则仍生效拦截用户
+			s.reloadCacheAndBroadcast(ctx)
+			return errorx.New(errorx.CodeInternalError, fmt.Sprintf("IPAC 规则 %d 删除失败", id))
+		}
+		if err := s.tm.Commit(tx); err != nil {
+			slog.Error("ipac delete batch: commit failed", "id", id, "err", err)
+			// Commit 失败时 tx 已自动回滚，但前序已 commit 的删除仍需刷新缓存
+			s.reloadCacheAndBroadcast(ctx)
+			return errorx.New(errorx.CodeInternalError, fmt.Sprintf("IPAC 规则 %d 删除失败", id))
+		}
 	}
-	return s.NotifyAndReload(ctx)
+	// 全部处理完成后广播一次 reload
+	if err := s.NotifyAndReload(ctx); err != nil {
+		slog.Warn("ipac delete batch: notify and reload failed", "err", err)
+	}
+	if len(skipped) > 0 {
+		return errorx.New(errorx.CodeForbidden, fmt.Sprintf("部分 IPAC 规则被跳过：%s", strings.Join(skipped, "; ")))
+	}
+	return nil
 }

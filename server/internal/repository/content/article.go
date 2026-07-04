@@ -8,6 +8,7 @@ import (
 
 	"NetyAdmin/internal/domain/entity"
 	content "NetyAdmin/internal/domain/entity/content"
+	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/pagination"
 )
 
@@ -26,6 +27,8 @@ type ContentArticleRepository interface {
 	IncrementViewCount(ctx context.Context, id uint) error
 	IncrementLikeCount(ctx context.Context, id uint) error
 	ListPublished(ctx context.Context, query *ContentArticlePublishedQuery) ([]*content.ContentArticle, int64, error)
+	// CountByCategory 统计指定分类下的文章数量（用于删除分类前的前置校验）
+	CountByCategory(ctx context.Context, categoryID uint) (int64, error)
 }
 
 type ContentArticleQuery struct {
@@ -57,21 +60,27 @@ func NewContentArticleRepository(db *gorm.DB) ContentArticleRepository {
 	return &contentArticleRepository{db: db}
 }
 
+// getDB 从 context 中获取事务 DB，若不存在则回退到默认 db。
+func (r *contentArticleRepository) getDB(ctx context.Context) *gorm.DB {
+	return database.GetDB(ctx, r.db)
+}
+
 func (r *contentArticleRepository) Create(ctx context.Context, article *content.ContentArticle) error {
-	return r.db.WithContext(ctx).Create(article).Error
+	return r.getDB(ctx).Create(article).Error
 }
 
 func (r *contentArticleRepository) Update(ctx context.Context, article *content.ContentArticle) error {
-	return r.db.WithContext(ctx).Save(article).Error
+	return r.getDB(ctx).Save(article).Error
 }
 
 func (r *contentArticleRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&content.ContentArticle{}, id).Error
+	// ContentArticle 为硬删除实体，使用 Unscoped 跳过软删除过滤
+	return r.getDB(ctx).Unscoped().Delete(&content.ContentArticle{}, id).Error
 }
 
 func (r *contentArticleRepository) GetByID(ctx context.Context, id uint) (*content.ContentArticle, error) {
 	var article content.ContentArticle
-	err := r.db.WithContext(ctx).First(&article, id).Error
+	err := r.getDB(ctx).First(&article, id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +89,7 @@ func (r *contentArticleRepository) GetByID(ctx context.Context, id uint) (*conte
 
 func (r *contentArticleRepository) GetByIDWithCategory(ctx context.Context, id uint) (*content.ContentArticle, error) {
 	var article content.ContentArticle
-	err := r.db.WithContext(ctx).
+	err := r.getDB(ctx).
 		Preload("Category").
 		First(&article, id).Error
 	if err != nil {
@@ -90,7 +99,14 @@ func (r *contentArticleRepository) GetByIDWithCategory(ctx context.Context, id u
 }
 
 func (r *contentArticleRepository) List(ctx context.Context, query *ContentArticleQuery) ([]*content.ContentArticle, int64, error) {
-	db := r.db.WithContext(ctx).Model(&content.ContentArticle{})
+	if query.Current <= 0 {
+		query.Current = 1
+	}
+	if query.Size <= 0 {
+		query.Size = entity.DefaultPageSize
+	}
+
+	db := r.getDB(ctx).Model(&content.ContentArticle{})
 
 	if query.CategoryID > 0 {
 		db = db.Where("category_id = ?", query.CategoryID)
@@ -126,9 +142,6 @@ func (r *contentArticleRepository) List(ctx context.Context, query *ContentArtic
 	}
 
 	var articles []*content.ContentArticle
-	if query.Size <= 0 {
-		query.Size = entity.DefaultPageSize
-	}
 
 	err := db.Preload("Category").
 		Order("is_top DESC, top_sort ASC, created_at DESC").
@@ -142,7 +155,7 @@ func (r *contentArticleRepository) List(ctx context.Context, query *ContentArtic
 }
 
 func (r *contentArticleRepository) Publish(ctx context.Context, id uint, publishedAt time.Time) error {
-	return r.db.WithContext(ctx).Model(&content.ContentArticle{}).
+	return r.getDB(ctx).Model(&content.ContentArticle{}).
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
 			"publish_status": content.PublishStatusPublished,
@@ -151,7 +164,7 @@ func (r *contentArticleRepository) Publish(ctx context.Context, id uint, publish
 }
 
 func (r *contentArticleRepository) Unpublish(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Model(&content.ContentArticle{}).
+	return r.getDB(ctx).Model(&content.ContentArticle{}).
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
 			"publish_status": content.PublishStatusDraft,
@@ -160,7 +173,7 @@ func (r *contentArticleRepository) Unpublish(ctx context.Context, id uint) error
 }
 
 func (r *contentArticleRepository) SetTop(ctx context.Context, id uint, isTop bool, topSort int) error {
-	return r.db.WithContext(ctx).Model(&content.ContentArticle{}).
+	return r.getDB(ctx).Model(&content.ContentArticle{}).
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
 			"is_top":   isTop,
@@ -170,7 +183,7 @@ func (r *contentArticleRepository) SetTop(ctx context.Context, id uint, isTop bo
 
 func (r *contentArticleRepository) GetScheduledArticles(ctx context.Context) ([]*content.ContentArticle, error) {
 	var articles []*content.ContentArticle
-	err := r.db.WithContext(ctx).
+	err := r.getDB(ctx).
 		Where("publish_status = ? AND scheduled_at <= ?", content.PublishStatusScheduled, time.Now()).
 		Find(&articles).Error
 	if err != nil {
@@ -180,7 +193,7 @@ func (r *contentArticleRepository) GetScheduledArticles(ctx context.Context) ([]
 }
 
 func (r *contentArticleRepository) PublishScheduled(ctx context.Context, now time.Time) (int64, error) {
-	result := r.db.WithContext(ctx).Model(&content.ContentArticle{}).
+	result := r.getDB(ctx).Model(&content.ContentArticle{}).
 		Where("publish_status = ? AND scheduled_at <= ?", content.PublishStatusScheduled, now).
 		Updates(map[string]interface{}{
 			"publish_status": content.PublishStatusPublished,
@@ -190,19 +203,26 @@ func (r *contentArticleRepository) PublishScheduled(ctx context.Context, now tim
 }
 
 func (r *contentArticleRepository) IncrementViewCount(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Model(&content.ContentArticle{}).
+	return r.getDB(ctx).Model(&content.ContentArticle{}).
 		Where("id = ?", id).
 		UpdateColumn("view_count", gorm.Expr("view_count + 1")).Error
 }
 
 func (r *contentArticleRepository) IncrementLikeCount(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Model(&content.ContentArticle{}).
+	return r.getDB(ctx).Model(&content.ContentArticle{}).
 		Where("id = ?", id).
 		UpdateColumn("like_count", gorm.Expr("like_count + 1")).Error
 }
 
 func (r *contentArticleRepository) ListPublished(ctx context.Context, query *ContentArticlePublishedQuery) ([]*content.ContentArticle, int64, error) {
-	db := r.db.WithContext(ctx).Model(&content.ContentArticle{}).
+	if query.Current <= 0 {
+		query.Current = 1
+	}
+	if query.Size <= 0 {
+		query.Size = entity.DefaultPageSize
+	}
+
+	db := r.getDB(ctx).Model(&content.ContentArticle{}).
 		Where("publish_status = ? AND status = ?", content.PublishStatusPublished, entity.StatusEnabled)
 
 	if len(query.CategoryIDs) > 0 {
@@ -218,14 +238,6 @@ func (r *contentArticleRepository) ListPublished(ctx context.Context, query *Con
 		return nil, 0, err
 	}
 
-	offset := (query.Current - 1) * query.Size
-	if offset < 0 {
-		offset = 0
-	}
-	if query.Size <= 0 {
-		query.Size = entity.DefaultPageSize
-	}
-
 	var articles []*content.ContentArticle
 	err := db.Preload("Category").
 		Order("is_top DESC, top_sort ASC, published_at DESC").
@@ -236,4 +248,15 @@ func (r *contentArticleRepository) ListPublished(ctx context.Context, query *Con
 	}
 
 	return articles, total, nil
+}
+
+// CountByCategory 统计指定分类下的文章数量（用于删除分类前的前置校验，包含所有状态的文章）
+func (r *contentArticleRepository) CountByCategory(ctx context.Context, categoryID uint) (int64, error) {
+	var count int64
+	if err := r.getDB(ctx).Model(&content.ContentArticle{}).
+		Where("category_id = ?", categoryID).
+		Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
 }

@@ -2,6 +2,8 @@ package user
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"time"
 
 	userEntity "NetyAdmin/internal/domain/entity/user"
@@ -40,7 +42,7 @@ func NewTokenStore(repo userRepo.UserRepository, cacheMgr cache.LazyCacheManager
 
 func (s *tokenStore) Create(ctx context.Context, hash *userEntity.UserTokenHash) error {
 	if err := s.repo.CreateTokenHash(ctx, hash); err != nil {
-		return err
+		return fmt.Errorf("repo.CreateTokenHash: %w", err)
 	}
 	// 缓存加速：将"会话有效"标记写入缓存，命中时免去 DB 查询
 	if s.cacheMgr != nil {
@@ -50,7 +52,9 @@ func (s *tokenStore) Create(ctx context.Context, hash *userEntity.UserTokenHash)
 		}
 		key := cache.KeyUserTokenHash(hash.UserID, hash.TokenHash)
 		tag := cache.TagUserToken(hash.UserID)
-		_ = s.cacheMgr.SetFast(ctx, key, "1", []string{tag}, ttl)
+		if err := s.cacheMgr.SetFast(ctx, key, "1", []string{tag}, ttl); err != nil {
+			slog.Warn("set fast cache failed", "key", key, "err", err)
+		}
 	}
 	return nil
 }
@@ -71,14 +75,19 @@ func (s *tokenStore) Get(ctx context.Context, userID, tokenHash string) (*userEn
 func (s *tokenStore) Delete(ctx context.Context, userID, tokenHash string) error {
 	if s.cacheMgr != nil {
 		key := cache.KeyUserTokenHash(userID, tokenHash)
-		_ = s.cacheMgr.Delete(ctx, key)
+		if err := s.cacheMgr.Delete(ctx, key); err != nil {
+			slog.Warn("delete cache failed", "key", key, "err", err)
+		}
 	}
 	return s.repo.DeleteTokenHash(ctx, userID, tokenHash)
 }
 
 func (s *tokenStore) DeleteAll(ctx context.Context, userID string) error {
 	if s.cacheMgr != nil {
-		_ = s.cacheMgr.InvalidateByTags(ctx, cache.TagUserToken(userID))
+		tag := cache.TagUserToken(userID)
+		if err := s.cacheMgr.InvalidateByTags(ctx, tag); err != nil {
+			slog.Error("invalidate cache failed", "tag", tag, "err", err)
+		}
 	}
 	return s.repo.DeleteAllTokenHashes(ctx, userID)
 }

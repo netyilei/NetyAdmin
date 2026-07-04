@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"log/slog"
 	"strconv"
 
 	"NetyAdmin/internal/domain/entity"
@@ -9,8 +10,10 @@ import (
 	taskEntity "NetyAdmin/internal/domain/entity/task"
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/configsync"
+	"NetyAdmin/internal/pkg/database"
+	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/pagination"
 	"NetyAdmin/internal/pkg/task"
-	"NetyAdmin/internal/pkg/utils"
 	systemRepo "NetyAdmin/internal/repository/system"
 	taskRepo "NetyAdmin/internal/repository/task"
 )
@@ -33,15 +36,17 @@ type taskService struct {
 	cfgRepo       systemRepo.ConfigRepository
 	watcher       configsync.ConfigWatcher
 	logRecordFunc TaskLogRecordFunc
+	tm            *database.TransactionManager
 }
 
-func NewTaskService(manager *task.Manager, logRepo taskRepo.TaskLogRepository, cfgRepo systemRepo.ConfigRepository, watcher configsync.ConfigWatcher, logRecordFunc TaskLogRecordFunc) TaskService {
+func NewTaskService(manager *task.Manager, logRepo taskRepo.TaskLogRepository, cfgRepo systemRepo.ConfigRepository, watcher configsync.ConfigWatcher, logRecordFunc TaskLogRecordFunc, tm *database.TransactionManager) TaskService {
 	s := &taskService{
 		manager:       manager,
 		logRepo:       logRepo,
 		cfgRepo:       cfgRepo,
 		watcher:       watcher,
 		logRecordFunc: logRecordFunc,
+		tm:            tm,
 	}
 
 	manager.SetOnFinish(func(name string, info task.ExecutionInfo) {
@@ -58,7 +63,9 @@ func NewTaskService(manager *task.Manager, logRepo taskRepo.TaskLogRepository, c
 			return
 		}
 
-		_ = s.logRecordFunc(context.Background(), logRecord)
+		if err := s.logRecordFunc(context.Background(), logRecord); err != nil {
+			slog.Warn("record task log failed", "taskName", name, "err", err)
+		}
 	})
 
 	return s
@@ -137,16 +144,20 @@ func (s *taskService) StopTask(ctx context.Context, name string, operatorID uint
 	// 持久化状态为禁用
 	group := "task_config"
 	key := cache.KeyTaskEnabled(name)
-	_ = s.cfgRepo.Upsert(ctx, &system.SysConfig{
+	if err := s.cfgRepo.Upsert(ctx, &system.SysConfig{
 		GroupName:   group,
 		ConfigKey:   key,
 		ConfigValue: "false",
 		ValueType:   "boolean",
 		Operator:    entity.Operator{UpdatedBy: operatorID},
-	})
+	}); err != nil {
+		slog.Error("upsert task config failed", "key", key, "err", err)
+	}
 
 	// 同步内存中的配置
-	_ = s.watcher.ForceReload(ctx)
+	if err := s.watcher.ForceReload(ctx); err != nil {
+		slog.Warn("force reload config failed", "err", err)
+	}
 
 	return nil
 }
@@ -155,16 +166,20 @@ func (s *taskService) StartTask(ctx context.Context, name string, operatorID uin
 	// 持久化状态为启用
 	group := "task_config"
 	key := cache.KeyTaskEnabled(name)
-	_ = s.cfgRepo.Upsert(ctx, &system.SysConfig{
+	if err := s.cfgRepo.Upsert(ctx, &system.SysConfig{
 		GroupName:   group,
 		ConfigKey:   key,
 		ConfigValue: "true",
 		ValueType:   "boolean",
 		Operator:    entity.Operator{UpdatedBy: operatorID},
-	})
+	}); err != nil {
+		slog.Error("upsert task config failed", "key", key, "err", err)
+	}
 
 	// 同步内存中的配置
-	_ = s.watcher.ForceReload(ctx)
+	if err := s.watcher.ForceReload(ctx); err != nil {
+		slog.Warn("force reload config failed", "err", err)
+	}
 
 	// 在管理器中标记为启用并启动
 	// 注意：这里需要先更新管理器内部的 enabled 状态，否则 StartTask 会报错
@@ -196,37 +211,53 @@ func (s *taskService) ReloadTask(ctx context.Context, name string) error {
 func (s *taskService) UpdateTask(ctx context.Context, name string, enabled bool, spec string, operatorID uint) error {
 	group := "task_config"
 
+	// TM 单事务原子完成「写入 enabled 配置 + 写入 spec 配置」，任一步失败整体回滚（fail-closed）。
+	// 避免下次启动时数据不一致（只有 enabled 无 spec）。
+	txCtx, tx := s.tm.Begin(ctx)
+
 	// 更新 enabled
 	enabledKey := cache.KeyTaskEnabled(name)
 	enabledVal := strconv.FormatBool(enabled)
-	if err := s.cfgRepo.Upsert(ctx, &system.SysConfig{
+	if err := s.cfgRepo.Upsert(txCtx, &system.SysConfig{
 		GroupName:   group,
 		ConfigKey:   enabledKey,
 		ConfigValue: enabledVal,
 		ValueType:   "boolean",
 		Operator:    entity.Operator{UpdatedBy: operatorID},
 	}); err != nil {
-		return err
+		slog.Error("task update: upsert enabled failed", "key", enabledKey, "err", err)
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeInternalError, "任务更新失败")
 	}
 
 	// 更新 spec
 	specKey := cache.KeyTaskSpec(name)
-	if err := s.cfgRepo.Upsert(ctx, &system.SysConfig{
+	if err := s.cfgRepo.Upsert(txCtx, &system.SysConfig{
 		GroupName:   group,
 		ConfigKey:   specKey,
 		ConfigValue: spec,
 		ValueType:   "string",
 		Operator:    entity.Operator{UpdatedBy: operatorID},
 	}); err != nil {
-		return err
+		slog.Error("task update: upsert spec failed", "key", specKey, "err", err)
+		s.tm.Rollback(tx)
+		return errorx.New(errorx.CodeInternalError, "任务更新失败")
 	}
 
+	if err := s.tm.Commit(tx); err != nil {
+		slog.Error("task update: commit failed", "err", err)
+		return errorx.New(errorx.CodeInternalError, "任务更新失败")
+	}
+
+	// Commit 后调用 manager.UpdateTaskSpec（进程内状态，不进事务）
 	// 强制重载配置并重启任务
-	_ = s.watcher.ForceReload(ctx)
+	if err := s.watcher.ForceReload(ctx); err != nil {
+		slog.Warn("force reload config failed", "err", err)
+	}
 	return s.manager.UpdateTaskSpec(ctx, name, enabled, spec)
 }
 
 func (s *taskService) ListLogs(ctx context.Context, name string, page, size int) ([]*taskEntity.TaskLog, int64, error) {
-	page, size = utils.NormalizePaging(page, size)
+	page, size = pagination.NormalizePagination(page, size)
 	return s.logRepo.List(ctx, name, page, size)
 }
