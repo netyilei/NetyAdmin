@@ -11,7 +11,7 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 ### 🚀 Modern Tech Stack
 
 - **Frontend**: Vue 3, TypeScript, Vite, Naive UI, UnoCSS, Pinia, Vue Router, vue-i18n
-- **Backend**: Go 1.21+, Gin, GORM (PostgreSQL), Redis (optional), JWT
+- **Backend**: Go 1.25+, Gin, GORM (PostgreSQL), Redis (optional), JWT
 
 ### 🏗️ Clear Architecture Design
 
@@ -45,7 +45,7 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 | **Message Hub** | Unified sending entry (SMS/Email/Internal), template rendering, async retry, STARTTLS support |
 | **Open Platform** | AppKey authentication, secure signature, configurable distributed rate limiting (token bucket), Scope permissions, app-level storage binding |
 | **IP Access Control** | Global/App-level IP governance, CIDR matching, high-performance memory filtering |
-| **Content Management** | Categories, Articles, Banner, supporting rich text and scheduled publishing |
+| **Content Management** | Categories, Articles, Banner, supporting rich text, scheduled publishing, client-facing public APIs |
 | **Storage Management** | Multi-storage source configuration, upload credentials, upload records, app-level storage isolation, Client-side upload API |
 | **Log Audit** | Operation logs, error logs, open platform logs, task logs, LogBus unified buffer, sensitive field desensitization |
 | **System Config** | Dynamic dictionaries, system parameters, task scheduling |
@@ -56,18 +56,26 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 
 ## 📚 Documentation Index
 
+### Project Standards
+
+| Document | Description |
+|----------|-------------|
+| [AGENTS.md](AGENTS.md) | AI collaboration standards: required workflow, development conventions, document index, commit standards |
+| [RULES.md](RULES.md) | **Red-line rules**: layered architecture, transaction management, deletion strategies, security standards, code quality |
+| [SHARED.md](SHARED.md) | Shared knowledge base: pitfalls, architecture decisions, warnings |
+
 ### Architecture Design Documents
 
 | Document | Description |
 |----------|-------------|
-| [Server Architecture & Directory Structure](docs/server-architecture.md) | Backend architecture concepts, layered design, secondary development guide |
-| [Admin-Web Architecture & Directory Structure](docs/admin-web-architecture.md) | Frontend architecture concepts, directory specifications, development standards |
+| [Server Architecture & Directory Structure](docs/server-architecture.md) | Backend architecture concepts, layered design, key standards |
+| [Admin-Web Architecture & Directory Structure](docs/admin-web-architecture.md) | Frontend architecture concepts, directory standards, development standards |
 
 ### Module Detail Documents
 
 | Document | Description |
 |----------|-------------|
-| [User Module Details](docs/server-module-user.md) | Client user system, multi-terminal login, TokenStore abstraction, account lock mechanism, login storage backend |
+| [User Module Details](docs/server-module-user.md) | Client user system, multi-terminal login, TokenStore abstraction, account lock mechanism |
 | [Message Hub Details](docs/server-module-message.md) | Unified sending entry (SMS/Email/Internal), driver extension, async tasks |
 | [Open Platform Details](docs/server-module-open-platform.md) | AppKey authentication, signature verification, configurable distributed rate limiting, Scope permissions |
 | [IP Access Control Details](docs/server-module-ipac.md) | High-performance memory matching, CIDR network, hierarchical governance |
@@ -81,25 +89,49 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 | [Log Module Details](docs/server-module-log.md) | Operation logs, error logs, LogBus unified buffer, sensitive desensitization |
 | [Data Migration Details](docs/server-module-migration.md) | Migration scripts, version control, idempotent execution |
 
-### Development Standard Documents
+### Development Standards
 
 | Document | Description |
 |----------|-------------|
+| [Secondary Development Guide](docs/development-guide.md) | Full new module walkthrough (Entity → Repository → DTO → Service → Handler → Router → Wire) |
+| [Server Architecture & Directory Structure](docs/server-architecture.md) | Backend architecture concepts, layered design, key standards |
+| [Admin-Web Architecture & Directory Structure](docs/admin-web-architecture.md) | Frontend architecture concepts, directory standards, development standards |
 | [Status Code Specification](docs/status-codes.md) | Error code encoding rules, full code table, addition process |
 | [API Management Guide](docs/api-management.md) | Frontend and backend API definitions, addition process, best practices |
 | [Quick Deployment Guide](docs/quick-deployment.md) | Environment preparation, configuration instructions, deployment steps |
 
-### Client API Documents
+### Client API Documents (client-api-ws)
 
 | Document | Description |
 |----------|-------------|
-| [Authentication & Signing Guide](docs/client-api/00-authentication.md) | Open platform signature, JWT Token, unified response format, error codes |
-| [Login/Register/Password Reset](docs/client-api/01-auth.md) | Scene verification config, captcha, login/register flow |
-| [User Profile Management](docs/client-api/02-user.md) | Profile, change password, account deletion, upload token |
-| [Content Management](docs/client-api/03-content.md) | Category tree, article list/detail/like, Banner |
-| [File Upload](docs/client-api/04-storage.md) | Upload credentials, direct upload flow, upload record callback |
-| [Internal Messages](docs/client-api/05-message.md) | Message list, detail, read status, unread count |
-| [Echo Test](docs/client-api/06-echo.md) | Connectivity test endpoint |
+| [Client API Index](docs/client-api-ws/README.md) | All client API endpoints overview |
+| [Authentication & Signing Guide](docs/client-api-ws/00-authentication.md) | Open platform signature, JWT Token, unified response format, error codes |
+| [Auth Module API](docs/client-api-ws/01-auth.md) | Captcha, scene config, verification code sending |
+| [User Module API](docs/client-api-ws/02-user.md) | Login/Register/Forgot password/Profile/Password change/Logout/Upload |
+| [Content Module API](docs/client-api-ws/03-content.md) | Article list/detail/like, Banner |
+| [Storage Module API](docs/client-api-ws/04-storage.md) | Upload credentials, direct upload flow, upload record callback |
+| [Message Module API](docs/client-api-ws/05-message.md) | Message list, detail, read status, unread count |
+| [Error Code Reference](docs/client-api-ws/06-error-codes.md) | Client-side error code full table |
+
+### Admin API Documents (admin-api-ws)
+
+| Document | Description |
+|----------|-------------|
+| [Admin API Index](docs/admin-api-ws/README.md) | All admin API endpoints overview (110+) |
+| [Authentication Guide](docs/admin-api-ws/00-authentication.md) | JWT auth flow, token format, middleware groups |
+| [Auth API](docs/admin-api-ws/01-auth.md) | Login, refresh token, user info, profile, change password, logout |
+| [Admin Management API](docs/admin-api-ws/02-admin.md) | Admin CRUD, batch delete, self-delete protection |
+| [RBAC System API](docs/admin-api-ws/03-system-rbac.md) | Role CRUD+permissions, Menu CRUD+tree, Button CRUD, API CRUD+tree |
+| [Content Management API](docs/admin-api-ws/04-content.md) | Category CRUD+tree, Article CRUD+publish/pin, Banner group/item CRUD |
+| [Dictionary Management API](docs/admin-api-ws/05-dict.md) | Dict type CRUD, dict data CRUD, public query |
+| [Storage Management API](docs/admin-api-ws/06-storage.md) | Storage config CRUD+test upload, upload records, 3-step upload |
+| [Ops Management API](docs/admin-api-ws/07-ops.md) | Operation logs, error logs, IP access control, open platform logs |
+| [Open Platform API](docs/admin-api-ws/08-open-platform.md) | App CRUD+reset secret, permission scopes, open API CRUD |
+| [Message Management API](docs/admin-api-ws/09-message.md) | Message template CRUD, send records, direct send |
+| [Task Management API](docs/admin-api-ws/10-task.md) | Task list, run/start/stop/reload, logs |
+| [System Config API](docs/admin-api-ws/12-config.md) | Config query, update, email test |
+| [Common API](docs/admin-api-ws/13-common.md) | Captcha, user routes, route check |
+| [Error Code Reference](docs/admin-api-ws/14-error-codes.md) | Full error code table (50+) |
 
 ---
 
@@ -107,7 +139,7 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 
 ### Environment Requirements
 
-- **Go** >= 1.21
+- **Go** >= 1.25
 - **Node.js** >= 18
 - **PostgreSQL** >= 14
 - **Redis** >= 6.0 (optional)
@@ -172,17 +204,16 @@ NetyAdmin/
 
 ## 🛠️ Secondary Development
 
-### Add Backend Module
+For detailed development workflow, red-line rules, and code examples, refer to the **[Secondary Development Guide](docs/development-guide.md)**.
 
-Refer to the secondary development example in [Server Architecture Design](docs/server-architecture.md):
+### Quick Overview
 
-1. Define entity (`domain/entity`)
-2. Create repository (`repository`)
-3. Create DTO (`interface/admin/dto`)
-4. Create service (`service`)
-5. Create Handler (`interface/admin/http/handler`)
-6. Register route (`interface/admin/http/router`)
-7. Wire injection (`app/wire.go`)
+| Layer | Responsibility | Red Line |
+|-------|---------------|----------|
+| **Handler** | Param binding → Call Service → Unified response | No entity import, no direct cacheMgr/repo access |
+| **Service** | Business rules + multi-repo orchestration | No `*gin.Context`, receives DTOs, use TM for multi-step ops |
+| **Repository** | CRUD + query assembly | No self-managed transactions, use `getDB(ctx)` for DB |
+| **Entity** | GORM model definition | Pure data structure, no business logic |
 
 ### Add Frontend Page
 

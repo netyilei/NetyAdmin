@@ -148,6 +148,34 @@ export namespace SystemManage {
     isSystem: boolean;
   }
 
+  /** 终端用户（C端用户） */
+  namespace ClientUser {
+    interface UserInfo {
+      id: string;
+      userName: string;
+      nickName: string;
+      avatar: string;
+      phone: string;
+      email: string;
+      gender: string;
+      status: string;
+      lastLoginAt?: string;
+    }
+
+    type ClientUserSearchParams = CommonType.RecordNullable<
+      {
+        username: string;
+        nickname: string;
+        phone: string;
+        email: string;
+        gender: string | null;
+        status: string | null;
+      } & import('@/typings/api/v1/common').Common.CommonSearchParams
+    >;
+
+    type ClientUserList = import('@/typings/api/v1/common').Common.PaginatingQueryRecord<UserInfo>;
+  }
+
   interface TaskInfo {
     name: string;
     displayName: string;

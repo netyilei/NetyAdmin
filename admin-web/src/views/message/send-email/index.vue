@@ -6,7 +6,7 @@ import { fetchUserAutocomplete } from '@/service/api/v1/system-manage';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { $t } from '@/locales';
 import type { MessageHub } from '@/typings/api/v1/message-hub';
-import type { ClientUser } from '@/typings/api/v1/client-user';
+import type { SystemManage } from '@/typings/api/v1/system-manage';
 import ToastUiEditor from '@/components/custom/toast-ui-editor.vue';
 
 defineOptions({
@@ -18,7 +18,7 @@ const { defaultRequiredRule } = useFormRules();
 
 const loading = ref(false);
 const templates = ref<MessageHub.Template[]>([]);
-const users = ref<ClientUser.UserInfo[]>([]);
+const users = ref<SystemManage.ClientUser.UserInfo[]>([]);
 const templateLoading = ref(false);
 const userLoading = ref(false);
 let userSearchTimer: ReturnType<typeof setTimeout> | null = null;

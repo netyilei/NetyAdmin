@@ -1,4 +1,3 @@
-import type { ClientUser } from '@/typings/api/v1/client-user';
 import type { SystemManage } from '@/typings/api/v1/system-manage';
 import { request } from '../../request';
 
@@ -262,8 +261,8 @@ export function fetchBatchDeleteMenu(ids: number[]) {
 }
 
 /** 获取终端用户列表 */
-export function fetchGetUserList(params?: ClientUser.ClientUserSearchParams) {
-  return request<ClientUser.ClientUserList>({
+export function fetchGetUserList(params?: SystemManage.ClientUser.ClientUserSearchParams) {
+  return request<SystemManage.ClientUser.ClientUserList>({
     url: '/admin/v1/systemManage/users',
     method: 'get',
     params
@@ -272,7 +271,7 @@ export function fetchGetUserList(params?: ClientUser.ClientUserSearchParams) {
 
 /** 用户自动补全（用于消息中心收件人等场景） */
 export function fetchUserAutocomplete(keyword: string) {
-  return request<ClientUser.UserInfo[]>({
+  return request<SystemManage.ClientUser.UserInfo[]>({
     url: '/admin/v1/systemManage/users/autocomplete',
     method: 'get',
     params: { keyword }
