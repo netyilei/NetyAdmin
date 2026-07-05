@@ -10,7 +10,7 @@
 |------|------|------|
 | GET | `/admin/v1/message/templates` | 获取消息模板列表 |
 | POST | `/admin/v1/message/templates` | 创建消息模板 |
-| PUT | `/admin/v1/message/templates` | 更新消息模板 |
+| PUT | `/admin/v1/message/templates/:id` | 更新消息模板 |
 | DELETE | `/admin/v1/message/templates/:id` | 删除消息模板 |
 
 ### 记录与发送
@@ -111,10 +111,14 @@ POST /admin/v1/message/templates
 ### 1.3 更新消息模板
 
 ```
-PUT /admin/v1/message/templates
+PUT /admin/v1/message/templates/:id
 ```
 
-请求体同创建模板，需包含模板 `id` 字段。
+| 路径参数 | 类型 | 说明 |
+|----------|------|------|
+| `id` | uint | 模板 ID |
+
+请求体同创建模板，但不包含 `code` 字段（Code 创建后不可变更）。
 
 ### 1.4 删除消息模板
 

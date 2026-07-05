@@ -178,15 +178,7 @@ func (s *messageService) UpdateTemplate(ctx context.Context, id uint64, req *msg
 		slog.Error("repo.GetTemplateByID failed", "templateID", id, "err", err)
 		return fmt.Errorf("repo.GetTemplateByID: %w", err)
 	}
-	// code 唯一性预校验（排除自身）
-	if existing.Code != req.Code {
-		conflict, err := s.repo.GetTemplateByCode(ctx, req.Code)
-		if err == nil && conflict != nil && conflict.ID != id {
-			return errorx.New(errorx.CodeAlreadyExists, "模板编码已存在")
-		}
-	}
-	// patch 旧 entity（保留 ID/CreatedAt/DeletedAt）
-	existing.Code = req.Code
+	// patch 旧 entity（保留 ID/CreatedAt/DeletedAt，Code 创建后不可变更）
 	existing.Name = req.Name
 	existing.Channel = req.Channel
 	existing.Title = req.Title

@@ -50,3 +50,11 @@ export function fetchRefreshToken(refreshToken: string) {
     }
   });
 }
+
+export function fetchLogout(refreshToken: string) {
+  return request({
+    url: '/admin/v1/auth/logout',
+    method: 'post',
+    headers: { 'X-Refresh-Token': refreshToken }
+  });
+}

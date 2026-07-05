@@ -45,7 +45,7 @@ const model = reactive(createDefaultModel());
 
 function createDefaultModel() {
   return {
-    id: undefined,
+    id: undefined as number | undefined,
     code: '',
     name: '',
     channel: 'sms',
@@ -68,7 +68,7 @@ async function handleSubmit() {
 
   await useOperation(props.operateType, loading, {
     add: () => addTemplate(model),
-    edit: () => updateTemplate(model),
+    edit: () => updateTemplate(model.id!, model),
     onSuccess: () => {
       closeModal();
       emit('submitted');
@@ -97,7 +97,11 @@ watch(visible, () => {
     <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="120">
       <NGrid :cols="24" :x-gap="18">
         <NFormItemGi :span="12" :label="$t('page.messageHub.template.code')" path="code">
-          <NInput v-model:value="model.code" :placeholder="$t('page.messageHub.template.form.codePlaceholder')" />
+          <NInput
+            v-model:value="model.code"
+            :disabled="operateType === 'edit'"
+            :placeholder="$t('page.messageHub.template.form.codePlaceholder')"
+          />
         </NFormItemGi>
         <NFormItemGi :span="12" :label="$t('page.messageHub.template.name')" path="name">
           <NInput v-model:value="model.name" :placeholder="$t('page.messageHub.template.form.namePlaceholder')" />

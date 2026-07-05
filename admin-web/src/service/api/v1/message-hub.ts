@@ -20,9 +20,9 @@ export function addTemplate(data: any) {
 }
 
 /** 修改消息模板 */
-export function updateTemplate(data: any) {
+export function updateTemplate(id: number, data: any) {
   return request({
-    url: '/admin/v1/message/templates',
+    url: `/admin/v1/message/templates/${id}`,
     method: 'put',
     data
   });

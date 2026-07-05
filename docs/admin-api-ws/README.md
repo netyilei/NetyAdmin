@@ -326,7 +326,7 @@ Authorization: Bearer <accessToken>
 |------|------|----------|------|
 | GET | `/admin/v1/message/templates` | 权限 | 获取消息模板列表 |
 | POST | `/admin/v1/message/templates` | 权限 | 创建消息模板 |
-| PUT | `/admin/v1/message/templates` | 权限 | 更新消息模板 |
+| PUT | `/admin/v1/message/templates/:id` | 权限 | 更新消息模板 |
 | DELETE | `/admin/v1/message/templates/:id` | 权限 | 删除消息模板 |
 
 ### 消息管理 - 记录与发送（09-message.md）

@@ -37,8 +37,8 @@ type CreateTemplateReq struct {
 
 // UpdateTemplateReq 更新消息模板请求
 // 注意：ID 不在 DTO 中，由 URL :id 传入
+// 注意：Code 不可变，创建后不允许修改
 type UpdateTemplateReq struct {
-	Code          string `json:"code" binding:"required,max=50"`
 	Name          string `json:"name" binding:"required,max=100"`
 	Channel       string `json:"channel" binding:"required,oneof=sms email internal push"`
 	Title         string `json:"title" binding:"max=200"`

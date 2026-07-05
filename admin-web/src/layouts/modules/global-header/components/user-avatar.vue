@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import type { VNode } from 'vue';
+import { fetchLogout } from '@/service/api/v1/auth';
 import { useAuthStore } from '@/store/modules/auth';
 import { useRouterPush } from '@/hooks/common/router';
 import { useSvgIcon } from '@/hooks/common/icon';
+import { localStg } from '@/utils/storage';
 import { $t } from '@/locales';
 import AdminProfileModal from './admin-profile-modal.vue';
 
@@ -61,8 +63,14 @@ function logout() {
     content: $t('common.logoutConfirm'),
     positiveText: $t('common.confirm'),
     negativeText: $t('common.cancel'),
-    onPositiveClick: () => {
-      authStore.resetStore();
+    onPositiveClick: async () => {
+      try {
+        await fetchLogout(localStg.get('refreshToken') || '');
+      } catch {
+        // ignore: 网络故障等异常不应卡死用户登出流程
+      } finally {
+        authStore.resetStore();
+      }
     }
   });
 }
