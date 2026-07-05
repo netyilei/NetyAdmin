@@ -449,6 +449,11 @@ func (m *lazyCacheManager) FetchFast(ctx context.Context, key string, moduleName
 				if err := m.unmarshal(raw, v); err == nil {
 					return nil
 				}
+				// 反序列化失败说明 L1 缓存数据损坏，主动删除避免后续请求重复尝试失败
+				if delErr := m.l1Cache.Delete(ctx, fullKey); delErr != nil {
+					slog.Warn("cache: delete corrupt key failed (FetchFast L1)",
+						"key", fullKey, "unmarshalErr", err, "delErr", delErr)
+				}
 			}
 		}
 	}
@@ -466,7 +471,7 @@ func (m *lazyCacheManager) FetchFast(ctx context.Context, key string, moduleName
 				}
 				return nil
 			}
-			// 反序列化失败说明缓存数据损坏，主动删除避免后续请求重复尝试失败
+			// 反序列化失败说明 L2 缓存数据损坏，主动删除避免后续请求重复尝试失败
 			if delErr := m.redisClient.Del(ctx, fullKey).Err(); delErr != nil {
 				slog.Warn("cache: delete corrupt key failed (FetchFast L2)",
 					"key", fullKey, "unmarshalErr", err, "delErr", delErr)
