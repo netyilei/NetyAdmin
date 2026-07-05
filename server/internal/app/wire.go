@@ -199,14 +199,18 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	// 7. Register PubSubBus subscribers（fail-closed：订阅失败阻断启动）
 	// ConfigSync
 	if err := safeSubscribe(eventBus, pubsub.TopicConfigSync, func(ctx context.Context, msg []byte) {
-		_ = configWatcher.ForceReload(ctx)
+		if err := configWatcher.ForceReload(ctx); err != nil {
+			slog.Error("configsync reload failed", "err", err)
+		}
 	}); err != nil {
 		return nil, err
 	}
 
 	// StorageSync
 	if err := safeSubscribe(eventBus, pubsub.TopicStorageSync, func(ctx context.Context, msg []byte) {
-		_ = services.storageConfig.LoadAllConfigs(ctx)
+		if err := services.storageConfig.LoadAllConfigs(ctx); err != nil {
+			slog.Error("storagesync reload failed", "err", err)
+		}
 	}); err != nil {
 		return nil, err
 	}
@@ -214,8 +218,12 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	// CacheInvalidation
 	if err := safeSubscribe(eventBus, pubsub.TopicCacheInvalidation, func(ctx context.Context, msg []byte) {
 		var tags []string
-		if err := json.Unmarshal(msg, &tags); err == nil {
-			_ = lazyCacheMgr.InvalidateL1ByTags(ctx, tags...)
+		if err := json.Unmarshal(msg, &tags); err != nil {
+			slog.Warn("cacheinvalidation: unmarshal tags failed",
+				"msg", string(msg), "err", err)
+		} else if err := lazyCacheMgr.InvalidateL1ByTags(ctx, tags...); err != nil {
+			slog.Error("cacheinvalidation: invalidate L1 by tags failed",
+				"tags", tags, "err", err)
 		}
 	}); err != nil {
 		return nil, err
@@ -223,7 +231,9 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 
 	// IPACReload
 	if err := safeSubscribe(eventBus, pubsub.TopicIPACReload, func(ctx context.Context, msg []byte) {
-		_ = services.ipac.ReloadCache(ctx)
+		if err := services.ipac.ReloadCache(ctx); err != nil {
+			slog.Error("ipac reload failed", "err", err)
+		}
 	}); err != nil {
 		return nil, err
 	}
@@ -232,8 +242,12 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	// 仅 L1 开启时有实际效果；当前 L1 关闭，订阅存在但 InvalidateL1ByKey 是 no-op
 	if err := safeSubscribe(eventBus, pubsub.TopicCacheDelete, func(ctx context.Context, msg []byte) {
 		var fullKey string
-		if err := json.Unmarshal(msg, &fullKey); err == nil {
-			_ = lazyCacheMgr.InvalidateL1ByKey(ctx, fullKey)
+		if err := json.Unmarshal(msg, &fullKey); err != nil {
+			slog.Warn("cachedelete: unmarshal fullKey failed",
+				"msg", string(msg), "err", err)
+		} else if err := lazyCacheMgr.InvalidateL1ByKey(ctx, fullKey); err != nil {
+			slog.Error("cachedelete: invalidate L1 by key failed",
+				"key", fullKey, "err", err)
 		}
 	}); err != nil {
 		return nil, err

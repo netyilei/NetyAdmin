@@ -510,6 +510,9 @@ func (s *userClientService) Logout(ctx context.Context, userID string, accessTok
 					slog.Error("logout: set refresh blacklist failed", "userID", userID, "err", err)
 				}
 			}
+		} else {
+			slog.Warn("logout: parse refresh token failed, skip blacklist",
+				"userID", userID, "err", err)
 		}
 	}
 	return nil
