@@ -372,6 +372,11 @@ func (m *lazyCacheManager) Fetch(ctx context.Context, key string, moduleName str
 		if err := m.unmarshal(data, v); err == nil {
 			return nil
 		}
+		// 反序列化失败说明缓存数据损坏，主动删除避免后续请求重复尝试失败
+		if delErr := m.cacheManager.Delete(ctx, fullKey); delErr != nil {
+			slog.Warn("cache: delete corrupt key failed (Fetch)",
+				"key", fullKey, "unmarshalErr", err, "delErr", delErr)
+		}
 	}
 
 	// 2. Cache Miss 或发生错误，用 singleflight 合并同一 key 上的并发回源，
@@ -380,6 +385,12 @@ func (m *lazyCacheManager) Fetch(ctx context.Context, key string, moduleName str
 	val, err, _ := m.flightGroup.Do(fullKey, func() (interface{}, error) {
 		return loader()
 	})
+	// double-check: sf.Do 等待期间可能已有其他请求将数据写入缓存
+	if data2, err2 := m.getRaw(ctx, fullKey); err2 == nil && len(data2) > 0 {
+		if err3 := m.unmarshal(data2, v); err3 == nil {
+			return nil
+		}
+	}
 	if err != nil {
 		return err
 	}
@@ -455,6 +466,11 @@ func (m *lazyCacheManager) FetchFast(ctx context.Context, key string, moduleName
 				}
 				return nil
 			}
+			// 反序列化失败说明缓存数据损坏，主动删除避免后续请求重复尝试失败
+			if delErr := m.redisClient.Del(ctx, fullKey).Err(); delErr != nil {
+				slog.Warn("cache: delete corrupt key failed (FetchFast L2)",
+					"key", fullKey, "unmarshalErr", err, "delErr", delErr)
+			}
 		}
 	}
 
@@ -464,6 +480,12 @@ func (m *lazyCacheManager) FetchFast(ctx context.Context, key string, moduleName
 	val, err, _ := m.flightGroup.Do(fullKey, func() (interface{}, error) {
 		return loader()
 	})
+	// double-check: sf.Do 等待期间可能已有其他请求将数据写入缓存（L1 或 L2）
+	if data2, err2 := m.getRaw(ctx, fullKey); err2 == nil && len(data2) > 0 {
+		if err3 := m.unmarshal(data2, v); err3 == nil {
+			return nil
+		}
+	}
 	if err != nil {
 		return err
 	}
