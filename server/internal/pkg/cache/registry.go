@@ -221,11 +221,6 @@ func TagAppKey(appKey string) string {
 	return "app:" + appKey
 }
 
-// TagAppID 应用 ID 标签
-func TagAppID(appID string) string {
-	return "app:" + appID
-}
-
 // KeyOpenApiAll 全量开放API列表缓存
 func KeyOpenApiAll() string {
 	return "open:api:all"

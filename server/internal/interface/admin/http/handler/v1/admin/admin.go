@@ -168,7 +168,7 @@ func (h *AdminHandler) Delete(c *gin.Context) {
 // @Tags         管理员管理
 // @Accept       json
 // @Produce      json
-// @Param        ids body []uint true "待删除的管理员ID列表"
+// @Param        req body system.BatchDeleteAdminReq true "批量删除参数"
 // @Success      200 {object} response.Response "批量删除成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/admins/batch [delete]
@@ -179,22 +179,20 @@ func (h *AdminHandler) DeleteBatch(c *gin.Context) {
 		return
 	}
 
-	var req struct {
-		Ids []uint `form:"ids" json:"ids" binding:"required"`
-	}
+	var req systemDto.BatchDeleteAdminReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithCode(c, errorx.CodeInvalidParams, "参数错误")
 		return
 	}
 
-	for _, id := range req.Ids {
+	for _, id := range req.IDs {
 		if id == operatorID {
 			response.FailWithCode(c, errorx.CodeBadRequest, "不能删除自己的账号")
 			return
 		}
 	}
 
-	if err := h.adminService.DeleteBatch(c.Request.Context(), req.Ids, operatorID); err != nil {
+	if err := h.adminService.DeleteBatch(c.Request.Context(), req.IDs, operatorID); err != nil {
 		response.Fail(c, err)
 		return
 	}

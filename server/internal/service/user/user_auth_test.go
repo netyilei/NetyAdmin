@@ -7,7 +7,7 @@
 //
 // Mock 策略：与 admin_auth_test.go 一致——
 //   - repo / cacheMgr / tokenStore / verifySvc / configWatcher / captchaStore 使用手写 mock
-//   - jwt 使用真实 *jwt.JWT 实例（已知 secret）
+//   - jwt 使用真实 *jwt.JWT 实例（RS256 + 测试生成的 RSA 密钥对）
 //   - password 使用真实 bcrypt（预计算 hash 加速）
 //   - tm 设为 nil（Login/Logout/RefreshToken 不使用 TM；ChangePassword 才用，不在本测试范围）
 //
@@ -18,6 +18,8 @@ package user
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"errors"
 	"fmt"
 	"sync"
@@ -311,11 +313,26 @@ var _ base64Captcha.Store = (*mockCaptchaStore)(nil)
 
 // ============== 测试夹具 ==============
 
-const testUserJWTSecret = "UserTestSecret-2025-ABC!@#def123"
+// testUserRSAPrivKey / testUserRSAPubKey 是测试用 RSA 密钥对（RS256 签名）。
+// 在 newTestUserClientService 中惰性生成一次，后续用例复用。
+var (
+	testUserRSAPrivKey *rsa.PrivateKey
+	testUserRSAPubKey  *rsa.PublicKey
+	testUserRSAOnce    sync.Once
+)
 
 func newTestUserClientService(t *testing.T) (*userClientService, *mockUserRepo, *mockUserCacheMgr, *mockUserTokenStore, *mockVerifySvc, *jwt.JWT) {
 	t.Helper()
-	j, err := jwt.New(testUserJWTSecret, 1)
+	testUserRSAOnce.Do(func() {
+		priv, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			t.Fatalf("生成测试 RSA 密钥对失败: %v", err)
+		}
+		testUserRSAPrivKey = priv
+		testUserRSAPubKey = &priv.PublicKey
+	})
+	// access TTL 1h（方便测试中 token 不易过期），refresh TTL 2h
+	j, err := jwt.New(testUserRSAPrivKey, testUserRSAPubKey, time.Hour, 2*time.Hour)
 	require.NoError(t, err)
 
 	repo := &mockUserRepo{}

@@ -55,3 +55,8 @@ type UpdateAdminReq struct {
 	Status   string   `json:"status" binding:"required,oneof=0 1"`
 	Roles    []string `json:"roles"`
 }
+
+// BatchDeleteAdminReq 批量删除管理员请求
+type BatchDeleteAdminReq struct {
+	IDs []uint `json:"ids" binding:"required,min=1"`
+}

@@ -1,47 +1,64 @@
 package jwt_test
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"testing"
+	"time"
 
 	"NetyAdmin/internal/pkg/jwt"
 
+	gwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// TestNew_SecretValidation 表驱动测试：覆盖长度、字符种类、重复模式三类强度校验
-func TestNew_SecretValidation(t *testing.T) {
+// generateTestRSAKey 在测试中生成 2048-bit RSA 密钥对，用于 RS256 签发/解析。
+// 每个用例独立生成，避免跨用例共享密钥造成干扰。
+func generateTestRSAKey(t *testing.T) (*rsa.PrivateKey, *rsa.PublicKey) {
+	t.Helper()
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err, "生成 RSA 密钥对失败")
+	return priv, &priv.PublicKey
+}
+
+// encodePublicKeyToPEM 将 RSA 公钥编码为 PKIX PEM 字节，用于模拟 alg confusion 攻击：
+// 攻击者拿到的公钥 PEM 字节会被当作 HMAC secret 来伪造 HS256 token。
+func encodePublicKeyToPEM(t *testing.T, pub *rsa.PublicKey) []byte {
+	t.Helper()
+	der, err := x509.MarshalPKIXPublicKey(pub)
+	require.NoError(t, err)
+	return pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der})
+}
+
+// TestNew_KeyAndTTLValidation 验证 New 的 fail-closed 校验：
+// nil 私钥/公钥、TTL <= 0 必须返回错误。
+func TestNew_KeyAndTTLValidation(t *testing.T) {
+	priv, pub := generateTestRSAKey(t)
+
 	tests := []struct {
-		name    string
-		secret  string
-		wantErr bool
-		errSub  string // 期望错误信息子串（空则不校验文本）
+		name       string
+		privateKey *rsa.PrivateKey
+		publicKey  *rsa.PublicKey
+		accessTTL  time.Duration
+		refreshTTL time.Duration
+		wantErr    bool
+		errSub     string
 	}{
-		// 长度门槛
-		{"too short", "Ab1!", true, "长度不足"},
-		{"min length ok", "Abcd1234Efgh5678", false, ""},
-
-		// 字符种类门槛（至少 2 类）
-		{"only lower", "aaaaaaaaaaaaaaaa", true, "重复字符或周期性短串"}, // 同时命中重复模式
-		{"only digit", "1234567890123456", true, "强度不足"},          // 仅 1 类数字
-		{"two types lower+digit", "aB1cD2eF3gH4iJ5K", false, ""}, // 高熵混合，非重复
-		{"two types upper+special", "A!B@C#D$E%F^G&H*", false, ""}, // 高熵混合
-
-		// 单一重复字符（即使满足 2 类字符也拒绝）
-		{"repeat single char 2-types", "AaAaAaAaAaAaAaAa", true, "重复字符或周期性短串"},
-		{"repeat single digit+letter", "1a1a1a1a1a1a1a1a", true, "重复字符或周期性短串"},
-
-		// 周期性短串（短周期重复，末尾可截断）
-		{"repeat Abc 16len", "AbcAbcAbcAbcAbcA", true, "重复字符或周期性短串"}, // 周期 3，长度 16
-		{"repeat A1 8times", "A1A1A1A1A1A1A1A1", true, "重复字符或周期性短串"},
-
-		// 高熵强 secret
-		{"strong random", "X7$kP9mQvR2nL5@w", false, ""},
-		{"strong sentence-like", "MyVeryStrong#Secret2026", false, ""},
+		{"nil private key", nil, pub, 30 * time.Minute, 168 * time.Hour, true, "私钥不能为空"},
+		{"nil public key", priv, nil, 30 * time.Minute, 168 * time.Hour, true, "公钥不能为空"},
+		{"zero access ttl", priv, pub, 0, 168 * time.Hour, true, "accessTokenTTL"},
+		{"negative access ttl", priv, pub, -1 * time.Minute, 168 * time.Hour, true, "accessTokenTTL"},
+		{"zero refresh ttl", priv, pub, 30 * time.Minute, 0, true, "refreshTokenTTL"},
+		{"negative refresh ttl", priv, pub, 30 * time.Minute, -1 * time.Hour, true, "refreshTokenTTL"},
+		{"valid config", priv, pub, 30 * time.Minute, 168 * time.Hour, false, ""},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			j, err := jwt.New(tt.secret, 24)
+			j, err := jwt.New(tt.privateKey, tt.publicKey, tt.accessTTL, tt.refreshTTL)
 			if tt.wantErr {
 				assert.Error(t, err)
 				if tt.errSub != "" {
@@ -56,29 +73,108 @@ func TestNew_SecretValidation(t *testing.T) {
 	}
 }
 
-// TestParseToken_AlgConfusion 验证非 HMAC 签名方法被拒绝（BUG #3 回归测试）
-func TestParseToken_AlgConfusion(t *testing.T) {
-	// 构造合法的 HMAC JWT 实例
-	j, err := jwt.New("StrongTestSecret2026Abcd", 24)
-	assert.NoError(t, err)
+// TestParseToken_RS256RoundTrip 验证 RS256 签发→解析往返流程正确。
+func TestParseToken_RS256RoundTrip(t *testing.T) {
+	priv, pub := generateTestRSAKey(t)
+	j, err := jwt.New(priv, pub, 30*time.Minute, 168*time.Hour)
+	require.NoError(t, err)
 
-	// 用 HMAC 生成的合法 token，应解析成功
+	claims := j.NewAdminClaims(1, "admin", []string{"super_admin"}, jwt.AccessToken, 1)
+	token, err := j.GenerateToken(claims)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, token)
+
+	parsed := &jwt.AdminClaims{}
+	err = j.ParseToken(token, parsed)
+	assert.NoError(t, err, "RS256 签发的 token 应能被正确解析")
+	assert.Equal(t, uint(1), parsed.UserID)
+	assert.Equal(t, "admin", parsed.Username)
+	assert.Equal(t, []string{"super_admin"}, parsed.Roles)
+	assert.Equal(t, uint64(1), parsed.TokenVersion)
+	assert.Equal(t, string(jwt.AccessToken), parsed.Subject)
+}
+
+// TestParseToken_AlgConfusion 验证 alg confusion 防御：
+// 用 HS256 算法（以公钥 PEM 字节作为 HMAC secret）签发的伪造 token 必须被拒绝。
+// 这是 RS256 迁移后最关键的防御点 —— 攻击者可能利用公开的公钥 PEM 字节
+// 作为 HMAC 密钥伪造 alg=HS256 的 token，绕过签名校验。
+func TestParseToken_AlgConfusion(t *testing.T) {
+	priv, pub := generateTestRSAKey(t)
+	j, err := jwt.New(priv, pub, 30*time.Minute, 168*time.Hour)
+	require.NoError(t, err)
+
+	// 1. 合法的 RS256 token 应解析成功
 	adminClaims := j.NewAdminClaims(1, "admin", []string{"super_admin"}, jwt.AccessToken, 1)
 	validToken, err := j.GenerateToken(adminClaims)
-	assert.NoError(t, err)
-
+	require.NoError(t, err)
 	err = j.ParseToken(validToken, &jwt.AdminClaims{})
-	assert.NoError(t, err, "HMAC 签名的 token 应能被正确解析")
+	assert.NoError(t, err, "RS256 签名的 token 应能被正确解析")
 
-	// 注：alg=none / RS256 等 confusion 攻击的具体 token 由 golang-jwt/v5 内部
-	// 在 keyfunc 返回 error 后统一归一到 ErrTokenInvalid，回归测试通过验证
-	// keyfunc 中的方法断言逻辑来覆盖防御层
+	// 2. 构造 alg=HS256 的伪造 token：用公钥的 PEM 字节作为 HMAC secret
+	//    攻击场景：公钥可公开获取，若服务端 keyFunc 不校验 alg，会把公钥字节当作 HMAC 密钥校验，
+	//    导致攻击者可伪造任意 token。
+	pubPEMBytes := encodePublicKeyToPEM(t, pub)
+	hs256Token, err := gwt.NewWithClaims(gwt.SigningMethodHS256, adminClaims).SignedString(pubPEMBytes)
+	require.NoError(t, err)
+
+	err = j.ParseToken(hs256Token, &jwt.AdminClaims{})
+	assert.Error(t, err, "HS256 签名的 token 必须被拒绝（alg confusion 防御）")
+	assert.Equal(t, jwt.ErrTokenInvalid, err)
+
+	// 3. 构造 alg=none 的伪造 token（无签名），同样应被拒绝
+	noneToken := gwt.NewWithClaims(gwt.SigningMethodNone, adminClaims)
+	noneStr, err := noneToken.SignedString(gwt.UnsafeAllowNoneSignatureType)
+	require.NoError(t, err)
+	err = j.ParseToken(noneStr, &jwt.AdminClaims{})
+	assert.Error(t, err, "alg=none 的 token 必须被拒绝")
+	assert.Equal(t, jwt.ErrTokenInvalid, err)
+}
+
+// TestTTLIndependence 验证 Access / Refresh TTL 独立配置：
+// access token 用 accessTokenTTL，refresh token 用 refreshTokenTTL，
+// 不再是简单的 *2 关系。
+func TestTTLIndependence(t *testing.T) {
+	priv, pub := generateTestRSAKey(t)
+	// 用易区分的 TTL：access = 1 分钟，refresh = 7 天
+	accessTTL := 1 * time.Minute
+	refreshTTL := 168 * time.Hour
+	j, err := jwt.New(priv, pub, accessTTL, refreshTTL)
+	require.NoError(t, err)
+
+	now := time.Now()
+	accessClaims := j.NewAdminClaims(1, "admin", []string{"admin"}, jwt.AccessToken, 1)
+	refreshClaims := j.NewAdminClaims(1, "admin", []string{"admin"}, jwt.RefreshToken, 1)
+
+	accessExp := accessClaims.ExpiresAt.Time
+	refreshExp := refreshClaims.ExpiresAt.Time
+
+	// access 过期时间应在 [now+accessTTL, now+accessTTL+600s] 范围内（含 jitter）
+	accessLower := now.Add(accessTTL)
+	accessUpper := now.Add(accessTTL + 600*time.Second)
+	assert.True(t, accessExp.After(accessLower) || accessExp.Equal(accessLower),
+		"access exp %s 应 >= %s", accessExp, accessLower)
+	assert.True(t, accessExp.Before(accessUpper) || accessExp.Equal(accessUpper),
+		"access exp %s 应 <= %s", accessExp, accessUpper)
+
+	// refresh 过期时间应在 [now+refreshTTL, now+refreshTTL+600s] 范围内
+	refreshLower := now.Add(refreshTTL)
+	refreshUpper := now.Add(refreshTTL + 600*time.Second)
+	assert.True(t, refreshExp.After(refreshLower) || refreshExp.Equal(refreshLower),
+		"refresh exp %s 应 >= %s", refreshExp, refreshLower)
+	assert.True(t, refreshExp.Before(refreshUpper) || refreshExp.Equal(refreshUpper),
+		"refresh exp %s 应 <= %s", refreshExp, refreshUpper)
+
+	// access 与 refresh 过期时间差应远大于 accessTTL（验证不是 *2 关系）
+	diff := refreshExp.Sub(accessExp)
+	assert.True(t, diff > 100*time.Hour,
+		"refresh exp 应远大于 access exp（独立 TTL，非 *2 关系），实际差值 %s", diff)
 }
 
 // TestTokenVersion_RoundTrip 验证 TokenVersion 字段在签发→解析往返中正确保留（BUG #5 回归测试）。
 func TestTokenVersion_RoundTrip(t *testing.T) {
-	j, err := jwt.New("StrongTestSecret2026Abcd", 24)
-	assert.NoError(t, err)
+	priv, pub := generateTestRSAKey(t)
+	j, err := jwt.New(priv, pub, 30*time.Minute, 168*time.Hour)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name    string
@@ -102,4 +198,23 @@ func TestTokenVersion_RoundTrip(t *testing.T) {
 			assert.Equal(t, uint(42), parsed.UserID)
 		})
 	}
+}
+
+// TestUserClaims_RoundTrip 验证 UserClaims（C 端）RS256 往返正确。
+func TestUserClaims_RoundTrip(t *testing.T) {
+	priv, pub := generateTestRSAKey(t)
+	j, err := jwt.New(priv, pub, 30*time.Minute, 168*time.Hour)
+	require.NoError(t, err)
+
+	claims := j.NewUserClaims("user-123", "web", jwt.AccessToken, 5)
+	token, err := j.GenerateToken(claims)
+	require.NoError(t, err)
+
+	parsed := &jwt.UserClaims{}
+	err = j.ParseToken(token, parsed)
+	assert.NoError(t, err)
+	assert.Equal(t, "user-123", parsed.UID)
+	assert.Equal(t, "web", parsed.Platform)
+	assert.Equal(t, uint64(5), parsed.TokenVersion)
+	assert.Equal(t, "user", parsed.Type)
 }

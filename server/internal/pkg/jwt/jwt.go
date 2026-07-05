@@ -1,9 +1,9 @@
 package jwt
 
 import (
+	"crypto/rsa"
 	"errors"
 	"fmt"
-	"regexp"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -41,104 +41,61 @@ var (
 	ErrTokenMalformed   = errors.New("令牌格式错误")
 	ErrTokenInvalid     = errors.New("令牌无效")
 	ErrTokenNotValidYet = errors.New("令牌尚未生效")
-
-	// secret 强度校验正则（包级预编译，避免每次 New 重复编译）
-	reLower   = regexp.MustCompile(`[a-z]`)
-	reUpper   = regexp.MustCompile(`[A-Z]`)
-	reDigit   = regexp.MustCompile(`[0-9]`)
-	reSpecial = regexp.MustCompile(`[^a-zA-Z0-9]`)
 )
 
-// isRepeatingPattern 检测 secret 是否为单一重复字符或周期性短串
-// 拒绝场景：
-//   - "aaaaaaaaaaaaaaaa"        (单一字符重复)
-//   - "AbcAbcAbcAbcAbcA"        (短周期 "Abc" 重复，末尾可截断)
-//   - "A1A1A1A1A1A1A1A1"        (短周期 "A1" 重复)
-//
-// 算法：枚举可能的周期长度 p ∈ [1, 8]，若 secret 由前 p 个字符重复构成
-// （最后一段允许截断）则视为弱 secret
-func isRepeatingPattern(s string) bool {
-	n := len(s)
-	if n < 4 { // 短串不在此检查（已有长度门槛）
-		return false
-	}
-	// 周期上限定为 8：周期 ≥9 的字符串熵已较高，可接受
-	maxPeriod := 8
-	if n/2 < maxPeriod {
-		maxPeriod = n / 2
-	}
-	for p := 1; p <= maxPeriod; p++ {
-		base := s[:p]
-		matched := true
-		for i := p; i < n; i++ {
-			if s[i] != base[i%p] {
-				matched = false
-				break
-			}
-		}
-		if matched {
-			return true
-		}
-	}
-	return false
-}
-
+// JWT 使用 RS256 非对称签名：私钥签发 token，公钥验证 token。
+// 私钥保留在签发端（server），公钥可下发给其他需要校验 token 的服务，
+// 即使公钥泄露也无法伪造 token（仅能验证）。
 type JWT struct {
-	secret     string
-	expiration int
+	privateKey      *rsa.PrivateKey
+	publicKey       *rsa.PublicKey
+	accessTokenTTL  time.Duration
+	refreshTokenTTL time.Duration
 }
 
-func New(secret string, expiration int) (*JWT, error) {
-	// 校验 secret 强度：长度 ≥16 + 至少 2 类字符（小写、大写、数字、特殊符号）
-	if len(secret) < 16 {
-		return nil, fmt.Errorf("JWT secret 长度不足，至少需要 16 字节，当前 %d 字节", len(secret))
+// New 构造 RS256 JWT 实例。
+//   - privateKey / publicKey 必须非空（fail-closed，避免无密钥启动后 token 签发/校验静默失败）
+//   - accessTokenTTL / refreshTokenTTL 必须 > 0
+func New(privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey, accessTokenTTL, refreshTokenTTL time.Duration) (*JWT, error) {
+	if privateKey == nil {
+		return nil, fmt.Errorf("JWT RS256 私钥不能为空（fail-closed）")
 	}
-
-	// 拒绝单一重复字符或周期性短串（如 "aaaaaaaaaaaaaaaa"、"AbcAbcAbcAbcAbc"）
-	// 这类 secret 字符熵极低，可被字典/暴力破解快速还原
-	if isRepeatingPattern(secret) {
-		return nil, fmt.Errorf("JWT secret 强度不足，禁止使用单一重复字符或周期性短串")
+	if publicKey == nil {
+		return nil, fmt.Errorf("JWT RS256 公钥不能为空（fail-closed）")
 	}
-
-	types := 0
-	if reLower.MatchString(secret) {
-		types++
+	if accessTokenTTL <= 0 {
+		return nil, fmt.Errorf("JWT accessTokenTTL 必须 > 0，当前值 %s", accessTokenTTL)
 	}
-	if reUpper.MatchString(secret) {
-		types++
-	}
-	if reDigit.MatchString(secret) {
-		types++
-	}
-	if reSpecial.MatchString(secret) {
-		types++
-	}
-	if types < 2 {
-		return nil, fmt.Errorf("JWT secret 强度不足，至少需要包含大小写字母、数字、特殊符号中的 2 类，当前 %d 类", types)
+	if refreshTokenTTL <= 0 {
+		return nil, fmt.Errorf("JWT refreshTokenTTL 必须 > 0，当前值 %s", refreshTokenTTL)
 	}
 	return &JWT{
-		secret:     secret,
-		expiration: expiration,
+		privateKey:      privateKey,
+		publicKey:       publicKey,
+		accessTokenTTL:  accessTokenTTL,
+		refreshTokenTTL: refreshTokenTTL,
 	}, nil
 }
 
 func (j *JWT) GenerateToken(claims Claims) (string, error) {
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(j.secret))
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	return token.SignedString(j.privateKey)
 }
 
-// expirationFor 返回指定 tokenType 的有效期（access = expiration 小时；refresh = 2 倍）。
+// expirationFor 返回指定 tokenType 的有效期：access = accessTokenTTL；refresh = refreshTokenTTL。
 // 同时叠加 0~600 秒随机抖动，避免大量 token 在同一时刻集中过期引发惊群。
-// 抽取此 helper 以消除 NewAdminClaims / NewUserClaims 间的重复（RULES.md §0.1）。
 func (j *JWT) expirationFor(tokenType TokenType) time.Time {
-	var hours int
-	if tokenType == AccessToken {
-		hours = j.expiration
-	} else {
-		hours = j.expiration * 2
+	ttl := j.accessTokenTTL
+	switch tokenType {
+	case AccessToken:
+		ttl = j.accessTokenTTL
+	case RefreshToken:
+		ttl = j.refreshTokenTTL
+	default:
+		ttl = j.accessTokenTTL
 	}
 	jitter := time.Duration(time.Now().UnixNano()%600) * time.Second
-	return time.Now().Add(time.Duration(hours) * time.Hour).Add(jitter)
+	return time.Now().Add(ttl).Add(jitter)
 }
 
 func (j *JWT) NewAdminClaims(userID uint, username string, roles []string, tokenType TokenType, tokenVersion uint64) *AdminClaims {
@@ -173,12 +130,14 @@ func (j *JWT) NewUserClaims(uid string, platform string, tokenType TokenType, to
 
 func (j *JWT) ParseToken(tokenString string, claims Claims) error {
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (any, error) {
-		// 校验签名方法必须为 HMAC，防止 alg confusion 攻击：
-		// 攻击者可能构造 alg=none 或 alg=RS256（用公钥作为 HMAC secret）的伪造 Token
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		// 校验签名方法必须为 RSA，防御 alg confusion 攻击：
+		// 攻击者可能构造 alg=none 或 alg=HS256（用公钥作为 HMAC secret）的伪造 token，
+		// 利用 RS256 公钥的 PEM 字节当作 HMAC 密钥来伪造签名。
+		// 仅允许 *jwt.SigningMethodRSA（含 RS256/384/512），其余一律拒绝。
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return []byte(j.secret), nil
+		return j.publicKey, nil
 	})
 
 	if err != nil {

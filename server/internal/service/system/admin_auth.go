@@ -116,14 +116,17 @@ func (s *adminService) Logout(ctx context.Context, adminID uint, accessToken, re
 	// 解析 refresh token 拿到 ExpiresAt（校验签名，仅取过期时间用于 TTL）；
 	// ParseToken 失败（无效 token）则不写黑名单——反正无效 token 也用不了
 	if refreshToken != "" {
+		// Logout 黑名单写入失败不阻断：Logout 已删除 access token hash，
+		// refresh blacklist 是纵深防御层；若 Logout 也 fail-closed 会导致用户无法退出。
+		// RefreshToken 则必须 fail-closed：避免旧 refresh token 重放刷新。
 		claims := &jwt.AdminClaims{}
 		if err := s.jwt.ParseToken(refreshToken, claims); err == nil {
 			remainingTTL := time.Until(time.Unix(claims.ExpiresAt.Unix(), 0))
 			if remainingTTL > 0 {
 				blacklistKey := cache.KeyAuthBlacklistRefreshToken(refreshToken)
 				if err := s.cacheMgr.Set(ctx, blacklistKey, "1", remainingTTL); err != nil {
-				slog.Error("logout: set refresh blacklist failed", "adminID", adminID, "err", err)
-			}
+					slog.Error("logout: set refresh blacklist failed", "adminID", adminID, "err", err)
+				}
 			}
 		}
 	}
@@ -181,11 +184,13 @@ func (s *adminService) RefreshToken(ctx context.Context, refreshToken string) (*
 	}
 
 	// 将旧的 RefreshToken 标记为作废（加入黑名单，TTL 对齐其原始过期时间，避免黑名单提前失效或长期驻留）
+	// fail-closed：黑名单写入失败必须阻断刷新，否则旧 refresh token 仍可重放刷新（P1-1 修复）。
 	blacklistKey = cache.KeyAuthBlacklistRefreshToken(refreshToken)
 	remainingTTL := time.Until(time.Unix(claims.ExpiresAt.Unix(), 0))
 	if remainingTTL > 0 {
 		if err := s.cacheMgr.Set(ctx, blacklistKey, "1", remainingTTL); err != nil {
-			slog.Error("set blacklist cache failed", "key", blacklistKey, "err", err)
+			slog.Error("blacklist refresh token failed, abort refresh to prevent replay", "err", err, "adminID", admin.ID)
+			return nil, errorx.New(errorx.CodeInternalError, "会话状态异常，请重新登录")
 		}
 	}
 

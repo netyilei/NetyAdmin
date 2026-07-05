@@ -138,7 +138,8 @@ server/
     │   ├── configsync/           # 配置热同步
     │   ├── database/             # 数据库健康检查
     │   ├── errorx/               # 错误码定义
-    │   ├── jwt/                  # JWT工具（含 TokenVersion 版本号机制）
+    │   ├── jwt/                  # JWT工具（RS256 非对称签名 + TokenVersion 版本号机制 + alg confusion 防御）
+    │   ├── mask/                 # 敏感字段脱敏（导出 SensitiveFieldKeys 单一事实源，供 operation_log 等模块引用）
     │   ├── migration/            # 数据迁移
     │   ├── password/             # 密码加密 + 强度校验（ValidateStrength）
     │   ├── ratelimit/            # 限流
@@ -691,8 +692,12 @@ NetyAdmin 遵循 [12-Factor App](https://12factor.net/) 配置原则：**配置�
 | `[redis].host` | `NETYADMIN_REDIS_HOST` | Redis 主机 |
 | `[redis].port` | `NETYADMIN_REDIS_PORT` | Redis 端口 |
 | `[redis].password` | `NETYADMIN_REDIS_PASSWORD` | Redis 密码（**敏感**） |
-| `[jwt].secret` | `NETYADMIN_JWT_SECRET` | JWT 签名密钥（**敏感**） |
+| `[jwt].private_key_pem` | `NETYADMIN_JWT_PRIVATE_KEY_PEM` | JWT RS256 私钥 PEM 内容（**敏感**，与 `private_key_file` 二选一） |
+| `[jwt].public_key_pem` | `NETYADMIN_JWT_PUBLIC_KEY_PEM` | JWT RS256 公钥 PEM 内容（与 `public_key_file` 二选一） |
+| `[jwt].access_token_ttl` | `NETYADMIN_JWT_ACCESS_TOKEN_TTL` | Access Token 有效期，默认 30m，必须 ≤ 30 分钟 |
+| `[jwt].refresh_token_ttl` | `NETYADMIN_JWT_REFRESH_TOKEN_TTL` | Refresh Token 有效期，默认 168h（7 天） |
 | `[security].aes_key` | `NETYADMIN_AES_KEY` | AES 加解密密钥（**敏感**） |
+| `[security].upload_hmac_key` | `NETYADMIN_UPLOAD_HMAC_KEY` | 存储上传 HMAC 密钥（**敏感**，原 `[jwt].secret` 复用职责独立化） |
 | `[email].password` | `NETYADMIN_EMAIL_PASSWORD` | SMTP 密码（**敏感**） |
 | `[sms].secret_id` | `NETYADMIN_SMS_SECRET_ID` | SMS SecretID（**敏感**） |
 | `[sms].secret_key` | `NETYADMIN_SMS_SECRET_KEY` | SMS SecretKey（**敏感**） |
@@ -724,8 +729,10 @@ NetyAdmin 遵循 [12-Factor App](https://12factor.net/) 配置原则：**配置�
   | 字段 | 禁止值 |
   |------|--------|
   | `[database].password` | `123456` / `<CHANGE_ME_IN_PRODUCTION>` |
-  | `[jwt].secret` | `your-secret-key-change-in-production` / `<CHANGE_ME_IN_PRODUCTION>` |
+  | `[jwt].private_key_pem` / `[jwt].private_key_file` | 空 / `<CHANGE_ME_IN_PRODUCTION>`（RS256 必须提供有效私钥） |
+  | `[jwt].public_key_pem` / `[jwt].public_key_file` | 空 / `<CHANGE_ME_IN_PRODUCTION>`（RS256 必须提供有效公钥） |
   | `[security].aes_key` | `netyadmin-aes-key-32-chars-long!` / `<CHANGE_ME_IN_PRODUCTION>` |
+  | `[security].upload_hmac_key` | 空 / `<CHANGE_ME_IN_PRODUCTION>`（storage HMAC 密钥独立化后必须显式配置） |
   | `[email].password`（仅 `email.enabled = true`） | `your-password` / `<CHANGE_ME_IN_PRODUCTION>` |
 
 ### 生产部署 Checklist
@@ -735,8 +742,10 @@ NetyAdmin 遵循 [12-Factor App](https://12factor.net/) 配置原则：**配置�
 3. 通过环境变量注入所有敏感值：
    ```bash
    export NETYADMIN_DB_PASSWORD='强密码'
-   export NETYADMIN_JWT_SECRET='随机32字节密钥'
+   export NETYADMIN_JWT_PRIVATE_KEY_PEM='-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----'
+   export NETYADMIN_JWT_PUBLIC_KEY_PEM='-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----'
    export NETYADMIN_AES_KEY='随机32字节密钥'
+   export NETYADMIN_UPLOAD_HMAC_KEY='随机32字节HMAC密钥'
    export NETYADMIN_REDIS_PASSWORD='Redis密码'
    export NETYADMIN_EMAIL_PASSWORD='SMTP密码'      # 若启用邮件
    export NETYADMIN_SMS_SECRET_ID='SMS SecretID'   # 若启用短信
@@ -815,7 +824,7 @@ export NETYADMIN_SECURITY_HEADERS_CSP="default-src 'self'; script-src 'self'; st
 
 ### 设计要点
 
-- **HSTS 仅 HTTPS 下发**：`Strict-Transport-Security` 仅在 `c.Request.TLS != nil` 时设置，避免 HTTP 降级场景下被中间人拦截后变成不可逆的 HSTS 锁定。若部署在反向代理后由代理终止 TLS，需确保代理正确转发 `X-Forwarded-Proto` 并由 Gin 信任该代理（参见 [server].trusted_proxies）。
+- **HSTS 仅 HTTPS 下发**：`Strict-Transport-Security` 在 `c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"` 时设置，避免 HTTP 降级场景下被中间人拦截后变成不可逆的 HSTS 锁定。新增 `X-Forwarded-Proto == "https"` 分支用于反向代理终止 TLS 场景（Nginx/CDN 转发 HTTP 到应用，但需下发 HSTS 给浏览器）。**信任前提**：`X-Forwarded-Proto` 可信的前提是 `[server].trusted_proxies` 已配置真实代理 CIDR（参见 [server].trusted_proxies），否则攻击者可伪造该 header 触发 HSTS 锁定攻击。直连无代理时 `trusted_proxies = []`，行为退化为仅 `TLS != nil` 时下发。
 - **CSP 可配置**：默认值允许同源脚本与样式（`'unsafe-inline'` 用于 Vue 注入的内联样式）。生产环境建议进一步收紧：移除 `'unsafe-inline'`，改用 nonce 或 hash。`csp` 为空时不设置该头，保持向后兼容性。
 - **已移除 X-XSS-Protection**：现代浏览器（Chrome 78+ / Edge / Firefox）已弃用并移除该过滤器，启用反而可能引入 XSS 攻击面（参见 [MDN](https://developer.mozilla.org/docs/Web/HTTP/Headers/X-XSS-Protection)）。防御 XSS 应使用 Content-Security-Policy。
 
@@ -1058,3 +1067,216 @@ func WrapWithTimeout(handler http.Handler, timeout time.Duration) http.Handler {
 - **超时路径**：`CodeRequestTimeout` (100011) + msg "请求超时"，HTTP 503
 
 客户端可仅凭 `code` 字段区分两种语义（限流 vs 超时），无需依赖 HTTP 状态码或 msg 文案。详见 `docs/status-codes.md` 4.1 节。
+
+---
+
+## JWT 认证（RS256 非对称签名）
+
+NetyAdmin 自 Round 4 审计起，JWT 签名算法由对称 HS256 改为非对称 RS256：私钥签发（服务端持有）+ 公钥验证（可下发至网关 / 微服务）。`pkg/jwt/jwt.go` 是 JWT 工具的唯一入口，集成 TokenVersion 版本号机制用于主动吊销。
+
+### 配置项
+
+```toml
+[jwt]
+# RS256 私钥（签发 token 用），二选一：文件路径或 PEM 内容
+private_key_file = "/etc/netyadmin/rsa_private.pem"
+# private_key_pem = "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
+
+# RS256 公钥（验证 token 用），二选一：文件路径或 PEM 内容
+public_key_file = "/etc/netyadmin/rsa_public.pem"
+# public_key_pem = "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
+
+# Access Token 有效期，必须 ≤ 30 分钟（默认 30m）
+access_token_ttl = "30m"
+
+# Refresh Token 有效期，默认 7 天（168h）
+refresh_token_ttl = "168h"
+
+# Token 签发者
+issuer = "netyadmin"
+```
+
+环境变量覆盖：
+
+```bash
+export NETYADMIN_JWT_PRIVATE_KEY_PEM='-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----'
+export NETYADMIN_JWT_PUBLIC_KEY_PEM='-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----'
+export NETYADMIN_JWT_ACCESS_TOKEN_TTL=30m
+export NETYADMIN_JWT_REFRESH_TOKEN_TTL=168h
+```
+
+### alg confusion 防御
+
+`ParseToken` 显式校验 `*jwt.SigningMethodRSA`，拒绝以下攻击：
+
+- **HS256 攻击**：攻击者用公钥作为 HMAC secret 伪造 token。`ParseToken` 不接受 `SigningMethodHMAC`，直接返回错误。
+- **none 攻击**：攻击者将 alg 改为 `none` 绕过签名校验。`ParseToken` 不接受 `SigningMethodNone`。
+
+```go
+// pkg/jwt/jwt.go
+token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
+    // 显式校验签名算法，拒绝 HS256 / none
+    if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
+        return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+    }
+    return publicKey, nil
+})
+```
+
+### Access / Refresh TTL 拆分
+
+Round 4 将单一 `expiration=168h` 拆分为 `access_token_ttl` + `refresh_token_ttl`：
+
+- **Access Token 短命**：默认 30 分钟，泄露窗口期短，配合 TokenVersion 可主动吊销。
+- **Refresh Token 长命**：默认 7 天，避免用户频繁重新登录。
+- **禁止 `*2` 模式**：原实现 RefreshToken TTL = `expiration * 2` 是隐式约定，已废弃。
+- `expirationFor(tokenType)` 按 tokenType 返回独立 TTL。
+
+### storage HMAC 密钥独立化
+
+原 `cfg.JWT.Secret` 同时承担「JWT 签名」与「storage upload HMAC」双重职责，是密钥复用 hack。RS256 迁移后 JWT 不再需要 secret，storage HMAC 密钥独立为 `[security].upload_hmac_key`：
+
+```toml
+[security]
+# 存储上传 HMAC 密钥（原 [jwt].secret 复用职责独立化）
+upload_hmac_key = "<CHANGE_ME_IN_PRODUCTION>"
+```
+
+- 启动期 `ValidateConfig` fail-closed 校验：生产模式下为空 / 占位符时 `log.Fatal` 拒绝启动。
+- 与 JWT 密钥解耦，任一泄露不影响另一功能。
+
+### 相关红线
+
+- [RULES.md §11.1](../RULES.md) JWT 签名算法
+- [RULES.md §11.2](../RULES.md) Token TTL 拆分
+- [SHARED.md §9.1](../SHARED.md) JWT HS256 → RS256 迁移
+- [SHARED.md §9.2](../SHARED.md) Access / Refresh TTL 拆分
+
+---
+
+## 可选 TLS 配置
+
+NetyAdmin 默认不启用应用层 TLS（由 Nginx / CDN 终止 TLS 是行业惯例）。Round 4 起新增可选 TLS 配置，用于单机部署无反向代理的场景。
+
+### 配置项
+
+```toml
+[tls]
+# 是否启用应用层 TLS（默认 false，由 Nginx 终止 TLS）
+enable = false
+
+# TLS 证书文件路径（enable = true 时必填）
+cert_file = "/etc/netyadmin/server.crt"
+
+# TLS 私钥文件路径（enable = true 时必填）
+key_file = "/etc/netyadmin/server.key"
+```
+
+### 启用行为
+
+`enable = true` 时，`app.go:Run` 同时启动两个监听：
+
+1. **443 HTTPS**：主服务，加载 `cert_file` / `key_file` 提供 HTTPS 服务。
+2. **80 → 443 跳转 goroutine**：监听 80 端口，所有请求返回 `301 Moved Permanently` 跳转到 HTTPS 对应路径。
+
+```go
+// internal/app/app.go
+if cfg.TLS.Enable {
+    // 主服务：443 HTTPS
+    go func() {
+        if err := srv.ListenAndServeTLS(cfg.TLS.CertFile, cfg.TLS.KeyFile); err != nil && err != http.ErrServerClosed {
+            log.Fatalf("HTTPS listen: %v", err)
+        }
+    }()
+
+    // 跳转服务：80 → 443
+    go func() {
+        redirectSrv := &http.Server{
+            Addr: ":80",
+            Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+                http.Redirect(w, r, "https://"+r.Host+r.RequestURI, http.StatusMovedPermanently)
+            }),
+        }
+        if err := redirectSrv.ListenAndServe(); err != nil {
+            log.Fatalf("HTTP redirect listen: %v", err)
+        }
+    }()
+} else {
+    // 默认：HTTP 模式（由 Nginx 终止 TLS）
+    // ...
+}
+```
+
+### 设计理由
+
+- **默认关闭**：Nginx 终止 TLS 是行业惯例，证书管理 / HTTP/2 / OCSP stapling 在 Nginx 层更成熟。
+- **职责分离**：应用层关注业务，TLS 终止由网关 / 反向代理负责。
+- **本地开发友好**：默认关闭，开发者无需生成自签证书即可启动。
+- **小规模部署可选开启**：单机部署无 Nginx 时，开启 `tls.enable = true` + 提供证书文件即可。
+
+### 与 HSTS 的关系
+
+启用 `tls.enable = true` 时，`c.Request.TLS != nil` 为真，HSTS 自动下发（参见 [安全响应头](#安全响应头security-headers)）。
+
+若由 Nginx 终止 TLS（`tls.enable = false`），需配合 `X-Forwarded-Proto` 头让应用感知 HTTPS：
+
+- Nginx 配置：`proxy_set_header X-Forwarded-Proto $scheme;`
+- 应用配置：`[server].trusted_proxies = ["127.0.0.1"]`（信任 Nginx 转发）
+- 此时 HSTS 下发条件 `c.GetHeader("X-Forwarded-Proto") == "https"` 满足。
+
+---
+
+## 敏感字段脱敏（pkg/mask）
+
+NetyAdmin 通过 `pkg/mask` 包集中维护敏感字段列表，供操作日志、审计日志、Sentry 脱敏等场景统一引用，避免硬编码字段列表导致的不一致。
+
+### 设计原则
+
+- **单一事实源**：所有敏感字段在 `pkg/mask/fields.go` 一个文件维护，新增字段只需改此文件。
+- **全小写 + 大小写不敏感匹配**：兼容 JSON tag 大小写差异（如 `appSecret` vs `app_secret`）。
+- **可复用**：未来其他模块（如审计日志、Sentry 脱敏）可引用同一列表。
+- **禁止硬编码字段列表**：禁止在中间件 / service / handler 本地维护一份 `[]string{"password", ...}` 切片。
+
+### API
+
+```go
+// pkg/mask/fields.go
+
+// SensitiveFieldKeys 导出敏感字段列表（全小写），供 operation_log 等模块引用。
+// 新增敏感字段只需在此切片追加，无需修改调用方。
+var SensitiveFieldKeys = []string{
+    "password",
+    "oldpassword",
+    "newpassword",
+    "appsecret",
+    "app_key",
+    "secret",
+    "token",
+    "access_token",
+    "refresh_token",
+    "api_key",
+    "private_key",
+    "client_secret",
+    "session",
+    "credential",
+}
+
+// IsSensitive 判断字段名是否敏感（大小写不敏感）。
+func IsSensitive(field string) bool
+```
+
+### 使用示例
+
+```go
+// internal/middleware/operation_log.go
+import "internal/pkg/mask"
+
+func shouldMask(field string) bool {
+    return mask.IsSensitive(field)  // 大小写不敏感匹配
+}
+```
+
+### 相关红线
+
+- [RULES.md §11.4](../RULES.md) 敏感字段脱敏集中化
+- [SHARED.md §9.6](../SHARED.md) 敏感字段集中脱敏包 pkg/mask

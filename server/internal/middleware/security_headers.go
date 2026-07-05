@@ -43,8 +43,12 @@ func SecurityHeaders(csp string) gin.HandlerFunc {
 		c.Header("X-Frame-Options", "DENY")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
 
-		// HSTS：仅 HTTPS 时下发，避免 HTTP 降级场景下被不可逆锁定
-		if c.Request.TLS != nil {
+		// HSTS 仅在 HTTPS 场景下发：
+		// - c.Request.TLS != nil：直接 TLS 监听（cfg.TLS.Enable=true）
+		// - X-Forwarded-Proto == https：Nginx/反向代理终止 TLS 时透传
+		// 注意：X-Forwarded-Proto 可信前提是 cfg.Server.TrustedProxies 配置了真实代理 CIDR，
+		// 否则攻击者可伪造该头绕过判断。TrustedProxies 默认为空（fail-closed）。
+		if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
 			c.Header("Strict-Transport-Security", hstsHeaderValue)
 		}
 

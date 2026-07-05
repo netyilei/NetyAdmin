@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	logEntity "NetyAdmin/internal/domain/entity/log"
+	"NetyAdmin/internal/pkg/mask"
 	logService "NetyAdmin/internal/service/log"
 )
 
@@ -51,8 +52,13 @@ func OperationLogger(logBus logService.LogBusService) gin.HandlerFunc {
 
 		var requestBody []byte
 		if c.Request.Body != nil {
-			requestBody, _ = io.ReadAll(c.Request.Body)
-			c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
+			readBody, err := io.ReadAll(c.Request.Body)
+			if err != nil {
+				slog.Warn("operation_log: read request body failed", "error", err, "path", c.Request.URL.Path)
+			} else {
+				requestBody = readBody
+				c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
+			}
 		}
 
 		writer := &responseWriter{
@@ -69,7 +75,11 @@ func OperationLogger(logBus logService.LogBusService) gin.HandlerFunc {
 		var userIDUint uint = 0
 		adminID, exists := c.Get("adminID")
 		if exists {
-			userIDUint, _ = adminID.(uint)
+			ok := false
+			userIDUint, ok = adminID.(uint)
+			if !ok {
+				slog.Warn("operation_log: adminID type assertion failed", "type", fmt.Sprintf("%T", adminID))
+			}
 		}
 
 		action := getActionFromMethod(method)
@@ -82,19 +92,27 @@ func OperationLogger(logBus logService.LogBusService) gin.HandlerFunc {
 
 		var usernameStr string
 		if username, exists := c.Get("username"); exists {
-			usernameStr, _ = username.(string)
+			ok := false
+			usernameStr, ok = username.(string)
+			if !ok {
+				slog.Warn("operation_log: username type assertion failed", "type", fmt.Sprintf("%T", username))
+			}
 		}
 
 		var detail string
 		if len(requestBody) > 0 {
 			var jsonBody map[string]interface{}
 			if err := json.Unmarshal(requestBody, &jsonBody); err == nil {
-				delete(jsonBody, "password")
-				delete(jsonBody, "oldPassword")
-				delete(jsonBody, "newPassword")
-				delete(jsonBody, "confirmPassword")
-				delete(jsonBody, "secretKey")
-				delete(jsonBody, "accessKeySecret")
+				// 构建小写敏感字段 set（大小写不敏感匹配，保留原 JSON key 大小写兼容）
+				sensitiveSet := make(map[string]struct{}, len(mask.SensitiveFieldKeys))
+				for _, k := range mask.SensitiveFieldKeys {
+					sensitiveSet[k] = struct{}{}
+				}
+				for k := range jsonBody {
+					if _, ok := sensitiveSet[strings.ToLower(k)]; ok {
+						delete(jsonBody, k)
+					}
+				}
 				if sanitized, err := json.Marshal(jsonBody); err == nil {
 					detail = string(sanitized)
 				}

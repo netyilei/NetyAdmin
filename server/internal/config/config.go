@@ -14,6 +14,7 @@ import (
 
 type Config struct {
 	Server          ServerConfig          `toml:"server"`
+	TLS             TLSConfig             `toml:"tls"`
 	Database        DatabaseConfig        `toml:"database"`
 	Redis           RedisConfig           `toml:"redis"`
 	JWT             JWTConfig             `toml:"jwt"`
@@ -31,6 +32,41 @@ type Config struct {
 	LoginRateLimit  LoginRateLimitConfig  `toml:"login_ratelimit"`
 }
 
+// Duration 是 time.Duration 的包装类型，实现 encoding.TextUnmarshaler 接口，
+// 使 go-toml/v2 能将 TOML 字符串（如 "30m"/"168h"/"25s"）解析为 time.Duration。
+//
+// 背景：go-toml/v2 原生不支持 time.Duration——它是 int64 的命名类型别名，
+// 不实现 TextUnmarshaler，直接 toml.Unmarshal 会报错：
+// "cannot decode TOML string into struct field of type time.Duration"。
+// 通过包装类型 + UnmarshalText 让 TOML 字符串走 time.ParseDuration 解析路径。
+//
+// 业务代码使用时需调用 .Duration() 方法转回 time.Duration（用于 jwt.New / http.Server 等）。
+type Duration time.Duration
+
+// UnmarshalText 实现 encoding.TextUnmarshaler，支持 "30m"/"168h"/"25s" 等 time.ParseDuration 格式。
+func (d *Duration) UnmarshalText(text []byte) error {
+	parsed, err := time.ParseDuration(string(text))
+	if err != nil {
+		return fmt.Errorf("invalid duration %q: %w", string(text), err)
+	}
+	*d = Duration(parsed)
+	return nil
+}
+
+// Duration 返回底层 time.Duration 值，供业务代码使用。
+func (d Duration) Duration() time.Duration {
+	return time.Duration(d)
+}
+
+// TLSConfig HTTPS 配置。
+// 默认关闭：默认部署架构由前端 Nginx 终止 TLS，后端只听 HTTP。
+// 若后端直接对外暴露（无 Nginx/CDN），应启用 HTTPS 并配置 cert_file / key_file。
+type TLSConfig struct {
+	Enable   bool   `toml:"enable"`
+	CertFile string `toml:"cert_file"`
+	KeyFile  string `toml:"key_file"`
+}
+
 // CORSConfig 跨域资源共享配置。
 // AllowedOrigins 为允许的来源白名单（精确匹配，不支持通配符）。
 // 空列表 = 拒绝所有跨域请求（fail-closed），生产环境必须显式配置可信来源。
@@ -45,13 +81,14 @@ type SecurityHeadersConfig struct {
 }
 
 // LoginRateLimitConfig 登录端点 IP 维度限流配置。
-// 仅作用于 admin /auth/login + /auth/refreshToken 与 client /user/login + /user/refresh-token 路由，
+// 仅作用于 admin /auth/login + /auth/refresh-token 与 client /user/login + /user/refresh-token 路由，
 // 不影响其他接口。算法为 Redis ZSET 滑动窗口（ZADD + ZREMRANGEBYSCORE + ZCARD）。
 // Redis 未配置（cache disabled）时限流器降级为 no-op（fail-open），不阻断登录关键路径。
 type LoginRateLimitConfig struct {
 	// Window 滑动窗口时长（如 "1m" / "5m"）。零值 = 默认 1m。
 	// 环境变量：NETYADMIN_LOGIN_RATELIMIT_WINDOW
-	Window time.Duration `toml:"window" env:"NETYADMIN_LOGIN_RATELIMIT_WINDOW"`
+	// 类型为 Duration（实现 encoding.TextUnmarshaler），使 go-toml/v2 能解析 "1m" 等字符串。
+	Window Duration `toml:"window" env:"NETYADMIN_LOGIN_RATELIMIT_WINDOW"`
 	// Max 窗口内单个 IP 允许的最大登录尝试次数。零值 = 默认 10。
 	// 环境变量：NETYADMIN_LOGIN_RATELIMIT_MAX
 	Max int `toml:"max" env:"NETYADMIN_LOGIN_RATELIMIT_MAX"`
@@ -92,7 +129,8 @@ type SmsConfig struct {
 }
 
 type SecurityConfig struct {
-	AESKey string `toml:"aes_key" env:"NETYADMIN_AES_KEY"` // 系统加解密 Key (16, 24 或 32 字节)
+	AESKey        string `toml:"aes_key" env:"NETYADMIN_AES_KEY"` // 系统加解密 Key (16, 24 或 32 字节)
+	UploadHMACKey string `toml:"upload_hmac_key" env:"NETYADMIN_UPLOAD_HMAC_KEY"`
 }
 
 type TaskConfig struct {
@@ -123,10 +161,12 @@ type ServerConfig struct {
 	// 应略小于 ReadTimeout/WriteTimeout，确保超时时由中间件返回 503 + JSON 错误体，
 	// 而非连接层超时断开（客户端会收到空响应 / 连接重置）。
 	// 零值 = 默认 25s（在 app.go 中兜底）。
-	HandlerTimeout time.Duration `toml:"handler_timeout" env:"NETYADMIN_SERVER_HANDLER_TIMEOUT"`
+	// 类型为 Duration（实现 encoding.TextUnmarshaler），使 go-toml/v2 能解析 "25s" 等字符串。
+	HandlerTimeout Duration `toml:"handler_timeout" env:"NETYADMIN_SERVER_HANDLER_TIMEOUT"`
 	// ShutdownTimeout 是优雅关闭时 srv.Shutdown 等待在途请求的最大时长。
 	// 零值 = 默认 30s（在 app.go 中兜底）。
-	ShutdownTimeout time.Duration `toml:"shutdown_timeout" env:"NETYADMIN_SERVER_SHUTDOWN_TIMEOUT"`
+	// 类型为 Duration（实现 encoding.TextUnmarshaler），使 go-toml/v2 能解析 "30s" 等字符串。
+	ShutdownTimeout Duration `toml:"shutdown_timeout" env:"NETYADMIN_SERVER_SHUTDOWN_TIMEOUT"`
 	MultiNode       bool          `toml:"multi_node"` // 多机部署设为 true：会校验事件总线是否为 redis 模式
 	// TrustedProxies 可信代理 IP 或 IPv4 CIDR 列表（如 ["127.0.0.1", "10.0.0.0/8"]）。
 	// 空数组（默认）= 不信任任何代理：c.ClientIP() 直接回退到 RemoteAddr，忽略 X-Forwarded-For / X-Real-IP 头，
@@ -192,9 +232,18 @@ type PubSubConfig struct {
 	QueueSize int `toml:"queue_size" env:"NETYADMIN_PUBSUB_QUEUE_SIZE"` // dispatch 队列容量，零值 = 默认 1024
 }
 
+// JWTConfig RS256 非对称签名 + Access/Refresh TTL 独立配置。
+//   - 私钥/公钥均支持 file path 或内联 PEM 两种加载方式，file path 优先。
+//   - 生产模式 fail-closed：私钥/公钥必须配置（file 或 PEM 至少一项），否则启动失败。
+//   - AccessTokenTTL 短时（默认 30m），RefreshTokenTTL 长时（默认 168h = 7 天）。
+//   - TTL 字段类型为 Duration（实现 encoding.TextUnmarshaler），使 go-toml/v2 能解析 "30m" 等字符串。
 type JWTConfig struct {
-	Secret     string `toml:"secret" env:"NETYADMIN_JWT_SECRET"`
-	Expiration int    `toml:"expiration"`
+	PrivateKeyFile  string   `toml:"private_key_file"`
+	PrivateKeyPEM   string   `toml:"private_key_pem"`
+	PublicKeyFile   string   `toml:"public_key_file"`
+	PublicKeyPEM    string   `toml:"public_key_pem"`
+	AccessTokenTTL  Duration `toml:"access_token_ttl"`
+	RefreshTokenTTL Duration `toml:"refresh_token_ttl"`
 }
 
 type LogConfig struct {
@@ -262,15 +311,17 @@ func walkFields(v reflect.Value) error {
 	return nil
 }
 
-// setFieldFromString 将环境变量字符串写入 reflect.Value，支持 string / int / bool / time.Duration。
+// setFieldFromString 将环境变量字符串写入 reflect.Value，支持 string / int / bool / time.Duration / Duration。
 // 不支持的类型返回错误，避免静默忽略覆盖。
 func setFieldFromString(fv reflect.Value, val string) error {
 	if !fv.CanSet() {
 		return fmt.Errorf("字段不可设置")
 	}
-	// time.Duration 是基于 int64 的命名类型，需用 time.ParseDuration 解析（如 "30s" / "5m"），
+	// time.Duration 与本项目 Duration 包装类型都是基于 int64 的命名类型，
+	// 需用 time.ParseDuration 解析（如 "30s" / "5m"），
 	// 否则会被当作裸 int64 纳秒处理，env 体验极差。
-	if fv.Type() == reflect.TypeOf(time.Duration(0)) {
+	// Duration 与 time.Duration 底层均为 int64，统一用 SetInt 写入即可。
+	if fv.Type() == reflect.TypeOf(time.Duration(0)) || fv.Type() == reflect.TypeOf(Duration(0)) {
 		d, err := time.ParseDuration(val)
 		if err != nil {
 			return err
@@ -330,13 +381,17 @@ func splitCSV(val string) []string {
 // 应在 main.go 中 config.Load 之后、InitDB 之前调用。
 //
 // 校验项：
-//   - [database].password 不得为 "123456" / "<CHANGE_ME_IN_PRODUCTION>"
-//   - [jwt].secret        不得为 "your-secret-key-change-in-production" / "<CHANGE_ME_IN_PRODUCTION>"
-//   - [security].aes_key  不得为 "netyadmin-aes-key-32-chars-long!" / "<CHANGE_ME_IN_PRODUCTION>"
-//   - [email].password    （仅 Email.Enabled）不得为 "your-password" / "<CHANGE_ME_IN_PRODUCTION>"
-//   - [sms].secret_id     （仅 Sms.Enabled）不得为空 / "<CHANGE_ME_IN_PRODUCTION>"
-//   - [sms].secret_key    （仅 Sms.Enabled）不得为空 / "<CHANGE_ME_IN_PRODUCTION>"
-//   - [redis].password    （仅 Redis.Enabled）不得为空 / "<CHANGE_ME_IN_PRODUCTION>"
+//   - [database].password         不得为 "123456" / "<CHANGE_ME_IN_PRODUCTION>"
+//   - [jwt].private_key_*         私钥必须配置（file 或 PEM 至少一项）
+//   - [jwt].public_key_*          公钥必须配置（file 或 PEM 至少一项）
+//   - [jwt].access_token_ttl      必须 > 0
+//   - [jwt].refresh_token_ttl     必须 > 0
+//   - [security].aes_key          不得为 "netyadmin-aes-key-32-chars-long!" / "<CHANGE_ME_IN_PRODUCTION>"
+//   - [security].upload_hmac_key  不得为空 / "<CHANGE_ME_IN_PRODUCTION>"（替换原 [jwt].secret 复用）
+//   - [email].password            （仅 Email.Enabled）不得为 "your-password" / "<CHANGE_ME_IN_PRODUCTION>"
+//   - [sms].secret_id             （仅 Sms.Enabled）不得为空 / "<CHANGE_ME_IN_PRODUCTION>"
+//   - [sms].secret_key            （仅 Sms.Enabled）不得为空 / "<CHANGE_ME_IN_PRODUCTION>"
+//   - [redis].password            （仅 Redis.Enabled）不得为空 / "<CHANGE_ME_IN_PRODUCTION>"
 func ValidateConfig(cfg *Config) {
 	if cfg == nil {
 		log.Fatal("配置校验失败: cfg 为 nil")
@@ -350,13 +405,13 @@ func ValidateConfig(cfg *Config) {
 		"123456":                    {},
 		"<CHANGE_ME_IN_PRODUCTION>": {},
 	}
-	forbiddenJWT := map[string]struct{}{
-		"your-secret-key-change-in-production": {},
-		"<CHANGE_ME_IN_PRODUCTION>":            {},
-	}
 	forbiddenAES := map[string]struct{}{
 		"netyadmin-aes-key-32-chars-long!": {},
 		"<CHANGE_ME_IN_PRODUCTION>":        {},
+	}
+	forbiddenUploadHMAC := map[string]struct{}{
+		"":                          {},
+		"<CHANGE_ME_IN_PRODUCTION>": {},
 	}
 	forbiddenEmailPwd := map[string]struct{}{
 		"your-password":             {},
@@ -380,11 +435,24 @@ func ValidateConfig(cfg *Config) {
 	if _, bad := forbiddenDBPwd[cfg.Database.Password]; bad {
 		log.Fatalf("配置校验失败: [database].password 在生产模式下不得为默认值或占位符，请通过环境变量 NETYADMIN_DB_PASSWORD 设置真实密码")
 	}
-	if _, bad := forbiddenJWT[cfg.JWT.Secret]; bad {
-		log.Fatalf("配置校验失败: [jwt].secret 在生产模式下不得为默认值或占位符，请通过环境变量 NETYADMIN_JWT_SECRET 设置真实密钥")
+	// JWT RS256 私钥/公钥 fail-closed：file 和 PEM 均为空则拒绝启动
+	if cfg.JWT.PrivateKeyFile == "" && cfg.JWT.PrivateKeyPEM == "" {
+		log.Fatalf("配置校验失败: [jwt].private_key_file 或 [jwt].private_key_pem 必须配置 RS256 私钥（生产模式 fail-closed）")
+	}
+	if cfg.JWT.PublicKeyFile == "" && cfg.JWT.PublicKeyPEM == "" {
+		log.Fatalf("配置校验失败: [jwt].public_key_file 或 [jwt].public_key_pem 必须配置 RS256 公钥（生产模式 fail-closed）")
+	}
+	if cfg.JWT.AccessTokenTTL <= 0 {
+		log.Fatalf("配置校验失败: [jwt].access_token_ttl 必须 > 0，当前值 %s", cfg.JWT.AccessTokenTTL.Duration())
+	}
+	if cfg.JWT.RefreshTokenTTL <= 0 {
+		log.Fatalf("配置校验失败: [jwt].refresh_token_ttl 必须 > 0，当前值 %s", cfg.JWT.RefreshTokenTTL.Duration())
 	}
 	if _, bad := forbiddenAES[cfg.Security.AESKey]; bad {
 		log.Fatalf("配置校验失败: [security].aes_key 在生产模式下不得为默认值或占位符，请通过环境变量 NETYADMIN_AES_KEY 设置真实密钥")
+	}
+	if _, bad := forbiddenUploadHMAC[cfg.Security.UploadHMACKey]; bad {
+		log.Fatalf("配置校验失败: [security].upload_hmac_key 在生产模式下不得为空或占位符，请通过环境变量 NETYADMIN_UPLOAD_HMAC_KEY 设置真实密钥")
 	}
 	if cfg.Email.Enabled {
 		if _, bad := forbiddenEmailPwd[cfg.Email.Password]; bad {

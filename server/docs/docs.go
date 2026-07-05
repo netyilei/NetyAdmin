@@ -288,7 +288,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "/admin/v1/auth/changePassword": {
+        "/admin/v1/auth/change-password": {
             "post": {
                 "security": [
                     {
@@ -327,7 +327,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "/admin/v1/auth/getUserInfo": {
+        "/admin/v1/auth/user-info": {
             "get": {
                 "security": [
                     {
@@ -482,7 +482,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "/admin/v1/auth/refreshToken": {
+        "/admin/v1/auth/refresh-token": {
             "post": {
                 "description": "使用刷新令牌换取新的访问令牌与刷新令牌",
                 "consumes": [

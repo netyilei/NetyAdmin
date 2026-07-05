@@ -7,11 +7,11 @@
 | 方法 | 路径 | 认证级别 | 说明 |
 |------|------|----------|------|
 | POST | `/admin/v1/auth/login` | 公开 | 管理员登录 |
-| POST | `/admin/v1/auth/refreshToken` | 公开 | 刷新令牌 |
-| GET | `/admin/v1/auth/getUserInfo` | 认证 | 获取当前登录用户信息 |
+| POST | `/admin/v1/auth/refresh-token` | 公开 | 刷新令牌 |
+| GET | `/admin/v1/auth/user-info` | 认证 | 获取当前登录用户信息 |
 | GET | `/admin/v1/auth/profile` | 认证 | 获取个人资料 |
 | PUT | `/admin/v1/auth/profile` | 认证 | 更新个人资料 |
-| POST | `/admin/v1/auth/changePassword` | 认证 | 修改密码 |
+| POST | `/admin/v1/auth/change-password` | 认证 | 修改密码 |
 | POST | `/admin/v1/auth/logout` | 认证 | 退出登录 |
 
 ---
@@ -69,8 +69,8 @@ POST /admin/v1/auth/login
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `token` | string | 访问令牌（AccessToken），有效期 168 小时 |
-| `refreshToken` | string | 刷新令牌（RefreshToken），有效期 336 小时 |
+| `token` | string | 访问令牌（AccessToken），有效期 30 分钟（按 `[jwt].access_token_ttl` 配置） |
+| `refreshToken` | string | 刷新令牌（RefreshToken），有效期 168 小时/7 天（按 `[jwt].refresh_token_ttl` 配置） |
 
 ### 安全机制
 
@@ -100,7 +100,7 @@ POST /admin/v1/auth/login
 使用刷新令牌换取新的访问令牌与刷新令牌。
 
 ```
-POST /admin/v1/auth/refreshToken
+POST /admin/v1/auth/refresh-token
 ```
 
 ### 认证级别
@@ -150,7 +150,7 @@ POST /admin/v1/auth/refreshToken
 获取当前登录管理员的用户 ID、用户名、角色及按钮权限信息。
 
 ```
-GET /admin/v1/auth/getUserInfo
+GET /admin/v1/auth/user-info
 ```
 
 ### 认证级别
@@ -160,7 +160,7 @@ GET /admin/v1/auth/getUserInfo
 ### 请求示例
 
 ```
-GET /admin/v1/auth/getUserInfo
+GET /admin/v1/auth/user-info
 Authorization: Bearer <token>
 ```
 
@@ -301,7 +301,7 @@ PUT /admin/v1/auth/profile
 当前登录管理员通过旧密码修改登录密码。
 
 ```
-POST /admin/v1/auth/changePassword
+POST /admin/v1/auth/change-password
 ```
 
 ### 认证级别

@@ -1653,7 +1653,7 @@ paths:
       summary: 批量删除管理员
       tags:
       - 管理员管理
-  /admin/v1/auth/changePassword:
+  /admin/v1/auth/change-password:
     post:
       consumes:
       - application/json
@@ -1677,7 +1677,7 @@ paths:
       summary: 修改密码
       tags:
       - 认证管理
-  /admin/v1/auth/getUserInfo:
+  /admin/v1/auth/user-info:
     get:
       consumes:
       - application/json
@@ -1773,7 +1773,7 @@ paths:
       summary: 更新个人资料
       tags:
       - 认证管理
-  /admin/v1/auth/refreshToken:
+  /admin/v1/auth/refresh-token:
     post:
       consumes:
       - application/json

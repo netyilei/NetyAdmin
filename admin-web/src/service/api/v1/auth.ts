@@ -18,7 +18,7 @@ export function fetchGetCaptcha() {
 }
 
 export function fetchGetUserInfo() {
-  return request<Auth.UserInfo>({ url: '/admin/v1/auth/getUserInfo' });
+  return request<Auth.UserInfo>({ url: '/admin/v1/auth/user-info' });
 }
 
 export function fetchGetProfile() {
@@ -35,7 +35,7 @@ export function fetchUpdateProfile(data: Auth.UpdateProfileParams) {
 
 export function fetchChangePassword(data: Auth.ChangePasswordParams) {
   return request({
-    url: '/admin/v1/auth/changePassword',
+    url: '/admin/v1/auth/change-password',
     method: 'post',
     data
   });
@@ -43,7 +43,7 @@ export function fetchChangePassword(data: Auth.ChangePasswordParams) {
 
 export function fetchRefreshToken(refreshToken: string) {
   return request<Auth.LoginToken>({
-    url: '/admin/v1/auth/refreshToken',
+    url: '/admin/v1/auth/refresh-token',
     method: 'post',
     data: {
       refreshToken

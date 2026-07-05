@@ -3,7 +3,7 @@
 // login_ratelimit.go 实现 login 端点 IP 维度限流中间件（fix-fundamental-design-flaws Task 3）。
 //
 // 与全局中间件的关系：
-//   - 本中间件不通过 engine.Use 全局注册，仅在 admin /auth/login + /auth/refreshToken
+//   - 本中间件不通过 engine.Use 全局注册，仅在 admin /auth/login + /auth/refresh-token
 //     与 client /user/login + /user/refresh-token 路由上单独应用。
 //   - 由 router/v1/auth.go (admin) 与 router/v1/user_router.go (client) 在路由注册时挂载。
 //

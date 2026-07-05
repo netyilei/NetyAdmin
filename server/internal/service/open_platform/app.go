@@ -126,7 +126,7 @@ func (s *appService) VerifyAppScope(ctx context.Context, appID string, requiredS
 
 	var scopes []string
 	key := cache.KeyAppScopes(appID)
-	err := s.cacheMgr.FetchFast(ctx, key, cache.TagApp, []string{cache.TagApp, cache.TagAppID(appID)}, 0, &scopes, func() (interface{}, error) {
+	err := s.cacheMgr.FetchFast(ctx, key, cache.TagApp, []string{cache.TagApp, cache.TagAppKey(appID)}, 0, &scopes, func() (interface{}, error) {
 		return s.repo.GetAppScopes(ctx, appID)
 	})
 
@@ -277,8 +277,7 @@ func (s *appService) UpdateApp(ctx context.Context, req *openDto.UpdateAppReq) e
 	}
 
 	// 事务后失效缓存 + ipac reload。
-	// AppKey 未变更（创建后不可变更），且 AppKey == ID（CreateApp 中 app.AppKey = app.ID），
-	// 故 TagAppKey(old.AppKey) 与 TagAppID(old.ID) 生成的 tag 字符串相同，只需失效一次。
+	// AppKey 未变更（创建后不可变更），使用 TagAppKey 失效应用相关缓存即可。
 	tag := cache.TagAppKey(old.AppKey)
 	if err := s.cacheMgr.InvalidateByTags(ctx, tag); err != nil {
 		slog.Error("invalidate cache failed", "tag", tag, "err", err)
@@ -372,8 +371,8 @@ func (s *appService) DeleteApp(ctx context.Context, id string) error {
 	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagAppKey(app.AppKey)); err != nil {
 		slog.Error("invalidate cache failed", "tag", cache.TagAppKey(app.AppKey), "err", err)
 	}
-	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagAppID(id)); err != nil {
-		slog.Error("invalidate cache failed", "tag", cache.TagAppID(id), "err", err)
+	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagAppKey(id)); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagAppKey(id), "err", err)
 	}
 
 	// DB 已删，NotifyAndReload 失败仅记录日志，不阻断返回（最终一致性可接受）

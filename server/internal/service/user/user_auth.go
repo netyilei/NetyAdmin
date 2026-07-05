@@ -323,6 +323,18 @@ func (s *userClientService) RefreshToken(ctx context.Context, refreshToken strin
 		return nil, errorx.New(errorx.CodeInternalError, "刷新令牌失败")
 	}
 
+	// fail-closed：黑名单写入失败必须阻断刷新，否则旧 refresh token 仍可重放刷新（P1-1 修复）。
+	// 顺序：先 Set 黑名单（fail-closed），后 DeleteAndReplaceSession 写新 token，
+	// 与 admin_auth.go 保持一致——避免 Redis 抖动导致 Set 失败时新 token 已写入 tokenStore
+	// （孤儿数据）而旧 refresh token 未进黑名单仍可重放。
+	remainingTTL := time.Until(time.Unix(claims.ExpiresAt.Unix(), 0))
+	if remainingTTL > 0 {
+		if err := s.cacheMgr.Set(ctx, blacklistKey, "1", remainingTTL); err != nil {
+			slog.Error("blacklist refresh token failed, abort refresh to prevent replay", "err", err, "userID", user.ID)
+			return nil, errorx.New(errorx.CodeInternalError, "会话状态异常，请重新登录")
+		}
+	}
+
 	// 刷新令牌：仅删除当前会话的旧 refresh hash，再写入新 access + refresh hash 对。
 	// 不调用 DeleteAll——多设备登录场景下，刷新一个 token 不应踢掉该用户其他设备的合法会话（P1-A 修复）。
 	// 旧 access hash 不删：当前入参仅含旧 refresh token，无法定位旧 access hash；
@@ -331,13 +343,6 @@ func (s *userClientService) RefreshToken(ctx context.Context, refreshToken strin
 	if err := authPkg.DeleteAndReplaceSession(ctx, s.tokenStore, user.ID, refreshToken, token, newRefreshToken,
 		time.Unix(newClaims.ExpiresAt.Unix(), 0), time.Unix(newRefreshClaims.ExpiresAt.Unix(), 0)); err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "令牌存储失败")
-	}
-
-	remainingTTL := time.Until(time.Unix(claims.ExpiresAt.Unix(), 0))
-	if remainingTTL > 0 {
-		if err := s.cacheMgr.Set(ctx, blacklistKey, "1", remainingTTL); err != nil {
-			slog.Error("set blacklist cache failed", "key", blacklistKey, "err", err)
-		}
 	}
 
 	return &userVO.UserLoginVO{
@@ -493,6 +498,9 @@ func (s *userClientService) Logout(ctx context.Context, userID string, accessTok
 	// 解析 refresh token 拿到 ExpiresAt（校验签名，仅取过期时间用于 TTL）；
 	// ParseToken 失败（无效 token）则不写黑名单——反正无效 token 也用不了
 	if refreshToken != "" {
+		// Logout 黑名单写入失败不阻断：Logout 已删除 access token hash，
+		// refresh blacklist 是纵深防御层；若 Logout 也 fail-closed 会导致用户无法退出。
+		// RefreshToken 则必须 fail-closed：避免旧 refresh token 重放刷新。
 		claims := &jwt.UserClaims{}
 		if err := s.jwt.ParseToken(refreshToken, claims); err == nil {
 			remainingTTL := time.Until(time.Unix(claims.ExpiresAt.Unix(), 0))

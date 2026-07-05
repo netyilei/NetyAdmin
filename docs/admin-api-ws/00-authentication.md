@@ -29,7 +29,7 @@ NetyAdmin 管理后台 API 采用基于 **JWT (JSON Web Token)** 的认证机制
    Authorization: Bearer <accessToken>
 
 4. Token 过期后刷新
-   POST /admin/v1/auth/refreshToken
+   POST /admin/v1/auth/refresh-token
    -> 返回新的 accessToken + refreshToken
 
 5. 退出登录
@@ -52,10 +52,10 @@ NetyAdmin 管理后台 API 采用基于 **JWT (JSON Web Token)** 的认证机制
                                                    │
                                           Token 过期│
                                                    ▼
-                                          ┌──────────────────┐
-                                          │ 刷新令牌          │
-                                          │ POST /refreshToken│
-                                          └──────────────────┘
+                                          ┌───────────────────┐
+                                          │ 刷新令牌           │
+                                          │ POST /refresh-token│
+                                          └───────────────────┘
 ```
 
 ---
@@ -113,8 +113,8 @@ JWT Token 使用 **HS256** 算法签名，由三部分组成（以 `.` 分隔）
 
 | Token 类型 | 过期时间 | 说明 |
 |------------|----------|------|
-| AccessToken | **168 小时**（7 天） | 用于访问受保护接口，`sub` 为 `access` |
-| RefreshToken | **336 小时**（14 天） | 用于刷新 AccessToken，`sub` 为 `refresh` |
+| AccessToken | **30 分钟**（按 `[jwt].access_token_ttl` 配置） | 用于访问受保护接口，`sub` 为 `access` |
+| RefreshToken | **168 小时**（7 天，按 `[jwt].refresh_token_ttl` 配置） | 用于刷新 AccessToken，`sub` 为 `refresh` |
 
 > 注意：Token 实际过期时间会附加最多 600 秒的随机抖动（jitter），以防止 Token 雪崩。
 
@@ -125,7 +125,7 @@ JWT Token 使用 **HS256** 算法签名，由三部分组成（以 `.` 分隔）
 当 AccessToken 过期时，客户端可使用 RefreshToken 换取新的令牌对：
 
 ```
-POST /admin/v1/auth/refreshToken
+POST /admin/v1/auth/refresh-token
 Content-Type: application/json
 
 {
@@ -149,7 +149,7 @@ Content-Type: application/json
 
 ```
 POST   /admin/v1/auth/login
-POST   /admin/v1/auth/refreshToken
+POST   /admin/v1/auth/refresh-token
 GET    /admin/v1/common/captcha
 GET    /admin/v1/system/configs
 GET    /admin/v1/system/dict/data/:code
@@ -162,10 +162,10 @@ GET    /admin/v1/system/dict/data/:code
 - **适用场景**：获取个人信息、修改密码、退出登录、获取上传凭证、获取用户路由
 
 ```
-GET    /admin/v1/auth/getUserInfo
+GET    /admin/v1/auth/user-info
 GET    /admin/v1/auth/profile
 PUT    /admin/v1/auth/profile
-POST   /admin/v1/auth/changePassword
+POST   /admin/v1/auth/change-password
 POST   /admin/v1/auth/logout
 POST   /admin/v1/storage/upload-credentials
 POST   /admin/v1/storage/upload-record

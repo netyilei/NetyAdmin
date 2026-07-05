@@ -44,14 +44,14 @@ server/internal/interface/admin/http/router/v1/
 public := router.Group("/admin/v1")
 {
     public.POST("/auth/login", authHandler.Login)
-    public.POST("/auth/refreshToken", authHandler.RefreshToken)
+    public.POST("/auth/refresh-token", authHandler.RefreshToken)
 }
 
 // 2. JWT 接口（需登录，不走 RBAC）
 auth := router.Group("/admin/v1")
 auth.Use(middleware.JWT())
 {
-    auth.GET("/auth/getUserInfo", authHandler.GetUserInfo)
+    auth.GET("/auth/user-info", authHandler.GetUserInfo)
     auth.GET("/route/getUserRoutes", routeHandler.GetUserRoutes)
 }
 
@@ -458,11 +458,11 @@ onMounted(loadOrders)
 | Method | Path | 说明 | 权限 |
 |--------|------|------|------|
 | POST | /admin/v1/auth/login | 登录 | 公开 |
-| POST | /admin/v1/auth/refreshToken | 刷新Token | 公开 |
-| GET | /admin/v1/auth/getUserInfo | 获取用户信息 | JWT |
+| POST | /admin/v1/auth/refresh-token | 刷新Token | 公开 |
+| GET | /admin/v1/auth/user-info | 获取用户信息 | JWT |
 | GET | /admin/v1/auth/profile | 获取个人资料 | JWT |
 | PUT | /admin/v1/auth/profile | 更新个人资料 | JWT |
-| POST | /admin/v1/auth/changePassword | 修改密码 | JWT |
+| POST | /admin/v1/auth/change-password | 修改密码 | JWT |
 
 ### 4.2 路由模块
 

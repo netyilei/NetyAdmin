@@ -96,7 +96,8 @@ func (a *App) Run() error {
 	// 请求处理超时：用 http.TimeoutHandler 包装 engine，
 	// 超时返回 503 + JSON 错误体（详见 middleware.WrapWithTimeout）。
 	// 零值兜底为 defaultHandlerTimeout（25s），应略小于 readTimeout/writeTimeout。
-	handlerTimeout := a.cfg.Server.HandlerTimeout
+	// cfg.Server.HandlerTimeout 类型为 config.Duration，调用 .Duration() 转 time.Duration。
+	handlerTimeout := a.cfg.Server.HandlerTimeout.Duration()
 	if handlerTimeout <= 0 {
 		handlerTimeout = defaultHandlerTimeout
 	}
@@ -120,12 +121,45 @@ func (a *App) Run() error {
 		a.dbHealthChecker.Start()
 	}
 
+	// TLS 配置（可选）：
+	// - 默认关闭（cfg.TLS.Enable=false），由前端 Nginx 终止 TLS，本服务只跑 HTTP
+	// - 启用时启动 443 HTTPS + 80 HTTP→HTTPS 跳转 goroutine
+	// - 运维在无 Nginx 场景启用；有 Nginx 时由 Nginx 终止 TLS
+	var redirectSrv *http.Server
+	if a.cfg.TLS.Enable {
+		// 80 端口 HTTP→HTTPS 跳转：301 Moved Permanently，重写 Host + URI 为 https
+		redirectSrv = &http.Server{
+			Addr: ":80",
+			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				u := *r.URL
+				u.Scheme = "https"
+				u.Host = r.Host
+				http.Redirect(w, r, u.String(), http.StatusMovedPermanently)
+			}),
+		}
+		go func() {
+			slog.Info("HTTP→HTTPS 跳转服务启动", "addr", redirectSrv.Addr)
+			if err := redirectSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				slog.Error("HTTP→HTTPS 跳转服务启动失败", "error", err)
+				os.Exit(1)
+			}
+		}()
+	}
+
 	// 2. Start Web Server
 	go func() {
-		slog.Info("服务器启动", "addr", addr)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("启动服务器失败", "error", err)
-			os.Exit(1)
+		if a.cfg.TLS.Enable {
+			slog.Info("服务器启动（TLS）", "addr", addr)
+			if err := srv.ListenAndServeTLS(a.cfg.TLS.CertFile, a.cfg.TLS.KeyFile); err != nil && err != http.ErrServerClosed {
+				slog.Error("启动 TLS 服务器失败", "error", err)
+				os.Exit(1)
+			}
+		} else {
+			slog.Info("服务器启动", "addr", addr)
+			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				slog.Error("启动服务器失败", "error", err)
+				os.Exit(1)
+			}
 		}
 	}()
 
@@ -144,7 +178,8 @@ func (a *App) Run() error {
 	}
 
 	// 优雅关闭超时：从配置读取，零值兜底为 30s。
-	shutdownTimeout := a.cfg.Server.ShutdownTimeout
+	// cfg.Server.ShutdownTimeout 类型为 config.Duration，调用 .Duration() 转 time.Duration。
+	shutdownTimeout := a.cfg.Server.ShutdownTimeout.Duration()
 	if shutdownTimeout <= 0 {
 		shutdownTimeout = defaultShutdownTimeout
 	}
@@ -153,6 +188,13 @@ func (a *App) Run() error {
 
 	if err := srv.Shutdown(ctx); err != nil {
 		return fmt.Errorf("服务器强制关闭: %v", err)
+	}
+
+	// 关闭 HTTP→HTTPS 跳转服务（若启用 TLS）
+	if redirectSrv != nil {
+		if err := redirectSrv.Shutdown(ctx); err != nil {
+			slog.Warn("关闭 HTTP→HTTPS 跳转服务失败", "error", err)
+		}
 	}
 
 	// Stop DB health checker

@@ -83,7 +83,7 @@ func (r *Router) Register(engine *gin.Engine) {
 	// Timeout / Logger / OperationLogger）已在 wire.go 中通过 engine.Use 注册。
 	//
 	// IPACAuth 不再全局注册：原 engine.Use(middleware.IPACAuth(...)) 会应用到所有路由，
-	// 包括 /admin/v1/auth/login、/auth/refreshToken、/common/captcha 等公开路由。
+	// 包括 /admin/v1/auth/login、/auth/refresh-token、/common/captcha 等公开路由。
 	// 当 ipacSvc.CheckIP 出错（fail-closed）时返回 CodeIPBlocked，会导致所有人都无法登录修复问题
 	// ——系统自锁风险违反"基座程序可用性"原则。
 	// 现改为在 authGroup / permissionGroup 路由组上注册，公开路由豁免 IPAC 检查。

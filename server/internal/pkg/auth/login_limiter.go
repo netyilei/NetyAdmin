@@ -1,7 +1,7 @@
 // Package auth 提供登录端点 IP 维度限流器（与 pkg/ratelimit 令牌桶相互独立）。
 //
 // 设计目标（fix-fundamental-design-flaws Task 3）：
-//   - 仅作用于 admin /auth/login + /auth/refreshToken 与 client /user/login + /user/refresh-token
+//   - 仅作用于 admin /auth/login + /auth/refresh-token 与 client /user/login + /user/refresh-token
 //     登录相关路由，不影响其他接口（不全局注册中间件）。
 //   - 算法：Redis ZSET 滑动窗口（ZADD + ZREMRANGEBYSCORE + ZCARD）。
 //     相比固定窗口，滑动窗口可更平滑地限制突发流量，避免窗口边界处的双倍流量问题。

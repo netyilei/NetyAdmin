@@ -199,7 +199,7 @@ func (s *openApiService) GetApisByScopeIDs(ctx context.Context, scopeIDs []uint6
 func (s *openApiService) GetAppAllowedApis(ctx context.Context, appID string) ([]string, error) {
 	var apiKeys []string
 	key := cache.KeyAppApis(appID)
-	err := s.cacheMgr.FetchFast(ctx, key, cache.TagApp, []string{cache.TagApp, cache.TagAppID(appID)}, 0, &apiKeys, func() (interface{}, error) {
+	err := s.cacheMgr.FetchFast(ctx, key, cache.TagApp, []string{cache.TagApp, cache.TagAppKey(appID)}, 0, &apiKeys, func() (interface{}, error) {
 		scopes, err := s.appRepo.GetAppScopes(ctx, appID)
 		if err != nil {
 			return nil, err

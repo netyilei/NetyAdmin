@@ -45,8 +45,22 @@ local_max_entry_kb = 500 # 单条缓存记录最大大小 (KB)
 local_ttl_min = 10       # 本地缓存默认过期时间 (分钟)
 
 [jwt]
-secret = "<CHANGE_ME_IN_PRODUCTION>"
-expiration = 168
+  # RS256 私钥（签发 token）。优先用 private_key_file 加载文件；若 private_key_file 为空则用 private_key_pem 内联 PEM。
+  # 生产环境必须配置，启动时会校验非空。
+  private_key_file = ""
+  private_key_pem = ""
+  # RS256 公钥（验证 token）。优先用 public_key_file；若空则用 public_key_pem。
+  public_key_file = ""
+  public_key_pem = ""
+  # Access Token TTL（短时，默认 30 分钟）。Refresh Token TTL（长时，默认 168 小时 = 7 天）。
+  access_token_ttl = "30m"
+  refresh_token_ttl = "168h"
+
+[tls]
+  # 是否启用 HTTPS（监听 443 + 80→443 跳转）。默认关闭，由前端 Nginx 终止 TLS 时无需开启。
+  enable = false
+  cert_file = ""
+  key_file = ""
 
 [migration]
 enabled = true
@@ -70,6 +84,10 @@ spec = "0 0 2 * * *" # 每天凌晨2点
 
 [security]
 aes_key = "netyadmin-aes-key-32-chars-long!" # 32字节对应 AES-256
+# 上传凭证 HMAC 签名密钥（用于 storage upload record 防伪造验签）。
+# 生产环境必须配置为高熵随机值，不得为默认值或占位符。
+# 环境变量覆盖：NETYADMIN_UPLOAD_HMAC_KEY
+upload_hmac_key = "<CHANGE_ME_IN_PRODUCTION>"
 
 [email]
 enabled = false
@@ -142,7 +160,7 @@ allowed_origins = ["http://localhost:5173"]
 csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
 
 [login_ratelimit]
-# 登录端点 IP 维度限流（仅作用于 admin /auth/login + /auth/refreshToken
+# 登录端点 IP 维度限流（仅作用于 admin /auth/login + /auth/refresh-token
 # 与 client /user/login + /user/refresh-token 路由，不影响其他接口）。
 # 算法：Redis ZSET 滑动窗口（ZADD + ZREMRANGEBYSCORE + ZCARD）。
 # Redis 未配置（cache disabled）时限流器降级为 no-op（fail-open），不阻断登录关键路径。

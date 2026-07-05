@@ -30,6 +30,9 @@ func (a *Admin) IsEnabled() bool {
 	return a.Status == entity.StatusEnabled
 }
 
+// IsSuperAdmin 判断当前管理员是否为超级管理员。
+// 设计说明：通过 RoleCode == SuperRoleCode 判断，不依赖 admin_role_id == 1 的硬编码 ID。
+// 这与 RBAC 中 Role.Code 不可变的设计保持一致，避免因 ID 重置或迁移导致误判。
 func (a *Admin) IsSuperAdmin() bool {
 	for _, role := range a.Roles {
 		if role.Code == SuperRoleCode {

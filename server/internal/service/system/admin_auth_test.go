@@ -7,7 +7,7 @@
 //
 // Mock 策略：
 //   - adminRepo / cacheMgr / tokenStore 使用手写 mock 结构体（项目无 testify/mock 依赖）
-//   - jwt 使用真实 *jwt.JWT 实例（已知 secret），更贴近真实行为且无需打桩 ParseToken / GenerateToken
+//   - jwt 使用真实 *jwt.JWT 实例（RS256 + 测试生成的 RSA 密钥对），更贴近真实行为且无需打桩 ParseToken / GenerateToken
 //   - password 使用真实 bcrypt（预计算 hash 加速）
 //
 // 注意：本测试只验证 Service 编排逻辑，不验证 token 内容的密码学正确性。
@@ -15,6 +15,8 @@ package system
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"errors"
 	"fmt"
 	"sync"
@@ -234,13 +236,27 @@ var _ systemRepo.AdminRepository = (*mockAdminRepo)(nil)
 
 // ============== 测试夹具与共享 helpers ==============
 
-// testAdminJWTSecret 是测试用 JWT secret（满足长度 ≥16 + 2 类字符的强度要求）
-const testAdminJWTSecret = "TestSecret-ForJWT-2025-ABC!@#def"
+// testAdminRSAPrivKey / testAdminRSAPubKey 是测试用 RSA 密钥对（RS256 签名）。
+// 在 newTestAdminService 中惰性生成一次，后续用例复用，避免每个用例重复生成 2048-bit 密钥。
+var (
+	testAdminRSAPrivKey *rsa.PrivateKey
+	testAdminRSAPubKey  *rsa.PublicKey
+	testAdminRSAOnce    sync.Once
+)
 
 // newTestAdminService 构造一个 adminService + 配套 mocks，每个用例独立。
 func newTestAdminService(t *testing.T) (*adminService, *mockAdminRepo, *mockCacheMgr, *mockTokenStore, *jwt.JWT) {
 	t.Helper()
-	j, err := jwt.New(testAdminJWTSecret, 1) // 1 小时过期
+	testAdminRSAOnce.Do(func() {
+		priv, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			t.Fatalf("生成测试 RSA 密钥对失败: %v", err)
+		}
+		testAdminRSAPrivKey = priv
+		testAdminRSAPubKey = &priv.PublicKey
+	})
+	// access TTL 1h（方便测试中 token 不易过期），refresh TTL 2h
+	j, err := jwt.New(testAdminRSAPrivKey, testAdminRSAPubKey, time.Hour, 2*time.Hour)
 	require.NoError(t, err)
 
 	repo := &mockAdminRepo{}

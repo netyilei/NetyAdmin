@@ -231,7 +231,11 @@ func (s *menuService) GetByID(ctx context.Context, id uint) (*systemVO.MenuVO, e
 }
 
 func (s *menuService) Create(ctx context.Context, req *systemDto.CreateMenuReq, operatorID uint) (uint, error) {
-	queryJson, _ := json.Marshal(req.Query)
+	queryJson, err := json.Marshal(req.Query)
+	if err != nil {
+		slog.Warn("menu: marshal query failed", "error", err)
+		// 不阻断，queryJson 为 nil，存空字符串
+	}
 
 	menu := &systemEntity.Menu{
 		ParentID:        req.ParentID,
@@ -300,7 +304,11 @@ func (s *menuService) Update(ctx context.Context, req *systemDto.UpdateMenuReq, 
 		return fmt.Errorf("menuRepo.GetByID: %w", err)
 	}
 
-	queryJson, _ := json.Marshal(req.Query)
+	queryJson, err := json.Marshal(req.Query)
+	if err != nil {
+		slog.Warn("menu: marshal query failed", "error", err)
+		// 不阻断，queryJson 为 nil，存空字符串
+	}
 
 	menu.ParentID = req.ParentID
 	menu.Type = req.Type

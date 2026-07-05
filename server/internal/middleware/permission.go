@@ -17,7 +17,7 @@ type AuthVerifier interface {
 
 var whiteListPaths = []string{
 	"/admin/v1/auth/login",
-	"/admin/v1/auth/refreshToken",
+	"/admin/v1/auth/refresh-token",
 }
 
 func isWhiteListPath(path string) bool {
@@ -39,14 +39,11 @@ func PermissionAuth(authVerifier AuthVerifier) gin.HandlerFunc {
 			return
 		}
 
-		adminID, exists := c.Get("adminID")
-		if !exists {
+		if _, exists := c.Get("adminID"); !exists {
 			response.FailWithCode(c, errorx.CodeUnauthorized, "未授权，请先登录")
 			c.Abort()
 			return
 		}
-
-		_ = adminID
 
 		roles, _ := c.Get("roles")
 		roleCodes, ok := roles.([]string)

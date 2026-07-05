@@ -71,11 +71,11 @@ Authorization: Bearer <accessToken>
 | 方法 | 路径 | 认证级别 | 说明 |
 |------|------|----------|------|
 | POST | `/admin/v1/auth/login` | 公开 | 管理员登录 |
-| POST | `/admin/v1/auth/refreshToken` | 公开 | 刷新令牌 |
-| GET | `/admin/v1/auth/getUserInfo` | 认证 | 获取当前登录用户信息 |
+| POST | `/admin/v1/auth/refresh-token` | 公开 | 刷新令牌 |
+| GET | `/admin/v1/auth/user-info` | 认证 | 获取当前登录用户信息 |
 | GET | `/admin/v1/auth/profile` | 认证 | 获取个人资料 |
 | PUT | `/admin/v1/auth/profile` | 认证 | 更新个人资料 |
-| POST | `/admin/v1/auth/changePassword` | 认证 | 修改密码 |
+| POST | `/admin/v1/auth/change-password` | 认证 | 修改密码 |
 | POST | `/admin/v1/auth/logout` | 认证 | 退出登录 |
 
 ### 管理员管理（02-admin.md）

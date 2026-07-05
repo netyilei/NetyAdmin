@@ -82,7 +82,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 // @Produce      json
 // @Param        req body system.RefreshTokenReq true "刷新令牌请求"
 // @Success      200 {object} response.Response "刷新成功"
-// @Router       /admin/v1/auth/refreshToken [post]
+// @Router       /admin/v1/auth/refresh-token [post]
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var req systemDto.RefreshTokenReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -106,7 +106,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 // @Produce      json
 // @Success      200 {object} response.Response "用户信息"
 // @Security    ApiKeyAuth
-// @Router       /admin/v1/auth/getUserInfo [get]
+// @Router       /admin/v1/auth/user-info [get]
 func (h *AuthHandler) GetUserInfo(c *gin.Context) {
 	adminID := c.GetUint("adminID")
 	if adminID == 0 {
@@ -185,7 +185,7 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 // @Param        req body system.ChangePasswordReq true "修改密码请求"
 // @Success      200 {object} response.Response "修改成功"
 // @Security    ApiKeyAuth
-// @Router       /admin/v1/auth/changePassword [post]
+// @Router       /admin/v1/auth/change-password [post]
 func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	adminID := c.GetUint("adminID")
 	if adminID == 0 {
