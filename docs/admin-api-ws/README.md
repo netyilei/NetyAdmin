@@ -16,7 +16,7 @@ NetyAdmin 管理后台 API 完整文档。基础路径为 `/admin/v1`，采用 J
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `code` | string | 业务状态码，`100000` 表示成功 |
-| `msg` | string | 提示信息，成功时为空 |
+| `msg` | string | 提示信息，始终为空字符串；前端应基于 `code` 映射用户可见文本 |
 | `data` | any | 响应数据 |
 | `request_id` | string | 请求唯一标识（UUID） |
 
@@ -28,8 +28,8 @@ NetyAdmin 管理后台 API 完整文档。基础路径为 `/admin/v1`，采用 J
 Authorization: Bearer <accessToken>
 ```
 
-- AccessToken 有效期：168 小时（7 天）
-- RefreshToken 有效期：336 小时（14 天）
+- AccessToken 有效期：30 分钟（按 `[jwt].access_token_ttl` 配置）
+- RefreshToken 有效期：168 小时（7 天，按 `[jwt].refresh_token_ttl` 配置）
 
 详见 [认证指南](00-authentication.md)。
 
@@ -374,6 +374,6 @@ Authorization: Bearer <accessToken>
 | 文档文件 | 14 篇 |
 | API 端点 | 110+ 个 |
 | 公开接口 | 5 个 |
-| 认证接口 | 7 个 |
-| 权限接口 | 98+ 个 |
+| 认证接口 | 9 个 |
+| 权限接口 | 130+ 个 |
 | 错误码 | 50+ 个 |

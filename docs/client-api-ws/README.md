@@ -23,6 +23,7 @@
 | [03-content.md](./03-content.md) | 内容模块 API — 文章列表/详情/点赞、Banner 组获取/点击 |
 | [04-storage.md](./04-storage.md) | 存储模块 API — 获取上传凭证、记录上传结果（客户端直传模式） |
 | [05-message.md](./05-message.md) | 消息模块 API — 站内消息列表/详情/已读/全部已读/未读数 |
+| [06-echo.md](./06-echo.md) | 示例接口 — 回显测试，用于验证开放平台签名是否正确配置 |
 | [06-error-codes.md](./06-error-codes.md) | 错误码参考表 — 全部客户端相关错误码及说明 |
 
 ---
@@ -93,6 +94,12 @@ NetyAdmin 客户端 API 采用**双层认证**：
 | PUT | `/client/v1/message/internal/read-all` | 签名 + JWT | 全部标记已读 |
 | GET | `/client/v1/message/internal/unread-count` | 签名 + JWT | 未读消息数量 |
 
+### 示例接口（[06-echo.md](./06-echo.md)）
+
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| POST | `/client/v1/echo` | 签名 | 回显测试 |
+
 ---
 
 ## 统一响应格式
@@ -120,4 +127,5 @@ NetyAdmin 客户端 API 采用**双层认证**：
 | 内容 | 5 | 0 |
 | 存储 | 2 | 0 |
 | 消息 | 5 | 5 |
-| **合计** | **26** | **12** |
+| 示例 | 1 | 0 |
+| **合计** | **27** | **12** |

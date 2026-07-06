@@ -72,7 +72,7 @@ Authorization: Bearer <accessToken>
 
 ### Token 结构
 
-JWT Token 使用 **HS256** 算法签名，由三部分组成（以 `.` 分隔）：
+JWT Token 默认使用 **RS256**（RSA 非对称签名）算法签名（可通过 `[jwt].algorithm` 配置切换为 HS256），由三部分组成（以 `.` 分隔）：
 
 ```
 <Header>.<Payload>.<Signature>
@@ -81,7 +81,7 @@ JWT Token 使用 **HS256** 算法签名，由三部分组成（以 `.` 分隔）
 **Header:**
 ```json
 {
-  "alg": "HS256",
+  "alg": "RS256",
   "typ": "JWT"
 }
 ```
@@ -260,7 +260,7 @@ POST   /admin/v1/systemManage/addRole
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `code` | string | 业务状态码，`100000` 表示成功，其他为错误码 |
-| `msg` | string | 提示信息，成功时为空，失败时为错误描述 |
+| `msg` | string | 提示信息，始终为空字符串；前端应基于 `code` 映射用户可见文本 |
 | `data` | any | 响应数据，成功时返回具体数据，失败时省略 |
 | `request_id` | string | 请求唯一标识（UUID），用于链路追踪 |
 
