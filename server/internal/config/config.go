@@ -126,6 +126,7 @@ type SmsConfig struct {
 	SecretKey string `toml:"secret_key" env:"NETYADMIN_SMS_SECRET_KEY"`
 	AppID     string `toml:"app_id"`
 	SignName  string `toml:"sign_name"`
+	Region    string `toml:"region" env:"NETYADMIN_SMS_REGION"`
 }
 
 type SecurityConfig struct {
@@ -391,6 +392,9 @@ func splitCSV(val string) []string {
 //   - [email].password            （仅 Email.Enabled）不得为 "your-password" / "<CHANGE_ME_IN_PRODUCTION>"
 //   - [sms].secret_id             （仅 Sms.Enabled）不得为空 / "<CHANGE_ME_IN_PRODUCTION>"
 //   - [sms].secret_key            （仅 Sms.Enabled）不得为空 / "<CHANGE_ME_IN_PRODUCTION>"
+//   - [sms].region                （仅 Sms.Enabled）不得为空（腾讯云接入地域，如 ap-guangzhou）
+//   - [sms].app_id                （仅 Sms.Enabled）不得为空（腾讯云 SmsSdkAppId）
+//   - [sms].sign_name             （仅 Sms.Enabled）不得为空（短信签名）
 //   - [redis].password            （仅 Redis.Enabled）不得为空 / "<CHANGE_ME_IN_PRODUCTION>"
 func ValidateConfig(cfg *Config) {
 	if cfg == nil {
@@ -465,6 +469,17 @@ func ValidateConfig(cfg *Config) {
 		}
 		if _, bad := forbiddenSmsSecretKey[cfg.Sms.SecretKey]; bad {
 			log.Fatalf("配置校验失败: [sms].secret_key 在生产模式下不得为空或占位符，请通过环境变量 NETYADMIN_SMS_SECRET_KEY 设置真实密钥")
+		}
+		// 腾讯云 SendSms 必传项：region / app_id / sign_name。
+		// 缺失时启动期 fail-closed，避免「启动成功但首次发短信才报错」。
+		if cfg.Sms.Region == "" {
+			log.Fatalf("配置校验失败: [sms].region 不得为空（腾讯云接入地域，如 ap-guangzhou），请通过环境变量 NETYADMIN_SMS_REGION 设置")
+		}
+		if cfg.Sms.AppID == "" {
+			log.Fatalf("配置校验失败: [sms].app_id 不得为空（腾讯云短信 SmsSdkAppId，控制台 → 短信 → 应用管理）")
+		}
+		if cfg.Sms.SignName == "" {
+			log.Fatalf("配置校验失败: [sms].sign_name 不得为空（短信签名，需在腾讯云控制台审核通过）")
 		}
 	}
 	if cfg.Redis.Enabled {

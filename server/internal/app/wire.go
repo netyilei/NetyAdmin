@@ -238,21 +238,6 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		return nil, err
 	}
 
-	// CacheDelete: 跨节点删 L1（payload 为 buildKey 后的完整 key）
-	// 仅 L1 开启时有实际效果；当前 L1 关闭，订阅存在但 InvalidateL1ByKey 是 no-op
-	if err := safeSubscribe(eventBus, pubsub.TopicCacheDelete, func(ctx context.Context, msg []byte) {
-		var fullKey string
-		if err := json.Unmarshal(msg, &fullKey); err != nil {
-			slog.Warn("cachedelete: unmarshal fullKey failed",
-				"msg", string(msg), "err", err)
-		} else if err := lazyCacheMgr.InvalidateL1ByKey(ctx, fullKey); err != nil {
-			slog.Error("cachedelete: invalidate L1 by key failed",
-				"key", fullKey, "err", err)
-		}
-	}); err != nil {
-		return nil, err
-	}
-
 	// 8. Router
 	router := router.NewRouter(
 		handlers.auth,
@@ -529,22 +514,42 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 		return logBus.Record(ctx, logRecord)
 	}, tm)
 
-	// Message Drivers（提前创建：sysConfig.TestEmail 依赖 emailDriver）
+	// Message Drivers：仅在对应 [email]/[sms].enabled = true 时注入 driver。
+	// 未启用的 channel 不在 drivers map 中，发送该 channel 的消息会在 job 层返回
+	// "no driver found for channel: xxx"（message_job.go 的既有失败路径）。
 	configProvider := msgPkg.NewWatcherConfigProvider(configWatcher)
 	drivers := make(map[string]msgPkg.Driver)
-	drivers["email"] = msgPkg.NewEmailDriver(msgPkg.EmailConfig{
-		Host:           cfg.Email.Host,
-		Port:           cfg.Email.Port,
-		User:           cfg.Email.User,
-		Password:       cfg.Email.Password,
-		From:           cfg.Email.From,
-		SSL:            cfg.Email.SSL,
-		StartTLS:       cfg.Email.StartTLS,
-		AuthType:       cfg.Email.AuthType,
-		ConnectTimeout: cfg.Email.ConnectTimeout,
-		SendTimeout:    cfg.Email.SendTimeout,
-	}, configProvider)
-	s.emailDriver = drivers["email"]
+	if cfg.Email.Enabled {
+		drivers["email"] = msgPkg.NewEmailDriver(msgPkg.EmailConfig{
+			Host:           cfg.Email.Host,
+			Port:           cfg.Email.Port,
+			User:           cfg.Email.User,
+			Password:       cfg.Email.Password,
+			From:           cfg.Email.From,
+			SSL:            cfg.Email.SSL,
+			StartTLS:       cfg.Email.StartTLS,
+			AuthType:       cfg.Email.AuthType,
+			ConnectTimeout: cfg.Email.ConnectTimeout,
+			SendTimeout:    cfg.Email.SendTimeout,
+		}, configProvider)
+		s.emailDriver = drivers["email"]
+		slog.Info("Email driver 已启用", "host", cfg.Email.Host, "port", cfg.Email.Port)
+	} else {
+		slog.Info("Email driver 未启用（[email].enabled = false）")
+	}
+
+	if cfg.Sms.Enabled {
+		drivers["sms"] = msgPkg.NewTencentSmsDriver(msgPkg.SmsConfig{
+			SecretID:  cfg.Sms.SecretID,
+			SecretKey: cfg.Sms.SecretKey,
+			AppID:     cfg.Sms.AppID,
+			SignName:  cfg.Sms.SignName,
+			Region:    cfg.Sms.Region,
+		}, configProvider)
+		slog.Info("SMS driver 已启用 (tencent)", "region", cfg.Sms.Region, "sign_name", cfg.Sms.SignName)
+	} else {
+		slog.Info("SMS driver 未启用（[sms].enabled = false）")
+	}
 
 	s.sysConfig = systemService.NewConfigService(repos.systemConfig, configWatcher, eventBus, s.emailDriver)
 	s.dict = dictServicePkg.NewDictService(repos.dict, lazyCacheMgr, tm)

@@ -39,7 +39,21 @@ password = ""
 db = 0
 
 # L1 缓存 (BigCache) 配置
-l1_enabled = false       # 当 Redis 开启时，是否开启本地一级缓存 (开启可大幅提升读性能)
+#
+# 三级缓存架构：L1 (BigCache 本地内存) → L2 (Redis 共享) → L3 (DB 回源)
+#
+# 数据分层原则：
+#   - 配置类（App 信息/Scopes/API Keys、字典、菜单树）：走 L1+L2，读多写少、
+#     变更可通过 PubSub 广播失效、非安全敏感。
+#   - 安全类（token、黑名单、登录锁、验证码）：只走 L2 Redis，登出/锁定必须
+#     立即全节点生效，L1 多机同步有窗口期不可接受。
+#
+# 多机部署：配置变更通过 PubSub (TopicCacheInvalidation/TopicCacheDelete)
+#   自动跨节点失效 L1，窗口期通常 <100ms，对配置类可接受。
+#
+# 内存管理：BigCache 有 local_max_size_mb 硬上限，超限自动驱逐旧条目（LRU-like），
+#   不会 OOM。local_ttl_min 兜底过期。仅排查 L1 问题时才关闭（降级纯 L2）。
+l1_enabled = true        # 本地一级缓存，默认开启（配置类数据加速）
 local_max_size_mb = 256  # 本地缓存最大内存占用 (MB)
 local_max_entry_kb = 500 # 单条缓存记录最大大小 (KB)
 local_ttl_min = 10       # 本地缓存默认过期时间 (分钟)
@@ -90,6 +104,10 @@ aes_key = "netyadmin-aes-key-32-chars-long!" # 32字节对应 AES-256
 upload_hmac_key = "<CHANGE_ME_IN_PRODUCTION>"
 
 [email]
+# 邮件功能需双重开关同时打开：
+#   1. 此处 enabled = true（启动期注入 SMTP driver，读 config.toml）
+#   2. 后台「系统配置」的 email_config/enabled = true（运行期是否放行邮件发送，读 sys_config 表）
+# 与 [sms] 开关语义对称：driver 注入受此处 enabled 门控。
 enabled = false
 host = "smtp.example.com"
 port = 465
@@ -103,12 +121,18 @@ connect_timeout = 30
 send_timeout = 30
 
 [sms]
+# 短信功能需双重开关同时打开：
+#   1. 此处 enabled = true（启动期注入腾讯云 driver，读 config.toml）
+#   2. 后台「系统配置」的 sms_config/enabled = true（运行期是否放行短信发送，读 sys_config 表）
+# 仅打开 1 不打开 2：driver 注入了但 job 层会判 "sms service is disabled" 失败。
+# 仅打开 2 不打开 1：job 层放行但无 driver，判 "no driver found for channel: sms" 失败。
 enabled = false
-driver = "tencent"
-secret_id = ""
-secret_key = ""
-app_id = ""
-sign_name = ""
+driver = "tencent"       # 短信服务商（当前仅实现 tencent 腾讯云）
+secret_id = ""           # 腾讯云 SecretID（访问密钥）
+secret_key = ""          # 腾讯云 SecretKey
+app_id = ""              # 短信应用 SmsSdkAppId（腾讯云控制台 → 短信 → 应用管理）
+sign_name = ""           # 短信签名（需在腾讯云控制台审核通过）
+region = "ap-guangzhou"  # 接入地域（如 ap-guangzhou / ap-beijing / ap-shanghai）
 
 [bus]
 # driver = "redis"    # 集群模式：基于 Redis Pub/Sub，支持多节点广播

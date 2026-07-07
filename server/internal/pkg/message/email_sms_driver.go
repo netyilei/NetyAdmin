@@ -163,17 +163,3 @@ func (d *emailDriver) Send(ctx context.Context, receiver string, title string, c
 
 	return nil
 }
-
-type mockSmsDriver struct{}
-
-func NewMockSmsDriver() SmsDriver {
-	return &mockSmsDriver{}
-}
-
-func (d *mockSmsDriver) Send(ctx context.Context, receiver string, title string, content string, params map[string]string) error {
-	return nil
-}
-
-func (d *mockSmsDriver) SendWithTemplate(ctx context.Context, phone string, templateID string, params map[string]string) error {
-	return nil
-}
