@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -113,26 +112,6 @@ func (d *minioDriver) Upload(ctx context.Context, key string, reader io.Reader, 
 	}, nil
 }
 
-// UploadFile 上传本地文件。
-func (d *minioDriver) UploadFile(ctx context.Context, key string, filePath string, contentType string) (*UploadResult, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("打开文件失败: %w", err)
-	}
-	defer file.Close()
-
-	stat, err := file.Stat()
-	if err != nil {
-		return nil, fmt.Errorf("获取文件信息失败: %w", err)
-	}
-
-	if contentType == "" {
-		contentType = MimeTypeByExt(filePath)
-	}
-
-	return d.Upload(ctx, key, file, stat.Size(), contentType)
-}
-
 // Download 下载对象，返回可读流与对象元信息。
 func (d *minioDriver) Download(ctx context.Context, key string) (io.ReadCloser, *ObjectInfo, error) {
 	fullKey := d.buildKey(key)
@@ -186,29 +165,6 @@ func (d *minioDriver) DeleteMultiple(ctx context.Context, keys []string) error {
 	return nil
 }
 
-// Exists 判断对象是否存在。
-func (d *minioDriver) Exists(ctx context.Context, key string) (bool, error) {
-	_, err := d.client.StatObject(ctx, d.bucket, d.buildKey(key), minio.StatObjectOptions{})
-	if err != nil {
-		resp := minio.ToErrorResponse(err)
-		if resp.Code == "NoSuchKey" {
-			return false, nil
-		}
-		return false, fmt.Errorf("检查对象是否存在失败: %w", err)
-	}
-	return true, nil
-}
-
-// GetObjectInfo 获取对象元信息。
-func (d *minioDriver) GetObjectInfo(ctx context.Context, key string) (*ObjectInfo, error) {
-	fullKey := d.buildKey(key)
-	stat, err := d.client.StatObject(ctx, d.bucket, fullKey, minio.StatObjectOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("获取对象元信息失败: %w", err)
-	}
-	return toObjectInfo(fullKey, stat), nil
-}
-
 // GetPresignedUploadURL 生成预签名上传 URL（PUT）。
 func (d *minioDriver) GetPresignedUploadURL(ctx context.Context, key string, _ string, expires time.Duration) (string, error) {
 	if expires == 0 {
@@ -219,73 +175,6 @@ func (d *minioDriver) GetPresignedUploadURL(ctx context.Context, key string, _ s
 		return "", fmt.Errorf("生成预签名上传URL失败: %w", err)
 	}
 	return u.String(), nil
-}
-
-// GetPresignedDownloadURL 生成预签名下载 URL（GET）。
-func (d *minioDriver) GetPresignedDownloadURL(ctx context.Context, key string, expires time.Duration) (string, error) {
-	if expires == 0 {
-		expires = defaultPresignExpiry
-	}
-	u, err := d.client.PresignedGetObject(ctx, d.bucket, d.buildKey(key), expires, nil)
-	if err != nil {
-		return "", fmt.Errorf("生成预签名下载URL失败: %w", err)
-	}
-	return u.String(), nil
-}
-
-// ListObjects 列举指定前缀下的对象（最多返回 maxKeys 条）。
-func (d *minioDriver) ListObjects(ctx context.Context, prefix string, maxKeys int) ([]*ObjectInfo, error) {
-	if maxKeys <= 0 {
-		maxKeys = defaultListMaxKeys
-	}
-
-	// 用可取消的子 context：达到数量上限后 cancel，
-	// 让 minio-go 内部的列举 goroutine 退出，避免 goroutine 泄漏。
-	listCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	fullPrefix := d.buildKey(prefix)
-	objCh := d.client.ListObjects(listCtx, d.bucket, minio.ListObjectsOptions{
-		Prefix:    fullPrefix,
-		Recursive: true,
-		MaxKeys:   maxKeys,
-	})
-
-	var objects []*ObjectInfo
-	for obj := range objCh {
-		if obj.Err != nil {
-			// context 被取消导致的错误视为正常结束
-			if errors.Is(listCtx.Err(), context.Canceled) {
-				break
-			}
-			return nil, fmt.Errorf("列举对象失败: %w", obj.Err)
-		}
-		objects = append(objects, toObjectInfo(obj.Key, minio.ObjectInfo{
-			ETag:         obj.ETag,
-			Size:         obj.Size,
-			LastModified: obj.LastModified,
-			ContentType:  obj.ContentType,
-		}))
-		if len(objects) >= maxKeys {
-			cancel()
-		}
-	}
-	return objects, nil
-}
-
-// Copy 复制对象（服务器端拷贝）。
-func (d *minioDriver) Copy(ctx context.Context, srcKey, destKey string) error {
-	fullSrc := d.buildKey(srcKey)
-	fullDest := d.buildKey(destKey)
-
-	_, err := d.client.CopyObject(ctx,
-		minio.CopyDestOptions{Bucket: d.bucket, Object: fullDest},
-		minio.CopySrcOptions{Bucket: d.bucket, Object: fullSrc},
-	)
-	if err != nil {
-		return fmt.Errorf("复制对象失败: %w", err)
-	}
-	return nil
 }
 
 // toObjectInfo 将 minio.ObjectInfo 转换为本包的 ObjectInfo。
@@ -360,6 +249,4 @@ func NewMinioDriverFactory() *MinioDriverFactory {
 const (
 	// defaultPresignExpiry 预签名 URL 默认有效期。
 	defaultPresignExpiry = 15 * time.Minute
-	// defaultListMaxKeys 列举对象默认上限。
-	defaultListMaxKeys = 1000
 )

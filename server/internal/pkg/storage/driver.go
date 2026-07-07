@@ -77,18 +77,21 @@ type ObjectInfo struct {
 
 // Driver 对象存储驱动接口（面向 S3 兼容协议抽象）。
 // 当前唯一实现为基于 minio-go 的 minioDriver。
+//
+// 接口仅保留业务实际使用的方法（Round 7 清理）：
+//   - Upload / Download：基础上下传
+//   - Delete / DeleteMultiple：清理
+//   - GetPresignedUploadURL：客户端直传签名（CDN 上传场景核心方法）
+//
+// 已删除的未使用方法（全代码库 0 调用，且不考虑做后台文件管理）：
+//   UploadFile / Exists / GetObjectInfo / ListObjects / Copy / GetPresignedDownloadURL
+//   —— 文件管理由 CDN 控制台或专用工具完成，不在本系统职责内。
 type Driver interface {
 	Upload(ctx context.Context, key string, reader io.Reader, size int64, contentType string) (*UploadResult, error)
-	UploadFile(ctx context.Context, key string, filePath string, contentType string) (*UploadResult, error)
 	Download(ctx context.Context, key string) (io.ReadCloser, *ObjectInfo, error)
 	Delete(ctx context.Context, key string) error
 	DeleteMultiple(ctx context.Context, keys []string) error
-	Exists(ctx context.Context, key string) (bool, error)
-	GetObjectInfo(ctx context.Context, key string) (*ObjectInfo, error)
 	GetPresignedUploadURL(ctx context.Context, key string, contentType string, expires time.Duration) (string, error)
-	GetPresignedDownloadURL(ctx context.Context, key string, expires time.Duration) (string, error)
-	ListObjects(ctx context.Context, prefix string, maxKeys int) ([]*ObjectInfo, error)
-	Copy(ctx context.Context, srcKey, destKey string) error
 }
 
 // DriverFactory 驱动工厂接口（支持未来扩展多种存储类型）。

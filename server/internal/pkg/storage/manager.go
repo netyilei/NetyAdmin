@@ -114,14 +114,6 @@ func (m *Manager) GetPresignedUploadURL(ctx context.Context, configID uint, key 
 	return driver.GetPresignedUploadURL(ctx, key, contentType, expires)
 }
 
-func (m *Manager) GetPresignedDownloadURL(ctx context.Context, configID uint, key string, expires time.Duration) (string, error) {
-	driver, err := m.GetDriver(configID)
-	if err != nil {
-		return "", err
-	}
-	return driver.GetPresignedDownloadURL(ctx, key, expires)
-}
-
 // GenerateObjectKey 生成不带业务前缀的对象 key。
 // 等价于 GenerateObjectKeyWithBusiness(originalName, pathPrefix, "", "")，
 // 作为常用场景的便捷语法糖（重构清单 B-OTHER-3）。
