@@ -2,6 +2,7 @@ package v1
 
 import (
 	clientDto "NetyAdmin/internal/interface/client/dto/v1"
+	"NetyAdmin/internal/pkg/auth"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
 	storagePkg "NetyAdmin/internal/pkg/storage"
@@ -33,13 +34,16 @@ func (h *ClientStorageHandler) GetUploadCredentials(c *gin.Context) {
 		return
 	}
 
-	// 从 gin context 读取基础类型值，避免在 handler 层做 entity 类型断言
-	appKey := c.GetString("currentAppKey")
-	if appKey == "" {
+	// 从 gin context 读取 AppContext（由 OpenPlatformAuth 中间件注入）。
+	// Round 7：原 currentAppKey / appID 散列 key 已全部迁移至 AppContext。
+	appCtxVal, _ := c.Get("currentAppContext")
+	appCtx, _ := appCtxVal.(*auth.AppContext)
+	if appCtx == nil {
 		response.FailWithCode(c, errorx.CodeUnauthorized, "未授权")
 		return
 	}
-	appID := c.GetString("appID")
+	appKey := appCtx.AppKey
+	appID := appCtx.ID
 
 	credReq := &storageService.CredentialsRequest{
 		FileName:     req.FileName,

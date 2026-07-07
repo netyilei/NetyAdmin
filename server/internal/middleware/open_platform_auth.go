@@ -60,21 +60,20 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 		}
 		c.Writer = writer
 
+		// appIDForLog 供 defer 闭包捕获：app 解析成功后赋值，鉴权失败时保持空串。
+		// Round 7：原 c.Set("appID", ...) + c.Get("appID") 自写自读模式已删除，
+		// 改用闭包捕获局部变量，避免通过 gin.Context 中转（中间件自己写自己读是反模式）。
+		appIDForLog := ""
+
 		defer func() {
 			// 记录日志
 			latency := time.Since(startTime).Nanoseconds()
 			statusCode := c.Writer.Status()
 
-			appID, _ := c.Get("appID")
-			appIDStr := ""
-			if appID != nil {
-				appIDStr = appID.(string)
-			}
-
 			headerBytes, _ := json.Marshal(c.Request.Header)
 
 			logReq := &openDto.RecordOpenLogReq{
-				AppID:         appIDStr,
+				AppID:         appIDForLog,
 				AppKey:        appKey,
 				ApiPath:       c.Request.URL.Path,
 				ApiMethod:     c.Request.Method,
@@ -125,6 +124,8 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 			c.Abort()
 			return
 		}
+		// app 解析成功，记录 ID 供 defer 日志闭包使用
+		appIDForLog = app.ID
 
 		// 3. 检查应用状态（auth.AppStatusDisabled 镜像 entity 常量，避免 middleware 直接 import entity）
 		if app.Status == auth.AppStatusDisabled {
@@ -215,25 +216,15 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 			return
 		}
 
-		// 将 appID / currentAppContext / 基础类型值存入上下文供后续使用
-		c.Set("appID", app.ID)
-		// 构造 AppContext（仅基础类型）注入 gin.Context，避免将 *open_platform.App entity
-		// 直接暴露给 handler（Task 15：中间件 / handler 不再 import openEntity；
-		// service 层 GetAppByKey 返回 entity 是设计例外，详见 SHARED.md）。
+		// 构造 AppContext（仅 handler 实际需要的 3 个字段）注入 gin.Context。
+		// Round 7：完成第二阶段迁移，删除 c.Set("appID", ...) 遗留 key，
+		// 下游统一通过 c.Get("currentAppContext") 读取应用信息。
 		appCtx := &auth.AppContext{
-			ID:               app.ID,
-			AppKey:           app.AppKey,
-			StorageID:        strconv.FormatUint(uint64(app.StorageID), 10),
-			Status:           app.Status,
-			QuotaConfig:      app.QuotaConfig,
-			CacheTTL:         app.CacheTTL,
-			IPFilterEnabled:  app.IPFilterEnabled,
-			RateLimitEnabled: app.RateLimitEnabled,
+			ID:        app.ID,
+			AppKey:    app.AppKey,
+			StorageID: app.StorageID,
 		}
 		c.Set("currentAppContext", appCtx)
-		// 同时存入基础类型值，供 client handler 直接读取（向后兼容：user_handler.go / storage_handler.go 仍读这些字段）
-		c.Set("currentAppKey", app.AppKey)
-		c.Set("currentAppStorageID", app.StorageID)
 		c.Next()
 	}
 }

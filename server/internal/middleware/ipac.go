@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"NetyAdmin/internal/pkg/auth"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
 	ipacSvcPkg "NetyAdmin/internal/service/ipac"
@@ -15,10 +16,12 @@ func IPACAuth(ipacSvc ipacSvcPkg.IPACService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		clientIP := c.ClientIP()
 
-		// 尝试从上下文获取 appID (可能由前面的中间件设置)
+		// 尝试从 AppContext 获取 appID（由前面的 OpenPlatformAuth 中间件设置）。
+		// Round 7：原 c.Get("appID") 遗留 key 已迁移至 currentAppContext.ID。
 		var appID *string
-		if val, exists := c.Get("appID"); exists {
-			if id, ok := val.(string); ok {
+		if val, exists := c.Get("currentAppContext"); exists {
+			if appCtx, ok := val.(*auth.AppContext); ok && appCtx != nil {
+				id := appCtx.ID
 				appID = &id
 			}
 		}

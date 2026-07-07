@@ -3,24 +3,23 @@
 // without leaking entity references into gin.Context.
 package auth
 
-// AppContext 是开放平台应用上下文，仅包含基础类型字段，用于在中间件与
-// handler 之间传递应用信息，避免将 *open_platform.App entity 直接注入
-// gin.Context（违反「Handler 禁止类型断言 entity」红线）。
+// AppContext 是开放平台应用上下文，仅包含 handler 实际需要的基础类型字段，
+// 用于在中间件与 handler 之间传递应用信息，避免将 *open_platform.App entity
+// 直接注入 gin.Context（违反「Handler 禁止类型断言 entity」红线）。
 //
-// 字段镜像 entity open_platform.App 中下游中间件 / handler 实际需要的基础
-// 类型字段；entity 中其他字段（AppSecret / IPStrategy / Remark 等敏感或
-// 非必要字段）不暴露给上层。中间件从 service 返回的 *open_platform.App
-// 构造 AppContext 后注入 gin.Context，handler 通过 c.Get("currentAppContext")
-// 读取或直接读取已有的基础类型值（currentAppKey / currentAppStorageID）。
+// 字段选择原则（Round 7 修正）：
+// 只保留 handler 真正读取的字段。原 Task 15 把 Status / QuotaConfig / CacheTTL /
+// IPFilterEnabled / RateLimitEnabled 5 个字段镜像进来，意图是「把验证逻辑下沉到
+// handler」，但实际验证逻辑全部在中间件 + service 层用 entity 直接读，
+// handler 从不消费这 5 个字段，属于过度设计的死字段，已删除。
+//
+// 中间件从 service 返回的 *open_platform.App 构造 AppContext 后通过
+// c.Set("currentAppContext", appCtx) 注入 gin.Context，handler 统一通过
+// c.Get("currentAppContext") 读取。
 type AppContext struct {
-	ID               string // ULID 应用 ID（与 AppKey 相同，业务唯一标识）
-	AppKey           string // 应用 AppKey
-	StorageID        string // 绑定的存储配置 ID（entity 字段为 uint，此处用 string 保持基础类型）
-	Status           int    // 应用状态：1=Enabled, 0=Disabled
-	QuotaConfig      string // 限流配置（JSON 字符串）
-	CacheTTL         int    // 缓存 TTL（秒），0 表示永久缓存
-	IPFilterEnabled  bool   // 是否启用 IP 过滤
-	RateLimitEnabled bool   // 是否启用限流
+	ID        string // ULID 应用 ID（与 AppKey 相同，业务唯一标识）
+	AppKey    string // 应用 AppKey（与 ID 相同）
+	StorageID uint   // 绑定的存储配置 ID
 }
 
 // 开放平台应用状态常量（与 entity open_platform.AppStatusDisabled / AppStatusEnabled

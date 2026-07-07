@@ -9,6 +9,7 @@ import (
 
 	userVO "NetyAdmin/internal/domain/vo/user"
 	clientDto "NetyAdmin/internal/interface/client/dto/v1"
+	"NetyAdmin/internal/pkg/auth"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
 	storagePkg "NetyAdmin/internal/pkg/storage"
@@ -234,17 +235,15 @@ func (h *UserHandler) GetUploadToken(c *gin.Context) {
 		fileName = fmt.Sprintf("upload-%d.bin", time.Now().UnixNano())
 	}
 
-	// 从 gin context 读取基础类型值，避免在 handler 层做 entity 类型断言
+	// 从 gin context 读取 AppContext（由 OpenPlatformAuth 中间件注入）。
+	// Round 7：原 currentAppKey / currentAppStorageID 散列 key 已删除，
+	// AppContext 是唯一真相源。StorageID 现为 uint 类型（与 entity 一致）。
 	var appKey string
 	var configID uint
-	if appKeyVal, exists := c.Get("currentAppKey"); exists {
-		if v, ok := appKeyVal.(string); ok {
-			appKey = v
-		}
-	}
-	if storageIDVal, exists := c.Get("currentAppStorageID"); exists {
-		if v, ok := storageIDVal.(uint); ok {
-			configID = v
+	if appCtxVal, exists := c.Get("currentAppContext"); exists {
+		if appCtx, ok := appCtxVal.(*auth.AppContext); ok && appCtx != nil {
+			appKey = appCtx.AppKey
+			configID = appCtx.StorageID
 		}
 	}
 

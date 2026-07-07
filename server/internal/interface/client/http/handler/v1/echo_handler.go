@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	v1 "NetyAdmin/internal/interface/client/dto/v1"
+	"NetyAdmin/internal/pkg/auth"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
 )
@@ -32,7 +33,13 @@ func (h *EchoHandler) Echo(c *gin.Context) {
 		return
 	}
 
-	appIDStr := c.GetString("appID")
+	// Round 7：从 AppContext 读取 appID（原 c.GetString("appID") 遗留 key 已删除）
+	appIDStr := ""
+	if val, exists := c.Get("currentAppContext"); exists {
+		if appCtx, ok := val.(*auth.AppContext); ok && appCtx != nil {
+			appIDStr = appCtx.ID
+		}
+	}
 
 	response.Success(c, v1.EchoResponse{
 		Message:   req.Message,
