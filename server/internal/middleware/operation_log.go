@@ -16,28 +16,13 @@ import (
 	logService "NetyAdmin/internal/service/log"
 )
 
-type responseWriter struct {
-	gin.ResponseWriter
-	body *bytes.Buffer
-}
-
-func (w *responseWriter) Write(b []byte) (int, error) {
-	w.body.Write(b)
-	return w.ResponseWriter.Write(b)
-}
-
 func OperationLogger(logBus logService.LogBusService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		method := c.Request.Method
 		path := c.Request.URL.Path
 
+		// 仅记录 admin 端操作日志（client 端走 openLog 链路，不需要此处记录）。
 		if !strings.HasPrefix(path, "/admin/") {
-			c.Next()
-			return
-		}
-
-		if (method == "DELETE" && strings.HasPrefix(path, "/admin/v1/operation-logs/")) ||
-			(method == "POST" && path == "/admin/v1/operation-logs/batch-delete") {
 			c.Next()
 			return
 		}
@@ -61,13 +46,18 @@ func OperationLogger(logBus logService.LogBusService) gin.HandlerFunc {
 			}
 		}
 
-		writer := &responseWriter{
-			ResponseWriter: c.Writer,
-			body:           bytes.NewBufferString(""),
-		}
-		c.Writer = writer
+		// Round 7：删除 responseWriter 响应体捕获（body 从未被读取，捕获全量响应体有内存开销）。
+		// 若未来需要记录响应体，应按需重新引入（如仅在 status >= 400 时捕获）。
 
 		c.Next()
+
+		// 路由级显式标记跳过（替代原硬编码字符串匹配，避免路由改名静默失效）。
+		// 必须在 c.Next() 之后检查：SkipOperationLog 是路由组级 marker，
+		// 执行顺序在 OperationLogger（全局中间件）之后，只有 c.Next() 返回后它才已执行。
+		// 例如 operation-logs 自身的删除路由挂了 SkipOperationLog marker。
+		if c.GetBool(skipOperationLogKey) {
+			return
+		}
 
 		latency := time.Since(startTime)
 		statusCode := c.Writer.Status()
@@ -83,11 +73,6 @@ func OperationLogger(logBus logService.LogBusService) gin.HandlerFunc {
 		}
 
 		action := getActionFromMethod(method)
-		// 2. 准确识别批量删除操作
-		if method == "POST" && path == "/admin/v1/operation-logs/batch-delete" {
-			action = "batch_delete"
-		}
-
 		resource := getResourceFromPath(path)
 
 		var usernameStr string

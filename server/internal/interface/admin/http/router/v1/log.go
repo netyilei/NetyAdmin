@@ -5,6 +5,7 @@ import (
 
 	"NetyAdmin/internal/interface/admin/http/handler/v1/error_log"
 	"NetyAdmin/internal/interface/admin/http/handler/v1/operation_log"
+	"NetyAdmin/internal/middleware"
 )
 
 type LogRouter struct {
@@ -34,9 +35,12 @@ func (r *LogRouter) RegisterPermission(group *gin.RouterGroup) {
 func (r *LogRouter) registerOperationLog(group *gin.RouterGroup) {
 	operationLogGroup := group.Group("/operation-logs")
 	{
+		// DELETE /:id 与 POST /batch-delete 挂 SkipOperationLog marker，
+		// 避免操作日志中间件记录「删除操作日志」自身（产生噪音 + 净增长无法收敛）。
+		// GET（List）天然被 OperationLogger 的 method 过滤跳过，无需 marker。
 		operationLogGroup.GET("", r.operationLog.List)
-		operationLogGroup.DELETE("/:id", r.operationLog.Delete)
-		operationLogGroup.POST("/batch-delete", r.operationLog.DeleteBatch)
+		operationLogGroup.DELETE("/:id", middleware.SkipOperationLog(), r.operationLog.Delete)
+		operationLogGroup.POST("/batch-delete", middleware.SkipOperationLog(), r.operationLog.DeleteBatch)
 	}
 }
 
