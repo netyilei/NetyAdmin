@@ -188,7 +188,7 @@ type mockMenuCacheMgr struct {
 }
 
 func (m *mockMenuCacheMgr) Get(_ context.Context, _ string, _ interface{}) error { return nil }
-func (m *mockMenuCacheMgr) Set(_ context.Context, _ string, _ interface{}, _ time.Duration) error {
+func (m *mockMenuCacheMgr) Set(_ context.Context, _ string, _ interface{}, _ time.Duration, _ ...string) error {
 	return nil
 }
 func (m *mockMenuCacheMgr) Delete(_ context.Context, _ string) error { return nil }
@@ -219,10 +219,7 @@ func (m *mockMenuCacheMgr) SetNX(_ context.Context, _ string, _ interface{}, _ t
 func (m *mockMenuCacheMgr) GetFast(_ context.Context, _ string, _ []string, _ time.Duration, _ interface{}) error {
 	return nil
 }
-func (m *mockMenuCacheMgr) DeleteFast(_ context.Context, _ string) error          { return nil }
-func (m *mockMenuCacheMgr) DeleteAndBroadcast(_ context.Context, _ string) error  { return nil }
 func (m *mockMenuCacheMgr) InvalidateL1ByTags(_ context.Context, _ ...string) error { return nil }
-func (m *mockMenuCacheMgr) InvalidateL1ByKey(_ context.Context, _ string) error    { return nil }
 func (m *mockMenuCacheMgr) SetEventBus(_ pubsub.EventBus)                          {}
 func (m *mockMenuCacheMgr) IsCacheEnabled(_ string) bool                            { return true }
 func (m *mockMenuCacheMgr) GetRedisClient() *redis.Client                           { return nil }

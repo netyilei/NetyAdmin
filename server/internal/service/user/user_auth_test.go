@@ -72,7 +72,7 @@ func (m *mockUserCacheMgr) Get(_ context.Context, key string, dest interface{}) 
 	return nil
 }
 
-func (m *mockUserCacheMgr) Set(_ context.Context, key string, value interface{}, _ time.Duration) error {
+func (m *mockUserCacheMgr) Set(_ context.Context, key string, value interface{}, _ time.Duration, _ ...string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if s, ok := value.(string); ok {
@@ -130,10 +130,7 @@ func (m *mockUserCacheMgr) SetNX(_ context.Context, _ string, _ interface{}, _ t
 func (m *mockUserCacheMgr) GetFast(_ context.Context, _ string, _ []string, _ time.Duration, _ interface{}) error {
 	return nil
 }
-func (m *mockUserCacheMgr) DeleteFast(_ context.Context, _ string) error                     { return nil }
-func (m *mockUserCacheMgr) DeleteAndBroadcast(_ context.Context, _ string) error             { return nil }
 func (m *mockUserCacheMgr) InvalidateL1ByTags(_ context.Context, _ ...string) error          { return nil }
-func (m *mockUserCacheMgr) InvalidateL1ByKey(_ context.Context, _ string) error               { return nil }
 func (m *mockUserCacheMgr) SetEventBus(_ pubsub.EventBus)                                     {}
 func (m *mockUserCacheMgr) IsCacheEnabled(_ string) bool                                       { return true }
 func (m *mockUserCacheMgr) GetRedisClient() *redis.Client                                     { return nil }

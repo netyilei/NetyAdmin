@@ -147,3 +147,102 @@ func TestFetch_Singleflight_LoaderError(t *testing.T) {
 		}
 	}
 }
+
+// TestL2Helper_FallbackToL1 验证铁律降级链：
+// 当 l2Cache 为 nil（Redis 未启用）时，非 Fast 方法（Set/Get/Delete）降级用 l1Cache 本地兜底。
+// 这保证无 Redis 环境下 token 等安全数据仍能缓存，避免直接打 DB。
+func TestL2Helper_FallbackToL1(t *testing.T) {
+	mgr := newTestManager(t) // l2Cache=nil, l1Cache=BigCache
+	ctx := context.Background()
+
+	// l2() 应返回 l1Cache（降级兜底）
+	if got := mgr.l2(); got != mgr.l1Cache {
+		t.Fatalf("l2() with nil l2Cache should return l1Cache for fallback, got different instance")
+	}
+
+	// Set（非 Fast）应写入 l1Cache（降级兜底）
+	if err := mgr.Set(ctx, "token:user1", "1", time.Minute); err != nil {
+		t.Fatalf("Set failed: %v", err)
+	}
+
+	// Get（非 Fast）应从 l1Cache 读出（降级兜底）
+	var val string
+	if err := mgr.Get(ctx, "token:user1", &val); err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if val != "1" {
+		t.Errorf("Get got %q, want %q", val, "1")
+	}
+
+	// Delete（非 Fast）应从 l1Cache 删除
+	if err := mgr.Delete(ctx, "token:user1"); err != nil {
+		t.Fatalf("Delete failed: %v", err)
+	}
+	if err := mgr.Get(ctx, "token:user1", &val); err == nil {
+		t.Errorf("Get after Delete should fail (not found), got nil error")
+	}
+}
+
+// TestL2Helper_PrefersL2 验证铁律核心：
+// 当 l2Cache 非 nil 时，l2() 返回 l2Cache（绝不碰 L1）。
+// 由于测试环境无真实 Redis，这里只验证 l2() 的选择逻辑，不验证实际读写。
+func TestL2Helper_PrefersL2(t *testing.T) {
+	mgr := newTestManager(t)
+	// 注入一个假的 l2Cache（用另一个 BigCache 实例模拟）
+	bcConfig := bigcache.DefaultConfig(5 * time.Minute)
+	bcConfig.Shards = 64
+	bcClient, _ := bigcache.New(context.Background(), bcConfig)
+	fakeL2 := cache.New[any](bigcacheStore.NewBigcache(bcClient))
+	mgr.l2Cache = fakeL2
+
+	// l2() 应返回 l2Cache，不是 l1Cache
+	if got := mgr.l2(); got != fakeL2 {
+		t.Fatalf("l2() with non-nil l2Cache should return l2Cache (never L1), got different instance")
+	}
+	if got := mgr.l2(); got == mgr.l1Cache {
+		t.Fatalf("l2() must NOT return l1Cache when l2Cache is available (violates 铁律)")
+	}
+}
+
+// TestFetch_L2Unavailable_FallbackL1ThenDB 验证完整降级链：
+// L2 不可用（l2Cache=nil）→ 写入/读取降级到 L1 → L1 miss → DB 回源（loader）→ 回填 L1。
+// 这是铁律降级链的端到端验证。
+func TestFetch_L2Unavailable_FallbackL1ThenDB(t *testing.T) {
+	mgr := newTestManager(t) // l2Cache=nil, l1Cache=BigCache
+	ctx := context.Background()
+
+	var loaderCalls int32
+	loader := func() (interface{}, error) {
+		atomic.AddInt32(&loaderCalls, 1)
+		return &testPayload{Message: "from-db"}, nil
+	}
+
+	// 第一次 Fetch：L1 miss（空缓存）→ loader 回源 DB → 回填 L1
+	var result testPayload
+	if err := mgr.Fetch(ctx, "cfg:app1", "test", nil, time.Minute, &result, loader); err != nil {
+		t.Fatalf("Fetch failed: %v", err)
+	}
+	if result.Message != "from-db" {
+		t.Errorf("got %q, want %q", result.Message, "from-db")
+	}
+	if atomic.LoadInt32(&loaderCalls) != 1 {
+		t.Errorf("loader should be called once on cold miss, got %d", loaderCalls)
+	}
+
+	// 第二次 Fetch：L1 hit（第一次回填的）→ 不调 loader
+	var result2 testPayload
+	if err := mgr.Fetch(ctx, "cfg:app1", "test", nil, time.Minute, &result2, loader); err != nil {
+		t.Fatalf("second Fetch failed: %v", err)
+	}
+	if result2.Message != "from-db" {
+		t.Errorf("got %q, want %q", result2.Message, "from-db")
+	}
+	if atomic.LoadInt32(&loaderCalls) != 1 {
+		t.Errorf("loader should NOT be called again on L1 hit, got %d calls", loaderCalls)
+	}
+
+	// 验证数据确实在 L1（l2Cache=nil 时 l2() 返回 l1Cache）
+	if got := mgr.l2(); got != mgr.l1Cache {
+		t.Fatalf("l2() should return l1Cache when l2Cache=nil (fallback)")
+	}
+}

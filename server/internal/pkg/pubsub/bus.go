@@ -21,11 +21,6 @@ type EventBus interface {
 	Publish(ctx context.Context, topic string, msg interface{}) error
 	Subscribe(topic string, handler func(ctx context.Context, msg []byte)) error
 	Close() error
-	// OnReconnect 注册 Redis 重连成功后的回调（Task 13.2 / 13.3 兜底机制）。
-	// 仅 RedisDriver 会在 subscribeLoop 从断连恢复后触发；MemoryDriver 无重连概念，
-	// 注册的回调永远不会被调用。可选：若不注册，subscribeLoop 重连后正常运行（no-op）。
-	// 回调在独立 goroutine 中执行（GoSafe 包裹），不会阻塞订阅协程。
-	OnReconnect(fn func())
 }
 
 // Message 统一消息协议
@@ -67,12 +62,6 @@ type baseBus struct {
 	nodeID   string // 本节点唯一标识，用于过滤自身广播回环
 	handlers map[string][]func(ctx context.Context, msg []byte)
 	mu       sync.RWMutex
-
-	// onReconnect 由 RedisDriver.subscribeLoop 在断连恢复后触发（Task 13.2）。
-	// MemoryDriver 经由嵌入获得 OnReconnect 方法但永不触发（无重连概念）。
-	// 回调可选：未注册时 fireReconnect 是 no-op，subscribeLoop 正常运行。
-	onReconnectMu sync.RWMutex
-	onReconnect   func()
 
 	// Worker pool (Task 23)
 	//
@@ -207,26 +196,6 @@ func (b *baseBus) shutdownWorkerPool() {
 		// 见 RULES.md §8.5）。
 		slog.Warn("pubsub: shutdownWorkerPool timed out after 5s, some workers may be stuck")
 	}
-}
-
-// OnReconnect 注册重连回调（由 baseBus 提供默认实现，两个 Driver 经由嵌入获得）。
-// 调用方在 SetEventBus 时注册：cacheMgr.SetEventBus(bus) 内部会 bus.OnReconnect(m.reloadL1All)。
-func (b *baseBus) OnReconnect(fn func()) {
-	b.onReconnectMu.Lock()
-	defer b.onReconnectMu.Unlock()
-	b.onReconnect = fn
-}
-
-// fireReconnect 触发已注册的重连回调。在独立 goroutine 中执行（GoSafe 包裹），
-// 防止回调内的 IO（如清空 L1）阻塞 subscribeLoop；回调 panic 也会被 GoSafe 捕获上报。
-func (b *baseBus) fireReconnect() {
-	b.onReconnectMu.RLock()
-	fn := b.onReconnect
-	b.onReconnectMu.RUnlock()
-	if fn == nil {
-		return
-	}
-	recovery.GoSafe("pubsub:on_reconnect", fn)
 }
 
 // buildMessage 构造带 SenderID + Meta 的消息。
@@ -436,10 +405,6 @@ func (d *RedisDriver) subscribeLoop() {
 	defer d.wg.Done()
 
 	const reconnectDelay = 3 * time.Second
-	// hasDisconnected 区分「首次连接」与「断连后重连」：仅断连恢复后才触发 OnReconnect，
-	// 避免应用启动时（首次 Subscribe 成功）误触发 L1 全量 reload。
-	hasDisconnected := false
-
 	for {
 		d.closeMu.Lock()
 		if d.closed {
@@ -452,13 +417,7 @@ func (d *RedisDriver) subscribeLoop() {
 		sub := d.redisClient.Subscribe(ctx, d.channel)
 		ch := sub.Channel()
 
-		// 重连成功（Subscribe 返回新句柄）：若此前发生过断连，触发 OnReconnect 回调。
-		// 回调在独立 goroutine 中执行（fireReconnect 内部用 GoSafe 包裹），不阻塞订阅循环。
-		// 在进入消息循环前触发，确保 L1 清空先于后续 invalidation 消息处理。
-		if hasDisconnected {
-			d.fireReconnect()
-		}
-
+		// 订阅成功，进入消息接收循环。channel 关闭（Redis 断连）时返回，外层 for 重连。
 		func() {
 			defer sub.Close()
 			for {
@@ -467,8 +426,7 @@ func (d *RedisDriver) subscribeLoop() {
 					return
 				case msg, ok := <-ch:
 					if !ok {
-						// channel 关闭，Redis 断连，尝试重连
-						hasDisconnected = true
+						// channel 关闭，Redis 断连，外层 for 循环会重连
 						return
 					}
 					var m Message

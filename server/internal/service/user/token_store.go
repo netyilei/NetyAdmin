@@ -29,6 +29,12 @@ type TokenStore interface {
 }
 
 // tokenStore 唯一实现：DB 持久化 + Redis 缓存加速。
+//
+// 缓存层级（铁律：非 Fast 方法只走 L2，绝不碰 L1）：
+// token 是安全敏感数据，登出/踢人/刷新时必须立即全节点失效。
+// 用非 Fast 方法（Set/Get/Delete），数据只写入 L2 (Redis 共享层)。
+// Redis 删除一次即对整个集群立即生效，无 PubSub 窗口期，无需广播。
+// token 永不进 L1 (BigCache 本地内存)，避免多机 L1 同步窗口期的安全风险。
 type tokenStore struct {
 	repo     userRepo.UserRepository
 	cacheMgr cache.LazyCacheManager
@@ -44,7 +50,8 @@ func (s *tokenStore) Create(ctx context.Context, hash *userEntity.UserTokenHash)
 	if err := s.repo.CreateTokenHash(ctx, hash); err != nil {
 		return fmt.Errorf("repo.CreateTokenHash: %w", err)
 	}
-	// 缓存加速：将"会话有效"标记写入缓存，命中时免去 DB 查询
+	// 缓存加速：将"会话有效"标记写入 L2 (Redis)，命中时免去 DB 查询。
+	// 用非 Fast 的 Set（铁律：只走 L2，绝不碰 L1），带 tag 便于 DeleteAll 批量失效。
 	if s.cacheMgr != nil {
 		ttl := time.Until(hash.ExpiredAt)
 		if ttl <= 0 {
@@ -52,8 +59,8 @@ func (s *tokenStore) Create(ctx context.Context, hash *userEntity.UserTokenHash)
 		}
 		key := cache.KeyUserTokenHash(hash.UserID, hash.TokenHash)
 		tag := cache.TagUserToken(hash.UserID)
-		if err := s.cacheMgr.SetFast(ctx, key, "1", []string{tag}, ttl); err != nil {
-			slog.Warn("set fast cache failed", "key", key, "err", err)
+		if err := s.cacheMgr.Set(ctx, key, "1", ttl, tag); err != nil {
+			slog.Warn("set token cache failed", "key", key, "err", err)
 		}
 	}
 	return nil
@@ -75,8 +82,11 @@ func (s *tokenStore) Get(ctx context.Context, userID, tokenHash string) (*userEn
 func (s *tokenStore) Delete(ctx context.Context, userID, tokenHash string) error {
 	if s.cacheMgr != nil {
 		key := cache.KeyUserTokenHash(userID, tokenHash)
+		// 用非 Fast 的 Delete（铁律：只走 L2）。
+		// token 只存在 L2 (Redis 共享层)，删除一次即对整个集群立即生效，
+		// 无 PubSub 窗口期，无需广播。
 		if err := s.cacheMgr.Delete(ctx, key); err != nil {
-			slog.Warn("delete cache failed", "key", key, "err", err)
+			slog.Warn("delete token cache failed", "key", key, "err", err)
 		}
 	}
 	return s.repo.DeleteTokenHash(ctx, userID, tokenHash)

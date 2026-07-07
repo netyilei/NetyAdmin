@@ -27,7 +27,8 @@ type UserServiceTokenStore interface {
 // 仅声明本包用到的方法，避免暴露完整 cache 接口。
 type CacheManager interface {
 	Get(ctx context.Context, key string, dest interface{}) error
-	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
+	// Set 写入缓存项，可选 tags 用于批量失效（与 LazyCacheManager.Set 签名一致）。
+	Set(ctx context.Context, key string, value interface{}, ttl time.Duration, tags ...string) error
 	Delete(ctx context.Context, key string) error
 	Exists(ctx context.Context, key string) (bool, error)
 	// Incr 原子自增计数器并设置 TTL（仅在第一次自增时设置 TTL）。
@@ -122,50 +123,14 @@ func StoreSessionPair(
 	})
 }
 
-// ReplaceSessionForRefresh 刷新令牌场景的会话替换：
-// 先 DeleteAll 清旧会话哈希（含旧 access token，防泄露被继续使用），再写入新对。
-//
-// Deprecated: 此方法调用 DeleteAll 会清除该用户所有 token hash，多设备登录场景下
-// 刷新一个 token 会踢掉该用户其他所有设备的合法会话（P1-A BUG）。
-// 新代码请使用 DeleteAndReplaceSession：仅删旧 refresh hash 不影响其他设备。
-//
-// 抽取自两端 RefreshToken 中同构的 DeleteAll + Create 序列。
-// 不递增 TokenVersion（refresh 不应失效其他设备合法会话）。
-//
-// fail-closed 语义（A2）：
-//   - 旧实现 `_ = tokenStore.DeleteAll(...)` 吞错，DeleteAll 失败时旧会话仍残留，
-//     旧 access token 可能被继续使用（安全风险）
-//   - 新实现 DeleteAll 失败时立即返回 error，整个 RefreshToken 流程失败，
-//     调用方应返回错误响应，用户保留旧 refresh token 可重试
-func ReplaceSessionForRefresh(
-	ctx context.Context,
-	tokenStore UserServiceTokenStore,
-	userIDKey string,
-	access, refresh string,
-	accessExp, refreshExp time.Time,
-) error {
-	if tokenStore == nil {
-		return nil
-	}
-	// fail-closed：DeleteAll 失败时不再继续写入新会话，避免旧会话残留导致旧 token 可被继续使用
-	if err := tokenStore.DeleteAll(ctx, userIDKey); err != nil {
-		return err
-	}
-	return StoreSessionPair(ctx, tokenStore, userIDKey, access, refresh, accessExp, refreshExp)
-}
-
 // DeleteAndReplaceSession 刷新令牌场景的会话替换（不影响其他设备）：
 // 仅删除当前会话的旧 refresh token hash，再写入新 access + refresh hash 对。
 //
-// 与 ReplaceSessionForRefresh 的区别（P1-A 修复）：
-//   - ReplaceSessionForRefresh 调用 DeleteAll 清除该用户所有 token hash，多设备登录场景下
-//     刷新一个 token 会踢掉该用户其他所有设备的合法会话
-//   - DeleteAndReplaceSession 仅删旧 refresh hash，不调用 DeleteAll，不影响其他设备
-//
 // 设计说明：
+//   - 仅删旧 refresh hash（不调 DeleteAll），多设备登录场景下刷新一个 token 不会
+//     踢掉该用户其他设备的合法会话。
 //   - 旧 access token hash 不删除：当前 RefreshToken 入参仅含旧 refresh token，
 //     无法定位旧 access hash；旧 access 由其自然过期或下次 Logout 时清理。
-//     多设备场景下其他设备的 access token 不受影响。
 //   - fail-closed 语义：Delete 失败时返回 error，整个 RefreshToken 流程失败，
 //     调用方应返回错误响应，用户保留旧 refresh token 可重试。
 func DeleteAndReplaceSession(

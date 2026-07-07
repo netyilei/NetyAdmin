@@ -5,7 +5,6 @@ package pubsub
 const (
 	TopicConfigSync        = "config_sync"
 	TopicStorageSync       = "storage_sync"
-	TopicCacheInvalidation = "cache_invalidation"
+	TopicCacheInvalidation = "cache_invalidation" // 配置类 Fast 数据跨节点清 L1
 	TopicIPACReload        = "ipac_reload"
-	TopicCacheDelete       = "cache_delete" // payload: 完整缓存 key（已带 prefix），用于跨节点删 L1
 )

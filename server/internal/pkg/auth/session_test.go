@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	authPkg "NetyAdmin/internal/pkg/auth"
 	userEntity "NetyAdmin/internal/domain/entity/user"
@@ -48,7 +47,7 @@ func (m *mockCacheManager) Get(_ context.Context, key string, dest interface{}) 
 	return nil
 }
 
-func (m *mockCacheManager) Set(_ context.Context, key string, value interface{}, ttl time.Duration) error {
+func (m *mockCacheManager) Set(_ context.Context, key string, value interface{}, ttl time.Duration, _ ...string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if s, ok := value.(string); ok {
@@ -141,29 +140,6 @@ func (s *inMemoryTokenStore) DeleteAll(_ context.Context, _ string) error {
 }
 
 var _ authPkg.UserServiceTokenStore = (*inMemoryTokenStore)(nil)
-
-// failingTokenStore DeleteAll 总是返回 error，用于测试 fail-closed
-type failingTokenStore struct {
-	deleteAllErr error
-}
-
-func (s *failingTokenStore) Create(_ context.Context, _ *userEntity.UserTokenHash) error {
-	return nil
-}
-
-func (s *failingTokenStore) Get(_ context.Context, _, _ string) (*userEntity.UserTokenHash, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (s *failingTokenStore) Delete(_ context.Context, _, _ string) error {
-	return nil
-}
-
-func (s *failingTokenStore) DeleteAll(_ context.Context, _ string) error {
-	return s.deleteAllErr
-}
-
-var _ authPkg.UserServiceTokenStore = (*failingTokenStore)(nil)
 
 // ============== HandlePasswordWrong 单测 ==============
 
@@ -349,57 +325,4 @@ func TestHandlePasswordWrong_ConcurrentLockBoundary(t *testing.T) {
 	val, ok := mgr.lockValue(lockKey)
 	assert.True(t, ok, "lockKey 应被写入")
 	assert.Equal(t, "1", val)
-}
-
-// ============== ReplaceSessionForRefresh 单测 ==============
-
-// TestReplaceSessionForRefresh_DeleteAllFails 验证：DeleteAll 失败时 fail-closed 返回 error
-func TestReplaceSessionForRefresh_DeleteAllFails(t *testing.T) {
-	store := &failingTokenStore{
-		deleteAllErr: errors.New("db connection lost"),
-	}
-
-	err := authPkg.ReplaceSessionForRefresh(
-		context.Background(),
-		store,
-		"user-123",
-		"access-token",
-		"refresh-token",
-		time.Now().Add(1*time.Hour),
-		time.Now().Add(7*24*time.Hour),
-	)
-
-	require.Error(t, err, "DeleteAll 失败应返回 error")
-	assert.Contains(t, err.Error(), "db connection lost")
-}
-
-// TestReplaceSessionForRefresh_NilStore 验证：tokenStore 为 nil 时直接返回 nil（保持原行为）
-func TestReplaceSessionForRefresh_NilStore(t *testing.T) {
-	err := authPkg.ReplaceSessionForRefresh(
-		context.Background(),
-		nil,
-		"user-123",
-		"access-token",
-		"refresh-token",
-		time.Now().Add(1*time.Hour),
-		time.Now().Add(7*24*time.Hour),
-	)
-	assert.NoError(t, err)
-}
-
-// TestReplaceSessionForRefresh_Success 验证：正常路径先 DeleteAll 再 Create 两次
-func TestReplaceSessionForRefresh_Success(t *testing.T) {
-	store := &inMemoryTokenStore{}
-	err := authPkg.ReplaceSessionForRefresh(
-		context.Background(),
-		store,
-		"user-123",
-		"access-token",
-		"refresh-token",
-		time.Now().Add(1*time.Hour),
-		time.Now().Add(7*24*time.Hour),
-	)
-	require.NoError(t, err)
-	assert.Equal(t, 1, store.deleteAllCalls, "应调用 DeleteAll 一次")
-	assert.Equal(t, 2, store.createCalls, "应调用 Create 两次（access + refresh）")
 }
