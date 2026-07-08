@@ -103,7 +103,7 @@ func (r *Router) Register(engine *gin.Engine) {
 func (r *Router) registerV1(engine *gin.Engine) {
 	adminV1 := engine.Group("/admin/v1")
 
-	// 1. 不需要认证的接口 (如登录、获取上传凭证)
+	// 1. 不需要认证的接口 (如登录、获取验证码配置)
 	//    公开路由豁免 IPAC 检查，确保 IPAC 服务故障或误配 deny 规则时仍可登录修复问题。
 	publicGroup := adminV1.Group("")
 	for _, module := range r.routers {

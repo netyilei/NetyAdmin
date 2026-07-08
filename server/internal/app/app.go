@@ -138,17 +138,22 @@ func (a *App) Run() error {
 				http.Redirect(w, r, u.String(), http.StatusMovedPermanently)
 			}),
 		}
-		recovery.GoSafe("app:http_redirect", func() {
+		// 服务器主 goroutine 不使用 GoSafe：若 ListenAndServe panic，GoSafe 会 recover
+		// 但不退出，导致进程变成「活着但不监听端口」的僵尸状态。服务器主 goroutine
+		// 的语义是「失败必须退出」——panic 时由 Go runtime 直接 crash 进程（期望行为）。
+		// 这不违反 RULES.md §8.3：§8.3 禁止「裸 go func + manual recover 吞错」，
+		// 此处是「裸 go func 无 recover」——panic 不被吞，而是 crash 进程。
+		go func() {
 			slog.Info("HTTP→HTTPS 跳转服务启动", "addr", redirectSrv.Addr)
 			if err := redirectSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				slog.Error("HTTP→HTTPS 跳转服务启动失败", "error", err)
 				os.Exit(1)
 			}
-		})
+		}()
 	}
 
-	// 2. Start Web Server
-	recovery.GoSafe("app:web_server", func() {
+	// 2. Start Web Server（同上：不使用 GoSafe，panic 必须 crash 进程）
+	go func() {
 		if a.cfg.TLS.Enable {
 			slog.Info("服务器启动（TLS）", "addr", addr)
 			if err := srv.ListenAndServeTLS(a.cfg.TLS.CertFile, a.cfg.TLS.KeyFile); err != nil && err != http.ErrServerClosed {
@@ -162,7 +167,7 @@ func (a *App) Run() error {
 				os.Exit(1)
 			}
 		}
-	})
+	}()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

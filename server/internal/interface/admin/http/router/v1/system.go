@@ -18,8 +18,8 @@ func (r *SystemRouter) RegisterPublic(group *gin.RouterGroup) {
 	// 基础设置组 (公开部分)
 	system := group.Group("/system")
 	{
-		// 登录页需要获取验证码配置，所以获取配置接口必须公开
-		system.GET("/configs", r.handler.Config.ListByGroup)
+		// 登录页需获取验证码开关等非敏感配置；service 层白名单限制仅允许 captcha_config 等非敏感组
+		system.GET("/configs/public", r.handler.Config.ListPublic)
 	}
 }
 
@@ -39,11 +39,11 @@ func (r *SystemRouter) RegisterPermission(group *gin.RouterGroup) {
 	// 2. 基础设置组 - 对应前端 system 路径
 	system := group.Group("/system")
 	{
-		// 配置查询（敏感字段脱敏）需要权限
-		system.GET("/configs/list", r.handler.Config.ListByGroupProtected)
-		// 配置修改需要权限
+		// 配置查询（敏感字段脱敏）需登录+权限
+		system.GET("/configs", r.handler.Config.List)
+		// 配置修改需权限
 		system.PUT("/configs", r.handler.Config.Upsert)
-		// 测试邮件发送需要权限
+		// 测试邮件发送需权限
 		system.POST("/test-email", r.handler.Config.TestEmail)
 	}
 }
@@ -92,8 +92,4 @@ func (r *SystemRouter) registerButtonRoutes(group *gin.RouterGroup) {
 func (r *SystemRouter) registerRolePermissionRoutes(group *gin.RouterGroup) {
 	group.GET("/role/:id/menus", r.handler.GetAdminRoleMenus)
 	group.PUT("/role/:id/menus", r.handler.UpdateAdminRoleMenus)
-	group.GET("/role/:id/buttons", r.handler.GetAdminRoleButtons)
-	group.PUT("/role/:id/buttons", r.handler.UpdateAdminRoleButtons)
-	group.GET("/role/:id/apis", r.handler.GetAdminRoleAPIs)
-	group.PUT("/role/:id/apis", r.handler.UpdateAdminRoleAPIs)
 }

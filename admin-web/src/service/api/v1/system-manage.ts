@@ -321,10 +321,19 @@ export function fetchUnlockUser(id: string) {
   });
 }
 
-/** 获取系统配置（缓存开关等） */
+/** 获取系统配置（需登录+权限，敏感字段脱敏）。供管理后台设置页使用 */
 export function fetchGetSysConfigs(groupName?: string) {
   return request<SystemManage.SysConfig[]>({
     url: '/admin/v1/system/configs',
+    method: 'get',
+    params: { groupName }
+  });
+}
+
+/** 获取系统配置（公开接口，仅白名单分组）。供登录页等前置场景使用 */
+export function fetchGetPublicSysConfigs(groupName?: string) {
+  return request<SystemManage.SysConfig[]>({
+    url: '/admin/v1/system/configs/public',
     method: 'get',
     params: { groupName }
   });

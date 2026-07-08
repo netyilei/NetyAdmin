@@ -2,38 +2,36 @@ package system
 
 import (
 	"context"
+	"errors"
 	"log/slog"
-	"strings"
+
+	"gorm.io/gorm"
 
 	systemEntity "NetyAdmin/internal/domain/entity/system"
 	systemVO "NetyAdmin/internal/domain/vo/system"
 	systemDto "NetyAdmin/internal/interface/admin/dto/system"
 	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/mask"
 	msgPkg "NetyAdmin/internal/pkg/message"
 	"NetyAdmin/internal/pkg/pubsub"
 	systemRepo "NetyAdmin/internal/repository/system"
 )
 
-// publicConfigGroups 是允许公开查询的配置组白名单。
-// 登录页仅需验证码开关等非敏感配置，email_config/sms_config 等含密钥的组必须鉴权访问。
+// publicConfigGroups 是允许未认证公开查询的配置组白名单。
+// 仅登录页等前置场景所需的非敏感配置组可加入此白名单；
+// email_config / sms_config 等含密钥的组必须通过鉴权接口访问。
 var publicConfigGroups = map[string]bool{
-	"cache_switches": true,
-}
-
-// sensitiveConfigKeys 是需要脱敏的配置键（小写匹配）。
-// 即使鉴权后返回，这些字段也以 **** 脱敏，防止肩窥泄露。
-var sensitiveConfigKeys = map[string]bool{
-	"password":    true,
-	"secret_id":   true,
-	"secret_key":  true,
-	"api_key":     true,
-	"apikey":      true,
-	"private_key": true,
+	// 登录页需读取 admin_login_enabled 判断是否展示验证码
+	"captcha_config": true,
 }
 
 type ConfigService interface {
+	// ListByGroup 返回指定分组的配置（敏感字段脱敏）。
+	// 供已鉴权的管理后台接口调用，允许访问任意分组。
 	ListByGroup(ctx context.Context, groupName string) ([]*systemVO.SysConfigVO, error)
+	// ListByGroupPublic 返回指定分组的配置（敏感字段脱敏）。
+	// 仅供公开接口调用：仅允许白名单内的分组，其余返回 CodeForbidden。
 	ListByGroupPublic(ctx context.Context, groupName string) ([]*systemVO.SysConfigVO, error)
 	Upsert(ctx context.Context, req *systemDto.UpdateConfigReq, operatorID uint) error
 	BroadcastUpdate(ctx context.Context) error
@@ -58,6 +56,8 @@ func NewConfigService(repo systemRepo.ConfigRepository, watcher configsync.Confi
 	}
 }
 
+// ListByGroup 返回指定分组的配置列表，敏感字段值替换为 mask.MaskPlaceholder。
+// 引用 mask.IsSensitive 做归一化匹配（RULES.md §11.4），禁止本地硬编码字段列表。
 func (s *configService) ListByGroup(ctx context.Context, groupName string) ([]*systemVO.SysConfigVO, error) {
 	configs, err := s.repo.GetByGroup(ctx, groupName)
 	if err != nil {
@@ -67,8 +67,8 @@ func (s *configService) ListByGroup(ctx context.Context, groupName string) ([]*s
 	items := make([]*systemVO.SysConfigVO, 0, len(configs))
 	for _, c := range configs {
 		val := c.ConfigValue
-		if sensitiveConfigKeys[strings.ToLower(c.ConfigKey)] {
-			val = "****"
+		if mask.IsSensitive(c.ConfigKey) {
+			val = mask.MaskPlaceholder
 		}
 		items = append(items, &systemVO.SysConfigVO{
 			GroupName:   c.GroupName,
@@ -90,11 +90,38 @@ func (s *configService) ListByGroupPublic(ctx context.Context, groupName string)
 	return s.ListByGroup(ctx, groupName)
 }
 
+// Upsert 新增或更新单个配置项。
+//
+// 敏感字段占位保护：前端 GET 配置时看到 mask.MaskPlaceholder（****），
+// 若用户未修改该字段直接 PUT 回来，req.ConfigValue 会等于 MaskPlaceholder。
+// 此时必须保留 DB 旧值，否则会用字面量 **** 覆盖真实密码/密钥。
+//
+// 实现采用 fetch+patch+Save 模式（SHARED.md §二）：
+//  1. 先按 (groupName, configKey) 查询旧记录
+//  2. 若存在且该 key 为敏感字段且新值 == MaskPlaceholder，保留旧 ConfigValue
+//  3. 调 repo.Upsert 写入
 func (s *configService) Upsert(ctx context.Context, req *systemDto.UpdateConfigReq, operatorID uint) error {
+	valueToWrite := req.ConfigValue
+
+	// 敏感字段占位保护：查旧记录，若新值是脱敏占位则保留旧值
+	if mask.IsSensitive(req.ConfigKey) && req.ConfigValue == mask.MaskPlaceholder {
+		old, err := s.repo.GetByGroupAndKey(ctx, req.GroupName, req.ConfigKey)
+		if err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+			// 旧记录不存在（首次创建）：不允许写入占位符作为真实值
+			slog.Warn("config: refusing to create sensitive config with mask placeholder",
+				"group", req.GroupName, "key", req.ConfigKey)
+			return errorx.New(errorx.CodeInvalidParams, "敏感配置不允许使用占位值")
+		}
+		valueToWrite = old.ConfigValue
+	}
+
 	configItem := &systemEntity.SysConfig{
 		GroupName:   req.GroupName,
 		ConfigKey:   req.ConfigKey,
-		ConfigValue: req.ConfigValue,
+		ConfigValue: valueToWrite,
 		ValueType:   req.ValueType,
 		Description: req.Description,
 	}

@@ -20,23 +20,32 @@ func NewConfigHandler(configSvc systemService.ConfigService) *ConfigHandler {
 	}
 }
 
-// @Summary      获取配置分组
-// @Description  根据组名获取多项配置，例如 cache_switches
+// bindConfigQuery 绑定配置查询参数，空 groupName 兜底为 cache_switches。
+// 供 ListPublic / List handler 共用，避免重复代码（SRP）。
+func bindConfigQuery(c *gin.Context) (systemDto.ConfigQuery, error) {
+	var req systemDto.ConfigQuery
+	if err := c.ShouldBindQuery(&req); err != nil {
+		return req, err
+	}
+	if req.GroupName == "" {
+		req.GroupName = configsync.GroupCacheSwitches
+	}
+	return req, nil
+}
+
+// @Summary      获取配置分组（公开）
+// @Description  根据组名获取多项配置（仅白名单分组，敏感字段脱敏）。供登录页等前置场景使用。
 // @Tags         系统配置管理
 // @Accept       json
 // @Produce      json
-// @Param        groupName query string true "配置组名"
+// @Param        groupName query string true "配置组名（仅白名单内分组可访问）"
 // @Success      200 {object} response.Response{data=[]system.SysConfigVO} "配置列表"
-// @Router       /admin/v1/system/configs [get]
-func (h *ConfigHandler) ListByGroup(c *gin.Context) {
-	var req systemDto.ConfigQuery
-	if err := c.ShouldBindQuery(&req); err != nil {
+// @Router       /admin/v1/system/configs/public [get]
+func (h *ConfigHandler) ListPublic(c *gin.Context) {
+	req, err := bindConfigQuery(c)
+	if err != nil {
 		response.FailWithCode(c, errorx.CodeInvalidParams, "参数错误")
 		return
-	}
-
-	if req.GroupName == "" {
-		req.GroupName = configsync.GroupCacheSwitches
 	}
 
 	configs, err := h.configSvc.ListByGroupPublic(c.Request.Context(), req.GroupName)
@@ -49,22 +58,18 @@ func (h *ConfigHandler) ListByGroup(c *gin.Context) {
 }
 
 // @Summary      获取配置分组（需权限）
-// @Description  根据组名获取多项配置（敏感字段脱敏），需登录+权限
+// @Description  根据组名获取多项配置（敏感字段脱敏），需登录+权限。供管理后台设置页使用。
 // @Tags         系统配置管理
 // @Accept       json
 // @Produce      json
 // @Param        groupName query string true "配置组名"
 // @Success      200 {object} response.Response{data=[]system.SysConfigVO} "配置列表"
-// @Router       /admin/v1/system/configs/list [get]
-func (h *ConfigHandler) ListByGroupProtected(c *gin.Context) {
-	var req systemDto.ConfigQuery
-	if err := c.ShouldBindQuery(&req); err != nil {
+// @Router       /admin/v1/system/configs [get]
+func (h *ConfigHandler) List(c *gin.Context) {
+	req, err := bindConfigQuery(c)
+	if err != nil {
 		response.FailWithCode(c, errorx.CodeInvalidParams, "参数错误")
 		return
-	}
-
-	if req.GroupName == "" {
-		req.GroupName = configsync.GroupCacheSwitches
 	}
 
 	configs, err := h.configSvc.ListByGroup(c.Request.Context(), req.GroupName)
@@ -77,7 +82,7 @@ func (h *ConfigHandler) ListByGroupProtected(c *gin.Context) {
 }
 
 // @Summary      更新/新增单个系统配置
-// @Description  更新缓存开关或其他动态配置，修改后自动通过Redis广播全局重新加载内存字典
+// @Description  更新缓存开关或其他动态配置，修改后自动通过Redis广播全局重新加载内存字典。敏感字段若传 **** 则保留旧值。
 // @Tags         系统配置管理
 // @Accept       json
 // @Produce      json

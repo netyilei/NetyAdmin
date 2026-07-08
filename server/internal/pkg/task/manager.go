@@ -60,6 +60,12 @@ type Manager struct {
 	intervals map[string]chan struct{} // 记录 Interval 任务停止通道 (按任务名隔离)
 	cancel    context.CancelFunc       // 用于停止所有 Worker
 	stopOnce  sync.Once                // 保护 stopChan 的 close 操作，避免 double-close panic
+
+	// baseCtx 是引擎级长生命周期 context，在 Start 时由调用方传入。
+	// 所有异步任务执行（ManualRun / StartTask / cron / interval）均从此 ctx 派生，
+	// 而非从 HTTP 请求 ctx 派生——HTTP 请求 ctx 在响应返回后被 cancel，
+	// 会导致 watchdog 续期失败、任务被腰斩等严重问题。
+	baseCtx context.Context
 }
 
 // NewManager 创建调度引擎
@@ -113,9 +119,12 @@ func (m *Manager) Start(ctx context.Context) {
 		return
 	}
 
-	// 初始化 Worker 控制上下文
+	// 初始化引擎级 context：所有异步任务执行从此 ctx 派生。
+	// workerCtx 用于 Worker 消费循环；baseCtx 用于 ManualRun / StartTask 等异步执行。
+	// 二者共享同一个 cancel，Stop 时统一取消。
 	workerCtx, cancel := context.WithCancel(ctx)
 	m.cancel = cancel
+	m.baseCtx = workerCtx
 
 	// 1. 获取所有已启用的任务并进行配置合并
 	type taskWithConfig struct {
@@ -158,10 +167,10 @@ func (m *Manager) Start(ctx context.Context) {
 			// 异步执行间隔任务（GoSafe 包裹 recover + Sentry 上报，防止 panic 导致任务静默退出）
 			// runIntervalTask 内部 defer m.wg.Done() 在 panic 时仍会触发
 			recovery.GoSafe("task:interval", func() {
-				m.runIntervalTask(ctx, tc.task, tc.metadata, stopChan)
+				m.runIntervalTask(m.baseCtx, tc.task, tc.metadata, stopChan)
 			})
 		case TypeCron:
-			m.registerCronTask(ctx, tc.task, tc.metadata)
+			m.registerCronTask(m.baseCtx, tc.task, tc.metadata)
 		}
 	}
 
@@ -305,6 +314,23 @@ func (m *Manager) executePayload(ctx context.Context, msg *Message) {
 	}
 }
 
+// asyncCtx 从引擎级 baseCtx 派生异步执行用的 context，保留传入 ctx 的 request_id。
+//
+// 根因修复：ManualRun / StartTask 由 HTTP handler 调用，传入的是 HTTP 请求 ctx。
+// HTTP 响应返回后该 ctx 被 cancel，若直接传入异步 goroutine 会导致：
+//   - watchdog 续期脚本 Run(ctx) 失败 → 锁过期后被其他实例抢占 → 重复执行
+//   - 任务 Run(ctx) 提前收到 cancel 信号 → 任务被腰斩
+//
+// 正确做法：异步执行从 baseCtx（引擎级长生命周期）派生，仅从 HTTP ctx 提取
+// request_id 用于全链路追踪。baseCtx 在 Stop 时由 m.cancel 取消，确保优雅关闭。
+func (m *Manager) asyncCtx(ctx context.Context) context.Context {
+	if m.baseCtx == nil {
+		// 测试场景未调 Start：退化为 WithoutCancel，避免 ctx 被 cancel 后影响异步执行
+		return ctx
+	}
+	return requestid.WithRequestID(m.baseCtx, requestid.FromContext(ctx))
+}
+
 // StartTask 启动单个任务
 func (m *Manager) StartTask(ctx context.Context, name string) error {
 	m.mu.Lock()
@@ -329,11 +355,14 @@ func (m *Manager) StartTask(ctx context.Context, name string) error {
 	}
 	m.mu.RUnlock()
 
+	// 从引擎级 baseCtx 派生异步 ctx，保留 request_id 用于追踪
+	asyncCtx := m.asyncCtx(ctx)
+
 	switch meta.Type {
 	case TypeOnce:
 		// 异步执行单次任务（GoSafe 包裹 recover + Sentry 上报，防止 panic 影响调度引擎）
 		recovery.GoSafe("task:once", func() {
-			m.execute(ctx, t)
+			m.execute(asyncCtx, t)
 		})
 	case TypeInterval:
 		m.wg.Add(1)
@@ -344,10 +373,10 @@ func (m *Manager) StartTask(ctx context.Context, name string) error {
 		// 异步执行间隔任务（GoSafe 包裹 recover + Sentry 上报，防止 panic 导致任务静默退出）
 		// runIntervalTask 内部 defer m.wg.Done() 在 panic 时仍会触发
 		recovery.GoSafe("task:interval", func() {
-			m.runIntervalTask(ctx, t, meta, stopChan)
+			m.runIntervalTask(asyncCtx, t, meta, stopChan)
 		})
 	case TypeCron:
-		m.registerCronTask(ctx, t, meta)
+		m.registerCronTask(asyncCtx, t, meta)
 	}
 
 	return nil
@@ -441,12 +470,15 @@ func (m *Manager) ManualRun(ctx context.Context, name string) error {
 		return fmt.Errorf("任务 [%s] 不存在", name)
 	}
 
+	// 从引擎级 baseCtx 派生异步 ctx，避免 HTTP 请求 ctx cancel 后影响任务执行
+	asyncCtx := m.asyncCtx(ctx)
+
 	m.wg.Add(1)
 	// GoSafe 包裹 recover + Sentry 上报，防止手动触发的任务 panic 影响调度引擎。
 	// defer m.wg.Done() 在 fn 内部，panic 时仍会触发（defer 在 recover 捕获前执行）。
 	recovery.GoSafe("task:manual", func() {
 		defer m.wg.Done()
-		m.execute(ctx, t)
+		m.execute(asyncCtx, t)
 	})
 
 	return nil

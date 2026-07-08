@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { isTruthyConfigValue } from '@/constants/business';
 import { fetchGetCaptcha } from '@/service/api/v1/auth';
-import { fetchGetSysConfigs } from '@/service/api/v1/system-manage';
+import { fetchGetPublicSysConfigs } from '@/service/api/v1/system-manage';
 import { useAuthStore } from '@/store/modules/auth';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { $t } from '@/locales';
@@ -51,7 +51,7 @@ async function getCaptcha() {
 }
 
 async function checkCaptchaEnabled() {
-  const { data, error } = await fetchGetSysConfigs('captcha_config');
+  const { data, error } = await fetchGetPublicSysConfigs('captcha_config');
   if (!error) {
     const config = data.find(item => item.configKey === 'admin_login_enabled');
     captchaEnabled.value = isTruthyConfigValue(config?.configValue);

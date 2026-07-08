@@ -165,6 +165,10 @@ func (s *ipacService) ReloadCache(ctx context.Context) error {
 	var newGlobalAllow cidranger.Ranger // nil 表示未配置白名单
 	newAppRules := make(map[string]appIPRules)
 
+	// insertFailed 跟踪是否有规则插入失败。若有失败，不更新 fingerprint，
+	// 下次 ReloadCache 会重新尝试构建——避免失败的规则因 fingerprint 匹配而永久缺失。
+	insertFailed := false
+
 	for _, r := range rules {
 		ipNet := parseIPNet(r.IPAddr)
 		if ipNet == nil {
@@ -174,14 +178,16 @@ func (s *ipacService) ReloadCache(ctx context.Context) error {
 		if r.AppID == nil || *r.AppID == "" {
 			if r.Type == ipac.IPACTypeDeny {
 				if err := newGlobalDeny.Insert(cidranger.NewBasicRangerEntry(*ipNet)); err != nil {
-					slog.Warn("ipac: insert global deny rule failed", "ipAddr", r.IPAddr, "err", err)
+					slog.Error("ipac: insert global deny rule failed", "ipAddr", r.IPAddr, "err", err)
+					insertFailed = true
 				}
 			} else {
 				if newGlobalAllow == nil {
 					newGlobalAllow = cidranger.NewPCTrieRanger()
 				}
 				if err := newGlobalAllow.Insert(cidranger.NewBasicRangerEntry(*ipNet)); err != nil {
-					slog.Warn("ipac: insert global allow rule failed", "ipAddr", r.IPAddr, "err", err)
+					slog.Error("ipac: insert global allow rule failed", "ipAddr", r.IPAddr, "err", err)
+					insertFailed = true
 				}
 			}
 		} else {
@@ -192,14 +198,16 @@ func (s *ipacService) ReloadCache(ctx context.Context) error {
 			}
 			if r.Type == ipac.IPACTypeDeny {
 				if err := ar.Deny.Insert(cidranger.NewBasicRangerEntry(*ipNet)); err != nil {
-					slog.Warn("ipac: insert app deny rule failed", "appID", appID, "ipAddr", r.IPAddr, "err", err)
+					slog.Error("ipac: insert app deny rule failed", "appID", appID, "ipAddr", r.IPAddr, "err", err)
+					insertFailed = true
 				}
 			} else {
 				if ar.Allow == nil {
 					ar.Allow = cidranger.NewPCTrieRanger()
 				}
 				if err := ar.Allow.Insert(cidranger.NewBasicRangerEntry(*ipNet)); err != nil {
-					slog.Warn("ipac: insert app allow rule failed", "appID", appID, "ipAddr", r.IPAddr, "err", err)
+					slog.Error("ipac: insert app allow rule failed", "appID", appID, "ipAddr", r.IPAddr, "err", err)
+					insertFailed = true
 				}
 			}
 			newAppRules[appID] = ar
@@ -220,7 +228,11 @@ func (s *ipacService) ReloadCache(ctx context.Context) error {
 	s.globalDeny = newGlobalDeny
 	s.globalAllow = newGlobalAllow
 	s.appRules = newAppRules
-	s.cachedRuleFingerprint = ruleFP
+	// 仅当所有规则插入成功时才更新 fingerprint；否则保留旧 fingerprint，
+	// 下次 ReloadCache 重新尝试构建，确保失败的规则不会永久缺失。
+	if !insertFailed {
+		s.cachedRuleFingerprint = ruleFP
+	}
 	s.cachedAppStrategyFP = appFP
 	s.mu.Unlock()
 

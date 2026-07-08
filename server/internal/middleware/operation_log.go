@@ -88,13 +88,10 @@ func OperationLogger(logBus logService.LogBusService) gin.HandlerFunc {
 		if len(requestBody) > 0 {
 			var jsonBody map[string]interface{}
 			if err := json.Unmarshal(requestBody, &jsonBody); err == nil {
-				// 构建小写敏感字段 set（大小写不敏感匹配，保留原 JSON key 大小写兼容）
-				sensitiveSet := make(map[string]struct{}, len(mask.SensitiveFieldKeys))
-				for _, k := range mask.SensitiveFieldKeys {
-					sensitiveSet[k] = struct{}{}
-				}
+				// 引用 mask.IsSensitive 做归一化匹配（大小写不敏感 + 去下划线/连字符），
+				// 禁止本地硬编码敏感字段列表（RULES.md §11.4）。
 				for k := range jsonBody {
-					if _, ok := sensitiveSet[strings.ToLower(k)]; ok {
+					if mask.IsSensitive(k) {
 						delete(jsonBody, k)
 					}
 				}
