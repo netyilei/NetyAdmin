@@ -33,9 +33,8 @@ type AppService interface {
 	// 返回 (true, nil) 表示 Nonce 首次出现（占用缓存槽位 ttl 时长）；
 	// 返回 (false, nil) 表示 Nonce 已存在（重复请求）；
 	// 返回 (false, err) 表示缓存服务异常。
-	// 内部调用 cacheMgr.SetNX 实现，封装 cacheMgr 不暴露给 middleware/handler 层（BFF 隔离）。
+	// 内部调用 cacheSlow.SetNX 实现，封装缓存接口不暴露给 middleware/handler 层（BFF 隔离）。
 	TryConsumeNonce(ctx context.Context, appKey, nonce string, ttl time.Duration) (bool, error)
-	GetCacheMgr() cache.LazyCacheManager
 	GetAppStorageDriver(ctx context.Context, app *open_platform.App) (storage.Driver, *storage.Config, error)
 
 	// Admin operations
@@ -57,7 +56,8 @@ type AppService interface {
 
 type appService struct {
 	repo          openRepo.AppRepository
-	cacheMgr      cache.LazyCacheManager
+	cacheFast     cache.ConfigCache   // 配置类：app info / scopes（Fast 系列：L1+L2 chain）
+	cacheSlow     cache.SecurityCache // 安全类：Nonce 防重放（非 Fast：SetNX，L2 only）
 	aesKey        string
 	ipacSvc       ipacSvcPkg.IPACService
 	ipacRepo      ipacRepoPkg.IPACRepository
@@ -67,10 +67,11 @@ type appService struct {
 	tm            *database.TransactionManager
 }
 
-func NewAppService(repo openRepo.AppRepository, cacheMgr cache.LazyCacheManager, aesKey string, ipacSvc ipacSvcPkg.IPACService, ipacRepo ipacRepoPkg.IPACRepository, storageMgr *storage.Manager, configWatcher configsync.ConfigWatcher, rateLimiter *ratelimit.Limiter, tm *database.TransactionManager) AppService {
+func NewAppService(repo openRepo.AppRepository, cacheFast cache.ConfigCache, cacheSlow cache.SecurityCache, aesKey string, ipacSvc ipacSvcPkg.IPACService, ipacRepo ipacRepoPkg.IPACRepository, storageMgr *storage.Manager, configWatcher configsync.ConfigWatcher, rateLimiter *ratelimit.Limiter, tm *database.TransactionManager) AppService {
 	return &appService{
 		repo:          repo,
-		cacheMgr:      cacheMgr,
+		cacheFast:     cacheFast,
+		cacheSlow:     cacheSlow,
 		aesKey:        aesKey,
 		ipacSvc:       ipacSvc,
 		ipacRepo:      ipacRepo,
@@ -85,12 +86,12 @@ func (s *appService) GetAppByKey(ctx context.Context, appKey string) (*open_plat
 	key := cache.KeyAppInfo(appKey)
 	tags := []string{cache.TagApp, cache.TagAppKey(appKey)}
 
-	if !s.cacheMgr.IsCacheEnabled(cache.TagApp) {
+	if !s.cacheFast.IsCacheEnabled(cache.TagApp) {
 		return s.repo.GetByKey(ctx, appKey)
 	}
 
 	var app open_platform.App
-	if err := s.cacheMgr.GetFast(ctx, key, tags, 0, &app); err == nil {
+	if err := s.cacheFast.GetFast(ctx, key, tags, 0, &app); err == nil {
 		return &app, nil
 	}
 
@@ -104,7 +105,7 @@ func (s *appService) GetAppByKey(ctx context.Context, appKey string) (*open_plat
 		ttl = time.Duration(a.CacheTTL) * time.Second
 	}
 
-	if err := s.cacheMgr.SetFast(ctx, key, a, tags, ttl); err != nil {
+	if err := s.cacheFast.SetFast(ctx, key, a, tags, ttl); err != nil {
 		slog.Warn("set fast cache failed", "key", key, "err", err)
 	}
 
@@ -126,7 +127,7 @@ func (s *appService) VerifyAppScope(ctx context.Context, appID string, requiredS
 
 	var scopes []string
 	key := cache.KeyAppScopes(appID)
-	err := s.cacheMgr.FetchFast(ctx, key, cache.TagApp, []string{cache.TagApp, cache.TagAppKey(appID)}, 0, &scopes, func() (interface{}, error) {
+	err := s.cacheFast.FetchFast(ctx, key, cache.TagApp, []string{cache.TagApp, cache.TagAppKey(appID)}, 0, &scopes, func() (interface{}, error) {
 		return s.repo.GetAppScopes(ctx, appID)
 	})
 
@@ -173,13 +174,9 @@ func (s *appService) getDefaultCapacity() int {
 	return utils.GetIntWithDefault(s.configWatcher, "open_platform_config", "default_capacity", 200)
 }
 
-func (s *appService) GetCacheMgr() cache.LazyCacheManager {
-	return s.cacheMgr
-}
-
 func (s *appService) TryConsumeNonce(ctx context.Context, appKey, nonce string, ttl time.Duration) (bool, error) {
 	nonceKey := cache.KeyAppNonce(appKey, nonce)
-	set, err := s.cacheMgr.SetNX(ctx, nonceKey, "1", ttl)
+	set, err := s.cacheSlow.SetNX(ctx, nonceKey, "1", ttl)
 	if err != nil {
 		return false, fmt.Errorf("appService.TryConsumeNonce: SetNX failed: %w", err)
 	}
@@ -227,7 +224,7 @@ func (s *appService) CreateApp(ctx context.Context, req *openDto.CreateAppReq) e
 		return errorx.New(errorx.CodeInternalError, "应用创建失败")
 	}
 	// 事务后失效缓存（避免「缓存已清但 DB 回滚」中间态）
-	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagApp); err != nil {
+	if err := s.cacheFast.InvalidateByTags(ctx, cache.TagApp); err != nil {
 		slog.Error("invalidate cache failed", "tag", cache.TagApp, "err", err)
 	}
 	return nil
@@ -279,7 +276,7 @@ func (s *appService) UpdateApp(ctx context.Context, req *openDto.UpdateAppReq) e
 	// 事务后失效缓存 + ipac reload。
 	// AppKey 未变更（创建后不可变更），使用 TagAppKey 失效应用相关缓存即可。
 	tag := cache.TagAppKey(old.AppKey)
-	if err := s.cacheMgr.InvalidateByTags(ctx, tag); err != nil {
+	if err := s.cacheFast.InvalidateByTags(ctx, tag); err != nil {
 		slog.Error("invalidate cache failed", "tag", tag, "err", err)
 	}
 	if err := s.ipacSvc.NotifyAndReload(ctx); err != nil {
@@ -317,7 +314,7 @@ func (s *appService) ResetAppSecret(ctx context.Context, id string) (string, err
 	}
 	// 事务后失效缓存（AppKey == ID，tag 字符串相同，失效一次即可）
 	tag := cache.TagAppKey(app.AppKey)
-	if err := s.cacheMgr.InvalidateByTags(ctx, tag); err != nil {
+	if err := s.cacheFast.InvalidateByTags(ctx, tag); err != nil {
 		slog.Error("invalidate cache failed", "tag", tag, "err", err)
 	}
 	return rawSecret, nil
@@ -368,10 +365,10 @@ func (s *appService) DeleteApp(ctx context.Context, id string) error {
 		return errorx.New(errorx.CodeInternalError, "应用删除失败")
 	}
 	// 事务后失效缓存（避免「缓存已清但 DB 回滚」中间态，RULES.md §二）
-	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagAppKey(app.AppKey)); err != nil {
+	if err := s.cacheFast.InvalidateByTags(ctx, cache.TagAppKey(app.AppKey)); err != nil {
 		slog.Error("invalidate cache failed", "tag", cache.TagAppKey(app.AppKey), "err", err)
 	}
-	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagAppKey(id)); err != nil {
+	if err := s.cacheFast.InvalidateByTags(ctx, cache.TagAppKey(id)); err != nil {
 		slog.Error("invalidate cache failed", "tag", cache.TagAppKey(id), "err", err)
 	}
 
@@ -390,7 +387,7 @@ func (s *appService) ListAvailableScopes(ctx context.Context) ([]map[string]stri
 	// 从数据库动态加载，支持 i18n key，结合缓存模块
 	var groups []*open_platform.AppScopeGroup
 	key := cache.KeyAppAvailableScopes()
-	err := s.cacheMgr.Fetch(ctx, key, cache.TagApp, []string{cache.TagApp, "app_scopes"}, 0, &groups, func() (interface{}, error) {
+	err := s.cacheFast.FetchFast(ctx, key, cache.TagApp, []string{cache.TagApp, "app_scopes"}, 0, &groups, func() (interface{}, error) {
 		// 仅返回启用的分组
 		allGroups, err := s.repo.ListScopeGroups(ctx)
 		if err != nil {
@@ -433,7 +430,7 @@ func (s *appService) CreateScopeGroup(ctx context.Context, req *openDto.CreateSc
 	if err := s.repo.CreateScopeGroup(ctx, group); err != nil {
 		return fmt.Errorf("repo.CreateScopeGroup: %w", err)
 	}
-	if err := s.cacheMgr.Delete(ctx, cache.KeyAppAvailableScopes()); err != nil {
+	if err := s.cacheFast.DeleteFast(ctx, cache.KeyAppAvailableScopes()); err != nil {
 		slog.Warn("delete cache failed", "key", cache.KeyAppAvailableScopes(), "err", err)
 	}
 	return nil
@@ -450,7 +447,7 @@ func (s *appService) UpdateScopeGroup(ctx context.Context, req *openDto.UpdateSc
 	if err := s.repo.UpdateScopeGroup(ctx, group); err != nil {
 		return fmt.Errorf("repo.UpdateScopeGroup: %w", err)
 	}
-	if err := s.cacheMgr.Delete(ctx, cache.KeyAppAvailableScopes()); err != nil {
+	if err := s.cacheFast.DeleteFast(ctx, cache.KeyAppAvailableScopes()); err != nil {
 		slog.Warn("delete cache failed", "key", cache.KeyAppAvailableScopes(), "err", err)
 	}
 	return nil
@@ -468,7 +465,7 @@ func (s *appService) DeleteScopeGroup(ctx context.Context, id uint64) error {
 	if err := s.repo.DeleteScopeGroup(ctx, id); err != nil {
 		return fmt.Errorf("repo.DeleteScopeGroup: %w", err)
 	}
-	if err := s.cacheMgr.Delete(ctx, cache.KeyAppAvailableScopes()); err != nil {
+	if err := s.cacheFast.DeleteFast(ctx, cache.KeyAppAvailableScopes()); err != nil {
 		slog.Warn("delete cache failed", "key", cache.KeyAppAvailableScopes(), "err", err)
 	}
 	return nil

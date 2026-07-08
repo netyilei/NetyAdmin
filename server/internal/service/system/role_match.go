@@ -74,7 +74,7 @@ func matchPath(pattern, path string) bool {
 func (s *roleService) VerifyApiAuth(ctx context.Context, method, path string, roleCodes []string) (hasPermission bool, apiFound bool, err error) {
 	// 1. Fetch 全部 API
 	var allApis []*systemEntity.API
-	err = s.cacheMgr.Fetch(ctx, cache.KeyAllApis(), "rbac_auth", []string{cache.TagRBACAPI}, cache.TTL_RBAC, &allApis, func() (interface{}, error) {
+	err = s.cacheFast.FetchFast(ctx, cache.KeyAllApis(), "rbac_auth", []string{cache.TagRBACAPI}, cache.TTL_RBAC, &allApis, func() (interface{}, error) {
 		return s.apiRepo.GetAll(ctx)
 	})
 	if err != nil {
@@ -107,7 +107,7 @@ func (s *roleService) VerifyApiAuth(ctx context.Context, method, path string, ro
 	for _, roleCode := range roleCodes {
 		var apis []*systemEntity.API
 		key := cache.KeyRoleApis(roleCode)
-		err = s.cacheMgr.Fetch(ctx, key, "rbac_auth", []string{cache.TagRBACRole}, cache.TTL_RBAC, &apis, func() (interface{}, error) {
+		err = s.cacheFast.FetchFast(ctx, key, "rbac_auth", []string{cache.TagRBACRole}, cache.TTL_RBAC, &apis, func() (interface{}, error) {
 			role, repoErr := s.roleRepo.GetByCode(ctx, roleCode)
 			if repoErr != nil {
 				return nil, repoErr

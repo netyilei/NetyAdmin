@@ -43,7 +43,7 @@ type roleService struct {
 	menuRepo   systemRepo.MenuRepository
 	apiRepo    systemRepo.APIRepository
 	buttonRepo systemRepo.ButtonRepository
-	cacheMgr   cache.LazyCacheManager
+	cacheFast   cache.ConfigCache
 	tm         *database.TransactionManager
 }
 
@@ -52,7 +52,7 @@ func NewRoleService(
 	menuRepo systemRepo.MenuRepository,
 	apiRepo systemRepo.APIRepository,
 	buttonRepo systemRepo.ButtonRepository,
-	cacheMgr cache.LazyCacheManager,
+	cacheFast cache.ConfigCache,
 	tm *database.TransactionManager,
 ) RoleService {
 	return &roleService{
@@ -60,7 +60,7 @@ func NewRoleService(
 		menuRepo:   menuRepo,
 		apiRepo:    apiRepo,
 		buttonRepo: buttonRepo,
-		cacheMgr:   cacheMgr,
+		cacheFast:   cacheFast,
 		tm:         tm,
 	}
 }
@@ -196,7 +196,7 @@ func (s *roleService) Update(ctx context.Context, req *systemDto.UpdateRoleReq, 
 		return err
 	}
 	// Code 未变更，只需失效当前 RBAC 缓存（角色 + 菜单）
-	if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
+	if cErr := s.cacheFast.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
 		slog.Error("invalidate cache failed", "tag", cache.TagRBACRole, "err", cErr)
 	}
 	return nil
@@ -238,7 +238,7 @@ func (s *roleService) Delete(ctx context.Context, id uint) error {
 	if err != nil {
 		return err
 	}
-	if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
+	if cErr := s.cacheFast.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
 		slog.Error("invalidate cache failed", "tag", cache.TagRBACRole, "err", cErr)
 	}
 	return nil
@@ -259,7 +259,7 @@ func (s *roleService) DeleteBatch(ctx context.Context, ids []uint) error {
 			}
 			// DB 错误（非 record not found）：fail-closed 立即返回，已删除的 id 保持，未处理的不受影响
 			slog.Error("role delete batch: GetByID failed", "roleID", id, "err", err)
-			if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
+			if cErr := s.cacheFast.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
 				slog.Error("invalidate cache failed after GetByID failure", "tag", cache.TagRBACRole, "err", cErr)
 			}
 			return fmt.Errorf("roleRepo.GetByID (id=%d): %w", id, err)
@@ -275,7 +275,7 @@ func (s *roleService) DeleteBatch(ctx context.Context, ids []uint) error {
 			s.tm.Rollback(tx)
 			// 事务失败立即返回（fail-closed）：已提交的 id 保持删除状态，未处理的 id 不受影响
 			// 但已成功删除的 id 会导致 RBAC 缓存过期，必须失效
-			if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
+			if cErr := s.cacheFast.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
 				slog.Error("invalidate cache failed after tx failure", "tag", cache.TagRBACRole, "err", cErr)
 			}
 			return errorx.New(errorx.CodeInternalError, fmt.Sprintf("角色 %d 删除失败", id))
@@ -283,7 +283,7 @@ func (s *roleService) DeleteBatch(ctx context.Context, ids []uint) error {
 		if err := s.roleRepo.ClearPermissions(txCtx, id); err != nil {
 			slog.Error("role delete batch: clear permissions failed", "roleID", id, "err", err)
 			s.tm.Rollback(tx)
-			if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
+			if cErr := s.cacheFast.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
 				slog.Error("invalidate cache failed after tx failure", "tag", cache.TagRBACRole, "err", cErr)
 			}
 			return errorx.New(errorx.CodeInternalError, fmt.Sprintf("角色 %d 删除失败", id))
@@ -291,21 +291,21 @@ func (s *roleService) DeleteBatch(ctx context.Context, ids []uint) error {
 		if err := s.roleRepo.Delete(txCtx, id); err != nil {
 			slog.Error("role delete batch: delete role failed", "roleID", id, "err", err)
 			s.tm.Rollback(tx)
-			if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
+			if cErr := s.cacheFast.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
 				slog.Error("invalidate cache failed after tx failure", "tag", cache.TagRBACRole, "err", cErr)
 			}
 			return errorx.New(errorx.CodeInternalError, fmt.Sprintf("角色 %d 删除失败", id))
 		}
 		if err := s.tm.Commit(tx); err != nil {
 			slog.Error("role delete batch: commit failed", "roleID", id, "err", err)
-			if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
+			if cErr := s.cacheFast.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
 				slog.Error("invalidate cache failed after tx failure", "tag", cache.TagRBACRole, "err", cErr)
 			}
 			return errorx.New(errorx.CodeInternalError, fmt.Sprintf("角色 %d 删除失败", id))
 		}
 	}
 	// 全部处理完成后，失效 RBAC 缓存（角色 + 菜单）
-	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); err != nil {
+	if err := s.cacheFast.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); err != nil {
 		slog.Error("invalidate cache failed", "tag", cache.TagRBACRole, "err", err)
 	}
 	if len(skipped) > 0 {
@@ -335,7 +335,7 @@ func (s *roleService) GetAll(ctx context.Context) ([]*systemVO.RoleSimpleVO, err
 func (s *roleService) GetRoleMenusWithHome(ctx context.Context, roleID uint) (map[string]interface{}, error) {
 	var result map[string]interface{}
 	key := cache.KeyRoleMenus(roleID)
-	err := s.cacheMgr.Fetch(ctx, key, "rbac_menu", []string{cache.TagRBACRole}, cache.TTL_RBAC, &result, func() (interface{}, error) {
+	err := s.cacheFast.FetchFast(ctx, key, "rbac_menu", []string{cache.TagRBACRole}, cache.TTL_RBAC, &result, func() (interface{}, error) {
 		role, err := s.roleRepo.GetByID(ctx, roleID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {

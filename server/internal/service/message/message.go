@@ -52,22 +52,22 @@ type messageService struct {
 	repo       msgRepo.MsgRepository
 	dispatcher task.Dispatcher
 	drivers    map[string]msgPkg.Driver
-	cacheMgr   cache.LazyCacheManager
+	cacheFast   cache.ConfigCache
 }
 
-func NewMessageService(repo msgRepo.MsgRepository, dispatcher task.Dispatcher, drivers map[string]msgPkg.Driver, cacheMgr cache.LazyCacheManager) MessageService {
+func NewMessageService(repo msgRepo.MsgRepository, dispatcher task.Dispatcher, drivers map[string]msgPkg.Driver, cacheFast cache.ConfigCache) MessageService {
 	return &messageService{
 		repo:       repo,
 		dispatcher: dispatcher,
 		drivers:    drivers,
-		cacheMgr:   cacheMgr,
+		cacheFast:   cacheFast,
 	}
 }
 
 func (s *messageService) SendTemplate(ctx context.Context, code string, receiver string, params map[string]string) error {
 	var tpl msgEntity.MsgTemplate
 	key := cache.KeyMsgTemplate(code)
-	err := s.cacheMgr.Fetch(ctx, key, cache.TagMsgTemplate, []string{cache.TagMsgTemplate}, 3600*time.Second, &tpl, func() (interface{}, error) {
+	err := s.cacheFast.FetchFast(ctx, key, cache.TagMsgTemplate, []string{cache.TagMsgTemplate}, 3600*time.Second, &tpl, func() (interface{}, error) {
 		return s.repo.GetTemplateByCode(ctx, code)
 	})
 
@@ -162,7 +162,7 @@ func (s *messageService) CreateTemplate(ctx context.Context, req *msgDto.CreateT
 		return err
 	}
 	// 失效缓存（与 Update/Delete 风格统一）
-	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagMsgTemplate); err != nil {
+	if err := s.cacheFast.InvalidateByTags(ctx, cache.TagMsgTemplate); err != nil {
 		slog.Error("invalidate cache failed", "tag", cache.TagMsgTemplate, "err", err)
 	}
 	return nil
@@ -188,7 +188,7 @@ func (s *messageService) UpdateTemplate(ctx context.Context, id uint64, req *msg
 	if err := s.repo.UpdateTemplate(ctx, existing); err != nil {
 		return err
 	}
-	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagMsgTemplate); err != nil {
+	if err := s.cacheFast.InvalidateByTags(ctx, cache.TagMsgTemplate); err != nil {
 		slog.Error("invalidate cache failed", "tag", cache.TagMsgTemplate, "err", err)
 	}
 	return nil
@@ -199,7 +199,7 @@ func (s *messageService) DeleteTemplate(ctx context.Context, id uint64) error {
 		return err
 	}
 	// 失效缓存
-	return s.cacheMgr.InvalidateByTags(ctx, cache.TagMsgTemplate)
+	return s.cacheFast.InvalidateByTags(ctx, cache.TagMsgTemplate)
 }
 
 func (s *messageService) RetryRecord(ctx context.Context, id uint64) error {

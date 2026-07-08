@@ -34,12 +34,12 @@ type bannerGroupService struct {
 	repo           contentRepo.ContentBannerGroupRepository
 	bannerItemRepo contentRepo.ContentBannerItemRepository
 	storageService storageService.ConfigService
-	cache          cache.LazyCacheManager
+	cache          cache.ConfigCache
 	watcher        configsync.ConfigWatcher
 	tm             *database.TransactionManager
 }
 
-func NewBannerGroupService(repo contentRepo.ContentBannerGroupRepository, bannerItemRepo contentRepo.ContentBannerItemRepository, storageService storageService.ConfigService, cache cache.LazyCacheManager, watcher configsync.ConfigWatcher, tm *database.TransactionManager) BannerGroupService {
+func NewBannerGroupService(repo contentRepo.ContentBannerGroupRepository, bannerItemRepo contentRepo.ContentBannerItemRepository, storageService storageService.ConfigService, cache cache.ConfigCache, watcher configsync.ConfigWatcher, tm *database.TransactionManager) BannerGroupService {
 	return &bannerGroupService{
 		repo:           repo,
 		bannerItemRepo: bannerItemRepo,
@@ -273,7 +273,7 @@ func (s *bannerGroupService) GetByCode(ctx context.Context, code string) (*conte
 		return s.repo.GetByCode(ctx, code)
 	}
 
-	err := s.cache.Fetch(ctx, cacheKey, "content_banner_cache", cacheTags, ttl, &group, loader)
+	err := s.cache.FetchFast(ctx, cacheKey, "content_banner_cache", cacheTags, ttl, &group, loader)
 	if err != nil {
 		return nil, err
 	}

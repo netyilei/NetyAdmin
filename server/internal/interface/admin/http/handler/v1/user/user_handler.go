@@ -44,8 +44,8 @@ func (h *UserHandler) List(c *gin.Context) {
 	}
 	req.Current, req.Size = pagination.NormalizePagination(req.Current, req.Size)
 
-	// 收敛 Handler 跨层调用（spec B10）：locked 字段由 service 内部查询 cacheMgr 填充，
-	// handler 不再直接操作 cacheMgr，直接消费 service 返回的 []UserWithLock
+	// 收敛 Handler 跨层调用（spec B10）：locked 字段由 service 内部查询 cacheSlow 填充，
+	// handler 不再直接操作 cacheSlow，直接消费 service 返回的 []UserWithLock
 	items, total, err := h.svc.List(c.Request.Context(), &req)
 	if err != nil {
 		response.Fail(c, err)
@@ -167,7 +167,7 @@ func (h *UserHandler) UpdateStatus(c *gin.Context) {
 // @Router       /admin/v1/systemManage/users/{id}/unlock [post]
 func (h *UserHandler) Unlock(c *gin.Context) {
 	id := c.Param("id")
-	// 收敛 Handler 跨层调用（spec B10）：解锁逻辑下沉到 service，handler 不再直接操作 cacheMgr
+	// 收敛 Handler 跨层调用（spec B10）：解锁逻辑下沉到 service，handler 不再直接操作 cacheSlow
 	if err := h.svc.UnlockUser(c.Request.Context(), id); err != nil {
 		response.Fail(c, err)
 		return

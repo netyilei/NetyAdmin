@@ -36,7 +36,7 @@ type userBase struct {
 	storageMgr    *storagePkg.Manager
 	captchaStore  base64Captcha.Store
 	tokenStore    TokenStore
-	cacheMgr      cache.LazyCacheManager
+	cacheSlow      cache.SecurityCache
 	tm            *database.TransactionManager
 }
 
@@ -50,7 +50,7 @@ func NewUserBase(
 	storageMgr *storagePkg.Manager,
 	captchaStore base64Captcha.Store,
 	tokenStore TokenStore,
-	cacheMgr cache.LazyCacheManager,
+	cacheSlow cache.SecurityCache,
 	tm *database.TransactionManager,
 ) userBase {
 	return userBase{
@@ -61,7 +61,7 @@ func NewUserBase(
 		storageMgr:    storageMgr,
 		captchaStore:  captchaStore,
 		tokenStore:    tokenStore,
-		cacheMgr:      cacheMgr,
+		cacheSlow:      cacheSlow,
 		tm:            tm,
 	}
 }
@@ -90,11 +90,11 @@ func (b *userBase) validatePasswordStrength(ctx context.Context, password string
 // 提取此 helper 消除多处复制粘贴（RULES.md §0.1 / 重构清单 B-AUTH-4）。
 func (b *userBase) clearLoginLockCache(ctx context.Context, userID string) {
 	lockKey := cache.KeyLoginLock(userID)
-	if err := b.cacheMgr.Delete(ctx, lockKey); err != nil {
+	if err := b.cacheSlow.Delete(ctx, lockKey); err != nil {
 		slog.Warn("delete cache failed", "key", lockKey, "err", err)
 	}
 	retryKey := cache.KeyLoginRetryCount(userID)
-	if err := b.cacheMgr.Delete(ctx, retryKey); err != nil {
+	if err := b.cacheSlow.Delete(ctx, retryKey); err != nil {
 		slog.Warn("delete cache failed", "key", retryKey, "err", err)
 	}
 }

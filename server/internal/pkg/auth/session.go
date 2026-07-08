@@ -24,11 +24,12 @@ type UserServiceTokenStore interface {
 	DeleteAll(ctx context.Context, userID string) error
 }
 
-// CacheManager 是 pkg/cache.LazyCacheManager 的镜像接口。
-// 仅声明本包用到的方法，避免暴露完整 cache 接口。
+// CacheManager 是 pkg/cache.SecurityCache 的镜像接口（仅声明本包用到的非 Fast 方法子集）。
+// 避免 pkg/auth 反向依赖 pkg/cache（保持依赖方向：service → pkg），
+// 同时通过镜像接口限定本包只能使用安全类缓存操作（L2 only，绝不碰 L1）。
 type CacheManager interface {
 	Get(ctx context.Context, key string, dest interface{}) error
-	// Set 写入缓存项，可选 tags 用于批量失效（与 LazyCacheManager.Set 签名一致）。
+	// Set 写入缓存项，可选 tags 用于批量失效（与 SecurityCache.Set 签名一致）。
 	Set(ctx context.Context, key string, value interface{}, ttl time.Duration, tags ...string) error
 	Delete(ctx context.Context, key string) error
 	Exists(ctx context.Context, key string) (bool, error)
@@ -98,7 +99,7 @@ func HandlePasswordWrong(
 }
 
 // ClearLoginRetry 清理登录失败计数（登录成功路径）。
-// 抽取自两端 Login 中的 `_ = s.cacheMgr.Delete(ctx, retryKey)`。
+// 抽取自两端 Login 中的 `_ = s.cacheSlow.Delete(ctx, retryKey)`。
 func ClearLoginRetry(ctx context.Context, cacheMgr CacheManager, retryKey string) {
 	if err := cacheMgr.Delete(ctx, retryKey); err != nil {
 		slog.Warn("clear login retry: delete failed", "retryKey", retryKey, "err", err)

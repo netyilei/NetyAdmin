@@ -8,7 +8,7 @@
 //   - DeleteBatch 混合场景：部分 skip + 部分成功 → 返回 CodeForbidden 含 skipped 摘要
 //
 // Mock 策略：
-//   - menuRepo / buttonRepo / apiRepo / roleRepo / cacheMgr 使用手写 mock 结构体
+//   - menuRepo / buttonRepo / apiRepo / roleRepo / cacheFast 使用手写 mock 结构体
 //   - tm 使用真实 *database.TransactionManager + sqlite in-memory（TM 需要 *gorm.DB 才能 Begin/Commit/Rollback）
 //   - mock repos 不实际读写 sqlite，仅记录调用并返回预设 error；sqlite 仅用于支撑 TM 的事务句柄
 //
@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -34,7 +33,6 @@ import (
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/errorx"
-	"NetyAdmin/internal/pkg/pubsub"
 	systemRepo "NetyAdmin/internal/repository/system"
 )
 
@@ -180,27 +178,13 @@ func (r *mockRoleRepo) GetByCodes(_ context.Context, _ []string) ([]*systemEntit
 
 var _ systemRepo.RoleRepository = (*mockRoleRepo)(nil)
 
-// ============== mockMenuCacheMgr：cache.LazyCacheManager 内存实现 ==============
+// ============== mockMenuCacheMgr：cache.ConfigCache 内存实现 ==============
 // （与 admin_auth_test.go 中的 mockCacheMgr 同构，独立定义以避免同包冲突）
 type mockMenuCacheMgr struct {
 	mu             sync.Mutex
 	invalidateCalls int
 }
 
-func (m *mockMenuCacheMgr) Get(_ context.Context, _ string, _ interface{}) error { return nil }
-func (m *mockMenuCacheMgr) Set(_ context.Context, _ string, _ interface{}, _ time.Duration, _ ...string) error {
-	return nil
-}
-func (m *mockMenuCacheMgr) Delete(_ context.Context, _ string) error { return nil }
-func (m *mockMenuCacheMgr) Exists(_ context.Context, _ string) (bool, error) {
-	return false, nil
-}
-func (m *mockMenuCacheMgr) Incr(_ context.Context, _ string, _ time.Duration) (int64, error) {
-	return 0, nil
-}
-func (m *mockMenuCacheMgr) Fetch(_ context.Context, _ string, _ string, _ []string, _ time.Duration, _ interface{}, _ func() (interface{}, error)) error {
-	return nil
-}
 func (m *mockMenuCacheMgr) FetchFast(_ context.Context, _ string, _ string, _ []string, _ time.Duration, _ interface{}, _ func() (interface{}, error)) error {
 	return nil
 }
@@ -213,18 +197,13 @@ func (m *mockMenuCacheMgr) InvalidateByTags(_ context.Context, _ ...string) erro
 func (m *mockMenuCacheMgr) SetFast(_ context.Context, _ string, _ interface{}, _ []string, _ time.Duration) error {
 	return nil
 }
-func (m *mockMenuCacheMgr) SetNX(_ context.Context, _ string, _ interface{}, _ time.Duration) (bool, error) {
-	return false, nil
-}
+func (m *mockMenuCacheMgr) DeleteFast(_ context.Context, _ string) error { return nil }
 func (m *mockMenuCacheMgr) GetFast(_ context.Context, _ string, _ []string, _ time.Duration, _ interface{}) error {
 	return nil
 }
-func (m *mockMenuCacheMgr) InvalidateL1ByTags(_ context.Context, _ ...string) error { return nil }
-func (m *mockMenuCacheMgr) SetEventBus(_ pubsub.EventBus)                          {}
 func (m *mockMenuCacheMgr) IsCacheEnabled(_ string) bool                            { return true }
-func (m *mockMenuCacheMgr) GetRedisClient() *redis.Client                           { return nil }
 
-var _ cache.LazyCacheManager = (*mockMenuCacheMgr)(nil)
+var _ cache.ConfigCache = (*mockMenuCacheMgr)(nil)
 
 // ============== 测试夹具 ==============
 
@@ -241,7 +220,7 @@ func setupMenuTestDB(t *testing.T) *gorm.DB {
 }
 
 // newTestMenuService 构造 menuService + 配套 mocks。
-// 返回值中的 cacheMgr 用于断言 InvalidateByTags 调用次数。
+// 返回值中的 cacheFast 用于断言 InvalidateByTags 调用次数。
 func newTestMenuService(t *testing.T) (*menuService, *mockMenuRepo, *mockButtonRepo, *mockAPIRepo, *mockRoleRepo, *mockMenuCacheMgr) {
 	t.Helper()
 	db := setupMenuTestDB(t)
@@ -258,7 +237,7 @@ func newTestMenuService(t *testing.T) (*menuService, *mockMenuRepo, *mockButtonR
 		buttonRepo: buttonRepo,
 		apiRepo:    apiRepo,
 		roleRepo:   roleRepo,
-		cacheMgr:   cacheMgr,
+		cacheFast:   cacheMgr,
 		tm:         tm,
 	}
 	return svc, menuRepo, buttonRepo, apiRepo, roleRepo, cacheMgr
@@ -289,7 +268,7 @@ func TestMenuDeleteBatch_AllSucceed(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, 3, menuRepo.deleteCalls, "应删除 3 个菜单")
-	// cacheMgr 至少调用一次 InvalidateByTags（事务后统一失效）
+	// cacheFast 至少调用一次 InvalidateByTags（事务后统一失效）
 	assert.GreaterOrEqual(t, cacheMgr.invalidateCalls, 1)
 }
 

@@ -33,14 +33,14 @@ type DictService interface {
 
 type dictService struct {
 	dictRepo dictRepo.DictRepository
-	cacheMgr cache.LazyCacheManager
+	cacheFast cache.ConfigCache
 	tm       *database.TransactionManager
 }
 
-func NewDictService(dictRepo dictRepo.DictRepository, cacheMgr cache.LazyCacheManager, tm *database.TransactionManager) DictService {
+func NewDictService(dictRepo dictRepo.DictRepository, cacheFast cache.ConfigCache, tm *database.TransactionManager) DictService {
 	return &dictService{
 		dictRepo: dictRepo,
-		cacheMgr: cacheMgr,
+		cacheFast: cacheFast,
 		tm:       tm,
 	}
 }
@@ -78,7 +78,7 @@ func (s *dictService) UpdateType(ctx context.Context, req *dictDto.UpdateDictTyp
 	}
 	// Code 未变更，只需失效当前 Code 的缓存
 	tag := cache.TagDict(old.Code)
-	if cErr := s.cacheMgr.InvalidateByTags(ctx, tag); cErr != nil {
+	if cErr := s.cacheFast.InvalidateByTags(ctx, tag); cErr != nil {
 		slog.Error("invalidate cache failed", "tag", tag, "err", cErr)
 	}
 	return nil
@@ -114,7 +114,7 @@ func (s *dictService) DeleteType(ctx context.Context, id uint) error {
 	}
 	// 事务后失效缓存
 	tag := cache.TagDict(dictCode)
-	if cErr := s.cacheMgr.InvalidateByTags(ctx, tag); cErr != nil {
+	if cErr := s.cacheFast.InvalidateByTags(ctx, tag); cErr != nil {
 		slog.Error("invalidate cache failed", "tag", tag, "err", cErr)
 	}
 	return nil
@@ -125,7 +125,7 @@ func (s *dictService) ListData(ctx context.Context, dictCode string) ([]dictEnti
 	cacheKey := cache.KeyDictData(dictCode)
 	tag := cache.TagDict(dictCode)
 
-	err := s.cacheMgr.Fetch(ctx, cacheKey, "dict", []string{tag}, cache.TTL_Default, &list, func() (interface{}, error) {
+	err := s.cacheFast.FetchFast(ctx, cacheKey, "dict", []string{tag}, cache.TTL_Default, &list, func() (interface{}, error) {
 		return s.dictRepo.ListData(ctx, dictCode)
 	})
 
@@ -158,7 +158,7 @@ func (s *dictService) CreateData(ctx context.Context, req *dictDto.CreateDictDat
 		return fmt.Errorf("dictRepo.CreateData: %w", err)
 	}
 	tag := cache.TagDict(req.DictCode)
-	if cErr := s.cacheMgr.InvalidateByTags(ctx, tag); cErr != nil {
+	if cErr := s.cacheFast.InvalidateByTags(ctx, tag); cErr != nil {
 		slog.Error("invalidate cache failed", "tag", tag, "err", cErr)
 	}
 	return nil
@@ -186,7 +186,7 @@ func (s *dictService) UpdateData(ctx context.Context, req *dictDto.UpdateDictDat
 	}
 	// DictCode 未变更，只需失效当前 DictCode 的缓存
 	tag := cache.TagDict(old.DictCode)
-	if cErr := s.cacheMgr.InvalidateByTags(ctx, tag); cErr != nil {
+	if cErr := s.cacheFast.InvalidateByTags(ctx, tag); cErr != nil {
 		slog.Error("invalidate cache failed", "tag", tag, "err", cErr)
 	}
 	return nil
@@ -201,7 +201,7 @@ func (s *dictService) DeleteData(ctx context.Context, id uint) error {
 		return fmt.Errorf("dictRepo.DeleteData: %w", err)
 	}
 	tag := cache.TagDict(d.DictCode)
-	if cErr := s.cacheMgr.InvalidateByTags(ctx, tag); cErr != nil {
+	if cErr := s.cacheFast.InvalidateByTags(ctx, tag); cErr != nil {
 		slog.Error("invalidate cache failed", "tag", tag, "err", cErr)
 	}
 	return nil

@@ -18,10 +18,10 @@ type testPayload struct {
 	Message string `json:"message"`
 }
 
-// newTestManager 构造一个仅含 L1 (BigCache)、不依赖 Redis 的 lazyCacheManager。
+// newTestManager 构造一个仅含 L1 (BigCache)、不依赖 Redis 的 LazyCacheManager。
 // l1Enabled=false 让 FetchFast 委托给 Fetch，集中测试 Fetch 的 singleflight 路径。
 // "缓存不存在的 key" 等价于 "热 key 失效瞬间的 cache miss"，是缓存击穿的经典场景。
-func newTestManager(t *testing.T) *lazyCacheManager {
+func newTestManager(t *testing.T) *LazyCacheManager {
 	t.Helper()
 	bcConfig := bigcache.DefaultConfig(5 * time.Minute)
 	bcConfig.Shards = 64
@@ -31,7 +31,7 @@ func newTestManager(t *testing.T) *lazyCacheManager {
 	}
 	l1Store := bigcacheStore.NewBigcache(bigcacheClient)
 	l1Cache := cache.New[any](l1Store)
-	return &lazyCacheManager{
+	return &LazyCacheManager{
 		cacheManager: l1Cache,
 		l1Cache:      l1Cache,
 		l1Enabled:    false,

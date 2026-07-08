@@ -30,14 +30,14 @@ type APIService interface {
 
 type apiService struct {
 	apiRepo  systemRepo.APIRepository
-	cacheMgr cache.LazyCacheManager
+	cacheFast cache.ConfigCache
 	tm       *database.TransactionManager
 }
 
-func NewAPIService(apiRepo systemRepo.APIRepository, cacheMgr cache.LazyCacheManager, tm *database.TransactionManager) APIService {
+func NewAPIService(apiRepo systemRepo.APIRepository, cacheFast cache.ConfigCache, tm *database.TransactionManager) APIService {
 	return &apiService{
 		apiRepo:  apiRepo,
-		cacheMgr: cacheMgr,
+		cacheFast: cacheFast,
 		tm:       tm,
 	}
 }
@@ -127,7 +127,7 @@ func (s *apiService) Create(ctx context.Context, req *systemDto.CreateAPIReq) (u
 		return 0, err
 	}
 
-	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACAPI); err != nil {
+	if err := s.cacheFast.InvalidateByTags(ctx, cache.TagRBACAPI); err != nil {
 		slog.Error("invalidate cache failed", "tag", cache.TagRBACAPI, "err", err)
 	}
 
@@ -162,7 +162,7 @@ func (s *apiService) Update(ctx context.Context, req *systemDto.UpdateAPIReq) er
 
 	err = s.apiRepo.Update(ctx, api)
 	if err == nil {
-		if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACAPI, cache.TagRBACRole); cErr != nil {
+		if cErr := s.cacheFast.InvalidateByTags(ctx, cache.TagRBACAPI, cache.TagRBACRole); cErr != nil {
 			slog.Error("invalidate cache failed", "tag", cache.TagRBACAPI, "err", cErr)
 		}
 	}
@@ -191,7 +191,7 @@ func (s *apiService) Delete(ctx context.Context, id uint) error {
 	//   - TagRBACAPI：KeyAllApis（api 实体被硬删除，全局 api 列表缓存过期）
 	//   - TagRBACRole：KeyRoleApis / KeyRoleApiIDs（admin_role_apis 关联被清理，角色权限缓存过期）
 	//   - TagRBACMenu：KeyMenuApiTree（api 挂在 menu 下，menu 的 Apis 关联变化，menu-api 树缓存过期）
-	if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACAPI, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
+	if cErr := s.cacheFast.InvalidateByTags(ctx, cache.TagRBACAPI, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
 		slog.Error("invalidate cache failed", "tags", []string{cache.TagRBACAPI, cache.TagRBACRole, cache.TagRBACMenu}, "err", cErr)
 	}
 	return nil

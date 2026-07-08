@@ -36,11 +36,11 @@ type ArticleService interface {
 type articleService struct {
 	repo         contentRepo.ContentArticleRepository
 	categoryRepo contentRepo.ContentCategoryRepository
-	cache        cache.LazyCacheManager
+	cache        cache.ConfigCache
 	watcher      configsync.ConfigWatcher
 }
 
-func NewArticleService(repo contentRepo.ContentArticleRepository, categoryRepo contentRepo.ContentCategoryRepository, cache cache.LazyCacheManager, watcher configsync.ConfigWatcher) ArticleService {
+func NewArticleService(repo contentRepo.ContentArticleRepository, categoryRepo contentRepo.ContentCategoryRepository, cache cache.ConfigCache, watcher configsync.ConfigWatcher) ArticleService {
 	return &articleService{repo: repo, categoryRepo: categoryRepo, cache: cache, watcher: watcher}
 }
 
@@ -325,7 +325,7 @@ func (s *articleService) ListPublishedByCategoryIDs(ctx context.Context, page, p
 		return cachedResult{Articles: articles, Total: total}, nil
 	}
 
-	err := s.cache.Fetch(ctx, cacheKey, "content_article_list", cacheTags, s.getArticleCacheTTL(), &result, loader)
+	err := s.cache.FetchFast(ctx, cacheKey, "content_article_list", cacheTags, s.getArticleCacheTTL(), &result, loader)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -353,7 +353,7 @@ func (s *articleService) GetPublishedByID(ctx context.Context, id uint) (*conten
 		return a, nil
 	}
 
-	err := s.cache.Fetch(ctx, cacheKey, "content_article_detail", cacheTags, s.getArticleCacheTTL(), &article, loader)
+	err := s.cache.FetchFast(ctx, cacheKey, "content_article_detail", cacheTags, s.getArticleCacheTTL(), &article, loader)
 	if err != nil {
 		return nil, err
 	}

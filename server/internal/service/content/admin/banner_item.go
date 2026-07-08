@@ -30,14 +30,14 @@ type bannerItemService struct {
 	repo        contentRepo.ContentBannerItemRepository
 	groupRepo   contentRepo.ContentBannerGroupRepository
 	articleRepo contentRepo.ContentArticleRepository
-	cache       cache.LazyCacheManager
+	cache       cache.ConfigCache
 }
 
 func NewBannerItemService(
 	repo contentRepo.ContentBannerItemRepository,
 	groupRepo contentRepo.ContentBannerGroupRepository,
 	articleRepo contentRepo.ContentArticleRepository,
-	cache cache.LazyCacheManager,
+	cache cache.ConfigCache,
 ) BannerItemService {
 	return &bannerItemService{
 		repo:        repo,

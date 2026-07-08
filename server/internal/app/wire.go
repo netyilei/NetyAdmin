@@ -15,6 +15,7 @@ import (
 	sentrygin "github.com/getsentry/sentry-go/gin"
 	"github.com/gin-gonic/gin"
 	"github.com/mojocn/base64Captcha"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
 	"NetyAdmin/internal/config"
@@ -194,8 +195,8 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 
 	// 6. Services & Handlers
 	tokenStore := userServicePkg.NewTokenStore(repos.user, lazyCacheMgr)
-	services := initServices(repos, jwtInstance, lazyCacheMgr, taskManager, configWatcher, cfg, captchaStore, eventBus, tm, captchaMgr, tokenStore)
-	handlers := initHandlers(services, repos, lazyCacheMgr)
+	services := initServices(repos, jwtInstance, lazyCacheMgr, redisClient, taskManager, configWatcher, cfg, captchaStore, eventBus, tm, captchaMgr, tokenStore)
+	handlers := initHandlers(services, repos)
 
 	// 7. Register PubSubBus subscribers（fail-closed：订阅失败阻断启动）
 	// ConfigSync
@@ -463,10 +464,10 @@ type serviceSet struct {
 	captcha                  systemService.CaptchaService
 }
 
-func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache.LazyCacheManager, taskManager *task.Manager, configWatcher configsync.ConfigWatcher, cfg *config.Config, captchaStore base64Captcha.Store, eventBus pubsub.EventBus, tm *database.TransactionManager, captchaMgr *captcha.Manager, tokenStore userServicePkg.TokenStore) *serviceSet {
+func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr *cache.LazyCacheManager, redisClient *redis.Client, taskManager *task.Manager, configWatcher configsync.ConfigWatcher, cfg *config.Config, captchaStore base64Captcha.Store, eventBus pubsub.EventBus, tm *database.TransactionManager, captchaMgr *captcha.Manager, tokenStore userServicePkg.TokenStore) *serviceSet {
 	storageMgr := storagePkg.NewManager(storagePkg.NewMinioDriverFactory())
-	// 限流器：复用缓存层的 Redis 连接，Redis 不可用时自动降级为进程内内存限流
-	rateLimiter := ratelimitPkg.New(lazyCacheMgr.GetRedisClient(), cfg.Redis.Prefix)
+	// 限流器：复用 Bootstrap 已建立的 Redis 连接，Redis 不可用时自动降级为进程内内存限流
+	rateLimiter := ratelimitPkg.New(redisClient, cfg.Redis.Prefix)
 
 	s := &serviceSet{}
 
@@ -508,7 +509,7 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	// Phase 2: 创建其余 services（recordFunc 闭包直接捕获上方 logBus 局部
 	// 变量，不再依赖 s.logBus 延迟绑定）
 	// ====================================================================
-	s.admin = systemService.NewAdminService(repos.admin, repos.role, jwtInstance, lazyCacheMgr, tokenStore, tm)
+	s.admin = systemService.NewAdminService(repos.admin, repos.role, jwtInstance, lazyCacheMgr, lazyCacheMgr, tokenStore, tm)
 	s.role = systemService.NewRoleService(repos.role, repos.menu, repos.api, repos.button, lazyCacheMgr, tm)
 	s.menu = systemService.NewMenuService(repos.menu, repos.button, repos.api, repos.role, lazyCacheMgr, tm)
 	s.api = systemService.NewAPIService(repos.api, lazyCacheMgr, tm)
@@ -557,7 +558,7 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	s.sysConfig = systemService.NewConfigService(repos.systemConfig, configWatcher, eventBus, s.emailDriver)
 	s.dict = dictServicePkg.NewDictService(repos.dict, lazyCacheMgr, tm)
 	s.ipac = ipacServicePkg.NewIPACService(repos.ipac, eventBus, tm)
-	s.app = openServicePkg.NewAppService(repos.app, lazyCacheMgr, cfg.Security.AESKey, s.ipac, repos.ipac, storageMgr, configWatcher, rateLimiter, tm)
+	s.app = openServicePkg.NewAppService(repos.app, lazyCacheMgr, lazyCacheMgr, cfg.Security.AESKey, s.ipac, repos.ipac, storageMgr, configWatcher, rateLimiter, tm)
 	s.openApi = openServicePkg.NewOpenApiService(repos.openApi, repos.app, lazyCacheMgr, tm)
 	s.openLog = openServicePkg.NewOpenLogService(repos.openLog, func(ctx context.Context, logRecord *openEntity.OpenPlatformLog) error {
 		return logBus.Record(ctx, logRecord)
@@ -583,7 +584,7 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	s.contentBannerGroupAdmin = contentAdminService.NewBannerGroupService(repos.contentBannerGroup, repos.contentBannerItem, s.storageConfig, lazyCacheMgr, configWatcher, tm)
 	s.contentBannerItemAdmin = contentAdminService.NewBannerItemService(repos.contentBannerItem, repos.contentBannerGroup, repos.contentArticle, lazyCacheMgr)
 
-	// Client content services（共享 Repository + cacheMgr；CategoryService 委托 admin 实现避免重复）
+	// Client content services（共享 Repository + cacheFast；CategoryService 委托 admin 实现避免重复）
 	s.contentArticleClient = contentClientService.NewArticleService(repos.contentArticle, repos.contentCategory, lazyCacheMgr, configWatcher)
 	s.contentBannerGroupClient = contentClientService.NewBannerGroupService(repos.contentBannerGroup, lazyCacheMgr, configWatcher)
 	s.contentBannerItemClient = contentClientService.NewBannerItemService(repos.contentBannerItem)
@@ -629,7 +630,7 @@ type handlerSet struct {
 	}
 }
 
-func initHandlers(services *serviceSet, repos *repositorySet, lazyCacheMgr cache.LazyCacheManager) *handlerSet {
+func initHandlers(services *serviceSet, repos *repositorySet) *handlerSet {
 	h := &handlerSet{}
 	h.auth = auth.NewAuthHandler(services.admin, services.captcha)
 	h.common = common.NewCommonHandler(services.captcha)

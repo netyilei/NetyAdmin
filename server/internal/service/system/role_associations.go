@@ -49,7 +49,7 @@ func (s *roleService) UpdateMenus(ctx context.Context, roleID uint, menuIDs []ui
 
 	err = s.roleRepo.Update(ctx, role)
 	if err == nil {
-		if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
+		if cErr := s.cacheFast.InvalidateByTags(ctx, cache.TagRBACRole, cache.TagRBACMenu); cErr != nil {
 			slog.Error("invalidate cache failed", "tag", cache.TagRBACRole, "err", cErr)
 		}
 	}
@@ -60,7 +60,7 @@ func (s *roleService) UpdateMenus(ctx context.Context, roleID uint, menuIDs []ui
 func (s *roleService) GetRoleButtons(ctx context.Context, roleID uint) ([]uint, error) {
 	var buttonIDs []uint
 	key := cache.KeyRoleButtons(roleID)
-	err := s.cacheMgr.Fetch(ctx, key, "rbac_menu", []string{cache.TagRBACRole}, cache.TTL_RBAC, &buttonIDs, func() (interface{}, error) {
+	err := s.cacheFast.FetchFast(ctx, key, "rbac_menu", []string{cache.TagRBACRole}, cache.TTL_RBAC, &buttonIDs, func() (interface{}, error) {
 		role, err := s.roleRepo.GetByID(ctx, roleID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -97,7 +97,7 @@ func (s *roleService) UpdateButtons(ctx context.Context, roleID uint, buttonIDs 
 
 	err = s.roleRepo.Update(ctx, role)
 	if err == nil {
-		if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole); cErr != nil {
+		if cErr := s.cacheFast.InvalidateByTags(ctx, cache.TagRBACRole); cErr != nil {
 			slog.Error("invalidate cache failed", "tag", cache.TagRBACRole, "err", cErr)
 		}
 	}
@@ -108,7 +108,7 @@ func (s *roleService) UpdateButtons(ctx context.Context, roleID uint, buttonIDs 
 func (s *roleService) GetRoleAPIs(ctx context.Context, roleID uint) ([]uint, error) {
 	var apiIDs []uint
 	key := cache.KeyRoleApiIDs(roleID)
-	err := s.cacheMgr.Fetch(ctx, key, "rbac_auth", []string{cache.TagRBACRole}, cache.TTL_RBAC, &apiIDs, func() (interface{}, error) {
+	err := s.cacheFast.FetchFast(ctx, key, "rbac_auth", []string{cache.TagRBACRole}, cache.TTL_RBAC, &apiIDs, func() (interface{}, error) {
 		role, err := s.roleRepo.GetByID(ctx, roleID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -146,7 +146,7 @@ func (s *roleService) UpdateAPIs(ctx context.Context, roleID uint, apiIDs []uint
 	err = s.roleRepo.Update(ctx, role)
 	if err == nil {
 		// 失效角色相关缓存（包括权限 ID 列表和鉴权所用的 API 列表）
-		if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACRole); cErr != nil {
+		if cErr := s.cacheFast.InvalidateByTags(ctx, cache.TagRBACRole); cErr != nil {
 			slog.Error("invalidate cache failed", "tag", cache.TagRBACRole, "err", cErr)
 		}
 	}

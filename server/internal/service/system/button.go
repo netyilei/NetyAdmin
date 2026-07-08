@@ -31,14 +31,14 @@ type ButtonService interface {
 
 type buttonService struct {
 	buttonRepo systemRepo.ButtonRepository
-	cacheMgr   cache.LazyCacheManager
+	cacheFast   cache.ConfigCache
 	tm         *database.TransactionManager
 }
 
-func NewButtonService(buttonRepo systemRepo.ButtonRepository, cacheMgr cache.LazyCacheManager, tm *database.TransactionManager) ButtonService {
+func NewButtonService(buttonRepo systemRepo.ButtonRepository, cacheFast cache.ConfigCache, tm *database.TransactionManager) ButtonService {
 	return &buttonService{
 		buttonRepo: buttonRepo,
-		cacheMgr:   cacheMgr,
+		cacheFast:   cacheFast,
 		tm:         tm,
 	}
 }
@@ -111,7 +111,7 @@ func (s *buttonService) Create(ctx context.Context, req *systemDto.CreateButtonR
 		return 0, err
 	}
 
-	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACMenu); err != nil {
+	if err := s.cacheFast.InvalidateByTags(ctx, cache.TagRBACMenu); err != nil {
 		slog.Error("invalidate cache failed", "tag", cache.TagRBACMenu, "err", err)
 	}
 
@@ -144,7 +144,7 @@ func (s *buttonService) Update(ctx context.Context, req *systemDto.UpdateButtonR
 
 	err = s.buttonRepo.Update(ctx, button)
 	if err == nil {
-		if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACMenu, cache.TagRBACRole); cErr != nil {
+		if cErr := s.cacheFast.InvalidateByTags(ctx, cache.TagRBACMenu, cache.TagRBACRole); cErr != nil {
 			slog.Error("invalidate cache failed", "tag", cache.TagRBACMenu, "err", cErr)
 		}
 	}
@@ -169,7 +169,7 @@ func (s *buttonService) Delete(ctx context.Context, id uint) error {
 		slog.Error("button delete: commit failed", "buttonID", id, "err", err)
 		return err
 	}
-	if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACMenu, cache.TagRBACRole); cErr != nil {
+	if cErr := s.cacheFast.InvalidateByTags(ctx, cache.TagRBACMenu, cache.TagRBACRole); cErr != nil {
 		slog.Error("invalidate cache failed", "tag", cache.TagRBACMenu, "err", cErr)
 	}
 	return nil

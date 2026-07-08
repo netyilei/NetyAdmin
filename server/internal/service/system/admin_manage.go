@@ -267,7 +267,7 @@ func (s *adminService) Update(ctx context.Context, req *systemDto.UpdateAdminReq
 		}
 	}
 
-	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagAdminInfo); err != nil {
+	if err := s.cacheFast.InvalidateByTags(ctx, cache.TagAdminInfo); err != nil {
 		slog.Error("invalidate cache failed", "tag", cache.TagAdminInfo, "err", err)
 	}
 	// 敏感分支事务已递增 TokenVersion，事务后失效 auth_state 缓存

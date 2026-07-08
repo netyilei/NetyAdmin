@@ -49,17 +49,19 @@ type adminService struct {
 	adminRepo  systemRepo.AdminRepository
 	roleRepo   systemRepo.RoleRepository
 	jwt        *jwt.JWT
-	cacheMgr   cache.LazyCacheManager
+	cacheFast  cache.ConfigCache   // 配置类：admin info（FetchFast + InvalidateByTags）
+	cacheSlow  cache.SecurityCache // 安全类：登录锁/黑名单/auth_state（Get/Set/Exists/InvalidateByTags）
 	tokenStore userService.TokenStore
 	tm         *database.TransactionManager
 }
 
-func NewAdminService(adminRepo systemRepo.AdminRepository, roleRepo systemRepo.RoleRepository, jwtInstance *jwt.JWT, cacheMgr cache.LazyCacheManager, tokenStore userService.TokenStore, tm *database.TransactionManager) AdminService {
+func NewAdminService(adminRepo systemRepo.AdminRepository, roleRepo systemRepo.RoleRepository, jwtInstance *jwt.JWT, cacheFast cache.ConfigCache, cacheSlow cache.SecurityCache, tokenStore userService.TokenStore, tm *database.TransactionManager) AdminService {
 	return &adminService{
 		adminRepo:  adminRepo,
 		roleRepo:   roleRepo,
 		jwt:        jwtInstance,
-		cacheMgr:   cacheMgr,
+		cacheFast:  cacheFast,
+		cacheSlow:  cacheSlow,
 		tokenStore: tokenStore,
 		tm:         tm,
 	}
@@ -79,11 +81,13 @@ func validateAdminPasswordStrength(pwd string) error {
 // invalidateAdminAuthStateCache 失效管理员鉴权状态缓存（按 adminID 精准）。
 // 用于 token_version 变更后保证下次鉴权重算，避免 30s TTL 窗口内旧 token 绕过版本号校验。
 // 失败仅记录日志不阻断：DB 层 token_version 已是最终值，缓存最长 30s 后自然过期。
+//
+// 鉴权状态属于安全类数据（middleware/auth.go 用非 Fast Get 读取），走 SecurityCache。
 func (s *adminService) invalidateAdminAuthStateCache(ctx context.Context, adminID uint) {
-	if s.cacheMgr == nil {
+	if s.cacheSlow == nil {
 		return
 	}
-	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagAdminAuthByID(adminID)); err != nil {
+	if err := s.cacheSlow.InvalidateByTags(ctx, cache.TagAdminAuthByID(adminID)); err != nil {
 		slog.Error("invalidate admin auth_state cache failed",
 			"adminID", adminID, "err", err)
 	}
@@ -92,11 +96,13 @@ func (s *adminService) invalidateAdminAuthStateCache(ctx context.Context, adminI
 // invalidateAdminInfoCache 全局失效 admin:info 缓存（列表页/详情页可能引用了已变更的 admin）。
 // 用于 admin 增删改后保证列表/详情页重算。
 // 失败仅记录日志不阻断：DB 已是最终状态，缓存最长 TTL 后自然过期。
+//
+// admin info 属于配置类数据（GetAdminInfo 用 FetchFast 加载），走 ConfigCache。
 func (s *adminService) invalidateAdminInfoCache(ctx context.Context) {
-	if s.cacheMgr == nil {
+	if s.cacheFast == nil {
 		return
 	}
-	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagAdminInfo); err != nil {
+	if err := s.cacheFast.InvalidateByTags(ctx, cache.TagAdminInfo); err != nil {
 		slog.Error("invalidate admin info cache failed", "err", err)
 	}
 }
@@ -105,7 +111,8 @@ func (s *adminService) GetAdminInfo(ctx context.Context, adminID uint) (*systemV
 	var vo *systemVO.AdminInfoVO
 	key := cache.KeyAdminInfo(adminID)
 
-	err := s.cacheMgr.Fetch(ctx, key, "admin", []string{cache.TagAdminInfo}, cache.TTL_RBAC, &vo, func() (interface{}, error) {
+	// 配置类数据（admin info）：用 FetchFast 走 L1+L2 chain（RULES.md §12.1 铁律）
+	err := s.cacheFast.FetchFast(ctx, key, "admin", []string{cache.TagAdminInfo}, cache.TTL_RBAC, &vo, func() (interface{}, error) {
 		admin, err := s.adminRepo.GetByID(ctx, adminID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -166,7 +173,7 @@ func (s *adminService) UpdateProfile(ctx context.Context, adminID uint, req *sys
 	err = s.adminRepo.Update(ctx, admin)
 	if err == nil {
 		// 失效管理员信息缓存，避免后台显示旧资料
-		if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagAdminInfo); cErr != nil {
+		if cErr := s.cacheFast.InvalidateByTags(ctx, cache.TagAdminInfo); cErr != nil {
 			slog.Error("invalidate cache failed", "tag", cache.TagAdminInfo, "err", cErr)
 		}
 	}

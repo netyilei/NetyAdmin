@@ -28,15 +28,15 @@ type ErrorService interface {
 type errorService struct {
 	logRepo       *logRepo.ErrorRepository
 	configWatcher configsync.ConfigWatcher
-	cache         cache.LazyCacheManager
+	cache         cache.SecurityCache
 	logBus        LogBusService
 }
 
-func NewErrorService(logRepo *logRepo.ErrorRepository, configWatcher configsync.ConfigWatcher, cacheMgr cache.LazyCacheManager, logBus LogBusService) ErrorService {
+func NewErrorService(logRepo *logRepo.ErrorRepository, configWatcher configsync.ConfigWatcher, cacheSlow cache.SecurityCache, logBus LogBusService) ErrorService {
 	return &errorService{
 		logRepo:       logRepo,
 		configWatcher: configWatcher,
-		cache:         cacheMgr,
+		cache:         cacheSlow,
 		logBus:        logBus,
 	}
 }

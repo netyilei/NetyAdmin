@@ -41,7 +41,7 @@ type configService struct {
 	configRepo storageRepo.ConfigRepository
 	recordRepo storageRepo.RecordRepository
 	storageMgr *storage.Manager
-	cache      cache.LazyCacheManager
+	cache      cache.ConfigCache
 	eventBus   pubsub.EventBus
 	aesKey     string
 	tm         *database.TransactionManager
@@ -51,7 +51,7 @@ func NewConfigService(
 	configRepo storageRepo.ConfigRepository,
 	recordRepo storageRepo.RecordRepository,
 	storageMgr *storage.Manager,
-	cache cache.LazyCacheManager,
+	cache cache.ConfigCache,
 	eventBus pubsub.EventBus,
 	aesKey string,
 	tm *database.TransactionManager,
@@ -105,7 +105,7 @@ func (s *configService) List(ctx context.Context, req *storageDto.ConfigQuery) (
 func (s *configService) GetByID(ctx context.Context, id uint) (*storageEntity.Config, error) {
 	key := cache.KeyStorageConfigByID(id)
 	var config storageEntity.Config
-	err := s.cache.Fetch(ctx, key, "storage", []string{cache.TagStorageConfig}, cache.TTL_Default, &config, func() (interface{}, error) {
+	err := s.cache.FetchFast(ctx, key, "storage", []string{cache.TagStorageConfig}, cache.TTL_Default, &config, func() (interface{}, error) {
 		return s.configRepo.GetByID(ctx, id)
 	})
 	if err != nil {
@@ -117,7 +117,7 @@ func (s *configService) GetByID(ctx context.Context, id uint) (*storageEntity.Co
 
 func (s *configService) GetDefault(ctx context.Context) (*storageEntity.Config, error) {
 	var config storageEntity.Config
-	err := s.cache.Fetch(ctx, cache.KeyStorageConfigDefault(), "storage", []string{cache.TagStorageConfig}, cache.TTL_Default, &config, func() (interface{}, error) {
+	err := s.cache.FetchFast(ctx, cache.KeyStorageConfigDefault(), "storage", []string{cache.TagStorageConfig}, cache.TTL_Default, &config, func() (interface{}, error) {
 		return s.configRepo.GetDefault(ctx)
 	})
 	if err != nil {
@@ -129,7 +129,7 @@ func (s *configService) GetDefault(ctx context.Context) (*storageEntity.Config, 
 
 func (s *configService) GetAllEnabled(ctx context.Context) ([]*storageEntity.Config, error) {
 	var configs []*storageEntity.Config
-	err := s.cache.Fetch(ctx, cache.KeyStorageConfigAllEnabled(), "storage", []string{cache.TagStorageConfig}, cache.TTL_Default, &configs, func() (interface{}, error) {
+	err := s.cache.FetchFast(ctx, cache.KeyStorageConfigAllEnabled(), "storage", []string{cache.TagStorageConfig}, cache.TTL_Default, &configs, func() (interface{}, error) {
 		return s.configRepo.GetAllEnabled(ctx)
 	})
 	if err != nil {

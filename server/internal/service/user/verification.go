@@ -56,15 +56,15 @@ type VerificationService interface {
 }
 
 type verificationService struct {
-	cacheMgr     cache.LazyCacheManager
+	cacheSlow     cache.SecurityCache
 	msgSvc       msgSvc.MessageService
 	watcher      configsync.ConfigWatcher
 	captchaStore base64Captcha.Store
 }
 
-func NewVerificationService(cacheMgr cache.LazyCacheManager, msgSvc msgSvc.MessageService, watcher configsync.ConfigWatcher, captchaStore base64Captcha.Store) VerificationService {
+func NewVerificationService(cacheSlow cache.SecurityCache, msgSvc msgSvc.MessageService, watcher configsync.ConfigWatcher, captchaStore base64Captcha.Store) VerificationService {
 	return &verificationService{
-		cacheMgr:     cacheMgr,
+		cacheSlow:     cacheSlow,
 		msgSvc:       msgSvc,
 		watcher:      watcher,
 		captchaStore: captchaStore,
@@ -144,7 +144,7 @@ func (s *verificationService) SendCode(ctx context.Context, scene, target, captc
 
 	// 1. 频率限制 (60秒内只能发送一次)
 	limitKey := cache.KeyVerifyCodeLimit(scene, target)
-	exists, _ := s.cacheMgr.Exists(ctx, limitKey)
+	exists, _ := s.cacheSlow.Exists(ctx, limitKey)
 	if exists {
 		return errorx.New(errorx.CodeCaptchaSendTooFrequent, "验证码发送过于频繁，请稍后再试")
 	}
@@ -157,12 +157,12 @@ func (s *verificationService) SendCode(ctx context.Context, scene, target, captc
 
 	// 3. 存储验证码 (有效时长 10 分钟)
 	cacheKey := cache.KeyVerificationCode(scene, target)
-	if err := s.cacheMgr.Set(ctx, cacheKey, code, 10*time.Minute); err != nil {
+	if err := s.cacheSlow.Set(ctx, cacheKey, code, 10*time.Minute); err != nil {
 		return errorx.New(errorx.CodeInternalError, "验证码存储失败")
 	}
 
 	// 4. 设置频率限制
-	if err := s.cacheMgr.Set(ctx, limitKey, "1", 60*time.Second); err != nil {
+	if err := s.cacheSlow.Set(ctx, limitKey, "1", 60*time.Second); err != nil {
 		slog.Warn("set rate limit cache failed", "key", limitKey, "err", err)
 	}
 
@@ -188,9 +188,9 @@ func (s *verificationService) VerifyCode(ctx context.Context, scene, target, cod
 	// 尝试次数检查：超过 5 次自动失效验证码
 	attemptKey := cache.KeyVerifyCodeAttempt(scene, target)
 	var attemptStr string
-	_ = s.cacheMgr.Get(ctx, attemptKey, &attemptStr)
+	_ = s.cacheSlow.Get(ctx, attemptKey, &attemptStr)
 	if n, err := strconv.Atoi(attemptStr); err == nil && n >= 5 {
-		if dErr := s.cacheMgr.Delete(ctx, cache.KeyVerificationCode(scene, target)); dErr != nil {
+		if dErr := s.cacheSlow.Delete(ctx, cache.KeyVerificationCode(scene, target)); dErr != nil {
 			slog.Warn("delete verification code cache failed", "scene", scene, "target", target, "err", dErr)
 		}
 		return false, nil
@@ -198,7 +198,7 @@ func (s *verificationService) VerifyCode(ctx context.Context, scene, target, cod
 
 	cacheKey := cache.KeyVerificationCode(scene, target)
 	var storedCode string
-	err := s.cacheMgr.Get(ctx, cacheKey, &storedCode)
+	err := s.cacheSlow.Get(ctx, cacheKey, &storedCode)
 	if err != nil {
 		return false, nil // 验证码不存在或已过期
 	}
@@ -206,7 +206,7 @@ func (s *verificationService) VerifyCode(ctx context.Context, scene, target, cod
 	if storedCode != code {
 		n, _ := strconv.Atoi(attemptStr)
 		n++
-		if err := s.cacheMgr.Set(ctx, attemptKey, strconv.Itoa(n), 10*time.Minute); err != nil {
+		if err := s.cacheSlow.Set(ctx, attemptKey, strconv.Itoa(n), 10*time.Minute); err != nil {
 			slog.Warn("set attempt count cache failed", "key", attemptKey, "err", err)
 		}
 		return false, nil
@@ -219,7 +219,7 @@ func (s *verificationService) VerifyAndClearCode(ctx context.Context, scene, tar
 	ok, err := s.VerifyCode(ctx, scene, target, code)
 	if ok {
 		cacheKey := cache.KeyVerificationCode(scene, target)
-		if dErr := s.cacheMgr.Delete(ctx, cacheKey); dErr != nil {
+		if dErr := s.cacheSlow.Delete(ctx, cacheKey); dErr != nil {
 			slog.Warn("delete verification code cache failed", "key", cacheKey, "err", dErr)
 		}
 	}

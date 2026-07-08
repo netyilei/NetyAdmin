@@ -40,17 +40,17 @@ type menuService struct {
 	buttonRepo systemRepo.ButtonRepository
 	apiRepo    systemRepo.APIRepository
 	roleRepo   systemRepo.RoleRepository
-	cacheMgr   cache.LazyCacheManager
+	cacheFast   cache.ConfigCache
 	tm         *database.TransactionManager
 }
 
-func NewMenuService(menuRepo systemRepo.MenuRepository, buttonRepo systemRepo.ButtonRepository, apiRepo systemRepo.APIRepository, roleRepo systemRepo.RoleRepository, cacheMgr cache.LazyCacheManager, tm *database.TransactionManager) MenuService {
+func NewMenuService(menuRepo systemRepo.MenuRepository, buttonRepo systemRepo.ButtonRepository, apiRepo systemRepo.APIRepository, roleRepo systemRepo.RoleRepository, cacheFast cache.ConfigCache, tm *database.TransactionManager) MenuService {
 	return &menuService{
 		menuRepo:   menuRepo,
 		buttonRepo: buttonRepo,
 		apiRepo:    apiRepo,
 		roleRepo:   roleRepo,
-		cacheMgr:   cacheMgr,
+		cacheFast:   cacheFast,
 		tm:         tm,
 	}
 }
@@ -118,7 +118,7 @@ func (s *menuService) List(ctx context.Context, req *systemDto.MenuQuery) ([]*sy
 
 func (s *menuService) GetTree(ctx context.Context) ([]*systemVO.MenuTreeVO, error) {
 	var tree []*systemVO.MenuTreeVO
-	err := s.cacheMgr.Fetch(ctx, cache.KeyMenuTree(), "rbac", []string{cache.TagRBACMenu}, cache.TTL_RBAC, &tree, func() (interface{}, error) {
+	err := s.cacheFast.FetchFast(ctx, cache.KeyMenuTree(), "rbac", []string{cache.TagRBACMenu}, cache.TTL_RBAC, &tree, func() (interface{}, error) {
 		menus, err := s.menuRepo.GetAll(ctx)
 		if err != nil {
 			return nil, err
@@ -130,7 +130,7 @@ func (s *menuService) GetTree(ctx context.Context) ([]*systemVO.MenuTreeVO, erro
 
 func (s *menuService) GetMenuButtonTree(ctx context.Context) ([]*systemVO.MenuButtonTreeVO, error) {
 	var tree []*systemVO.MenuButtonTreeVO
-	err := s.cacheMgr.Fetch(ctx, cache.KeyMenuButtonTree(), "rbac", []string{cache.TagRBACMenu}, cache.TTL_RBAC, &tree, func() (interface{}, error) {
+	err := s.cacheFast.FetchFast(ctx, cache.KeyMenuButtonTree(), "rbac", []string{cache.TagRBACMenu}, cache.TTL_RBAC, &tree, func() (interface{}, error) {
 		menus, err := s.menuRepo.GetAllWithButtons(ctx)
 		if err != nil {
 			return nil, err
@@ -142,7 +142,7 @@ func (s *menuService) GetMenuButtonTree(ctx context.Context) ([]*systemVO.MenuBu
 
 func (s *menuService) GetMenuApiTree(ctx context.Context) ([]*systemVO.MenuApiTreeVO, error) {
 	var tree []*systemVO.MenuApiTreeVO
-	err := s.cacheMgr.Fetch(ctx, cache.KeyMenuApiTree(), "rbac", []string{cache.TagRBACMenu}, cache.TTL_RBAC, &tree, func() (interface{}, error) {
+	err := s.cacheFast.FetchFast(ctx, cache.KeyMenuApiTree(), "rbac", []string{cache.TagRBACMenu}, cache.TTL_RBAC, &tree, func() (interface{}, error) {
 		menus, err := s.menuRepo.GetAllWithApis(ctx)
 		if err != nil {
 			return nil, err
@@ -287,7 +287,7 @@ func (s *menuService) Create(ctx context.Context, req *systemDto.CreateMenuReq, 
 	}
 
 	// 失效缓存
-	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACMenu); err != nil {
+	if err := s.cacheFast.InvalidateByTags(ctx, cache.TagRBACMenu); err != nil {
 		slog.Error("invalidate cache failed", "tag", cache.TagRBACMenu, "err", err)
 	}
 
@@ -399,7 +399,7 @@ func (s *menuService) Update(ctx context.Context, req *systemDto.UpdateMenuReq, 
 	}
 
 	// 失效缓存：TagRBACMenu（menu/button 树结构变化）+ TagRBACRole（角色-按钮关联被清理，KeyRoleButtons 过期）
-	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACMenu, cache.TagRBACRole); err != nil {
+	if err := s.cacheFast.InvalidateByTags(ctx, cache.TagRBACMenu, cache.TagRBACRole); err != nil {
 		slog.Error("invalidate cache failed", "tags", []string{cache.TagRBACMenu, cache.TagRBACRole}, "err", err)
 	}
 
@@ -472,7 +472,7 @@ func (s *menuService) Delete(ctx context.Context, id uint) error {
 	// 事务后失效缓存
 	// 菜单删除级联清理了 admin_role_buttons / admin_role_apis / admin_role_menus，
 	// 直接改变了各角色可访问的 menu/button/api 权限集，因此需同时失效三类缓存。
-	if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACMenu, cache.TagRBACRole, cache.TagRBACAPI); cErr != nil {
+	if cErr := s.cacheFast.InvalidateByTags(ctx, cache.TagRBACMenu, cache.TagRBACRole, cache.TagRBACAPI); cErr != nil {
 		slog.Error("invalidate cache failed", "tags", []string{cache.TagRBACMenu, cache.TagRBACRole, cache.TagRBACAPI}, "err", cErr)
 	}
 	return nil
@@ -509,13 +509,13 @@ func (s *menuService) DeleteBatch(ctx context.Context, ids []uint) error {
 		// 其他错误（包括 CodeInternalError 事务失败）→ fail-closed 立即返回
 		// 已删的 menu 缓存必须失效（兜底），避免列表/树缓存残留已删菜单
 		slog.Error("menu delete batch: delete menu failed", "menuID", id, "err", err)
-		if cErr := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACMenu, cache.TagRBACRole, cache.TagRBACAPI); cErr != nil {
+		if cErr := s.cacheFast.InvalidateByTags(ctx, cache.TagRBACMenu, cache.TagRBACRole, cache.TagRBACAPI); cErr != nil {
 			slog.Error("invalidate cache failed after tx failure", "err", cErr)
 		}
 		return err
 	}
 	// 全部处理完后统一失效缓存
-	if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagRBACMenu, cache.TagRBACRole, cache.TagRBACAPI); err != nil {
+	if err := s.cacheFast.InvalidateByTags(ctx, cache.TagRBACMenu, cache.TagRBACRole, cache.TagRBACAPI); err != nil {
 		slog.Error("invalidate cache failed", "err", err)
 	}
 	if len(skipped) > 0 {
@@ -590,7 +590,7 @@ func (s *menuService) GetTreeByRoleCodes(ctx context.Context, roleCodes []string
 	utils.SliceSort(roleCodes)
 	key := fmt.Sprintf("cache:rbac:menu:roles:%v", roleCodes)
 
-	err := s.cacheMgr.Fetch(ctx, key, "rbac", []string{cache.TagRBACMenu}, cache.TTL_RBAC, &tree, func() (interface{}, error) {
+	err := s.cacheFast.FetchFast(ctx, key, "rbac", []string{cache.TagRBACMenu}, cache.TTL_RBAC, &tree, func() (interface{}, error) {
 		menus, err := s.menuRepo.GetByRoleCodes(ctx, roleCodes)
 		if err != nil {
 			return nil, err

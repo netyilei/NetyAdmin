@@ -176,7 +176,7 @@ func (s *userClientService) Login(ctx context.Context, req *clientDto.UserLoginR
 	// 2.5 登录锁定检查
 	lockKey := cache.KeyLoginLock(user.ID)
 	var lockVal string
-	if err := s.cacheMgr.Get(ctx, lockKey, &lockVal); err == nil && lockVal != "" {
+	if err := s.cacheSlow.Get(ctx, lockKey, &lockVal); err == nil && lockVal != "" {
 		return nil, errorx.New(errorx.CodeUserLocked, "账户已锁定，请稍后再试")
 	}
 
@@ -215,7 +215,7 @@ func (s *userClientService) Login(ctx context.Context, req *clientDto.UserLoginR
 
 		lockKey := cache.KeyLoginLock(user.ID)
 		retryKey := cache.KeyLoginRetryCount(user.ID)
-		locked, msg := authPkg.HandlePasswordWrong(ctx, s.cacheMgr, lockKey, retryKey, authPkg.LoginLockConfig{
+		locked, msg := authPkg.HandlePasswordWrong(ctx, s.cacheSlow, lockKey, retryKey, authPkg.LoginLockConfig{
 			MaxRetry:     maxRetry,
 			LockDuration: time.Duration(lockDuration) * time.Second,
 			RetryTTL:     time.Duration(lockDuration) * time.Second,
@@ -229,7 +229,7 @@ func (s *userClientService) Login(ctx context.Context, req *clientDto.UserLoginR
 		return nil, errorx.New(errorx.CodePasswordWrong, "用户名或密码错误")
 	}
 
-	authPkg.ClearLoginRetry(ctx, s.cacheMgr, cache.KeyLoginRetryCount(user.ID))
+	authPkg.ClearLoginRetry(ctx, s.cacheSlow, cache.KeyLoginRetryCount(user.ID))
 
 	// 5. 更新登录信息
 	// 注意：此处必须用 UpdateFields（列级 Updates），不能用 repo.Update（Save 全字段）。
@@ -285,7 +285,7 @@ func (s *userClientService) RefreshToken(ctx context.Context, refreshToken strin
 	}
 
 	blacklistKey := cache.KeyAuthBlacklistRefreshToken(refreshToken)
-	exists, err := s.cacheMgr.Exists(ctx, blacklistKey)
+	exists, err := s.cacheSlow.Exists(ctx, blacklistKey)
 	if err != nil {
 		// fail-closed：缓存查询异常时拒绝刷新，避免失效令牌被重新签发
 		return nil, errorx.New(errorx.CodeUnauthorized, "会话校验异常，请重新登录")
@@ -329,7 +329,7 @@ func (s *userClientService) RefreshToken(ctx context.Context, refreshToken strin
 	// （孤儿数据）而旧 refresh token 未进黑名单仍可重放。
 	remainingTTL := time.Until(time.Unix(claims.ExpiresAt.Unix(), 0))
 	if remainingTTL > 0 {
-		if err := s.cacheMgr.Set(ctx, blacklistKey, "1", remainingTTL); err != nil {
+		if err := s.cacheSlow.Set(ctx, blacklistKey, "1", remainingTTL); err != nil {
 			slog.Error("blacklist refresh token failed, abort refresh to prevent replay", "err", err, "userID", user.ID)
 			return nil, errorx.New(errorx.CodeInternalError, "会话状态异常，请重新登录")
 		}
@@ -506,7 +506,7 @@ func (s *userClientService) Logout(ctx context.Context, userID string, accessTok
 			remainingTTL := time.Until(time.Unix(claims.ExpiresAt.Unix(), 0))
 			if remainingTTL > 0 {
 				blacklistKey := cache.KeyAuthBlacklistRefreshToken(refreshToken)
-				if err := s.cacheMgr.Set(ctx, blacklistKey, "1", remainingTTL); err != nil {
+				if err := s.cacheSlow.Set(ctx, blacklistKey, "1", remainingTTL); err != nil {
 					slog.Error("logout: set refresh blacklist failed", "userID", userID, "err", err)
 				}
 			}

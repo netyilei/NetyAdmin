@@ -49,7 +49,7 @@ func NewUserAdminService(base userBase) UserAdminService {
 }
 
 // UserWithLock 是 admin List 场景的返回 VO，嵌入 User 实体并附加 Locked 字段（登录锁定状态）。
-// 由 service 层完成 cacheMgr 查询填充，admin handler 不再直接操作 cacheMgr（spec B10）。
+// 由 service 层完成 cacheSlow 查询填充，admin handler 不再直接操作 cacheSlow（spec B10）。
 // entity 中的 Password / DeletedAt / TokenVersion 均带 json:"-"，序列化安全。
 type UserWithLock struct {
 	userEntity.User
@@ -73,13 +73,13 @@ func (s *userAdminService) List(ctx context.Context, req *userDto.UserQuery) ([]
 		return nil, 0, err
 	}
 
-	// 在 service 层完成 locked 状态查询，避免 handler 直接操作 cacheMgr（spec B10）
+	// 在 service 层完成 locked 状态查询，避免 handler 直接操作 cacheSlow（spec B10）
 	items := make([]UserWithLock, 0, len(users))
 	for _, u := range users {
 		locked := false
 		var lockVal string
 		lockKey := cache.KeyLoginLock(u.ID)
-		if err := s.cacheMgr.Get(ctx, lockKey, &lockVal); err == nil && lockVal != "" {
+		if err := s.cacheSlow.Get(ctx, lockKey, &lockVal); err == nil && lockVal != "" {
 			locked = true
 		}
 		items = append(items, UserWithLock{User: u, Locked: locked})
@@ -299,7 +299,7 @@ func (s *userAdminService) UpdateStatus(ctx context.Context, id string, status s
 
 // UnlockUser 解除用户登录锁定状态。
 // 仅清理 Redis 中的登录锁/重试计数缓存，不涉及 DB 写操作。
-// 抽取到 service 层，避免 handler 直接操作 cacheMgr（spec B10）。
+// 抽取到 service 层，避免 handler 直接操作 cacheSlow（spec B10）。
 func (s *userAdminService) UnlockUser(ctx context.Context, id string) error {
 	s.clearLoginLockCache(ctx, id)
 	return nil

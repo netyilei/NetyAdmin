@@ -6,7 +6,7 @@
 //   - RefreshToken：成功刷新 / token 无效 / token 已加入黑名单 / 用户已禁用
 //
 // Mock 策略：与 admin_auth_test.go 一致——
-//   - repo / cacheMgr / tokenStore / verifySvc / configWatcher / captchaStore 使用手写 mock
+//   - repo / cacheSlow / tokenStore / verifySvc / configWatcher / captchaStore 使用手写 mock
 //   - jwt 使用真实 *jwt.JWT 实例（RS256 + 测试生成的 RSA 密钥对）
 //   - password 使用真实 bcrypt（预计算 hash 加速）
 //   - tm 设为 nil（Login/Logout/RefreshToken 不使用 TM；ChangePassword 才用，不在本测试范围）
@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/mojocn/base64Captcha"
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -40,11 +39,10 @@ import (
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
 	"NetyAdmin/internal/pkg/password"
-	"NetyAdmin/internal/pkg/pubsub"
 	userRepo "NetyAdmin/internal/repository/user"
 )
 
-// ============== mockUserCacheMgr：cache.LazyCacheManager 内存实现 ==============
+// ============== mockUserCacheMgr：cache.SecurityCache 内存实现 ==============
 type mockUserCacheMgr struct {
 	mu       sync.Mutex
 	values   map[string]string
@@ -117,25 +115,13 @@ func (m *mockUserCacheMgr) Incr(_ context.Context, key string, _ time.Duration) 
 func (m *mockUserCacheMgr) Fetch(_ context.Context, _ string, _ string, _ []string, _ time.Duration, _ interface{}, _ func() (interface{}, error)) error {
 	return nil
 }
-func (m *mockUserCacheMgr) FetchFast(_ context.Context, _ string, _ string, _ []string, _ time.Duration, _ interface{}, _ func() (interface{}, error)) error {
-	return nil
-}
 func (m *mockUserCacheMgr) InvalidateByTags(_ context.Context, _ ...string) error { return nil }
-func (m *mockUserCacheMgr) SetFast(_ context.Context, _ string, _ interface{}, _ []string, _ time.Duration) error {
-	return nil
-}
 func (m *mockUserCacheMgr) SetNX(_ context.Context, _ string, _ interface{}, _ time.Duration) (bool, error) {
 	return false, nil
 }
-func (m *mockUserCacheMgr) GetFast(_ context.Context, _ string, _ []string, _ time.Duration, _ interface{}) error {
-	return nil
-}
-func (m *mockUserCacheMgr) InvalidateL1ByTags(_ context.Context, _ ...string) error          { return nil }
-func (m *mockUserCacheMgr) SetEventBus(_ pubsub.EventBus)                                     {}
-func (m *mockUserCacheMgr) IsCacheEnabled(_ string) bool                                       { return true }
-func (m *mockUserCacheMgr) GetRedisClient() *redis.Client                                     { return nil }
+func (m *mockUserCacheMgr) IsCacheEnabled(_ string) bool { return true }
 
-var _ cache.LazyCacheManager = (*mockUserCacheMgr)(nil)
+var _ cache.SecurityCache = (*mockUserCacheMgr)(nil)
 
 // ============== mockUserTokenStore：TokenStore 内存实现 ==============
 type mockUserTokenStore struct {
@@ -354,7 +340,7 @@ func newTestUserClientService(t *testing.T) (*userClientService, *mockUserRepo, 
 			configWatcher: watcher,
 			captchaStore:  &mockCaptchaStore{verifyResult: false},
 			tokenStore:    store,
-			cacheMgr:      cacheMgr,
+			cacheSlow:      cacheMgr,
 		},
 	}
 	return svc, repo, cacheMgr, store, verifySvc, j

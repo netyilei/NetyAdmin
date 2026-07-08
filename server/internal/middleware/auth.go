@@ -30,12 +30,12 @@ type AuthMiddleware struct {
 	userRepo   userRepoPkg.UserRepository
 	adminRepo  systemRepoPkg.AdminRepository
 	tokenStore userService.TokenStore
-	cacheMgr   cache.LazyCacheManager
+	cacheSlow   cache.SecurityCache
 }
 
 // NewAuthMiddleware 装配认证中间件依赖。j/userRepo/adminRepo 必须非空（fail-fast），
-// tokenStore/cacheMgr 可为 nil（关闭相应能力）。
-func NewAuthMiddleware(j *jwtPkg.JWT, repo userRepoPkg.UserRepository, ts userService.TokenStore, ar systemRepoPkg.AdminRepository, cm cache.LazyCacheManager) *AuthMiddleware {
+// tokenStore/cacheSlow 可为 nil（关闭相应能力）。
+func NewAuthMiddleware(j *jwtPkg.JWT, repo userRepoPkg.UserRepository, ts userService.TokenStore, ar systemRepoPkg.AdminRepository, cm cache.SecurityCache) *AuthMiddleware {
 	if j == nil || repo == nil || ar == nil {
 		panic("NewAuthMiddleware: j/userRepo/adminRepo 必须非空")
 	}
@@ -44,7 +44,7 @@ func NewAuthMiddleware(j *jwtPkg.JWT, repo userRepoPkg.UserRepository, ts userSe
 		userRepo:   repo,
 		adminRepo:  ar,
 		tokenStore: ts,
-		cacheMgr:   cm,
+		cacheSlow:   cm,
 	}
 }
 
@@ -74,13 +74,13 @@ func (a adminClaimsAccessor) LookupAccount(ctx context.Context, claims *jwtPkg.A
 	//   - TokenVersion 比较保证：即使 status 缓存有 30s 漂移，旧 token 因 claims.TokenVersion
 	//     < DB.token_version 立即被拒，安全语义未被削弱
 	//
-	// cacheMgr 为 nil（缓存模块禁用）时降级为直查 DB，保持原 fail-closed 语义。
+	// cacheSlow 为 nil（缓存模块禁用）时降级为直查 DB，保持原 fail-closed 语义。
 	var state *systemRepoPkg.AdminAuthState
 	var err error
-	if a.mw.cacheMgr != nil {
+	if a.mw.cacheSlow != nil {
 		key := cache.KeyAdminAuthState(claims.UserID)
 		tags := []string{cache.TagAdminAuthByID(claims.UserID)}
-		err = a.mw.cacheMgr.Fetch(ctx, key, "admin", tags, adminAuthStateTTL, &state, func() (interface{}, error) {
+		err = a.mw.cacheSlow.Fetch(ctx, key, "admin", tags, adminAuthStateTTL, &state, func() (interface{}, error) {
 			return a.mw.adminRepo.GetAuthStateByID(ctx, claims.UserID)
 		})
 	} else {

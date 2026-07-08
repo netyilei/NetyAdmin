@@ -34,12 +34,12 @@ type categoryService struct {
 	repo           contentRepo.ContentCategoryRepository
 	articleRepo    contentRepo.ContentArticleRepository
 	storageService storageService.ConfigService
-	cache          cache.LazyCacheManager
+	cache          cache.ConfigCache
 	watcher        configsync.ConfigWatcher
 	tm             *database.TransactionManager
 }
 
-func NewCategoryService(repo contentRepo.ContentCategoryRepository, articleRepo contentRepo.ContentArticleRepository, storageService storageService.ConfigService, cache cache.LazyCacheManager, watcher configsync.ConfigWatcher, tm *database.TransactionManager) CategoryService {
+func NewCategoryService(repo contentRepo.ContentCategoryRepository, articleRepo contentRepo.ContentArticleRepository, storageService storageService.ConfigService, cache cache.ConfigCache, watcher configsync.ConfigWatcher, tm *database.TransactionManager) CategoryService {
 	return &categoryService{
 		repo:           repo,
 		articleRepo:    articleRepo,
@@ -270,7 +270,7 @@ func (s *categoryService) GetTree(ctx context.Context, forceRefresh bool) ([]con
 		}
 	}
 
-	err := s.cache.Fetch(ctx, cacheKey, "content_category_cache", []string{cache.TagContentCategoryTree}, s.getCategoryCacheTTL(), &tree, loader)
+	err := s.cache.FetchFast(ctx, cacheKey, "content_category_cache", []string{cache.TagContentCategoryTree}, s.getCategoryCacheTTL(), &tree, loader)
 	return tree, err
 }
 

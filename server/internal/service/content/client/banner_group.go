@@ -18,11 +18,11 @@ type BannerGroupService interface {
 
 type bannerGroupService struct {
 	repo    contentRepo.ContentBannerGroupRepository
-	cache   cache.LazyCacheManager
+	cache   cache.ConfigCache
 	watcher configsync.ConfigWatcher
 }
 
-func NewBannerGroupService(repo contentRepo.ContentBannerGroupRepository, cache cache.LazyCacheManager, watcher configsync.ConfigWatcher) BannerGroupService {
+func NewBannerGroupService(repo contentRepo.ContentBannerGroupRepository, cache cache.ConfigCache, watcher configsync.ConfigWatcher) BannerGroupService {
 	return &bannerGroupService{repo: repo, cache: cache, watcher: watcher}
 }
 
@@ -46,7 +46,7 @@ func (s *bannerGroupService) GetByCodeVO(ctx context.Context, code string) (*cli
 		return s.repo.GetByCode(ctx, code)
 	}
 
-	err := s.cache.Fetch(ctx, cacheKey, "content_banner_cache", cacheTags, ttl, &group, loader)
+	err := s.cache.FetchFast(ctx, cacheKey, "content_banner_cache", cacheTags, ttl, &group, loader)
 	if err != nil {
 		return nil, err
 	}

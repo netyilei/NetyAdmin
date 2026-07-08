@@ -26,12 +26,12 @@ func (captchaToken) TableName() string {
 
 // dualStore 实现 base64Captcha.Store 接口，支持缓存和数据库双轨存储
 type dualStore struct {
-	cache   cache.LazyCacheManager
+	cache   cache.SecurityCache
 	watcher configsync.ConfigWatcher
 	db      *gorm.DB
 }
 
-func NewDualStore(cache cache.LazyCacheManager, watcher configsync.ConfigWatcher, db *gorm.DB) *dualStore {
+func NewDualStore(cache cache.SecurityCache, watcher configsync.ConfigWatcher, db *gorm.DB) *dualStore {
 	return &dualStore{
 		cache:   cache,
 		watcher: watcher,

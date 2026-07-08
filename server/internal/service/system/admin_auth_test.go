@@ -6,7 +6,7 @@
 //   - RefreshToken：成功刷新 / token 无效（解析失败）/ token 已加入黑名单 / 用户已禁用
 //
 // Mock 策略：
-//   - adminRepo / cacheMgr / tokenStore 使用手写 mock 结构体（项目无 testify/mock 依赖）
+//   - adminRepo / cacheSlow / tokenStore 使用手写 mock 结构体（项目无 testify/mock 依赖）
 //   - jwt 使用真实 *jwt.JWT 实例（RS256 + 测试生成的 RSA 密钥对），更贴近真实行为且无需打桩 ParseToken / GenerateToken
 //   - password 使用真实 bcrypt（预计算 hash 加速）
 //
@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -36,12 +35,11 @@ import (
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
 	"NetyAdmin/internal/pkg/password"
-	"NetyAdmin/internal/pkg/pubsub"
 	systemRepo "NetyAdmin/internal/repository/system"
 	userService "NetyAdmin/internal/service/user"
 )
 
-// ============== mockCacheMgr：cache.LazyCacheManager 内存实现 ==============
+// ============== mockCacheMgr：cache.SecurityCache 内存实现 ==============
 //
 // 仅对 admin_auth 路径用到的方法（Get/Set/Delete/Exists/Incr）实现真实行为，
 // 其余方法返回零值——admin_auth 不会调用它们；保留接口完整性仅为通过编译。
@@ -123,25 +121,13 @@ func (m *mockCacheMgr) Incr(_ context.Context, key string, _ time.Duration) (int
 func (m *mockCacheMgr) Fetch(_ context.Context, _ string, _ string, _ []string, _ time.Duration, _ interface{}, _ func() (interface{}, error)) error {
 	return nil
 }
-func (m *mockCacheMgr) FetchFast(_ context.Context, _ string, _ string, _ []string, _ time.Duration, _ interface{}, _ func() (interface{}, error)) error {
-	return nil
-}
-func (m *mockCacheMgr) InvalidateByTags(_ context.Context, _ ...string) error                  { return nil }
-func (m *mockCacheMgr) SetFast(_ context.Context, _ string, _ interface{}, _ []string, _ time.Duration) error {
-	return nil
-}
+func (m *mockCacheMgr) InvalidateByTags(_ context.Context, _ ...string) error { return nil }
 func (m *mockCacheMgr) SetNX(_ context.Context, _ string, _ interface{}, _ time.Duration) (bool, error) {
 	return false, nil
 }
-func (m *mockCacheMgr) GetFast(_ context.Context, _ string, _ []string, _ time.Duration, _ interface{}) error {
-	return nil
-}
-func (m *mockCacheMgr) InvalidateL1ByTags(_ context.Context, _ ...string) error          { return nil }
-func (m *mockCacheMgr) SetEventBus(_ pubsub.EventBus)                                    {}
-func (m *mockCacheMgr) IsCacheEnabled(_ string) bool                                      { return true }
-func (m *mockCacheMgr) GetRedisClient() *redis.Client                                     { return nil }
+func (m *mockCacheMgr) IsCacheEnabled(_ string) bool { return true }
 
-var _ cache.LazyCacheManager = (*mockCacheMgr)(nil)
+var _ cache.SecurityCache = (*mockCacheMgr)(nil)
 
 // ============== mockTokenStore：userService.TokenStore 内存实现 ==============
 type mockTokenStore struct {
@@ -263,7 +249,7 @@ func newTestAdminService(t *testing.T) (*adminService, *mockAdminRepo, *mockCach
 	svc := &adminService{
 		adminRepo:  repo,
 		jwt:        j,
-		cacheMgr:   cacheMgr,
+		cacheSlow:  cacheMgr,
 		tokenStore: store,
 	}
 	return svc, repo, cacheMgr, store, j
