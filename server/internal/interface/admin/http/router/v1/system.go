@@ -92,4 +92,8 @@ func (r *SystemRouter) registerButtonRoutes(group *gin.RouterGroup) {
 func (r *SystemRouter) registerRolePermissionRoutes(group *gin.RouterGroup) {
 	group.GET("/role/:id/menus", r.handler.GetAdminRoleMenus)
 	group.PUT("/role/:id/menus", r.handler.UpdateAdminRoleMenus)
+	group.GET("/role/:id/buttons", r.handler.GetAdminRoleButtons)
+	group.PUT("/role/:id/buttons", r.handler.UpdateAdminRoleButtons)
+	group.GET("/role/:id/apis", r.handler.GetAdminRoleAPIs)
+	group.PUT("/role/:id/apis", r.handler.UpdateAdminRoleAPIs)
 }
