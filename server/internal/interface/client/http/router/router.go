@@ -16,6 +16,7 @@ type ClientRouter struct {
 	apiSvc  openSvcPkg.OpenApiService
 	logSvc  openSvcPkg.OpenLogService
 	ipacSvc ipacSvcPkg.IPACService
+	authMW  *middleware.AuthMiddleware
 	routers []v1.ClientModuleRouter
 }
 
@@ -31,17 +32,19 @@ func NewClientRouter(
 	logSvc openSvcPkg.OpenLogService,
 	ipacSvc ipacSvcPkg.IPACService,
 	loginLimiter authPkg.LoginLimiter,
+	authMW *middleware.AuthMiddleware,
 ) *ClientRouter {
 	return &ClientRouter{
 		appSvc:  appSvc,
 		apiSvc:  apiSvc,
 		logSvc:  logSvc,
 		ipacSvc: ipacSvc,
+		authMW:  authMW,
 		routers: []v1.ClientModuleRouter{
 			v1.NewEchoRouter(echoH),
-			v1.NewUserRouter(userH, loginLimiter),
+			v1.NewUserRouter(userH, loginLimiter, authMW),
 			v1.NewAuthRouter(authH),
-			v1.NewMessageRouter(messageH),
+			v1.NewMessageRouter(messageH, authMW),
 			v1.NewContentRouter(contentH),
 			v1.NewStorageRouter(storageH),
 		},

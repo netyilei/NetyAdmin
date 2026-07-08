@@ -1,5 +1,8 @@
 # Go
 server/*.exe
+server/cover.html
+server/cover.out
+server/config.toml
 
 # Node
 dist/

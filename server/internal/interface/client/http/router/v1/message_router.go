@@ -9,17 +9,18 @@ import (
 
 type messageRouter struct {
 	handler *handler.MessageHandler
+	authMW  *middleware.AuthMiddleware
 }
 
-func NewMessageRouter(h *handler.MessageHandler) ClientModuleRouter {
-	return &messageRouter{handler: h}
+func NewMessageRouter(h *handler.MessageHandler, authMW *middleware.AuthMiddleware) ClientModuleRouter {
+	return &messageRouter{handler: h, authMW: authMW}
 }
 
 func (r *messageRouter) RegisterPublic(publicGroup *gin.RouterGroup) {}
 
 func (r *messageRouter) RegisterAuth(authGroup *gin.RouterGroup) {
 	group := authGroup.Group("/message")
-	group.Use(middleware.UserJWTAuth())
+	group.Use(r.authMW.UserJWTAuth())
 	{
 		group.GET("/internal", r.handler.ListInternalMsgs)
 		group.GET("/internal/:id", r.handler.GetInternalMsg)

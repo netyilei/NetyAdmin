@@ -193,7 +193,8 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	captchaMgr := captcha.NewManager(captchaStore)
 
 	// 6. Services & Handlers
-	services := initServices(repos, jwtInstance, lazyCacheMgr, taskManager, configWatcher, cfg, captchaStore, eventBus, tm, captchaMgr)
+	tokenStore := userServicePkg.NewTokenStore(repos.user, lazyCacheMgr)
+	services := initServices(repos, jwtInstance, lazyCacheMgr, taskManager, configWatcher, cfg, captchaStore, eventBus, tm, captchaMgr, tokenStore)
 	handlers := initHandlers(services, repos, lazyCacheMgr)
 
 	// 7. Register PubSubBus subscribers（fail-closed：订阅失败阻断启动）
@@ -239,6 +240,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	}
 
 	// 8. Router
+	authMW := middleware.NewAuthMiddleware(jwtInstance, repos.user, tokenStore, repos.admin, lazyCacheMgr)
 	router := router.NewRouter(
 		handlers.auth,
 		handlers.common,
@@ -263,6 +265,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		services.ipac,
 		services.role,
 		loginLimiter,
+		authMW,
 	)
 
 	// 9. Task Registration
@@ -291,6 +294,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		services.openLog,
 		services.ipac,
 		loginLimiter,
+		authMW,
 	)
 
 	// 10. Engine Setup
@@ -459,13 +463,12 @@ type serviceSet struct {
 	captcha                  systemService.CaptchaService
 }
 
-func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache.LazyCacheManager, taskManager *task.Manager, configWatcher configsync.ConfigWatcher, cfg *config.Config, captchaStore base64Captcha.Store, eventBus pubsub.EventBus, tm *database.TransactionManager, captchaMgr *captcha.Manager) *serviceSet {
+func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache.LazyCacheManager, taskManager *task.Manager, configWatcher configsync.ConfigWatcher, cfg *config.Config, captchaStore base64Captcha.Store, eventBus pubsub.EventBus, tm *database.TransactionManager, captchaMgr *captcha.Manager, tokenStore userServicePkg.TokenStore) *serviceSet {
 	storageMgr := storagePkg.NewManager(storagePkg.NewMinioDriverFactory())
 	// 限流器：复用缓存层的 Redis 连接，Redis 不可用时自动降级为进程内内存限流
 	rateLimiter := ratelimitPkg.New(lazyCacheMgr.GetRedisClient(), cfg.Redis.Prefix)
 
 	s := &serviceSet{}
-	tokenStore := userServicePkg.NewTokenStore(repos.user, lazyCacheMgr)
 
 	// ====================================================================
 	// Phase 1: 创建 logBus（必须先于 taskService / openLog）
@@ -568,8 +571,6 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	userBase := userServicePkg.NewUserBase(repos.user, jwtInstance, s.verification, configWatcher, storageMgr, captchaStore, tokenStore, lazyCacheMgr, tm)
 	s.userAdmin = userServicePkg.NewUserAdminService(userBase)
 	s.userClient = userServicePkg.NewUserClientService(userBase)
-
-	middleware.InitJWT(jwtInstance, repos.user, tokenStore, repos.admin, lazyCacheMgr)
 
 	s.operationLog = logService.NewOperationService(repos.operationLog)
 	s.errorLog = logService.NewErrorService(repos.errorLog, configWatcher, lazyCacheMgr, logBus)

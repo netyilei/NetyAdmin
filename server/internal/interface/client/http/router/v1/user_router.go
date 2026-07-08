@@ -11,10 +11,11 @@ import (
 type userRouter struct {
 	handler      *handler.UserHandler
 	loginLimiter authPkg.LoginLimiter
+	authMW       *middleware.AuthMiddleware
 }
 
-func NewUserRouter(h *handler.UserHandler, loginLimiter authPkg.LoginLimiter) ClientModuleRouter {
-	return &userRouter{handler: h, loginLimiter: loginLimiter}
+func NewUserRouter(h *handler.UserHandler, loginLimiter authPkg.LoginLimiter, authMW *middleware.AuthMiddleware) ClientModuleRouter {
+	return &userRouter{handler: h, loginLimiter: loginLimiter, authMW: authMW}
 }
 
 func (r *userRouter) RegisterPublic(publicGroup *gin.RouterGroup) {}
@@ -33,7 +34,7 @@ func (r *userRouter) RegisterAuth(authGroup *gin.RouterGroup) {
 
 		// 需要 App 签名 + User JWT 的接口
 		userAuth := group.Group("")
-		userAuth.Use(middleware.UserJWTAuth())
+		userAuth.Use(r.authMW.UserJWTAuth())
 		{
 			userAuth.GET("/profile", r.handler.GetProfile)
 			userAuth.PUT("/profile", r.handler.UpdateProfile)

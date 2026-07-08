@@ -28,6 +28,7 @@ import (
 
 type Router struct {
 	authVerifier middleware.AuthVerifier
+	authMW       *middleware.AuthMiddleware
 	ipacSvc      ipacService.IPACService
 	routers      []v1.ModuleRouter
 }
@@ -56,9 +57,11 @@ func NewRouter(
 	ipacSvc ipacService.IPACService,
 	authVerifier middleware.AuthVerifier,
 	loginLimiter authPkg.LoginLimiter,
+	authMW *middleware.AuthMiddleware,
 ) *Router {
 	return &Router{
 		authVerifier: authVerifier,
+		authMW:       authMW,
 		ipacSvc:      ipacSvc,
 		routers: []v1.ModuleRouter{
 			v1.NewAuthRouter(authH, loginLimiter),
@@ -111,7 +114,7 @@ func (r *Router) registerV1(engine *gin.Engine) {
 	//    IPACAuth 在 JWTAuth 之前：IP 被拒绝的请求不浪费 JWT 验证时间。
 	authGroup := adminV1.Group("")
 	authGroup.Use(middleware.IPACAuth(r.ipacSvc))
-	authGroup.Use(middleware.JWTAuth())
+	authGroup.Use(r.authMW.JWTAuth())
 	for _, module := range r.routers {
 		module.RegisterAuth(authGroup)
 	}
@@ -120,7 +123,7 @@ func (r *Router) registerV1(engine *gin.Engine) {
 	//    IPACAuth 在 JWTAuth 之前，与 authGroup 保持一致。
 	permissionGroup := adminV1.Group("")
 	permissionGroup.Use(middleware.IPACAuth(r.ipacSvc))
-	permissionGroup.Use(middleware.JWTAuth())
+	permissionGroup.Use(r.authMW.JWTAuth())
 	permissionGroup.Use(middleware.PermissionAuth(r.authVerifier))
 	for _, module := range r.routers {
 		module.RegisterPermission(permissionGroup)

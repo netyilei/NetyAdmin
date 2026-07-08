@@ -24,12 +24,8 @@ import (
 //     改密/禁用等敏感操作下旧 token 立即失效，不依赖 TTL 窗口。
 const adminAuthStateTTL = 30 * time.Second
 
-// authDeps 是认证中间件的依赖集合，在装配期通过 InitJWT 注入。
-//
-// 设计原则（RULES.md §0.1 + §0.2）：
-// 取代旧的包级全局可变变量（jwtInstance / userRepo / tokenStore / adminRepo），
-// 依赖通过结构体持有，便于追踪、避免全局可变状态。
-type authDeps struct {
+// AuthMiddleware 持有认证中间件的全部依赖，通过依赖注入构造，消除包级全局变量。
+type AuthMiddleware struct {
 	jwt        *jwtPkg.JWT
 	userRepo   userRepoPkg.UserRepository
 	adminRepo  systemRepoPkg.AdminRepository
@@ -37,16 +33,13 @@ type authDeps struct {
 	cacheMgr   cache.LazyCacheManager
 }
 
-// deps 是装配期注入的依赖单例。全进程只读不改。
-var deps *authDeps
-
-// InitJWT 装配认证中间件的依赖。必须在 router 注册前调用一次。
-// j/userRepo/adminRepo 必须非空（fail-fast），tokenStore/cacheMgr 可为 nil（关闭相应能力）。
-func InitJWT(j *jwtPkg.JWT, repo userRepoPkg.UserRepository, ts userService.TokenStore, ar systemRepoPkg.AdminRepository, cm cache.LazyCacheManager) {
+// NewAuthMiddleware 装配认证中间件依赖。j/userRepo/adminRepo 必须非空（fail-fast），
+// tokenStore/cacheMgr 可为 nil（关闭相应能力）。
+func NewAuthMiddleware(j *jwtPkg.JWT, repo userRepoPkg.UserRepository, ts userService.TokenStore, ar systemRepoPkg.AdminRepository, cm cache.LazyCacheManager) *AuthMiddleware {
 	if j == nil || repo == nil || ar == nil {
-		panic("InitJWT: j/userRepo/adminRepo 必须非空")
+		panic("NewAuthMiddleware: j/userRepo/adminRepo 必须非空")
 	}
-	deps = &authDeps{
+	return &AuthMiddleware{
 		jwt:        j,
 		userRepo:   repo,
 		adminRepo:  ar,
@@ -60,7 +53,9 @@ func InitJWT(j *jwtPkg.JWT, repo userRepoPkg.UserRepository, ts userService.Toke
 // 把 admin 端的 claims 类型、tokenStore key、账户查询差异
 // 注入到 auth.RequireAuth 通用骨架（重构清单 B-AUTH-11）。
 
-type adminClaimsAccessor struct{}
+type adminClaimsAccessor struct {
+	mw *AuthMiddleware
+}
 
 func (adminClaimsAccessor) NewClaims() *jwtPkg.AdminClaims {
 	return &jwtPkg.AdminClaims{}
@@ -70,7 +65,7 @@ func (adminClaimsAccessor) TokenStoreKey(claims *jwtPkg.AdminClaims) string {
 	return auth.AdminTokenKey(claims.UserID)
 }
 
-func (adminClaimsAccessor) LookupAccount(ctx context.Context, claims *jwtPkg.AdminClaims) (*auth.AccountCheckResult, error) {
+func (a adminClaimsAccessor) LookupAccount(ctx context.Context, claims *jwtPkg.AdminClaims) (*auth.AccountCheckResult, error) {
 	// 鉴权状态（token_version + status）走 L1+L2 缓存，DB QPS 降低 30x+。
 	// 双写一致性：
 	//   - 主动失效：Service 层 TM 事务（IncrementTokenVersion + Update/Delete）Commit 后调用
@@ -82,14 +77,14 @@ func (adminClaimsAccessor) LookupAccount(ctx context.Context, claims *jwtPkg.Adm
 	// cacheMgr 为 nil（缓存模块禁用）时降级为直查 DB，保持原 fail-closed 语义。
 	var state *systemRepoPkg.AdminAuthState
 	var err error
-	if deps.cacheMgr != nil {
+	if a.mw.cacheMgr != nil {
 		key := cache.KeyAdminAuthState(claims.UserID)
 		tags := []string{cache.TagAdminAuthByID(claims.UserID)}
-		err = deps.cacheMgr.Fetch(ctx, key, "admin", tags, adminAuthStateTTL, &state, func() (interface{}, error) {
-			return deps.adminRepo.GetAuthStateByID(ctx, claims.UserID)
+		err = a.mw.cacheMgr.Fetch(ctx, key, "admin", tags, adminAuthStateTTL, &state, func() (interface{}, error) {
+			return a.mw.adminRepo.GetAuthStateByID(ctx, claims.UserID)
 		})
 	} else {
-		state, err = deps.adminRepo.GetAuthStateByID(ctx, claims.UserID)
+		state, err = a.mw.adminRepo.GetAuthStateByID(ctx, claims.UserID)
 	}
 	if err != nil || state == nil {
 		return nil, err
@@ -110,7 +105,9 @@ func (adminClaimsAccessor) LookupAccount(ctx context.Context, claims *jwtPkg.Adm
 
 // --- userClaimsAccessor 实现 auth.ClaimsAccessor[*jwtPkg.UserClaims] ---
 
-type userClaimsAccessor struct{}
+type userClaimsAccessor struct {
+	mw *AuthMiddleware
+}
 
 func (userClaimsAccessor) NewClaims() *jwtPkg.UserClaims {
 	return &jwtPkg.UserClaims{}
@@ -120,8 +117,8 @@ func (userClaimsAccessor) TokenStoreKey(claims *jwtPkg.UserClaims) string {
 	return claims.UID
 }
 
-func (userClaimsAccessor) LookupAccount(ctx context.Context, claims *jwtPkg.UserClaims) (*auth.AccountCheckResult, error) {
-	user, err := deps.userRepo.GetByID(ctx, claims.UID)
+func (a userClaimsAccessor) LookupAccount(ctx context.Context, claims *jwtPkg.UserClaims) (*auth.AccountCheckResult, error) {
+	user, err := a.mw.userRepo.GetByID(ctx, claims.UID)
 	if err != nil || user == nil {
 		return nil, err
 	}
@@ -138,24 +135,18 @@ func (userClaimsAccessor) LookupAccount(ctx context.Context, claims *jwtPkg.User
 	}, nil
 }
 
-// 包级单例 accessor（无状态，复用）
-var (
-	adminClaimsAcc = adminClaimsAccessor{}
-	userClaimsAcc  = userClaimsAccessor{}
-)
-
 // JWTAuth 是 Admin 端 JWT 鉴权中间件。校验链详见 auth.RequireAuth 文档。
-func JWTAuth() gin.HandlerFunc {
-	return auth.RequireAuth(deps.jwt, deps.tokenStore, adminClaimsAcc)
+func (m *AuthMiddleware) JWTAuth() gin.HandlerFunc {
+	return auth.RequireAuth(m.jwt, m.tokenStore, adminClaimsAccessor{mw: m})
 }
 
 // UserJWTAuth 是 Client 端用户 JWT 鉴权中间件。校验链同 JWTAuth。
-func UserJWTAuth() gin.HandlerFunc {
-	return auth.RequireAuth(deps.jwt, deps.tokenStore, userClaimsAcc)
+func (m *AuthMiddleware) UserJWTAuth() gin.HandlerFunc {
+	return auth.RequireAuth(m.jwt, m.tokenStore, userClaimsAccessor{mw: m})
 }
 
 // 编译期检查 accessor 实现 ClaimsAccessor 接口
 var (
-	_ auth.ClaimsAccessor[*jwtPkg.AdminClaims] = adminClaimsAcc
-	_ auth.ClaimsAccessor[*jwtPkg.UserClaims]  = userClaimsAcc
+	_ auth.ClaimsAccessor[*jwtPkg.AdminClaims] = adminClaimsAccessor{}
+	_ auth.ClaimsAccessor[*jwtPkg.UserClaims]  = userClaimsAccessor{}
 )

@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/robfig/cron/v3"
 
@@ -18,6 +19,26 @@ import (
 	"NetyAdmin/internal/pkg/requestid"
 	"NetyAdmin/internal/pkg/slogutil"
 )
+
+// taskLockReleaseScript 原子比对 token 后删除锁，避免误删其他实例的锁。
+// KEYS[1] = lockKey, ARGV[1] = lockToken
+var taskLockReleaseScript = redis.NewScript(`
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+	return redis.call("DEL", KEYS[1])
+else
+	return 0
+end
+`)
+
+// taskLockRenewScript 原子比对 token 后续期，确保仅锁持有者能续期。
+// KEYS[1] = lockKey, ARGV[1] = lockToken, ARGV[2] = TTL seconds
+var taskLockRenewScript = redis.NewScript(`
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+	return redis.call("EXPIRE", KEYS[1], ARGV[2])
+else
+	return 0
+end
+`)
 
 // Manager 任务调度引擎
 
@@ -484,19 +505,18 @@ func (m *Manager) execute(ctx context.Context, t Task) {
 	// 2. 尝试抢占分布式锁 (仅在 Redis 启用时)
 	if m.redisCfg != nil && m.redisCfg.Enabled && m.redis != nil {
 		lockKey := cache.KeyTaskLock(m.redisCfg.Prefix, name)
-		// 设置锁的 TTL 为 1 小时 (兜底时间)
-		// 避免任务执行时间超过 60s 导致锁失效
+		lockToken := uuid.NewString()
+		lockTTL := 1 * time.Hour
 		// resetRunningState 把 state.IsRunning 改回 false（抢锁失败/出错时回滚）。
-		// 抽取自两处复制粘贴的 mu.Lock + IsRunning=false + mu.Unlock（重构清单 B-OTHER-9）。
 		resetRunningState := func() {
 			m.mu.Lock()
 			state.IsRunning = false
 			m.mu.Unlock()
 		}
 
-		err := m.redis.SetArgs(ctx, lockKey, "locked", redis.SetArgs{
+		err := m.redis.SetArgs(ctx, lockKey, lockToken, redis.SetArgs{
 			Mode: "NX",
-			TTL:  1 * time.Hour,
+			TTL:  lockTTL,
 		}).Err()
 		if err != nil {
 			// redis.Nil = 未抢到锁（其他实例执行中）；其他 err = 抢锁出错
@@ -510,13 +530,46 @@ func (m *Manager) execute(ctx context.Context, t Task) {
 			return
 		}
 
+		// 启动看门狗续期 goroutine：每 TTL/3 续期一次，确保长时间任务不会因锁过期被其他实例抢占。
+		// 续期用 Lua 脚本原子比对 token，仅锁持有者能续期。
+		watchdogDone := make(chan struct{})
+		recovery.GoSafe("task:watchdog", func() {
+			ticker := time.NewTicker(lockTTL / 3)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-watchdogDone:
+					return
+				case <-ticker.C:
+					result, err := taskLockRenewScript.Run(ctx, m.redis,
+						[]string{lockKey}, lockToken, int(lockTTL.Seconds())).Int()
+					if err != nil {
+						slog.Warn("任务锁续期失败", "name", name, "error", err)
+						continue
+					}
+					if result == 0 {
+						// 锁已不属于本实例（TTL 过期后被其他实例抢占）
+						slog.Warn("任务锁续期失败: 锁已不属于本实例", "name", name)
+						return
+					}
+				}
+			}
+		})
+
 		// 执行完毕后释放锁
-		// Del 失败仅 Warn：锁自带 1 小时 TTL 兜底，失败时下一小时后自动过期，
-		// 不会永久卡住其他实例（参见 SetArgs 的 TTL=1h 设置上方）。
+		// 用 Lua 脚本原子比对 token 后删除，避免误删其他实例的锁。
+		// 释放失败仅 Warn：锁自带 TTL 兜底，看门狗已停止后续期，TTL 到期后自动过期。
 		defer func() {
-			if err := m.redis.Del(ctx, lockKey).Err(); err != nil {
+			close(watchdogDone) // 停止看门狗
+			result, err := taskLockReleaseScript.Run(ctx, m.redis,
+				[]string{lockKey}, lockToken).Int()
+			if err != nil {
 				slog.Warn("task: release distributed lock failed (will auto-expire via TTL)",
 					"name", name, "lockKey", lockKey, "error", err)
+			} else if result == 0 {
+				// 锁已不属于本实例（TTL 过期后被其他实例抢占并释放）
+				slog.Warn("task: lock already expired or taken by another instance",
+					"name", name, "lockKey", lockKey)
 			}
 		}()
 	}
