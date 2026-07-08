@@ -38,7 +38,7 @@
 
 ```
 server/internal/pkg/cache/
-├── manager.go          # 缓存管理器（LazyCacheManager），A/B 双引擎实现
+├── manager.go          # 缓存管理器（LazyCacheManager），实现 ConfigCache / SecurityCache / CacheLifecycle 三个接口
 └── registry.go         # Key/Tag 注册表与工厂函数
 ```
 
@@ -63,68 +63,84 @@ server/internal/pkg/cache/
 
 > **设计说明**：模式A（FetchFast）不依赖 chain cache，而是手动编排 L1→L2→DB 的读取链路，并在 L2 命中时自动回填 L1（带 tags）。这样设计是因为 gocache 的 chain cache 在 L1 miss、L2 hit 时不会回填 L1，无法满足极速模式的需求。
 
-### 3.2 缓存管理器接口 (LazyCacheManager)
+### 3.2 缓存管理器接口（三接口拆分）
+
+`*LazyCacheManager` 同时实现以下三个接口，通过 Go 的隐式接口转换自动满足。消费者按需持有对应接口，编译器强制约束可用方法集：
+
+#### ConfigCache（6 方法，L1+L2 链路）
+
+用于 **配置类数据**（开放平台 API 权限、RBAC、字典、存储配置、内容分类、消息模板等），走 L1 (BigCache) + L2 (Redis) 加速链路：
 
 ```go
-type LazyCacheManager interface {
-    // ===== 模式B（标准模式）: L2 Redis + L3 DB =====
-    // 适合：RBAC、字典、存储配置、内容分类、消息模板等
-    // L1 开启时走 chain(L1,L2) 读取，但 L2 命中不回填 L1
-    // 需要自动回填 L1 请使用 FetchFast（模式A）
+type ConfigCache interface {
+    FetchFast(ctx context.Context, key string, moduleName string, tags []string, ttl time.Duration, v interface{}, loader func() (interface{}, error)) error
+    SetFast(ctx context.Context, key string, value interface{}, tags []string, ttl time.Duration) error
+    GetFast(ctx context.Context, key string, tags []string, ttl time.Duration, v interface{}) error
+    DeleteFast(ctx context.Context, key string) error
+    InvalidateByTags(ctx context.Context, tags ...string) error
+    IsCacheEnabled(ctx context.Context, moduleName string) bool
+}
+```
+
+#### SecurityCache（9 方法，L2 only）
+
+用于 **安全/一次性数据**（验证码、Nonce 防重放、登录锁定、Token 黑名单等），仅走 L2 (Redis)，不需要 L1 加速：
+
+```go
+type SecurityCache interface {
     Fetch(ctx context.Context, key string, moduleName string, tags []string, ttl time.Duration, v interface{}, loader func() (interface{}, error)) error
     Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
     Get(ctx context.Context, key string, v interface{}) error
     Delete(ctx context.Context, key string) error
     Exists(ctx context.Context, key string) (bool, error)
-
-    // ===== 模式A（极速模式）: L1 本地 + L2 Redis + L3 DB =====
-    // 适合：开放平台 API 权限等每次请求都要校验的场景
-    // 手动编排 L1→L2→DB 链路，L2 命中时自动回填 L1（带 tags）
-    // L1 关闭时自动降级为模式B（纯 L2）
-    FetchFast(ctx context.Context, key string, moduleName string, tags []string, ttl time.Duration, v interface{}, loader func() (interface{}, error)) error
-    // SetFast 写入 L1+L2，支持 tags，L1 关闭时降级为 cacheManager 写入
-    SetFast(ctx context.Context, key string, value interface{}, tags []string, ttl time.Duration) error
-    // GetFast 读取 L1→L2，L2 命中回填 L1 时带 tags
-    // ttl 用于计算 L1 回填过期时间：min(ttl, local_ttl_min)
-    GetFast(ctx context.Context, key string, tags []string, ttl time.Duration, v interface{}) error
-    // DeleteFast 删除 L1+L2
-    DeleteFast(ctx context.Context, key string) error
-
-    // ===== 共用方法 =====
-    // InvalidateByTags 失效 cacheManager 并通过 PubSub 广播，其他节点仅失效 L1
-    InvalidateByTags(ctx context.Context, tags ...string) error
-
-    // InvalidateL1ByTags 仅失效本地 L1 缓存（由 PubSubBus 订阅者调用，避免递归）
-    InvalidateL1ByTags(ctx context.Context, tags ...string) error
-
-    // SetNX 原子性写入（走 Redis 原生 NX，Nonce 防重放等场景不需要 L1）
     SetNX(ctx context.Context, key string, value interface{}, ttl time.Duration) (bool, error)
+    Incr(ctx context.Context, key string) (int64, error)
+    InvalidateByTags(ctx context.Context, tags ...string) error
+    IsCacheEnabled(ctx context.Context, moduleName string) bool
+}
+```
 
-	    // SetEventBus 注入 PubSubBus 实例
+#### CacheLifecycle（2 方法，Wire 装配专用）
+
+```go
+type CacheLifecycle interface {
     SetEventBus(bus pubsub.EventBus)
+    InvalidateL1ByTags(ctx context.Context, tags ...string) error
+}
+```
 
-    // GetRedisClient 获取底层 Redis 客户端
-    GetRedisClient() *redis.Client
-	}
-	```
-	
-	> **注意**：LazyCacheManager 不再提供 RateLimit 方法，限流能力已抽离到独立的 `internal/pkg/ratelimit/` 包中。
+#### 消费者字段命名约定
+
+| 消费者类型 | 字段名 | 持有接口 | 示例 |
+|-----------|--------|----------|------|
+| 配置类服务 | `cacheFast` | `ConfigCache` | dict、menu、role、api、button、message、storage config、content category |
+| 安全类服务 | `cacheSlow` | `SecurityCache` | captcha store、verification、user auth、token store、error log |
+| 混合消费者（admin/app service） | `cacheFast` + `cacheSlow` | `ConfigCache` + `SecurityCache` | admin service、open_platform app service |
+
+> **注意**：
+> - `GetRedisClient()` 和 `GetCacheMgr()` 已移除。`wire.go` 直接接收 `*redis.Client` 并传递给需要 Redis 的组件。
+> - `RateLimit` 方法已抽离到独立的 `internal/pkg/ratelimit/` 包中。
+> - 三接口拆分通过编译器强制执行 Fast/Non-Fast 方法隔离，杜绝「配置类数据误用非 Fast 方法绕过 L1 加速」的问题。
 	
 	### 3.3 方法与引擎对照表
 
-| 方法 | 读取链路 | 写入链路 | 说明 |
-|------|----------|----------|------|
-| `Fetch` | cacheManager (chain/L2) | cacheManager | 模式B：L2(Redis) only，L1 开启时走 chain 但 L2 命中不回填 L1 |
-| `Set` | — | cacheManager | 模式B：写入 cacheManager |
-| `Get` | cacheManager | — | 模式B |
-| `Delete` | — | cacheManager | 模式B |
-| `Exists` | cacheManager | — | 模式B |
-| `SetNX` | — | Redis 原子操作 | 模式B（Nonce 防重放等场景不需要 L1） |
-| `FetchFast` | 手动 L1→L2→DB | cacheManager + L1 回填 | 模式A：L2 命中时自动回填 L1（带 tags） |
-| `SetFast` | — | L1 + L2 分别写入 | 模式A：支持 tags，L1 关闭时降级为 cacheManager 写入 |
-| `GetFast` | 手动 L1→L2 | — | 模式A：L2 命中时回填 L1（带 tags） |
-| `DeleteFast` | — | L1 + L2 分别删除 | 模式A |
-	| `InvalidateByTags` | — | cacheManager + PubSub 广播 | 失效 cacheManager 并广播，其他节点仅失效 L1 |
+| 方法 | 所属接口 | 读取链路 | 写入链路 | 说明 |
+|------|----------|----------|----------|------|
+| `FetchFast` | ConfigCache | 手动 L1→L2→DB | L2 + L1 回填 | L2 命中时自动回填 L1（带 tags） |
+| `SetFast` | ConfigCache | — | L1 + L2 分别写入 | 支持 tags，L1 关闭时降级为 L2 写入 |
+| `GetFast` | ConfigCache | 手动 L1→L2 | — | L2 命中时回填 L1（带 tags） |
+| `DeleteFast` | ConfigCache | — | L1 + L2 分别删除 | 与 SetFast 配套 |
+| `InvalidateByTags` | ConfigCache / SecurityCache | — | L2 + PubSub 广播 | 失效 L2 并广播，其他节点仅失效 L1 |
+| `IsCacheEnabled` | ConfigCache / SecurityCache | — | — | 检查模块缓存开关 |
+| `Fetch` | SecurityCache | L2→DB | L2 | 标准模式，不走 L1 |
+| `Set` | SecurityCache | — | L2 | 标准写入 |
+| `Get` | SecurityCache | L2 | — | 标准读取 |
+| `Delete` | SecurityCache | — | L2 | 标准删除 |
+| `Exists` | SecurityCache | L2 | — | 检查 Key 是否存在 |
+| `SetNX` | SecurityCache | — | Redis 原子操作 | Nonce 防重放等场景 |
+| `Incr` | SecurityCache | — | Redis 原子操作 | 计数器（如登录重试次数） |
+| `SetEventBus` | CacheLifecycle | — | — | 注入 PubSubBus 实例 |
+| `InvalidateL1ByTags` | CacheLifecycle | — | L1 only | 仅失效本地 L1（PubSub 订阅者调用） |
 
 ### 3.4 singleflight 缓存击穿保护（Task 4）
 
@@ -301,16 +317,16 @@ InvalidateByTags(tags)
 
 1. **L2 失败不广播 L1**：避免在已知失败的视图上叠加广播，扩大不一致窗口。调用方收到 error 后应 `slog.Error` 上报监控（Task 14.2），由监控告警触发人工介入或 TTL 兜底。
 2. **Publish 失败仅日志不返回 error**：本地 L1+L2 已清，数据正确；跨节点 L1 失效漏掉是「最终一致性延迟」，由 TTL 或下次 `InvalidateByTags` 兜底。返回 error 会让调用方误以为本地失效也失败。
-3. **调用方必须 slog.Error**：所有 `cacheMgr.InvalidateByTags(...)` 调用点必须用 `slog.Error("invalidate cache failed", ...)` 上报，**禁止用 `slog.Warn`**。缓存失效失败是数据一致性问题，应可被监控告警捕获（Task 14.2）。
+3. **调用方必须 slog.Error**：所有 `InvalidateByTags(...)` 调用点必须用 `slog.Error("invalidate cache failed", ...)` 上报，**禁止用 `slog.Warn`**。缓存失效失败是数据一致性问题，应可被监控告警捕获（Task 14.2）。
 
 ```go
 // ✅ 正确范式（Task 14.2）
-if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagXxx); err != nil {
+if err := s.cacheFast.InvalidateByTags(ctx, cache.TagXxx); err != nil {
     slog.Error("invalidate cache failed", "tag", cache.TagXxx, "err", err)
 }
 
 // ❌ 反模式：禁止用 slog.Warn
-// if err := s.cacheMgr.InvalidateByTags(ctx, cache.TagXxx); err != nil {
+// if err := s.cacheFast.InvalidateByTags(ctx, cache.TagXxx); err != nil {
 //     slog.Warn("invalidate cache failed", "tag", cache.TagXxx, "err", err)  // 不可被告警捕获
 // }
 ```
@@ -444,39 +460,39 @@ const (
 
 ```
 需要极致速度？（每次 HTTP 请求都要校验）
-  ├─ 是 → 用 FetchFast / SetFast / GetFast / DeleteFast
-  └─ 否 → 用 Fetch / Set / Get / Delete
+  ├─ 是 → 使用 ConfigCache (cacheFast)：FetchFast / SetFast / GetFast / DeleteFast
+  └─ 否（安全/一次性数据） → 使用 SecurityCache (cacheSlow)：Fetch / Set / Get / Delete / SetNX / Incr
 ```
 
 ### 8.2 典型场景
 
 ```go
-// 场景1：开放平台 API 权限校验（每次请求都调用）→ 用 Fast
-s.cacheMgr.FetchFast(ctx, cache.KeyAppApis(appID), "open_api", tags, ttl, &apis, loader)
+// 场景1：开放平台 API 权限校验（每次请求都调用）→ 用 ConfigCache
+s.cacheFast.FetchFast(ctx, cache.KeyAppApis(appID), "open_api", tags, ttl, &apis, loader)
 
-// 场景2：RBAC 菜单树（登录后加载一次）→ 用标准
-s.cacheMgr.Fetch(ctx, cache.KeyMenuTree(), "rbac", tags, ttl, &tree, loader)
+// 场景2：RBAC 菜单树（登录后加载一次）→ 用 ConfigCache
+s.cacheFast.FetchFast(ctx, cache.KeyMenuTree(), "rbac", tags, ttl, &tree, loader)
 
-// 场景3：字典数据（页面加载时读取）→ 用标准
-s.cacheMgr.Fetch(ctx, cache.KeyDictData(code), "dict", tags, ttl, &list, loader)
+// 场景3：字典数据（页面加载时读取）→ 用 ConfigCache
+s.cacheFast.FetchFast(ctx, cache.KeyDictData(code), "dict", tags, ttl, &list, loader)
 
-// 场景4：验证码（一次性写入消费）→ 用标准
-s.cacheMgr.Set(ctx, cache.KeyVerificationCode("captcha", id), value, ttl)
+// 场景4：验证码（一次性写入消费）→ 用 SecurityCache
+s.cacheSlow.Set(ctx, cache.KeyVerificationCode("captcha", id), value, ttl)
 
-// 场景5：Nonce 防重放（一次性校验）→ 用标准（SetNX）
-s.cacheMgr.SetNX(ctx, cache.KeyAppNonce(appKey, nonce), "1", 60*time.Second)
+// 场景5：Nonce 防重放（一次性校验）→ 用 SecurityCache（SetNX）
+s.cacheSlow.SetNX(ctx, cache.KeyAppNonce(appKey, nonce), "1", 60*time.Second)
 
-// 场景6：账户锁定（登录安全）→ 用标准
-s.cacheMgr.Set(ctx, cache.KeyLoginLock(userID), "1", lockDuration)
+// 场景6：账户锁定（登录安全）→ 用 SecurityCache
+s.cacheSlow.Set(ctx, cache.KeyLoginLock(userID), "1", lockDuration)
 ```
 
-### 8.3 读多写少场景 (Fetch + Tags)
+### 8.3 读多写少场景 (FetchFast + Tags)
 
 ```go
 func (s *appService) GetAppByKey(ctx context.Context, appKey string) (*open_platform.App, error) {
     var app open_platform.App
     key := cache.KeyAppInfo(appKey)
-    err := s.cacheMgr.FetchFast(ctx, key, cache.TagApp, []string{cache.TagApp, cache.TagAppKey(appKey)}, 1*time.Hour, &app, func() (interface{}, error) {
+    err := s.cacheFast.FetchFast(ctx, key, cache.TagApp, []string{cache.TagApp, cache.TagAppKey(appKey)}, 1*time.Hour, &app, func() (interface{}, error) {
         return s.repo.GetByKey(ctx, appKey)
     })
     return &app, err
@@ -490,8 +506,8 @@ func (s *appService) UpdateApp(ctx context.Context, app *open_platform.App) erro
     if err := s.repo.Update(ctx, app); err != nil {
         return err
     }
-    // InvalidateByTags 同时失效两个引擎，开发者不需要关心数据在哪个引擎
-    return s.cacheMgr.InvalidateByTags(ctx, cache.TagApp, cache.TagAppKey(app.AppKey))
+    // InvalidateByTags 同时失效 L1+L2，开发者不需要关心数据在哪个引擎
+    return s.cacheFast.InvalidateByTags(ctx, cache.TagApp, cache.TagAppKey(app.AppKey))
 }
 ```
 
@@ -499,7 +515,7 @@ func (s *appService) UpdateApp(ctx context.Context, app *open_platform.App) erro
 
 ```go
 nonceKey := cache.KeyAppNonce(appKey, nonce)
-set, err := s.cacheMgr.SetNX(ctx, nonceKey, "1", 60*time.Second)
+set, err := s.cacheSlow.SetNX(ctx, nonceKey, "1", 60*time.Second)
 if err != nil || !set {
     return errorx.CodeSignatureFailed
 }
@@ -509,31 +525,42 @@ if err != nil || !set {
 
 ## 九、各模块缓存使用一览
 
-### 9.1 使用极速模式（模式A）的模块
+### 9.1 使用 ConfigCache（配置类，L1+L2）的模块
 
-| 模块 | 文件 | 使用的方法 |
-|------|------|-----------|
-| 开放平台应用 | `service/open_platform/app.go` | FetchFast, DeleteFast |
-| 开放平台 API | `service/open_platform/api.go` | FetchFast |
+| 模块 | 文件 | 字段名 | 使用的方法 |
+|------|------|--------|-----------|
+| 开放平台应用 | `service/open_platform/app.go` | `cacheFast` | FetchFast, DeleteFast |
+| 开放平台 API | `service/open_platform/api.go` | `cacheFast` | FetchFast |
+| RBAC-Admin | `service/system/admin.go` | `cacheFast` | FetchFast, SetFast, InvalidateByTags |
+| RBAC-Role | `service/system/role.go` | `cacheFast` | FetchFast, InvalidateByTags |
+| RBAC-Menu | `service/system/menu.go` | `cacheFast` | FetchFast, InvalidateByTags |
+| RBAC-API | `service/system/api.go` | `cacheFast` | InvalidateByTags |
+| RBAC-Button | `service/system/button.go` | `cacheFast` | InvalidateByTags |
+| 字典 | `service/dict/dict.go` | `cacheFast` | FetchFast, InvalidateByTags |
+| 存储配置 | `service/storage/config.go` | `cacheFast` | FetchFast, InvalidateByTags |
+| 内容分类 | `service/content/category.go` | `cacheFast` | FetchFast, InvalidateByTags |
+| 消息模板 | `service/message/message.go` | `cacheFast` | FetchFast, InvalidateByTags |
 
-### 9.2 使用标准模式（模式B）的模块
+### 9.2 使用 SecurityCache（安全类，L2 only）的模块
 
-| 模块 | 文件 | 使用的方法 |
-|------|------|-----------|
-| RBAC-Admin | `service/system/admin.go` | Fetch, Set, Exists, InvalidateByTags |
-| RBAC-Role | `service/system/role.go` | Fetch, InvalidateByTags |
-| RBAC-Menu | `service/system/menu.go` | Fetch, InvalidateByTags |
-| RBAC-API | `service/system/api.go` | InvalidateByTags |
-| RBAC-Button | `service/system/button.go` | InvalidateByTags |
-| 字典 | `service/dict/dict.go` | Fetch, InvalidateByTags |
-| 存储配置 | `service/storage/config.go` | Fetch, InvalidateByTags |
-| 内容分类 | `service/content/category.go` | Fetch, InvalidateByTags |
-| 消息模板 | `service/message/message.go` | Fetch, InvalidateByTags |
-| 验证码 | `pkg/captcha/store.go` | Set, Get, Delete |
-| 用户验证 | `service/user/verification.go` | Set, Get, Delete, Exists |
-| 用户锁定 | `service/user/user.go` | Set, Get, Delete, Exists |
+| 模块 | 文件 | 字段名 | 使用的方法 |
+|------|------|--------|-----------|
+| 验证码 | `pkg/captcha/store.go` | `cacheSlow` | Set, Get, Delete |
+| 用户验证 | `service/user/verification.go` | `cacheSlow` | Set, Get, Delete, Exists |
+| 用户认证 | `service/user/user_auth.go` | `cacheSlow` | Set, Get, Delete, Exists, Incr |
+| 用户管理 | `service/user/user_admin.go` | `cacheSlow` | Set, Delete, Exists |
+| Token 存储 | `service/user/token_store.go` | `cacheSlow` | Set, Get, Delete, Exists |
+| 错误日志（指纹压制） | `service/log/error.go` | `cacheSlow` | SetNX |
+| Admin 认证 | `service/system/admin_auth.go` | `cacheSlow` | Set, Get, Delete, Exists |
 
-### 9.3 不走缓存模块的模块
+### 9.3 混合消费者（同时持有 ConfigCache + SecurityCache）
+
+| 模块 | 文件 | 字段名 | 说明 |
+|------|------|--------|------|
+| Admin 服务 | `service/system/admin.go` | `cacheFast` + `cacheSlow` | 既有 RBAC 配置缓存，又有登录状态缓存 |
+| 开放平台应用 | `service/open_platform/app.go` | `cacheFast` + `cacheSlow` | 既有 API 权限配置缓存，又有 Nonce 防重放 |
+
+### 9.4 不走缓存模块的模块
 
 | 模块 | 原因 |
 |------|------|
@@ -571,13 +598,13 @@ const (
 // internal/service/content/article.go
 
 type articleService struct {
-    repo         ArticleRepository
-    cacheManager cache.LazyCacheManager
+    repo      ArticleRepository
+    cacheFast cache.ConfigCache
 }
 
 func (s *articleService) GetArticle(ctx context.Context, id uint) (*entity.Article, error) {
     var result *entity.Article
-    err := s.cacheManager.Fetch(
+    err := s.cacheFast.FetchFast(
         ctx,
         cache.KeyArticleInfo(id),
         "content",
@@ -595,7 +622,7 @@ func (s *articleService) CreateArticle(ctx context.Context, article *entity.Arti
     if err := s.repo.Create(ctx, article); err != nil {
         return err
     }
-    return s.cacheManager.InvalidateByTags(ctx, cache.TagArticle)
+    return s.cacheFast.InvalidateByTags(ctx, cache.TagArticle)
 }
 ```
 
@@ -610,10 +637,10 @@ INSERT INTO sys_configs (group_name, key_name, value, description) VALUES
 
 ```go
 // 如：API 限流配置（每次请求都读取）
-s.cacheManager.FetchFast(ctx, cache.KeyRateLimitConfig(apiID), "rate_limit", tags, ttl, &config, loader)
+s.cacheFast.FetchFast(ctx, cache.KeyRateLimitConfig(apiID), "rate_limit", tags, ttl, &config, loader)
 
 // 如：特征库（高频访问）
-s.cacheManager.FetchFast(ctx, cache.KeyFeatureLib(libID), "feature", tags, ttl, &lib, loader)
+s.cacheFast.FetchFast(ctx, cache.KeyFeatureLib(libID), "feature", tags, ttl, &lib, loader)
 ```
 
 ---
@@ -626,7 +653,7 @@ s.cacheManager.FetchFast(ctx, cache.KeyFeatureLib(libID), "feature", tags, ttl, 
 4. **回源保护**：回源函数中做好错误处理，避免缓存穿透
 5. **大对象处理**：超过 1MB 的数据建议压缩后存储
 6. **Key 统一管理**：无论是模式A还是模式B，所有缓存 Key 和 Tag 必须在 `registry.go` 中统一定义，严禁硬编码
-7. **避免混用模式**：同一个 Key 不要混用 Fetch 和 FetchFast，避免两个引擎中存在同一 Key 的副本
+7. **避免混用接口**：同一个 Key 不要混用 ConfigCache 和 SecurityCache 的方法，避免两个引擎中存在同一 Key 的副本
 8. **InvalidateByTags 优先**：变更数据后优先使用 InvalidateByTags 而非 Delete，确保缓存统一失效
 9. **Fast 方法的 tags 支持**：FetchFast、SetFast、GetFast 均支持 tags 参数，确保 L1 回填和写入时 tag 关联正确，InvalidateByTags 可统一失效
 10. **L1 TTL 与 L2 一致**：模式A的 Fast 方法中，L1 使用用户传入的 TTL（与 L2 完全一致），`local_ttl_min` 仅作为 BigCache 初始化的兜底默认值。降级模式B 时 TTL 无差异

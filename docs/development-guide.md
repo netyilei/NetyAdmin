@@ -440,7 +440,7 @@ func (s *xxxService) MultiStepOp(ctx context.Context, args) error {
 	}
 
 	// Commit 成功后：失效缓存（用原始 ctx，不是 txCtx）
-	if cErr := s.cacheMgr.InvalidateByTags(ctx, tag); cErr != nil {
+	if cErr := s.cacheFast.InvalidateByTags(ctx, tag); cErr != nil {
 		slog.Warn("cache invalidation failed", "err", cErr)
 	}
 	return nil
@@ -567,7 +567,7 @@ func (s *xxxService) Update(ctx context.Context, id uint64, req *dto.UpdateXxxRe
 // userBase 封装共享依赖和横切方法
 type userBase struct {
 	repo       userRepo.UserRepository
-	cacheMgr   cache.LazyCacheManager
+	cacheSlow  cache.SecurityCache
 	tm         *database.TransactionManager
 	// ... 更多共享依赖
 }

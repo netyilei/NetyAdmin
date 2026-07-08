@@ -242,7 +242,7 @@ func RecoveryMiddleware(errorLogService log.ErrorLogService) gin.HandlerFunc {
 }
 ```
 
-> **注意**：错误日志的 `Log` 方法内部先执行指纹压制（`LazyCacheManager.SetNX`），通过压制后才通过 LogBus 回调异步写入。
+> **注意**：错误日志的 `Log` 方法内部先执行指纹压制（`SecurityCache.SetNX`），通过压制后才通过 LogBus 回调异步写入。
 
 ---
 
@@ -428,7 +428,7 @@ CREATE TABLE operation_logs_2024_01 PARTITION OF operation_logs
 
 1. **异步记录**：所有日志通过 LogBus 异步写入，避免阻塞请求
 2. **分级保护**：P0 日志绝不丢失，P1 同步回退，P2 可丢弃最旧
-3. **指纹压制**：错误日志使用 `LazyCacheManager.SetNX` 做 60s 去重，避免重复写入
+3. **指纹压制**：错误日志使用 `SecurityCache.SetNX` 做 60s 去重，避免重复写入
 4. **采样记录**：高频接口可配置采样率，减少日志量
 5. **分级存储**：热数据存SSD，冷数据归档到对象存储
 6. **定期归档**：历史日志定期导出到对象存储后删除

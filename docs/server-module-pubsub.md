@@ -53,7 +53,7 @@ server/internal/pkg/pubsub/
       |
       +--- worker 1 ---+--- topic: config_sync --------> [ConfigWatcher.ForceReload()]
       +--- worker 2 ---+--- topic: storage_sync -------> [StorageConfigService.LoadAllConfigs()]
-      +--- ...       ---+--- topic: cache_invalidation -> [LazyCacheManager.InvalidateL1ByTags()]
+      +--- ...       ---+--- topic: cache_invalidation -> [CacheLifecycle.InvalidateL1ByTags()]
       +--- worker N ---+--- topic: ipac_reload --------> [IPACService.ReloadCache()]
 ```
 
@@ -109,7 +109,7 @@ type EventBus interface {
 |------------|-----|--------|--------|------|
 | `TopicConfigSync` | `"config_sync"` | ConfigService | ConfigWatcher | 系统配置变更广播 |
 | `TopicStorageSync` | `"storage_sync"` | StorageConfigService | StorageConfigService | 存储配置变更广播 |
-| `TopicCacheInvalidation` | `"cache_invalidation"` | LazyCacheManager | LazyCacheManager | 分布式缓存失效同步 |
+| `TopicCacheInvalidation` | `"cache_invalidation"` | CacheLifecycle | CacheLifecycle | 分布式缓存失效同步 |
 | `TopicIPACReload` | `"ipac_reload"` | IPACService | IPACService | IP 规则重载通知 |
 
 ---
@@ -311,7 +311,7 @@ safeSubscribe(eventBus, pubsub.TopicStorageSync, func(ctx context.Context, msg [
 safeSubscribe(eventBus, pubsub.TopicCacheInvalidation, func(ctx context.Context, msg []byte) {
     var tags []string
     if err := json.Unmarshal(msg, &tags); err == nil {
-        _ = lazyCacheMgr.InvalidateL1ByTags(ctx, tags...)
+        _ = cacheLifecycle.InvalidateL1ByTags(ctx, tags...)
     }
 })
 
@@ -500,7 +500,7 @@ InvalidateL1ByTags      (L1 持有        │
 
                                        断连恢复后：
                                        subscribeLoop → fireReconnect()
-                                       → cacheMgr.reloadL1All()
+                                       → cacheLifecycle.reloadL1All()
                                        → no-op（仅告警，不清空 L1）
                                        → L1 stale 条目由 TTL 自然过期
                                        → L2 (source of truth) 重连后有效
@@ -513,7 +513,7 @@ InvalidateL1ByTags      (L1 持有        │
 2. **首次连接不触发**：`subscribeLoop` 用 `hasDisconnected` 标志区分「首次连接」与「断连后重连」，避免应用启动时误触发 reconnect 回调（`reloadL1All` 现为 no-op，但回调仍只对真实断连恢复有意义）。
 3. **回调在独立 goroutine 执行**：`fireReconnect` 内部用 `GoSafe` 包裹，不阻塞订阅循环；回调 panic 由 `GoSafe` 捕获 + Sentry 上报。
 4. **reloadL1All 现为 no-op（P1-2 fix）**：原方案调用 `bigcache.Reset()` 清空 L1，但会引发 thundering herd（N 个不同 key 并发回源击穿 DB）。现改为 no-op（仅 `slog.Warn` 告警），L1 stale 条目由 TTL 自然过期，L2 (Redis) 重连后仍是 source of truth，`FetchFast` 在 L2 命中时回填 L1。详细设计决策见 [缓存模块 §5.1.3](./server-module-cache.md#513-pubsub-重连-l1-兜底设计p1-2-fix)。
-5. **回调可选**：若未注册 `OnReconnect`，`fireReconnect` 是 no-op，`subscribeLoop` 正常运行。cache 模块在 `SetEventBus` 时自动注册。
+5. **回调可选**：若未注册 `OnReconnect`，`fireReconnect` 是 no-op，`subscribeLoop` 正常运行。cache 模块在 `CacheLifecycle.SetEventBus` 时自动注册。
 
 ### 9.3 配置建议
 

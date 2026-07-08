@@ -96,7 +96,7 @@ type MsgInternal struct {
 ### 4.1 发送流程
 
 1. **业务调用**：`MessageService.SendTemplate(ctx, "VERIFY_CODE", "user@example.com", params)`
-2. **模板加载**：从缓存/数据库获取模板内容（模板数据走 `LazyCacheManager` 缓存，Tag 失效）
+2. **模板加载**：从缓存/数据库获取模板内容（模板数据走 `ConfigCache` 缓存，Tag 失效）
 3. **内容渲染**：将 `{{code}}` 替换为具体数值
 4. **记录入库**：创建 `msg_records`，初始状态为 `0`（等待发送）
 5. **投递任务**：调用 `Dispatcher.Dispatch` 投递 `msg_send_job` 任务

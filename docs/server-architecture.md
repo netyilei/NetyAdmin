@@ -327,7 +327,7 @@ func (s *xxxService) MultiStepOp(ctx context.Context, args) error {
     }
 
     // Commit 成功后：失效缓存（用原始 ctx，不是 txCtx）
-    if cErr := s.cacheMgr.InvalidateByTags(ctx, tag); cErr != nil {
+    if cErr := s.cacheFast.InvalidateByTags(ctx, tag); cErr != nil {
         slog.Warn("cache invalidation failed", "err", cErr)
     }
     return nil
@@ -455,7 +455,7 @@ trusted_proxies = []
 
 **Handler 改造规则：**
 - 禁止 import `domain/entity/` 包
-- 禁止直接调用 cacheMgr / repository（应通过 Service 层完成）
+- 禁止直接调用 cacheFast / cacheSlow / repository（应通过 Service 层完成）
 - Update 的 ID 从 `c.Param("id")` 解析，不在 body 中
 
 #### Update 实现：GetByID + patch + Save
@@ -498,7 +498,7 @@ func (s *xxxService) Update(ctx context.Context, id uint64, req *dto.UpdateXxxRe
 // userBase 封装共享依赖和横切方法
 type userBase struct {
     repo       userRepo.UserRepository
-    cacheMgr   cache.LazyCacheManager
+    cacheSlow  cache.SecurityCache
     tm         *database.TransactionManager
     // ... 更多共享依赖
 }

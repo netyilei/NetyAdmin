@@ -210,7 +210,7 @@ For detailed development workflow, red-line rules, and code examples, refer to t
 
 | Layer | Responsibility | Red Line |
 |-------|---------------|----------|
-| **Handler** | Param binding → Call Service → Unified response | No entity import, no direct cacheMgr/repo access |
+| **Handler** | Param binding → Call Service → Unified response | No entity import, no direct cacheFast/cacheSlow/repo access |
 | **Service** | Business rules + multi-repo orchestration | No `*gin.Context`, receives DTOs, use TM for multi-step ops |
 | **Repository** | CRUD + query assembly | No self-managed transactions, use `getDB(ctx)` for DB |
 | **Entity** | GORM model definition | Pure data structure, no business logic |

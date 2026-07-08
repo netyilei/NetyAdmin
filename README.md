@@ -210,7 +210,7 @@ NetyAdmin/
 
 | 层级 | 职责 | 红线 |
 |------|------|------|
-| **Handler** | 参数绑定 → 调 Service → 统一响应 | 禁止 import entity，禁止调用 cacheMgr/repo |
+| **Handler** | 参数绑定 → 调 Service → 统一响应 | 禁止 import entity，禁止调用 cacheFast/cacheSlow/repo |
 | **Service** | 业务规则 + 多仓储聚合 | 禁止 `*gin.Context`，接收 DTO，多步操作用 TM |
 | **Repository** | CRUD + 查询拼装 | 禁止自管事务，通过 `getDB(ctx)` 统一取 DB |
 | **Entity** | GORM 模型定义 | 纯数据结构，不含业务逻辑 |

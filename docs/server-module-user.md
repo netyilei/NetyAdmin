@@ -151,7 +151,7 @@ type UserTokenHash struct {
 | `cache` | 缓存模式（Redis/BigCache） | 推荐，支持多机部署，自动过期清理 |
 | `db` | 数据库模式（user_token_hashes 表） | 无 Redis 环境，数据持久化 |
 
-> **注意**：`cache` 模式使用系统的缓存模块（LazyCacheManager），自动适配单机（BigCache）和集群（Redis）部署。多机部署时必须选择 `cache` 模式并启用 Redis。
+> **注意**：`cache` 模式使用系统的缓存模块（SecurityCache），自动适配单机（BigCache）和集群（Redis）部署。多机部署时必须选择 `cache` 模式并启用 Redis。
 
 ### 5.4 账户锁定机制
 
