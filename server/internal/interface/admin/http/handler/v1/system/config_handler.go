@@ -39,6 +39,34 @@ func (h *ConfigHandler) ListByGroup(c *gin.Context) {
 		req.GroupName = configsync.GroupCacheSwitches
 	}
 
+	configs, err := h.configSvc.ListByGroupPublic(c.Request.Context(), req.GroupName)
+	if err != nil {
+		response.Fail(c, err)
+		return
+	}
+
+	response.Success(c, configs)
+}
+
+// @Summary      获取配置分组（需权限）
+// @Description  根据组名获取多项配置（敏感字段脱敏），需登录+权限
+// @Tags         系统配置管理
+// @Accept       json
+// @Produce      json
+// @Param        groupName query string true "配置组名"
+// @Success      200 {object} response.Response{data=[]system.SysConfigVO} "配置列表"
+// @Router       /admin/v1/system/configs/list [get]
+func (h *ConfigHandler) ListByGroupProtected(c *gin.Context) {
+	var req systemDto.ConfigQuery
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.FailWithCode(c, errorx.CodeInvalidParams, "参数错误")
+		return
+	}
+
+	if req.GroupName == "" {
+		req.GroupName = configsync.GroupCacheSwitches
+	}
+
 	configs, err := h.configSvc.ListByGroup(c.Request.Context(), req.GroupName)
 	if err != nil {
 		response.Fail(c, err)

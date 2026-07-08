@@ -300,6 +300,7 @@ func (m *Manager) executePayload(ctx context.Context, msg *Message) {
 	m.mu.Unlock()
 
 	if m.onFinish != nil {
+		info.RequestID = msg.RequestID
 		m.onFinish(msg.TaskName, info)
 	}
 }
@@ -597,6 +598,7 @@ func (m *Manager) execute(ctx context.Context, t Task) {
 
 	// 4. 回调处理
 	if m.onFinish != nil {
+		info.RequestID = requestid.FromContext(ctx)
 		m.onFinish(name, info)
 	}
 }

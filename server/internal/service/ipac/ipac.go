@@ -173,12 +173,16 @@ func (s *ipacService) ReloadCache(ctx context.Context) error {
 
 		if r.AppID == nil || *r.AppID == "" {
 			if r.Type == ipac.IPACTypeDeny {
-				_ = newGlobalDeny.Insert(cidranger.NewBasicRangerEntry(*ipNet))
+				if err := newGlobalDeny.Insert(cidranger.NewBasicRangerEntry(*ipNet)); err != nil {
+					slog.Warn("ipac: insert global deny rule failed", "ipAddr", r.IPAddr, "err", err)
+				}
 			} else {
 				if newGlobalAllow == nil {
 					newGlobalAllow = cidranger.NewPCTrieRanger()
 				}
-				_ = newGlobalAllow.Insert(cidranger.NewBasicRangerEntry(*ipNet))
+				if err := newGlobalAllow.Insert(cidranger.NewBasicRangerEntry(*ipNet)); err != nil {
+					slog.Warn("ipac: insert global allow rule failed", "ipAddr", r.IPAddr, "err", err)
+				}
 			}
 		} else {
 			appID := *r.AppID
@@ -187,12 +191,16 @@ func (s *ipacService) ReloadCache(ctx context.Context) error {
 				ar.Deny = cidranger.NewPCTrieRanger()
 			}
 			if r.Type == ipac.IPACTypeDeny {
-				_ = ar.Deny.Insert(cidranger.NewBasicRangerEntry(*ipNet))
+				if err := ar.Deny.Insert(cidranger.NewBasicRangerEntry(*ipNet)); err != nil {
+					slog.Warn("ipac: insert app deny rule failed", "appID", appID, "ipAddr", r.IPAddr, "err", err)
+				}
 			} else {
 				if ar.Allow == nil {
 					ar.Allow = cidranger.NewPCTrieRanger()
 				}
-				_ = ar.Allow.Insert(cidranger.NewBasicRangerEntry(*ipNet))
+				if err := ar.Allow.Insert(cidranger.NewBasicRangerEntry(*ipNet)); err != nil {
+					slog.Warn("ipac: insert app allow rule failed", "appID", appID, "ipAddr", r.IPAddr, "err", err)
+				}
 			}
 			newAppRules[appID] = ar
 		}

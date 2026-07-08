@@ -9,6 +9,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	userEntity "NetyAdmin/internal/domain/entity/user"
@@ -72,15 +73,23 @@ func HandlePasswordWrong(
 	retryCount, err := cacheMgr.Incr(ctx, retryKey, cfg.RetryTTL)
 	if err != nil {
 		// Incr 失败（如 Redis 不可用）：fail-closed 直接锁定，避免绕过计数
-		_ = cacheMgr.Set(ctx, lockKey, "1", cfg.LockDuration)
-		_ = cacheMgr.Delete(ctx, retryKey)
+		if err := cacheMgr.Set(ctx, lockKey, "1", cfg.LockDuration); err != nil {
+			slog.Error("login lock: set lockKey failed (fail-closed: user told locked but cache failed)", "lockKey", lockKey, "err", err)
+		}
+		if err := cacheMgr.Delete(ctx, retryKey); err != nil {
+			slog.Warn("login lock: delete retryKey failed", "retryKey", retryKey, "err", err)
+		}
 		return true, fmt.Sprintf("密码错误次数过多，账户已被锁定 %v", cfg.LockDuration)
 	}
 
 	// Incr 返回值即为累计失败次数，达到阈值则锁定
 	if int(retryCount) >= cfg.MaxRetry {
-		_ = cacheMgr.Set(ctx, lockKey, "1", cfg.LockDuration)
-		_ = cacheMgr.Delete(ctx, retryKey)
+		if err := cacheMgr.Set(ctx, lockKey, "1", cfg.LockDuration); err != nil {
+			slog.Error("login lock: set lockKey failed (fail-closed: user told locked but cache failed)", "lockKey", lockKey, "err", err)
+		}
+		if err := cacheMgr.Delete(ctx, retryKey); err != nil {
+			slog.Warn("login lock: delete retryKey failed", "retryKey", retryKey, "err", err)
+		}
 		return true, fmt.Sprintf("密码错误次数过多，账户已被锁定 %v", cfg.LockDuration)
 	}
 
@@ -91,7 +100,9 @@ func HandlePasswordWrong(
 // ClearLoginRetry 清理登录失败计数（登录成功路径）。
 // 抽取自两端 Login 中的 `_ = s.cacheMgr.Delete(ctx, retryKey)`。
 func ClearLoginRetry(ctx context.Context, cacheMgr CacheManager, retryKey string) {
-	_ = cacheMgr.Delete(ctx, retryKey)
+	if err := cacheMgr.Delete(ctx, retryKey); err != nil {
+		slog.Warn("clear login retry: delete failed", "retryKey", retryKey, "err", err)
+	}
 }
 
 // StoreSessionPair 写入 access + refresh 两个 token 哈希到 tokenStore。

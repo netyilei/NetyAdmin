@@ -16,15 +16,15 @@ func NewStorageRouter(handler *storageHandler.StorageHandler) *StorageRouter {
 
 func (r *StorageRouter) RegisterPublic(group *gin.RouterGroup) {}
 
-func (r *StorageRouter) RegisterAuth(group *gin.RouterGroup) {
-	storageGroup := group.Group("/storage")
-	{
-		storageGroup.POST("/upload-credentials", r.handler.GetUploadCredentials)
-		storageGroup.POST("/upload-record", r.handler.CreateUploadRecord)
-	}
-}
+func (r *StorageRouter) RegisterAuth(group *gin.RouterGroup) {}
 
 func (r *StorageRouter) RegisterPermission(group *gin.RouterGroup) {
+	uploadGroup := group.Group("/storage")
+	{
+		uploadGroup.POST("/upload-credentials", r.handler.GetUploadCredentials)
+		uploadGroup.POST("/upload-record", r.handler.CreateUploadRecord)
+	}
+
 	storageConfigGroup := group.Group("/storage-configs")
 	{
 		storageConfigGroup.GET("", r.handler.GetStorageConfigList)

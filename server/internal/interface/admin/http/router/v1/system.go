@@ -39,6 +39,8 @@ func (r *SystemRouter) RegisterPermission(group *gin.RouterGroup) {
 	// 2. 基础设置组 - 对应前端 system 路径
 	system := group.Group("/system")
 	{
+		// 配置查询（敏感字段脱敏）需要权限
+		system.GET("/configs/list", r.handler.Config.ListByGroupProtected)
 		// 配置修改需要权限
 		system.PUT("/configs", r.handler.Config.Upsert)
 		// 测试邮件发送需要权限

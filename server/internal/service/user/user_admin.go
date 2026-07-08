@@ -94,18 +94,27 @@ func (s *userAdminService) SearchForAutocomplete(ctx context.Context, keyword st
 // Create 创建用户。entity 构造下沉到 service 层（spec D4：禁止 entity 入参）。
 func (s *userAdminService) Create(ctx context.Context, req *userDto.CreateUserReq) error {
 	// 1. 检查唯一性
-	exists, _ := s.repo.ExistsByUsername(ctx, req.Username)
+	exists, existsErr := s.repo.ExistsByUsername(ctx, req.Username)
+	if existsErr != nil {
+		slog.Warn("ExistsByUsername query failed (rely on DB unique constraint as fallback)", "username", req.Username, "error", existsErr)
+	}
 	if exists {
 		return errorx.New(errorx.CodeUserAlreadyExists, "用户名已存在")
 	}
 	if req.Phone != "" {
-		exists, _ = s.repo.ExistsByPhone(ctx, req.Phone)
+		exists, existsErr = s.repo.ExistsByPhone(ctx, req.Phone)
+		if existsErr != nil {
+			slog.Warn("ExistsByPhone query failed", "phone", req.Phone, "error", existsErr)
+		}
 		if exists {
 			return errorx.New(errorx.CodeUserAlreadyExists, "手机号已存在")
 		}
 	}
 	if req.Email != "" {
-		exists, _ = s.repo.ExistsByEmail(ctx, req.Email)
+		exists, existsErr = s.repo.ExistsByEmail(ctx, req.Email)
+		if existsErr != nil {
+			slog.Warn("ExistsByEmail query failed", "email", req.Email, "error", existsErr)
+		}
 		if exists {
 			return errorx.New(errorx.CodeUserAlreadyExists, "邮箱已存在")
 		}
@@ -157,16 +166,25 @@ func (s *userAdminService) Update(ctx context.Context, id string, req *userDto.U
 	}
 
 	// 1. 检查唯一性（admin 不支持通过 Update 修改 username，仅校验 phone/email 唯一性）
-	var exists bool
+	var (
+		exists    bool
+		existsErr error
+	)
 	if req.Phone != "" && req.Phone != oldUser.Phone {
-		exists, _ = s.repo.ExistsByPhone(ctx, req.Phone, id)
+		exists, existsErr = s.repo.ExistsByPhone(ctx, req.Phone, id)
+		if existsErr != nil {
+			slog.Warn("ExistsByPhone query failed", "phone", req.Phone, "error", existsErr)
+		}
 		if exists {
 			return errorx.New(errorx.CodeUserAlreadyExists, "手机号已存在")
 		}
 		oldUser.Phone = req.Phone
 	}
 	if req.Email != "" && req.Email != oldUser.Email {
-		exists, _ = s.repo.ExistsByEmail(ctx, req.Email, id)
+		exists, existsErr = s.repo.ExistsByEmail(ctx, req.Email, id)
+		if existsErr != nil {
+			slog.Warn("ExistsByEmail query failed", "email", req.Email, "error", existsErr)
+		}
 		if exists {
 			return errorx.New(errorx.CodeUserAlreadyExists, "邮箱已存在")
 		}

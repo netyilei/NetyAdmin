@@ -37,6 +37,7 @@ type logBusService struct {
 	mu       sync.Mutex
 	stopChan chan struct{}
 	wg       sync.WaitGroup
+	stopOnce sync.Once
 
 	globalMaxEntries int
 	globalMaxBytesMB int
@@ -304,7 +305,7 @@ func (b *logBusService) flushToWriter(writer LogBatchWriter, entries []logEntity
 }
 
 func (b *logBusService) Stop() {
-	close(b.stopChan)
+	b.stopOnce.Do(func() { close(b.stopChan) })
 	b.wg.Wait()
 }
 

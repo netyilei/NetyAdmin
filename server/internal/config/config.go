@@ -209,6 +209,10 @@ type RedisConfig struct {
 	Password string `toml:"password" env:"NETYADMIN_REDIS_PASSWORD"`
 	DB       int    `toml:"db"`
 
+	PoolSize       int `toml:"pool_size" env:"NETYADMIN_REDIS_POOL_SIZE"`
+	MinIdleConns   int `toml:"min_idle_conns" env:"NETYADMIN_REDIS_MIN_IDLE_CONNS"`
+	PoolTimeoutSec int `toml:"pool_timeout_sec" env:"NETYADMIN_REDIS_POOL_TIMEOUT_SEC"`
+
 	L1Enabled       bool `toml:"l1_enabled"`
 	LocalMaxSizeMB  int  `toml:"local_max_size_mb"`
 	LocalMaxEntryKB int  `toml:"local_max_entry_kb"`

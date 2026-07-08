@@ -3,6 +3,7 @@ package system
 import (
 	"context"
 	"log/slog"
+	"strings"
 
 	systemEntity "NetyAdmin/internal/domain/entity/system"
 	systemVO "NetyAdmin/internal/domain/vo/system"
@@ -14,8 +15,26 @@ import (
 	systemRepo "NetyAdmin/internal/repository/system"
 )
 
+// publicConfigGroups 是允许公开查询的配置组白名单。
+// 登录页仅需验证码开关等非敏感配置，email_config/sms_config 等含密钥的组必须鉴权访问。
+var publicConfigGroups = map[string]bool{
+	"cache_switches": true,
+}
+
+// sensitiveConfigKeys 是需要脱敏的配置键（小写匹配）。
+// 即使鉴权后返回，这些字段也以 **** 脱敏，防止肩窥泄露。
+var sensitiveConfigKeys = map[string]bool{
+	"password":    true,
+	"secret_id":   true,
+	"secret_key":  true,
+	"api_key":     true,
+	"apikey":      true,
+	"private_key": true,
+}
+
 type ConfigService interface {
 	ListByGroup(ctx context.Context, groupName string) ([]*systemVO.SysConfigVO, error)
+	ListByGroupPublic(ctx context.Context, groupName string) ([]*systemVO.SysConfigVO, error)
 	Upsert(ctx context.Context, req *systemDto.UpdateConfigReq, operatorID uint) error
 	BroadcastUpdate(ctx context.Context) error
 	// TestEmail 测试邮件发送：使用当前邮件配置发送测试邮件，验证配置是否正确。
@@ -47,16 +66,28 @@ func (s *configService) ListByGroup(ctx context.Context, groupName string) ([]*s
 
 	items := make([]*systemVO.SysConfigVO, 0, len(configs))
 	for _, c := range configs {
+		val := c.ConfigValue
+		if sensitiveConfigKeys[strings.ToLower(c.ConfigKey)] {
+			val = "****"
+		}
 		items = append(items, &systemVO.SysConfigVO{
 			GroupName:   c.GroupName,
 			ConfigKey:   c.ConfigKey,
-			ConfigValue: c.ConfigValue,
+			ConfigValue: val,
 			ValueType:   c.ValueType,
 			Description: c.Description,
 			IsSystem:    c.IsSystem,
 		})
 	}
 	return items, nil
+}
+
+// ListByGroupPublic 仅供公开接口调用：仅允许白名单内的配置组，敏感字段脱敏。
+func (s *configService) ListByGroupPublic(ctx context.Context, groupName string) ([]*systemVO.SysConfigVO, error) {
+	if !publicConfigGroups[groupName] {
+		return nil, errorx.New(errorx.CodeForbidden, "无权访问该配置组")
+	}
+	return s.ListByGroup(ctx, groupName)
 }
 
 func (s *configService) Upsert(ctx context.Context, req *systemDto.UpdateConfigReq, operatorID uint) error {

@@ -31,9 +31,18 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	sqlDB.SetMaxIdleConns(cfg.Database.MaxIdle)
-	sqlDB.SetMaxOpenConns(cfg.Database.MaxOpen)
+	maxIdle := cfg.Database.MaxIdle
+	if maxIdle <= 0 {
+		maxIdle = 10
+	}
+	maxOpen := cfg.Database.MaxOpen
+	if maxOpen <= 0 {
+		maxOpen = 100
+	}
+	sqlDB.SetMaxIdleConns(maxIdle)
+	sqlDB.SetMaxOpenConns(maxOpen)
 	sqlDB.SetConnMaxLifetime(time.Hour)
+	sqlDB.SetConnMaxIdleTime(30 * time.Minute)
 
 	return db, nil
 }

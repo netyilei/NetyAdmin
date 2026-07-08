@@ -17,6 +17,7 @@ import (
 	"NetyAdmin/internal/middleware"
 	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/pubsub"
+	"NetyAdmin/internal/pkg/recovery"
 	pkgSentry "NetyAdmin/internal/pkg/sentry"
 	"NetyAdmin/internal/pkg/task"
 	logService "NetyAdmin/internal/service/log"
@@ -137,17 +138,17 @@ func (a *App) Run() error {
 				http.Redirect(w, r, u.String(), http.StatusMovedPermanently)
 			}),
 		}
-		go func() {
+		recovery.GoSafe("app:http_redirect", func() {
 			slog.Info("HTTP→HTTPS 跳转服务启动", "addr", redirectSrv.Addr)
 			if err := redirectSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				slog.Error("HTTP→HTTPS 跳转服务启动失败", "error", err)
 				os.Exit(1)
 			}
-		}()
+		})
 	}
 
 	// 2. Start Web Server
-	go func() {
+	recovery.GoSafe("app:web_server", func() {
 		if a.cfg.TLS.Enable {
 			slog.Info("服务器启动（TLS）", "addr", addr)
 			if err := srv.ListenAndServeTLS(a.cfg.TLS.CertFile, a.cfg.TLS.KeyFile); err != nil && err != http.ErrServerClosed {
@@ -161,7 +162,7 @@ func (a *App) Run() error {
 				os.Exit(1)
 			}
 		}
-	}()
+	})
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -246,15 +247,10 @@ func (a *App) Run() error {
 // 这些方法内部用 wg.Wait() 等待 worker 退出，若 worker 卡死会导致整个关闭流程卡死。
 func (a *App) stopWithTimeout(name string, stopFn func()) {
 	done := make(chan struct{})
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("drain panic", "component", name, "panic", r)
-			}
-			close(done)
-		}()
+	recovery.GoSafe("app:drain:"+name, func() {
+		defer close(done)
 		stopFn()
-	}()
+	})
 	select {
 	case <-done:
 		slog.Info("drain 完成", "component", name)

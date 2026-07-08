@@ -386,7 +386,9 @@ func (m *lazyCacheManager) Fetch(ctx context.Context, key string, moduleName str
 			if len(tags) > 0 {
 				options = append(options, store.WithTags(tags))
 			}
-			_ = m.l2().Set(ctx, fullKey, dataToCache, options...)
+			if err := m.l2().Set(ctx, fullKey, dataToCache, options...); err != nil {
+				slog.Warn("cache: L2 backfill failed", "key", fullKey, "err", err)
+			}
 		}
 	}
 
@@ -447,7 +449,9 @@ func (m *lazyCacheManager) FetchFast(ctx context.Context, key string, moduleName
 					if len(tags) > 0 {
 						backfillOpts = append(backfillOpts, store.WithTags(tags))
 					}
-					_ = m.l1Cache.Set(ctx, fullKey, data, backfillOpts...)
+					if err := m.l1Cache.Set(ctx, fullKey, data, backfillOpts...); err != nil {
+						slog.Warn("cache: L1 backfill failed (FetchFast)", "key", fullKey, "err", err)
+					}
 				}
 				return nil
 			}
@@ -484,7 +488,9 @@ func (m *lazyCacheManager) FetchFast(ctx context.Context, key string, moduleName
 			if len(tags) > 0 {
 				options = append(options, store.WithTags(tags))
 			}
-			_ = m.cacheManager.Set(ctx, fullKey, dataToCache, options...)
+			if err := m.cacheManager.Set(ctx, fullKey, dataToCache, options...); err != nil {
+				slog.Warn("cache: L2 backfill failed (FetchFast)", "key", fullKey, "err", err)
+			}
 		}
 	}
 
@@ -557,7 +563,9 @@ func (m *lazyCacheManager) GetFast(ctx context.Context, key string, tags []strin
 					if len(tags) > 0 {
 						backfillOpts = append(backfillOpts, store.WithTags(tags))
 					}
-					_ = m.l1Cache.Set(ctx, fullKey, data, backfillOpts...)
+					if err := m.l1Cache.Set(ctx, fullKey, data, backfillOpts...); err != nil {
+						slog.Warn("cache: L1 backfill failed (GetFast)", "key", fullKey, "err", err)
+					}
 				}
 				return nil
 			}

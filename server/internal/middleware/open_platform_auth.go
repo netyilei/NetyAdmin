@@ -50,7 +50,13 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 
 		var requestBody []byte
 		if c.Request.Body != nil {
-			requestBody, _ = io.ReadAll(c.Request.Body)
+			var err error
+			requestBody, err = io.ReadAll(c.Request.Body)
+			if err != nil {
+				response.FailWithCode(c, errorx.CodeInvalidParams, "请求体读取失败")
+				c.Abort()
+				return
+			}
 			c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
 		}
 

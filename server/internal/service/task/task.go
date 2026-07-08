@@ -13,6 +13,7 @@ import (
 	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/pagination"
+	"NetyAdmin/internal/pkg/requestid"
 	"NetyAdmin/internal/pkg/task"
 	systemRepo "NetyAdmin/internal/repository/system"
 	taskRepo "NetyAdmin/internal/repository/task"
@@ -63,7 +64,11 @@ func NewTaskService(manager *task.Manager, logRepo taskRepo.TaskLogRepository, c
 			return
 		}
 
-		if err := s.logRecordFunc(context.Background(), logRecord); err != nil {
+		ctx := context.Background()
+		if info.RequestID != "" {
+			ctx = requestid.WithRequestID(ctx, info.RequestID)
+		}
+		if err := s.logRecordFunc(ctx, logRecord); err != nil {
 			slog.Warn("record task log failed", "taskName", name, "err", err)
 		}
 	})

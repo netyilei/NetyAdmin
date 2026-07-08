@@ -163,14 +163,15 @@ func IsAllowedFileType(filename string, allowedTypes string) bool {
 		return true
 	}
 
-	ext := GetFileExtension(filename)
+	ext := strings.ToLower(GetFileExtension(filename))
 	if ext == "" {
 		return false
 	}
 
 	allowedExts := splitAndTrim(allowedTypes, ",")
 	for _, allowed := range allowedExts {
-		if ext == allowed || "."+ext == allowed {
+		a := strings.ToLower(allowed)
+		if ext == a || "."+ext == a {
 			return true
 		}
 	}

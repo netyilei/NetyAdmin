@@ -58,6 +58,14 @@ local_max_size_mb = 256  # 本地缓存最大内存占用 (MB)
 local_max_entry_kb = 500 # 单条缓存记录最大大小 (KB)
 local_ttl_min = 10       # 本地缓存默认过期时间 (分钟)
 
+# Redis 连接池配置
+#   - pool_size：连接池大小。零值 = 默认 10*GOMAXPROCS。环境变量：NETYADMIN_REDIS_POOL_SIZE
+#   - min_idle_conns：最小空闲连接数，预热连接降低首请求延迟。零值 = 默认 10。环境变量：NETYADMIN_REDIS_MIN_IDLE_CONNS
+#   - pool_timeout_sec：从连接池获取连接的超时时间（秒），超时返回错误避免请求堆积。零值 = 默认 3。环境变量：NETYADMIN_REDIS_POOL_TIMEOUT_SEC
+pool_size = 50           # 连接池大小（默认 10*GOMAXPROCS）
+min_idle_conns = 10      # 最小空闲连接数
+pool_timeout_sec = 3     # 连接池获取连接超时（秒）
+
 [jwt]
   # RS256 私钥（签发 token）。优先用 private_key_file 加载文件；若 private_key_file 为空则用 private_key_pem 内联 PEM。
   # 生产环境必须配置，启动时会校验非空。

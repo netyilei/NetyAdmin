@@ -2,6 +2,7 @@ package captcha
 
 import (
 	"context"
+	"log/slog"
 	"strconv"
 	"time"
 
@@ -81,7 +82,9 @@ func (s *dualStore) Get(id string, clear bool) string {
 			return ""
 		}
 		if clear {
-			_ = s.cache.Delete(ctx, cache.KeyCaptchaToken(id))
+			if err := s.cache.Delete(ctx, cache.KeyCaptchaToken(id)); err != nil {
+				slog.Warn("captcha: delete token failed (captcha may be reusable)", "id", id, "err", err)
+			}
 		}
 		return answer
 	}

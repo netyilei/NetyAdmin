@@ -45,6 +45,7 @@ type ExecutionInfo struct {
 	Duration  time.Duration
 	Status    string // success, error
 	Message   string // 结果详情或错误信息
+	RequestID string // 触发该次执行的请求 ID（用于跨 goroutine 关联日志/链路追踪）
 }
 
 // RuntimeState 任务实时运行状态

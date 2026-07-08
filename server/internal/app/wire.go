@@ -589,7 +589,9 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr cache
 	s.contentBannerItemClient = contentClientService.NewBannerItemService(repos.contentBannerItem)
 	s.contentCategoryClient = contentClientService.NewCategoryService(s.contentCategoryAdmin)
 
-	_ = s.storageConfig.LoadAllConfigs(context.Background())
+	if err := s.storageConfig.LoadAllConfigs(context.Background()); err != nil {
+		slog.Error("load storage configs failed", "err", err)
+	}
 
 	return s
 }
