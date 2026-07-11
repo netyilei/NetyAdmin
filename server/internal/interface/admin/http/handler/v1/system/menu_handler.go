@@ -100,7 +100,7 @@ func (h *SystemHandler) GetAdminApiTree(c *gin.Context) {
 // @Tags         菜单管理
 // @Accept       json
 // @Produce      json
-// @Param        req body system.CreateMenuReq true "菜单创建参数"
+// @Param        req body systemDto.CreateMenuReq true "菜单创建参数"
 // @Success      200 {object} response.Response "创建成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/systemManage/addMenu [post]
@@ -131,7 +131,7 @@ func (h *SystemHandler) AddAdminMenu(c *gin.Context) {
 // @Tags         菜单管理
 // @Accept       json
 // @Produce      json
-// @Param        req body system.UpdateMenuReq true "菜单更新参数"
+// @Param        req body systemDto.UpdateMenuReq true "菜单更新参数"
 // @Success      200 {object} response.Response "更新成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/systemManage/updateMenu [put]

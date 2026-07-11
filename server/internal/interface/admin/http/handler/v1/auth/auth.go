@@ -80,7 +80,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 // @Tags         认证管理
 // @Accept       json
 // @Produce      json
-// @Param        req body system.RefreshTokenReq true "刷新令牌请求"
+// @Param        req body systemDto.RefreshTokenReq true "刷新令牌请求"
 // @Success      200 {object} response.Response "刷新成功"
 // @Router       /admin/v1/auth/refresh-token [post]
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
@@ -152,7 +152,7 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 // @Tags         认证管理
 // @Accept       json
 // @Produce      json
-// @Param        req body system.UpdateProfileReq true "个人资料信息"
+// @Param        req body systemDto.UpdateProfileReq true "个人资料信息"
 // @Success      200 {object} response.Response "更新成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/auth/profile [put]
@@ -182,7 +182,7 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 // @Tags         认证管理
 // @Accept       json
 // @Produce      json
-// @Param        req body system.ChangePasswordReq true "修改密码请求"
+// @Param        req body systemDto.ChangePasswordReq true "修改密码请求"
 // @Success      200 {object} response.Response "修改成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/auth/change-password [post]

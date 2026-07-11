@@ -51,7 +51,7 @@ func (h *SystemHandler) GetAdminButtonList(c *gin.Context) {
 // @Tags         按钮管理
 // @Accept       json
 // @Produce      json
-// @Param        req body system.CreateButtonReq true "按钮创建参数"
+// @Param        req body systemDto.CreateButtonReq true "按钮创建参数"
 // @Success      200 {object} response.Response "创建成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/systemManage/createButton [post]
@@ -76,7 +76,7 @@ func (h *SystemHandler) AddAdminButton(c *gin.Context) {
 // @Tags         按钮管理
 // @Accept       json
 // @Produce      json
-// @Param        req body system.UpdateButtonReq true "按钮更新参数"
+// @Param        req body systemDto.UpdateButtonReq true "按钮更新参数"
 // @Success      200 {object} response.Response "更新成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/systemManage/updateButton [put]

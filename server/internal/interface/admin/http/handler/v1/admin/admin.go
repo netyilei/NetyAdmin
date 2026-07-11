@@ -60,7 +60,7 @@ func (h *AdminHandler) List(c *gin.Context) {
 // @Tags         管理员管理
 // @Accept       json
 // @Produce      json
-// @Param        req body system.CreateAdminReq true "管理员创建参数"
+// @Param        req body systemDto.CreateAdminReq true "管理员创建参数"
 // @Success      200 {object} response.Response "创建成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/admins [post]
@@ -93,7 +93,7 @@ func (h *AdminHandler) Create(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        id path int true "管理员ID"
-// @Param        req body system.UpdateAdminReq true "管理员更新参数"
+// @Param        req body systemDto.UpdateAdminReq true "管理员更新参数"
 // @Success      200 {object} response.Response "更新成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/admins/{id} [put]
@@ -168,7 +168,7 @@ func (h *AdminHandler) Delete(c *gin.Context) {
 // @Tags         管理员管理
 // @Accept       json
 // @Produce      json
-// @Param        req body system.BatchDeleteAdminReq true "批量删除参数"
+// @Param        req body systemDto.BatchDeleteAdminReq true "批量删除参数"
 // @Success      200 {object} response.Response "批量删除成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/admins/batch [delete]

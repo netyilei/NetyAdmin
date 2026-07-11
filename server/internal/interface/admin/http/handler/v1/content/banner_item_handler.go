@@ -88,7 +88,7 @@ func (h *ContentBannerItemHandler) Get(c *gin.Context) {
 // @Tags         Banner项管理
 // @Accept       json
 // @Produce      json
-// @Param        req body content.CreateContentBannerItemDTO true "创建Banner项参数"
+// @Param        req body contentDto.CreateContentBannerItemDTO true "创建Banner项参数"
 // @Success      200 {object} response.Response "创建成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/content/banner-items [post]
@@ -120,7 +120,7 @@ func (h *ContentBannerItemHandler) Create(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        id path int true "Banner项ID"
-// @Param        req body content.UpdateContentBannerItemDTO true "更新Banner项参数"
+// @Param        req body contentDto.UpdateContentBannerItemDTO true "更新Banner项参数"
 // @Success      200 {object} response.Response "更新成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/content/banner-items/{id} [put]

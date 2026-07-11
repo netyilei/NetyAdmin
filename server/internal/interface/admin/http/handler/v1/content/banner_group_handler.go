@@ -105,7 +105,7 @@ func (h *ContentBannerGroupHandler) GetWithBanners(c *gin.Context) {
 // @Tags         Banner组管理
 // @Accept       json
 // @Produce      json
-// @Param        req body content.CreateContentBannerGroupDTO true "创建Banner组参数"
+// @Param        req body contentDto.CreateContentBannerGroupDTO true "创建Banner组参数"
 // @Success      200 {object} response.Response "创建成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/content/banner-groups [post]
@@ -137,7 +137,7 @@ func (h *ContentBannerGroupHandler) Create(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        id path int true "Banner组ID"
-// @Param        req body content.UpdateContentBannerGroupDTO true "更新Banner组参数"
+// @Param        req body contentDto.UpdateContentBannerGroupDTO true "更新Banner组参数"
 // @Success      200 {object} response.Response "更新成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/content/banner-groups/{id} [put]

@@ -105,7 +105,7 @@ func (h *StorageHandler) GetStorageConfig(c *gin.Context) {
 // @Tags         存储管理
 // @Accept       json
 // @Produce      json
-// @Param        req body storage.CreateConfigReq true "创建存储配置参数"
+// @Param        req body storageDto.CreateConfigReq true "创建存储配置参数"
 // @Success      200 {object} response.Response "创建成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/storage-configs [post]
@@ -136,7 +136,7 @@ func (h *StorageHandler) CreateStorageConfig(c *gin.Context) {
 // @Tags         存储管理
 // @Accept       json
 // @Produce      json
-// @Param        req body storage.UpdateConfigReq true "更新存储配置参数"
+// @Param        req body storageDto.UpdateConfigReq true "更新存储配置参数"
 // @Success      200 {object} response.Response "更新成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/storage-configs [put]
@@ -216,7 +216,7 @@ func (h *StorageHandler) SetDefaultStorageConfig(c *gin.Context) {
 // @Tags         存储管理
 // @Accept       json
 // @Produce      json
-// @Param        req body storage.TestUploadReq true "测试上传参数"
+// @Param        req body storageDto.TestUploadReq true "测试上传参数"
 // @Success      200 {object} response.Response "测试结果"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/storage-configs/test-upload [post]
@@ -370,7 +370,7 @@ func (h *StorageHandler) DeleteUploadRecords(c *gin.Context) {
 // @Tags         文件上传
 // @Accept       json
 // @Produce      json
-// @Param        req body storage.GetCredentialsReq true "获取上传凭证参数"
+// @Param        req body storageDto.GetCredentialsReq true "获取上传凭证参数"
 // @Success      200 {object} response.Response "上传凭证"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/storage/upload-credentials [post]
@@ -426,7 +426,7 @@ func (h *StorageHandler) GetUploadCredentials(c *gin.Context) {
 // @Tags         文件上传
 // @Accept       json
 // @Produce      json
-// @Param        req body storage.CompleteUploadReq true "上传成功通知参数"
+// @Param        req body storageDto.CompleteUploadReq true "上传成功通知参数"
 // @Success      200 {object} response.Response "上传记录"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/storage/upload-record [post]

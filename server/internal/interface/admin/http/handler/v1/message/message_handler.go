@@ -88,7 +88,7 @@ func (h *MessageHandler) ListRecords(c *gin.Context) {
 // @Tags         消息管理
 // @Accept       json
 // @Produce      json
-// @Param        req body message.SendDirectReq true "发送消息请求"
+// @Param        req body msgDto.SendDirectReq true "发送消息请求"
 // @Success      200 {object} response.Response "发送成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/message/send [post]
@@ -112,7 +112,7 @@ func (h *MessageHandler) SendDirect(c *gin.Context) {
 // @Tags         消息管理
 // @Accept       json
 // @Produce      json
-// @Param        req body message.CreateTemplateReq true "模板信息"
+// @Param        req body msgDto.CreateTemplateReq true "模板信息"
 // @Success      200 {object} response.Response "创建成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/message/templates [post]
@@ -136,7 +136,7 @@ func (h *MessageHandler) CreateTemplate(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        id path int true "模板ID"
-// @Param        req body message.UpdateTemplateReq true "模板信息"
+// @Param        req body msgDto.UpdateTemplateReq true "模板信息"
 // @Success      200 {object} response.Response "更新成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/message/templates/{id} [put]

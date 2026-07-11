@@ -92,7 +92,7 @@ func (h *ContentArticleHandler) Get(c *gin.Context) {
 // @Tags         文章管理
 // @Accept       json
 // @Produce      json
-// @Param        req body content.CreateContentArticleDTO true "创建文章参数"
+// @Param        req body contentDto.CreateContentArticleDTO true "创建文章参数"
 // @Success      200 {object} response.Response "创建成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/content/articles [post]
@@ -124,7 +124,7 @@ func (h *ContentArticleHandler) Create(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        id path int true "文章ID"
-// @Param        req body content.UpdateContentArticleDTO true "更新文章参数"
+// @Param        req body contentDto.UpdateContentArticleDTO true "更新文章参数"
 // @Success      200 {object} response.Response "更新成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/content/articles/{id} [put]
@@ -238,7 +238,7 @@ func (h *ContentArticleHandler) Unpublish(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        id path int true "文章ID"
-// @Param        req body content.SetArticleTopDTO true "置顶参数"
+// @Param        req body contentDto.SetArticleTopDTO true "置顶参数"
 // @Success      200 {object} response.Response "设置成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/content/articles/{id}/top [put]

@@ -83,7 +83,7 @@ func (h *UserHandler) Autocomplete(c *gin.Context) {
 // @Tags         用户管理
 // @Accept       json
 // @Produce      json
-// @Param        req body user.CreateUserReq true "创建用户请求"
+// @Param        req body userDto.CreateUserReq true "创建用户请求"
 // @Success      200 {object} response.Response "创建成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/systemManage/users [post]
@@ -109,7 +109,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        id path string true "用户ID"
-// @Param        req body user.UpdateUserReq true "更新用户请求"
+// @Param        req body userDto.UpdateUserReq true "更新用户请求"
 // @Success      200 {object} response.Response "更新成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/systemManage/users/{id} [put]
@@ -136,7 +136,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        id path string true "用户ID"
-// @Param        req body user.UpdateUserStatusReq true "更新状态请求"
+// @Param        req body userDto.UpdateUserStatusReq true "更新状态请求"
 // @Success      200 {object} response.Response "更新成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/systemManage/users/{id}/status [patch]

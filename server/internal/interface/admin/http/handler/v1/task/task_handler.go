@@ -143,7 +143,7 @@ func (h *TaskHandler) ReloadTask(c *gin.Context) {
 // @Tags         任务管理
 // @Accept       json
 // @Produce      json
-// @Param        req body task.UpdateTaskReq true "更新任务请求"
+// @Param        req body taskDto.UpdateTaskReq true "更新任务请求"
 // @Success      200 {object} response.Response "更新成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/system/tasks/update [put]

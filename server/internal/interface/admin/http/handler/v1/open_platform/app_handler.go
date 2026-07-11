@@ -57,7 +57,7 @@ func (h *AppHandler) List(c *gin.Context) {
 // @Tags         应用管理
 // @Accept       json
 // @Produce      json
-// @Param        req body open_platform.CreateAppReq true "创建应用请求"
+// @Param        req body openDto.CreateAppReq true "创建应用请求"
 // @Success      200 {object} response.Response "创建成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/open/apps [post]
@@ -81,7 +81,7 @@ func (h *AppHandler) Create(c *gin.Context) {
 // @Tags         应用管理
 // @Accept       json
 // @Produce      json
-// @Param        req body open_platform.UpdateAppReq true "更新应用请求"
+// @Param        req body openDto.UpdateAppReq true "更新应用请求"
 // @Success      200 {object} response.Response "更新成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/open/apps [put]
@@ -129,7 +129,7 @@ func (h *AppHandler) Delete(c *gin.Context) {
 // @Tags         应用管理
 // @Accept       json
 // @Produce      json
-// @Param        req body open_platform.ResetSecretReq true "重置密钥请求"
+// @Param        req body openDto.ResetSecretReq true "重置密钥请求"
 // @Success      200 {object} response.Response "新密钥"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/open/apps/reset-secret [put]
@@ -159,7 +159,7 @@ func (h *AppHandler) ResetSecret(c *gin.Context) {
 // @Tags         应用管理
 // @Accept       json
 // @Produce      json
-// @Param        req body open_platform.LinkIPRulesReq true "关联IP规则请求"
+// @Param        req body openDto.LinkIPRulesReq true "关联IP规则请求"
 // @Success      200 {object} response.Response "关联成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/open/apps/ip-rules [put]

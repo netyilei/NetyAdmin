@@ -52,7 +52,7 @@ func (h *SystemHandler) GetAdminAPIList(c *gin.Context) {
 // @Tags         API管理
 // @Accept       json
 // @Produce      json
-// @Param        req body system.CreateAPIReq true "API创建参数"
+// @Param        req body systemDto.CreateAPIReq true "API创建参数"
 // @Success      200 {object} response.Response "创建成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/systemManage/createApi [post]
@@ -77,7 +77,7 @@ func (h *SystemHandler) AddAdminAPI(c *gin.Context) {
 // @Tags         API管理
 // @Accept       json
 // @Produce      json
-// @Param        req body system.UpdateAPIReq true "API更新参数"
+// @Param        req body systemDto.UpdateAPIReq true "API更新参数"
 // @Success      200 {object} response.Response "更新成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/systemManage/updateApi [put]

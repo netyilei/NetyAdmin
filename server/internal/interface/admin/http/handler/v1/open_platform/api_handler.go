@@ -59,7 +59,7 @@ func (h *OpenApiHandler) List(c *gin.Context) {
 // @Tags         开放API管理
 // @Accept       json
 // @Produce      json
-// @Param        req body open_platform.CreateOpenApiReq true "创建API请求"
+// @Param        req body openDto.CreateOpenApiReq true "创建API请求"
 // @Success      200 {object} response.Response "创建成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/open/apis [post]
@@ -84,7 +84,7 @@ func (h *OpenApiHandler) Create(c *gin.Context) {
 // @Tags         开放API管理
 // @Accept       json
 // @Produce      json
-// @Param        req body open_platform.UpdateOpenApiReq true "更新API请求"
+// @Param        req body openDto.UpdateOpenApiReq true "更新API请求"
 // @Success      200 {object} response.Response "更新成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/open/apis [put]
@@ -185,7 +185,7 @@ func (h *OpenApiHandler) GetScopeApis(c *gin.Context) {
 // @Tags         开放API管理
 // @Accept       json
 // @Produce      json
-// @Param        req body open_platform.UpdateScopeApisReq true "更新权限范围API请求"
+// @Param        req body openDto.UpdateScopeApisReq true "更新权限范围API请求"
 // @Success      200 {object} response.Response "更新成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/open/apis/scope-apis [put]

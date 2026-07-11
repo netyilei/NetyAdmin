@@ -59,7 +59,7 @@ func (h *IPACHandler) List(c *gin.Context) {
 // @Tags         IP访问控制
 // @Accept       json
 // @Produce      json
-// @Param        req body ipac.CreateIPACReq true "新增IP规则参数"
+// @Param        req body ipacDto.CreateIPACReq true "新增IP规则参数"
 // @Success      200 {object} response.Response "新增成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/open-platform/ip-access [post]
@@ -86,7 +86,7 @@ func (h *IPACHandler) Create(c *gin.Context) {
 // @Tags         IP访问控制
 // @Accept       json
 // @Produce      json
-// @Param        req body ipac.UpdateIPACReq true "修改IP规则参数"
+// @Param        req body ipacDto.UpdateIPACReq true "修改IP规则参数"
 // @Success      200 {object} response.Response "修改成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/open-platform/ip-access [put]
@@ -139,7 +139,7 @@ func (h *IPACHandler) Delete(c *gin.Context) {
 // @Tags         IP访问控制
 // @Accept       json
 // @Produce      json
-// @Param        req body ipac.BatchDeleteIPACReq true "批量删除参数"
+// @Param        req body ipacDto.BatchDeleteIPACReq true "批量删除参数"
 // @Success      200 {object} response.Response "删除成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/open-platform/ip-access/batch [delete]

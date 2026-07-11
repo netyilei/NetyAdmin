@@ -3,7 +3,7 @@ package docs
 
 import "github.com/swaggo/swag"
 
-const SwaggerTemplate = `{
+const docTemplate = `{
     "schemes": {{ marshal .Schemes }},
     "swagger": "2.0",
     "info": {
@@ -87,7 +87,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "管理员分页列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -116,7 +116,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/system.CreateAdminReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_system.CreateAdminReq"
                         }
                     }
                 ],
@@ -124,7 +124,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "创建成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -150,15 +150,12 @@ const SwaggerTemplate = `{
                 "summary": "批量删除管理员",
                 "parameters": [
                     {
-                        "description": "待删除的管理员ID列表",
-                        "name": "ids",
+                        "description": "批量删除参数",
+                        "name": "req",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "type": "integer"
-                            }
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_system.BatchDeleteAdminReq"
                         }
                     }
                 ],
@@ -166,7 +163,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "批量删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -203,7 +200,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "管理员详情",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -239,7 +236,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/system.UpdateAdminReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_system.UpdateAdminReq"
                         }
                     }
                 ],
@@ -247,7 +244,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "更新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -282,7 +279,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -313,7 +310,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/system.ChangePasswordReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_system.ChangePasswordReq"
                         }
                     }
                 ],
@@ -321,35 +318,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "修改成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/v1/auth/user-info": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "根据上下文中的管理员ID获取当前登录用户的详细信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "认证管理"
-                ],
-                "summary": "获取当前登录用户信息",
-                "responses": {
-                    "200": {
-                        "description": "用户信息",
-                        "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -375,7 +344,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/auth.LoginRequest"
+                            "$ref": "#/definitions/internal_interface_admin_http_handler_v1_auth.LoginRequest"
                         }
                     }
                 ],
@@ -383,7 +352,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "登录成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -396,7 +365,7 @@ const SwaggerTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "当前登录管理员退出登录，注销访问令牌",
+                "description": "当前登录管理员退出登录，注销访问令牌（同时将 refresh token 加入黑名单）",
                 "consumes": [
                     "application/json"
                 ],
@@ -407,11 +376,20 @@ const SwaggerTemplate = `{
                     "认证管理"
                 ],
                 "summary": "退出登录",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "刷新令牌（必填，用于加入黑名单）",
+                        "name": "X-Refresh-Token",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "退出成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -439,7 +417,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "个人资料",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -468,7 +446,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/system.UpdateProfileReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_system.UpdateProfileReq"
                         }
                     }
                 ],
@@ -476,7 +454,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "更新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -502,7 +480,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/system.RefreshTokenReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_system.RefreshTokenReq"
                         }
                     }
                 ],
@@ -510,7 +488,35 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "刷新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/v1/auth/user-info": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "根据上下文中的管理员ID获取当前登录用户的详细信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "认证管理"
+                ],
+                "summary": "获取当前登录用户信息",
+                "responses": {
+                    "200": {
+                        "description": "用户信息",
+                        "schema": {
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -533,7 +539,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "验证码信息",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -629,7 +635,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "文章列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -658,7 +664,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/content.CreateContentArticleDTO"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_content.CreateContentArticleDTO"
                         }
                     }
                 ],
@@ -666,7 +672,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "创建成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -703,7 +709,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "文章详情",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -739,7 +745,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/content.UpdateContentArticleDTO"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_content.UpdateContentArticleDTO"
                         }
                     }
                 ],
@@ -747,7 +753,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "更新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -782,7 +788,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -819,7 +825,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "发布成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -857,7 +863,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/content.SetArticleTopDTO"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_content.SetArticleTopDTO"
                         }
                     }
                 ],
@@ -865,7 +871,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "设置成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -902,7 +908,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "取消发布成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -974,7 +980,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "Banner组列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1003,7 +1009,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/content.CreateContentBannerGroupDTO"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_content.CreateContentBannerGroupDTO"
                         }
                     }
                 ],
@@ -1011,7 +1017,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "创建成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1048,7 +1054,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "Banner组详情",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1084,7 +1090,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/content.UpdateContentBannerGroupDTO"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_content.UpdateContentBannerGroupDTO"
                         }
                     }
                 ],
@@ -1092,7 +1098,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "更新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1127,7 +1133,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1199,7 +1205,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "Banner项列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1228,7 +1234,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/content.CreateContentBannerItemDTO"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_content.CreateContentBannerItemDTO"
                         }
                     }
                 ],
@@ -1236,7 +1242,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "创建成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1273,7 +1279,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "Banner项详情",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1309,7 +1315,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/content.UpdateContentBannerItemDTO"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_content.UpdateContentBannerItemDTO"
                         }
                     }
                 ],
@@ -1317,7 +1323,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "更新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1352,7 +1358,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1418,7 +1424,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "分类列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1447,7 +1453,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/content.CreateContentCategoryDTO"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_content.CreateContentCategoryDTO"
                         }
                     }
                 ],
@@ -1455,7 +1461,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "创建成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1491,7 +1497,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "分类树",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1528,7 +1534,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "分类详情",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1564,7 +1570,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/content.UpdateContentCategoryDTO"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_content.UpdateContentCategoryDTO"
                         }
                     }
                 ],
@@ -1572,7 +1578,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "更新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1607,7 +1613,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1661,7 +1667,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "错误日志列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1700,7 +1706,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1737,7 +1743,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1774,7 +1780,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "标记成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1834,7 +1840,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "记录列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1871,7 +1877,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "重发成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1902,7 +1908,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/message.SendDirectReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_message.SendDirectReq"
                         }
                     }
                 ],
@@ -1910,7 +1916,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "发送成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -1976,44 +1982,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "模板列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "更新消息模板信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "消息管理"
-                ],
-                "summary": "修改消息模板",
-                "parameters": [
-                    {
-                        "description": "模板信息",
-                        "name": "req",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/message.MsgTemplate"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "更新成功",
-                        "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -2042,7 +2011,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/message.MsgTemplate"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_message.CreateTemplateReq"
                         }
                     }
                 ],
@@ -2050,13 +2019,57 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "创建成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
             }
         },
         "/admin/v1/message/templates/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "更新消息模板信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "消息管理"
+                ],
+                "summary": "修改消息模板",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "模板ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "模板信息",
+                        "name": "req",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_message.UpdateTemplateReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            },
             "delete": {
                 "security": [
                     {
@@ -2087,7 +2100,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -2153,7 +2166,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "IP访问规则列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -2182,7 +2195,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/ipac.UpdateIPACReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_ipac.UpdateIPACReq"
                         }
                     }
                 ],
@@ -2190,7 +2203,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "修改成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -2219,7 +2232,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/ipac.CreateIPACReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_ipac.CreateIPACReq"
                         }
                     }
                 ],
@@ -2227,7 +2240,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "新增成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -2258,7 +2271,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/ipac.BatchDeleteIPACReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_ipac.BatchDeleteIPACReq"
                         }
                     }
                 ],
@@ -2266,7 +2279,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -2303,7 +2316,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -2375,7 +2388,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "API列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -2404,7 +2417,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/open_platform.UpdateOpenApiReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_open_platform.UpdateOpenApiReq"
                         }
                     }
                 ],
@@ -2412,7 +2425,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "更新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -2441,7 +2454,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/open_platform.CreateOpenApiReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_open_platform.CreateOpenApiReq"
                         }
                     }
                 ],
@@ -2449,7 +2462,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "创建成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -2477,7 +2490,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "分组API列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -2514,7 +2527,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "API列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -2543,7 +2556,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/open_platform.UpdateScopeApisReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_open_platform.UpdateScopeApisReq"
                         }
                     }
                 ],
@@ -2551,7 +2564,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "更新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -2588,7 +2601,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -2648,7 +2661,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "应用列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -2677,7 +2690,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/open_platform.UpdateAppReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_open_platform.UpdateAppReq"
                         }
                     }
                 ],
@@ -2685,7 +2698,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "更新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -2714,7 +2727,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/open_platform.CreateAppReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_open_platform.CreateAppReq"
                         }
                     }
                 ],
@@ -2722,7 +2735,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "创建成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -2750,7 +2763,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "可用权限范围列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -2781,7 +2794,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/open_platform.LinkIPRulesReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_open_platform.LinkIPRulesReq"
                         }
                     }
                 ],
@@ -2789,7 +2802,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "关联成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -2820,7 +2833,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/open_platform.ResetSecretReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_open_platform.ResetSecretReq"
                         }
                     }
                 ],
@@ -2828,7 +2841,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "新密钥",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -2865,7 +2878,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "权限范围列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -2902,7 +2915,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -2968,7 +2981,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作日志列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3007,7 +3020,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3044,7 +3057,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3122,7 +3135,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "日志列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3150,7 +3163,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "用户路由列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3187,7 +3200,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "是否存在",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3229,7 +3242,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "存储配置列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3258,7 +3271,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/storage.UpdateConfigReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_storage.UpdateConfigReq"
                         }
                     }
                 ],
@@ -3266,7 +3279,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "更新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3295,7 +3308,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/storage.CreateConfigReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_storage.CreateConfigReq"
                         }
                     }
                 ],
@@ -3303,7 +3316,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "创建成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3331,7 +3344,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "存储配置列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3362,7 +3375,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/storage.TestUploadReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_storage.TestUploadReq"
                         }
                     }
                 ],
@@ -3370,7 +3383,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "测试结果",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3407,7 +3420,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "存储配置详情",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3442,7 +3455,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3479,7 +3492,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "设置成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3510,7 +3523,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/storage.GetCredentialsReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_storage.GetCredentialsReq"
                         }
                     }
                 ],
@@ -3518,7 +3531,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "上传凭证",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3549,7 +3562,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/storage.CompleteUploadReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_storage.CompleteUploadReq"
                         }
                     }
                 ],
@@ -3557,7 +3570,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "上传记录",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3565,7 +3578,7 @@ const SwaggerTemplate = `{
         },
         "/admin/v1/system/configs": {
             "get": {
-                "description": "根据组名获取多项配置，例如 cache_switches",
+                "description": "根据组名获取多项配置（敏感字段脱敏），需登录+权限。供管理后台设置页使用。",
                 "consumes": [
                     "application/json"
                 ],
@@ -3575,7 +3588,7 @@ const SwaggerTemplate = `{
                 "tags": [
                     "系统配置管理"
                 ],
-                "summary": "获取配置分组",
+                "summary": "获取配置分组（需权限）",
                 "parameters": [
                     {
                         "type": "string",
@@ -3591,7 +3604,7 @@ const SwaggerTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/response.Response"
+                                    "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                                 },
                                 {
                                     "type": "object",
@@ -3599,7 +3612,7 @@ const SwaggerTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/system.SysConfigVO"
+                                                "$ref": "#/definitions/NetyAdmin_internal_domain_vo_system.SysConfigVO"
                                             }
                                         }
                                     }
@@ -3610,7 +3623,7 @@ const SwaggerTemplate = `{
                 }
             },
             "put": {
-                "description": "更新缓存开关或其他动态配置，修改后自动通过Redis广播全局重新加载内存字典",
+                "description": "更新缓存开关或其他动态配置，修改后自动通过Redis广播全局重新加载内存字典。敏感字段若传 **** 则保留旧值。",
                 "consumes": [
                     "application/json"
                 ],
@@ -3628,7 +3641,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/system.UpdateConfigReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_system.UpdateConfigReq"
                         }
                     }
                 ],
@@ -3636,7 +3649,54 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "保存成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/v1/system/configs/public": {
+            "get": {
+                "description": "根据组名获取多项配置（仅白名单分组，敏感字段脱敏）。供登录页等前置场景使用。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "系统配置管理"
+                ],
+                "summary": "获取配置分组（公开）",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "配置组名（仅白名单内分组可访问）",
+                        "name": "groupName",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "配置列表",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/NetyAdmin_internal_domain_vo_system.SysConfigVO"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -3696,7 +3756,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "字典数据列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3725,7 +3785,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dict.UpdateDictDataReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_dict.UpdateDictDataReq"
                         }
                     }
                 ],
@@ -3733,7 +3793,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "更新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3762,7 +3822,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dict.CreateDictDataReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_dict.CreateDictDataReq"
                         }
                     }
                 ],
@@ -3770,7 +3830,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "创建成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3802,7 +3862,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "字典数据",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3839,7 +3899,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3899,7 +3959,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "字典类型列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3928,7 +3988,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dict.UpdateDictTypeReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_dict.UpdateDictTypeReq"
                         }
                     }
                 ],
@@ -3936,7 +3996,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "更新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -3965,7 +4025,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dict.CreateDictTypeReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_dict.CreateDictTypeReq"
                         }
                     }
                 ],
@@ -3973,7 +4033,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "创建成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4010,7 +4070,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4038,7 +4098,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "任务列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4072,7 +4132,7 @@ const SwaggerTemplate = `{
                     {
                         "type": "integer",
                         "description": "页码",
-                        "name": "page",
+                        "name": "current",
                         "in": "query"
                     },
                     {
@@ -4086,7 +4146,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "日志列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4117,7 +4177,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/task.UpdateTaskReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_task.UpdateTaskReq"
                         }
                     }
                 ],
@@ -4125,7 +4185,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "更新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4162,7 +4222,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "重启成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4199,7 +4259,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "触发成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4236,7 +4296,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "启动成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4273,7 +4333,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "停止成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4299,7 +4359,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/system.TestEmailReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_system.TestEmailReq"
                         }
                     }
                 ],
@@ -4307,7 +4367,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "发送成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4338,7 +4398,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/system.CreateMenuReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_system.CreateMenuReq"
                         }
                     }
                 ],
@@ -4346,7 +4406,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "创建成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4377,7 +4437,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/system.CreateRoleReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_system.CreateRoleReq"
                         }
                     }
                 ],
@@ -4385,7 +4445,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "创建成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4416,7 +4476,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/system.CreateAPIReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_system.CreateAPIReq"
                         }
                     }
                 ],
@@ -4424,7 +4484,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "创建成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4455,7 +4515,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/system.CreateButtonReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_system.CreateButtonReq"
                         }
                     }
                 ],
@@ -4463,7 +4523,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "创建成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4500,7 +4560,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4537,7 +4597,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4574,7 +4634,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4615,7 +4675,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "批量删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4652,7 +4712,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4693,7 +4753,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "批量删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4721,7 +4781,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "API列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4749,7 +4809,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "按钮列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4777,7 +4837,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "页面列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4805,7 +4865,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "角色列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4842,7 +4902,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "API详情",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4908,7 +4968,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "API分页列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4936,7 +4996,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "菜单API树",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -4973,7 +5033,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "按钮详情",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5033,7 +5093,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "按钮分页列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5061,7 +5121,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "菜单按钮树",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5098,7 +5158,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "菜单详情",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5158,7 +5218,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "菜单分页列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5186,7 +5246,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "菜单树",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5223,7 +5283,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "角色详情",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5283,7 +5343,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "角色分页列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5320,7 +5380,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "角色API权限",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5367,7 +5427,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "更新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5404,7 +5464,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "角色按钮权限",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5451,7 +5511,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "更新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5488,7 +5548,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "角色菜单权限",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5532,7 +5592,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "更新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5563,7 +5623,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/system.UpdateAPIReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_system.UpdateAPIReq"
                         }
                     }
                 ],
@@ -5571,7 +5631,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "更新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5602,7 +5662,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/system.UpdateButtonReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_system.UpdateButtonReq"
                         }
                     }
                 ],
@@ -5610,7 +5670,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "更新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5641,7 +5701,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/system.UpdateMenuReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_system.UpdateMenuReq"
                         }
                     }
                 ],
@@ -5649,7 +5709,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "更新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5680,7 +5740,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/system.UpdateRoleReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_system.UpdateRoleReq"
                         }
                     }
                 ],
@@ -5688,7 +5748,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "更新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5766,7 +5826,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "用户列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5795,7 +5855,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/user.CreateUserReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_user.CreateUserReq"
                         }
                     }
                 ],
@@ -5803,7 +5863,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "创建成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5839,7 +5899,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "用户列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5877,7 +5937,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/user.UpdateUserReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_user.UpdateUserReq"
                         }
                     }
                 ],
@@ -5885,7 +5945,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "更新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5920,7 +5980,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -5958,7 +6018,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/user.UpdateUserStatusReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_admin_dto_user.UpdateUserStatusReq"
                         }
                     }
                 ],
@@ -5966,7 +6026,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "更新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6003,7 +6063,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "解锁成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6105,7 +6165,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "上传记录列表",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6144,7 +6204,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6181,7 +6241,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "上传记录详情",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6216,7 +6276,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "删除成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6239,7 +6299,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6271,7 +6331,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6305,7 +6365,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6337,7 +6397,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6369,7 +6429,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6418,7 +6478,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6450,7 +6510,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6482,7 +6542,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6508,7 +6568,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/v1.EchoRequest"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_client_dto_v1.EchoRequest"
                         }
                     }
                 ],
@@ -6516,7 +6576,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6559,7 +6619,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6585,7 +6645,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/v1.MarkReadReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_client_dto_v1.MarkReadReq"
                         }
                     }
                 ],
@@ -6593,7 +6653,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6616,7 +6676,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6639,7 +6699,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6671,7 +6731,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6697,7 +6757,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/v1.GetClientCredentialsReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_client_dto_v1.GetClientCredentialsReq"
                         }
                     }
                 ],
@@ -6705,7 +6765,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6731,7 +6791,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/v1.CompleteClientUploadReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_client_dto_v1.CompleteClientUploadReq"
                         }
                     }
                 ],
@@ -6739,7 +6799,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6762,7 +6822,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6788,7 +6848,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/v1.UserLoginReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_client_dto_v1.UserLoginReq"
                         }
                     }
                 ],
@@ -6796,7 +6856,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6804,7 +6864,7 @@ const SwaggerTemplate = `{
         },
         "/client/v1/user/logout": {
             "post": {
-                "description": "当前登录用户退出登录并失效令牌",
+                "description": "当前登录用户退出登录并失效令牌（同时将 refresh token 加入黑名单）",
                 "consumes": [
                     "application/json"
                 ],
@@ -6815,11 +6875,20 @@ const SwaggerTemplate = `{
                     "客户端-用户"
                 ],
                 "summary": "退出登录",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "刷新令牌（必填，用于加入黑名单）",
+                        "name": "X-Refresh-Token",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6845,7 +6914,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/v1.UserChangePasswordReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_client_dto_v1.UserChangePasswordReq"
                         }
                     }
                 ],
@@ -6853,7 +6922,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6876,13 +6945,13 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
             },
             "put": {
-                "description": "更新当前登录用户的个人资料信息",
+                "description": "更新当前登录用户的个人资料信息；变更邮箱需提供 emailCode、变更手机需提供 phoneCode 验证码",
                 "consumes": [
                     "application/json"
                 ],
@@ -6895,12 +6964,12 @@ const SwaggerTemplate = `{
                 "summary": "更新个人资料",
                 "parameters": [
                     {
-                        "description": "更新个人资料请求",
+                        "description": "更新个人资料请求（emailCode/phoneCode 分别为邮箱/手机变更验证码）",
                         "name": "req",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/v1.UserUpdateProfileReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_client_dto_v1.UserUpdateProfileReq"
                         }
                     }
                 ],
@@ -6908,7 +6977,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6929,18 +6998,20 @@ const SwaggerTemplate = `{
                 "summary": "刷新令牌",
                 "parameters": [
                     {
-                        "type": "string",
-                        "description": "刷新令牌",
-                        "name": "refreshToken",
-                        "in": "query",
-                        "required": true
+                        "description": "刷新令牌请求体",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_interface_client_http_handler_v1.refreshTokenReq"
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -6966,7 +7037,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/v1.UserRegisterReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_client_dto_v1.UserRegisterReq"
                         }
                     }
                 ],
@@ -6974,7 +7045,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -7000,7 +7071,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/v1.UserResetPasswordReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_client_dto_v1.UserResetPasswordReq"
                         }
                     }
                 ],
@@ -7008,7 +7079,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -7034,7 +7105,7 @@ const SwaggerTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/v1.CreateUserUploadRecordReq"
+                            "$ref": "#/definitions/NetyAdmin_internal_interface_client_dto_v1.CreateUserUploadRecordReq"
                         }
                     }
                 ],
@@ -7042,7 +7113,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -7091,7 +7162,7 @@ const SwaggerTemplate = `{
                     "200": {
                         "description": "操作成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/NetyAdmin_internal_pkg_response.Response"
                         }
                     }
                 }
@@ -7099,30 +7170,52 @@ const SwaggerTemplate = `{
         }
     },
     "definitions": {
-        "auth.LoginRequest": {
+        "NetyAdmin_internal_domain_vo_system.MenuButton": {
             "type": "object",
             "properties": {
-                "captchaId": {
+                "code": {
                     "type": "string"
                 },
-                "captchaValue": {
+                "desc": {
                     "type": "string"
-                },
-                "password": {
-                    "type": "string",
-                    "example": "admin123"
-                },
-                "userName": {
-                    "type": "string",
-                    "example": "admin"
-                },
-                "username": {
-                    "type": "string",
-                    "example": "admin"
                 }
             }
         },
-        "content.CreateContentArticleDTO": {
+        "NetyAdmin_internal_domain_vo_system.QueryItem": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "NetyAdmin_internal_domain_vo_system.SysConfigVO": {
+            "type": "object",
+            "properties": {
+                "configKey": {
+                    "type": "string"
+                },
+                "configValue": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "groupName": {
+                    "type": "string"
+                },
+                "isSystem": {
+                    "type": "boolean"
+                },
+                "valueType": {
+                    "type": "string"
+                }
+            }
+        },
+        "NetyAdmin_internal_interface_admin_dto_content.CreateContentArticleDTO": {
             "type": "object",
             "required": [
                 "categoryId",
@@ -7201,7 +7294,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "content.CreateContentBannerGroupDTO": {
+        "NetyAdmin_internal_interface_admin_dto_content.CreateContentBannerGroupDTO": {
             "type": "object",
             "required": [
                 "code",
@@ -7259,7 +7352,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "content.CreateContentBannerItemDTO": {
+        "NetyAdmin_internal_interface_admin_dto_content.CreateContentBannerItemDTO": {
             "type": "object",
             "required": [
                 "groupId",
@@ -7324,7 +7417,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "content.CreateContentCategoryDTO": {
+        "NetyAdmin_internal_interface_admin_dto_content.CreateContentCategoryDTO": {
             "type": "object",
             "required": [
                 "name"
@@ -7370,7 +7463,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "content.SetArticleTopDTO": {
+        "NetyAdmin_internal_interface_admin_dto_content.SetArticleTopDTO": {
             "type": "object",
             "required": [
                 "isTop"
@@ -7384,7 +7477,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "content.UpdateContentArticleDTO": {
+        "NetyAdmin_internal_interface_admin_dto_content.UpdateContentArticleDTO": {
             "type": "object",
             "properties": {
                 "allowComment": {
@@ -7459,7 +7552,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "content.UpdateContentBannerGroupDTO": {
+        "NetyAdmin_internal_interface_admin_dto_content.UpdateContentBannerGroupDTO": {
             "type": "object",
             "properties": {
                 "autoPlay": {
@@ -7514,7 +7607,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "content.UpdateContentBannerItemDTO": {
+        "NetyAdmin_internal_interface_admin_dto_content.UpdateContentBannerItemDTO": {
             "type": "object",
             "properties": {
                 "content": {
@@ -7571,13 +7664,9 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "content.UpdateContentCategoryDTO": {
+        "NetyAdmin_internal_interface_admin_dto_content.UpdateContentCategoryDTO": {
             "type": "object",
             "properties": {
-                "code": {
-                    "type": "string",
-                    "maxLength": 50
-                },
                 "contentType": {
                     "type": "string",
                     "enum": [
@@ -7614,7 +7703,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "dict.CreateDictDataReq": {
+        "NetyAdmin_internal_interface_admin_dto_dict.CreateDictDataReq": {
             "type": "object",
             "required": [
                 "dictCode",
@@ -7650,7 +7739,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "dict.CreateDictTypeReq": {
+        "NetyAdmin_internal_interface_admin_dto_dict.CreateDictTypeReq": {
             "type": "object",
             "required": [
                 "code",
@@ -7676,19 +7765,15 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "dict.UpdateDictDataReq": {
+        "NetyAdmin_internal_interface_admin_dto_dict.UpdateDictDataReq": {
             "type": "object",
             "required": [
-                "dictCode",
                 "id",
                 "label",
                 "status",
                 "value"
             ],
             "properties": {
-                "dictCode": {
-                    "type": "string"
-                },
                 "id": {
                     "type": "integer"
                 },
@@ -7716,18 +7801,14 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "dict.UpdateDictTypeReq": {
+        "NetyAdmin_internal_interface_admin_dto_dict.UpdateDictTypeReq": {
             "type": "object",
             "required": [
-                "code",
                 "id",
                 "name",
                 "status"
             ],
             "properties": {
-                "code": {
-                    "type": "string"
-                },
                 "description": {
                     "type": "string"
                 },
@@ -7746,7 +7827,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "ipac.BatchDeleteIPACReq": {
+        "NetyAdmin_internal_interface_admin_dto_ipac.BatchDeleteIPACReq": {
             "type": "object",
             "required": [
                 "ids"
@@ -7761,7 +7842,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "ipac.CreateIPACReq": {
+        "NetyAdmin_internal_interface_admin_dto_ipac.CreateIPACReq": {
             "type": "object",
             "required": [
                 "ipAddr",
@@ -7797,7 +7878,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "ipac.UpdateIPACReq": {
+        "NetyAdmin_internal_interface_admin_dto_ipac.UpdateIPACReq": {
             "type": "object",
             "required": [
                 "id",
@@ -7829,44 +7910,53 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "message.MsgTemplate": {
+        "NetyAdmin_internal_interface_admin_dto_message.CreateTemplateReq": {
             "type": "object",
+            "required": [
+                "channel",
+                "code",
+                "content",
+                "name"
+            ],
             "properties": {
                 "channel": {
-                    "description": "sms, email, internal, push",
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "sms",
+                        "email",
+                        "internal",
+                        "push"
+                    ]
                 },
                 "code": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 50
                 },
                 "content": {
                     "type": "string"
                 },
-                "createdAt": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100
                 },
                 "providerTplId": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100
                 },
                 "status": {
-                    "description": "1:启用, 0:禁用",
-                    "type": "integer"
+                    "type": "integer",
+                    "enum": [
+                        0,
+                        1
+                    ]
                 },
                 "title": {
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 200
                 }
             }
         },
-        "message.SendDirectReq": {
+        "NetyAdmin_internal_interface_admin_dto_message.SendDirectReq": {
             "type": "object",
             "required": [
                 "channel",
@@ -7888,7 +7978,48 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "open_platform.CreateAppReq": {
+        "NetyAdmin_internal_interface_admin_dto_message.UpdateTemplateReq": {
+            "type": "object",
+            "required": [
+                "channel",
+                "content",
+                "name"
+            ],
+            "properties": {
+                "channel": {
+                    "type": "string",
+                    "enum": [
+                        "sms",
+                        "email",
+                        "internal",
+                        "push"
+                    ]
+                },
+                "content": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "providerTplId": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "status": {
+                    "type": "integer",
+                    "enum": [
+                        0,
+                        1
+                    ]
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 200
+                }
+            }
+        },
+        "NetyAdmin_internal_interface_admin_dto_open_platform.CreateAppReq": {
             "type": "object",
             "required": [
                 "name"
@@ -7930,7 +8061,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "open_platform.CreateOpenApiReq": {
+        "NetyAdmin_internal_interface_admin_dto_open_platform.CreateOpenApiReq": {
             "type": "object",
             "required": [
                 "method",
@@ -7969,7 +8100,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "open_platform.LinkIPRulesReq": {
+        "NetyAdmin_internal_interface_admin_dto_open_platform.LinkIPRulesReq": {
             "type": "object",
             "required": [
                 "id"
@@ -7986,7 +8117,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "open_platform.ResetSecretReq": {
+        "NetyAdmin_internal_interface_admin_dto_open_platform.ResetSecretReq": {
             "type": "object",
             "required": [
                 "id"
@@ -7997,7 +8128,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "open_platform.UpdateAppReq": {
+        "NetyAdmin_internal_interface_admin_dto_open_platform.UpdateAppReq": {
             "type": "object",
             "required": [
                 "id",
@@ -8043,7 +8174,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "open_platform.UpdateOpenApiReq": {
+        "NetyAdmin_internal_interface_admin_dto_open_platform.UpdateOpenApiReq": {
             "type": "object",
             "required": [
                 "id",
@@ -8086,7 +8217,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "open_platform.UpdateScopeApisReq": {
+        "NetyAdmin_internal_interface_admin_dto_open_platform.UpdateScopeApisReq": {
             "type": "object",
             "required": [
                 "scopeId"
@@ -8103,20 +8234,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "response.Response": {
-            "type": "object",
-            "properties": {
-                "code": {},
-                "data": {},
-                "msg": {
-                    "type": "string"
-                },
-                "request_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "storage.CompleteUploadReq": {
+        "NetyAdmin_internal_interface_admin_dto_storage.CompleteUploadReq": {
             "type": "object",
             "required": [
                 "recordId",
@@ -8146,7 +8264,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "storage.CreateConfigReq": {
+        "NetyAdmin_internal_interface_admin_dto_storage.CreateConfigReq": {
             "type": "object",
             "required": [
                 "accessKey",
@@ -8204,7 +8322,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "storage.GetCredentialsReq": {
+        "NetyAdmin_internal_interface_admin_dto_storage.GetCredentialsReq": {
             "type": "object",
             "required": [
                 "fileName"
@@ -8234,7 +8352,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "storage.TestUploadReq": {
+        "NetyAdmin_internal_interface_admin_dto_storage.TestUploadReq": {
             "type": "object",
             "required": [
                 "configId",
@@ -8253,7 +8371,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "storage.UpdateConfigReq": {
+        "NetyAdmin_internal_interface_admin_dto_storage.UpdateConfigReq": {
             "type": "object",
             "required": [
                 "bucket",
@@ -8313,7 +8431,22 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "system.ChangePasswordReq": {
+        "NetyAdmin_internal_interface_admin_dto_system.BatchDeleteAdminReq": {
+            "type": "object",
+            "required": [
+                "ids"
+            ],
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "NetyAdmin_internal_interface_admin_dto_system.ChangePasswordReq": {
             "type": "object",
             "required": [
                 "newPassword",
@@ -8330,7 +8463,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "system.CreateAPIReq": {
+        "NetyAdmin_internal_interface_admin_dto_system.CreateAPIReq": {
             "type": "object",
             "required": [
                 "group",
@@ -8345,6 +8478,9 @@ const SwaggerTemplate = `{
                 "group": {
                     "type": "string"
                 },
+                "menuId": {
+                    "type": "integer"
+                },
                 "method": {
                     "type": "string"
                 },
@@ -8356,7 +8492,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "system.CreateAdminReq": {
+        "NetyAdmin_internal_interface_admin_dto_system.CreateAdminReq": {
             "type": "object",
             "required": [
                 "password",
@@ -8407,7 +8543,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "system.CreateButtonReq": {
+        "NetyAdmin_internal_interface_admin_dto_system.CreateButtonReq": {
             "type": "object",
             "required": [
                 "code",
@@ -8426,7 +8562,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "system.CreateMenuReq": {
+        "NetyAdmin_internal_interface_admin_dto_system.CreateMenuReq": {
             "type": "object",
             "required": [
                 "name",
@@ -8441,7 +8577,7 @@ const SwaggerTemplate = `{
                 "buttons": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/system.MenuButton"
+                        "$ref": "#/definitions/NetyAdmin_internal_domain_vo_system.MenuButton"
                     }
                 },
                 "component": {
@@ -8486,7 +8622,7 @@ const SwaggerTemplate = `{
                 "query": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/system.QueryItem"
+                        "$ref": "#/definitions/NetyAdmin_internal_domain_vo_system.QueryItem"
                     }
                 },
                 "routeName": {
@@ -8507,7 +8643,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "system.CreateRoleReq": {
+        "NetyAdmin_internal_interface_admin_dto_system.CreateRoleReq": {
             "type": "object",
             "required": [
                 "code",
@@ -8550,29 +8686,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "system.MenuButton": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "desc": {
-                    "type": "string"
-                }
-            }
-        },
-        "system.QueryItem": {
-            "type": "object",
-            "properties": {
-                "key": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "system.RefreshTokenReq": {
+        "NetyAdmin_internal_interface_admin_dto_system.RefreshTokenReq": {
             "type": "object",
             "required": [
                 "refreshToken"
@@ -8583,30 +8697,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "system.SysConfigVO": {
-            "type": "object",
-            "properties": {
-                "configKey": {
-                    "type": "string"
-                },
-                "configValue": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "groupName": {
-                    "type": "string"
-                },
-                "isSystem": {
-                    "type": "boolean"
-                },
-                "valueType": {
-                    "type": "string"
-                }
-            }
-        },
-        "system.TestEmailReq": {
+        "NetyAdmin_internal_interface_admin_dto_system.TestEmailReq": {
             "type": "object",
             "required": [
                 "receiver"
@@ -8617,7 +8708,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "system.UpdateAPIReq": {
+        "NetyAdmin_internal_interface_admin_dto_system.UpdateAPIReq": {
             "type": "object",
             "required": [
                 "id",
@@ -8635,6 +8726,9 @@ const SwaggerTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "menuId": {
+                    "type": "integer"
+                },
                 "method": {
                     "type": "string"
                 },
@@ -8646,7 +8740,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "system.UpdateAdminReq": {
+        "NetyAdmin_internal_interface_admin_dto_system.UpdateAdminReq": {
             "type": "object",
             "required": [
                 "status",
@@ -8699,7 +8793,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "system.UpdateButtonReq": {
+        "NetyAdmin_internal_interface_admin_dto_system.UpdateButtonReq": {
             "type": "object",
             "required": [
                 "code",
@@ -8722,7 +8816,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "system.UpdateConfigReq": {
+        "NetyAdmin_internal_interface_admin_dto_system.UpdateConfigReq": {
             "type": "object",
             "required": [
                 "configKey",
@@ -8746,7 +8840,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "system.UpdateMenuReq": {
+        "NetyAdmin_internal_interface_admin_dto_system.UpdateMenuReq": {
             "type": "object",
             "required": [
                 "id",
@@ -8762,7 +8856,7 @@ const SwaggerTemplate = `{
                 "buttons": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/system.MenuButton"
+                        "$ref": "#/definitions/NetyAdmin_internal_domain_vo_system.MenuButton"
                     }
                 },
                 "component": {
@@ -8810,7 +8904,7 @@ const SwaggerTemplate = `{
                 "query": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/system.QueryItem"
+                        "$ref": "#/definitions/NetyAdmin_internal_domain_vo_system.QueryItem"
                     }
                 },
                 "routeName": {
@@ -8831,7 +8925,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "system.UpdateProfileReq": {
+        "NetyAdmin_internal_interface_admin_dto_system.UpdateProfileReq": {
             "type": "object",
             "properties": {
                 "email": {
@@ -8854,10 +8948,9 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "system.UpdateRoleReq": {
+        "NetyAdmin_internal_interface_admin_dto_system.UpdateRoleReq": {
             "type": "object",
             "required": [
-                "code",
                 "id",
                 "name"
             ],
@@ -8873,9 +8966,6 @@ const SwaggerTemplate = `{
                     "items": {
                         "type": "integer"
                     }
-                },
-                "code": {
-                    "type": "string"
                 },
                 "desc": {
                     "type": "string"
@@ -8901,7 +8991,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "task.UpdateTaskReq": {
+        "NetyAdmin_internal_interface_admin_dto_task.UpdateTaskReq": {
             "type": "object",
             "required": [
                 "name",
@@ -8919,7 +9009,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "user.CreateUserReq": {
+        "NetyAdmin_internal_interface_admin_dto_user.CreateUserReq": {
             "type": "object",
             "required": [
                 "password",
@@ -8958,7 +9048,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "user.UpdateUserReq": {
+        "NetyAdmin_internal_interface_admin_dto_user.UpdateUserReq": {
             "type": "object",
             "properties": {
                 "avatar": {
@@ -8986,11 +9076,15 @@ const SwaggerTemplate = `{
                     "type": "string"
                 },
                 "status": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "0",
+                        "1"
+                    ]
                 }
             }
         },
-        "user.UpdateUserStatusReq": {
+        "NetyAdmin_internal_interface_admin_dto_user.UpdateUserStatusReq": {
             "type": "object",
             "required": [
                 "status"
@@ -9005,7 +9099,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "v1.CompleteClientUploadReq": {
+        "NetyAdmin_internal_interface_client_dto_v1.CompleteClientUploadReq": {
             "type": "object",
             "required": [
                 "recordId",
@@ -9035,7 +9129,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "v1.CreateUserUploadRecordReq": {
+        "NetyAdmin_internal_interface_client_dto_v1.CreateUserUploadRecordReq": {
             "type": "object",
             "required": [
                 "recordId",
@@ -9065,7 +9159,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "v1.EchoRequest": {
+        "NetyAdmin_internal_interface_client_dto_v1.EchoRequest": {
             "type": "object",
             "required": [
                 "message"
@@ -9076,7 +9170,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "v1.GetClientCredentialsReq": {
+        "NetyAdmin_internal_interface_client_dto_v1.GetClientCredentialsReq": {
             "type": "object",
             "required": [
                 "fileName"
@@ -9103,7 +9197,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "v1.MarkReadReq": {
+        "NetyAdmin_internal_interface_client_dto_v1.MarkReadReq": {
             "type": "object",
             "required": [
                 "msgInternalId"
@@ -9114,7 +9208,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "v1.UserChangePasswordReq": {
+        "NetyAdmin_internal_interface_client_dto_v1.UserChangePasswordReq": {
             "type": "object",
             "required": [
                 "newPassword",
@@ -9131,7 +9225,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "v1.UserLoginReq": {
+        "NetyAdmin_internal_interface_client_dto_v1.UserLoginReq": {
             "type": "object",
             "required": [
                 "password",
@@ -9158,7 +9252,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "v1.UserRegisterReq": {
+        "NetyAdmin_internal_interface_client_dto_v1.UserRegisterReq": {
             "type": "object",
             "required": [
                 "nickName",
@@ -9191,7 +9285,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "v1.UserResetPasswordReq": {
+        "NetyAdmin_internal_interface_client_dto_v1.UserResetPasswordReq": {
             "type": "object",
             "required": [
                 "code",
@@ -9213,7 +9307,7 @@ const SwaggerTemplate = `{
                 }
             }
         },
-        "v1.UserUpdateProfileReq": {
+        "NetyAdmin_internal_interface_client_dto_v1.UserUpdateProfileReq": {
             "type": "object",
             "properties": {
                 "avatar": {
@@ -9222,6 +9316,10 @@ const SwaggerTemplate = `{
                 "email": {
                     "type": "string",
                     "maxLength": 100
+                },
+                "emailCode": {
+                    "description": "邮箱变更验证码（变更邮箱时必填）",
+                    "type": "string"
                 },
                 "gender": {
                     "type": "string",
@@ -9235,6 +9333,57 @@ const SwaggerTemplate = `{
                     "type": "string"
                 },
                 "phone": {
+                    "type": "string"
+                },
+                "phoneCode": {
+                    "description": "手机变更验证码（变更手机时必填）",
+                    "type": "string"
+                }
+            }
+        },
+        "NetyAdmin_internal_pkg_response.Response": {
+            "type": "object",
+            "properties": {
+                "code": {},
+                "data": {},
+                "msg": {
+                    "type": "string"
+                },
+                "request_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_interface_admin_http_handler_v1_auth.LoginRequest": {
+            "type": "object",
+            "properties": {
+                "captchaId": {
+                    "type": "string"
+                },
+                "captchaValue": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string",
+                    "example": "admin123"
+                },
+                "userName": {
+                    "type": "string",
+                    "example": "admin"
+                },
+                "username": {
+                    "type": "string",
+                    "example": "admin"
+                }
+            }
+        },
+        "internal_interface_client_http_handler_v1.refreshTokenReq": {
+            "type": "object",
+            "required": [
+                "refreshToken"
+            ],
+            "properties": {
+                "refreshToken": {
                     "type": "string"
                 }
             }
@@ -9258,7 +9407,7 @@ var SwaggerInfo = &swag.Spec{
 	Title:            "NetyAdmin API",
 	Description:      "NetyAdmin 后台管理系统 API 文档",
 	InfoInstanceName: "swagger",
-	SwaggerTemplate:  SwaggerTemplate,
+	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",
 	RightDelim:       "}}",
 }

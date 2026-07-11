@@ -87,7 +87,7 @@ func (h *ContentCategoryHandler) Get(c *gin.Context) {
 // @Tags         内容分类管理
 // @Accept       json
 // @Produce      json
-// @Param        req body content.CreateContentCategoryDTO true "创建分类参数"
+// @Param        req body contentDto.CreateContentCategoryDTO true "创建分类参数"
 // @Success      200 {object} response.Response "创建成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/content/categories [post]
@@ -119,7 +119,7 @@ func (h *ContentCategoryHandler) Create(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        id path int true "分类ID"
-// @Param        req body content.UpdateContentCategoryDTO true "更新分类参数"
+// @Param        req body contentDto.UpdateContentCategoryDTO true "更新分类参数"
 // @Success      200 {object} response.Response "更新成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/content/categories/{id} [put]

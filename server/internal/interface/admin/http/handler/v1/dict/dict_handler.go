@@ -85,7 +85,7 @@ func (h *DictHandler) ListType(c *gin.Context) {
 // @Tags         字典管理
 // @Accept       json
 // @Produce      json
-// @Param        req body dict.CreateDictTypeReq true "创建字典类型参数"
+// @Param        req body dictDto.CreateDictTypeReq true "创建字典类型参数"
 // @Success      200 {object} response.Response "创建成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/system/dict/types [post]
@@ -108,7 +108,7 @@ func (h *DictHandler) CreateType(c *gin.Context) {
 // @Tags         字典管理
 // @Accept       json
 // @Produce      json
-// @Param        req body dict.UpdateDictTypeReq true "更新字典类型参数"
+// @Param        req body dictDto.UpdateDictTypeReq true "更新字典类型参数"
 // @Success      200 {object} response.Response "更新成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/system/dict/types [put]
@@ -189,7 +189,7 @@ func (h *DictHandler) ListDataFull(c *gin.Context) {
 // @Tags         字典管理
 // @Accept       json
 // @Produce      json
-// @Param        req body dict.CreateDictDataReq true "创建字典数据参数"
+// @Param        req body dictDto.CreateDictDataReq true "创建字典数据参数"
 // @Success      200 {object} response.Response "创建成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/system/dict/data [post]
@@ -212,7 +212,7 @@ func (h *DictHandler) CreateData(c *gin.Context) {
 // @Tags         字典管理
 // @Accept       json
 // @Produce      json
-// @Param        req body dict.UpdateDictDataReq true "更新字典数据参数"
+// @Param        req body dictDto.UpdateDictDataReq true "更新字典数据参数"
 // @Success      200 {object} response.Response "更新成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/system/dict/data [put]

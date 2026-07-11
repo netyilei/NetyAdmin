@@ -72,7 +72,7 @@ func (h *SystemHandler) GetAdminRoleByID(c *gin.Context) {
 // @Tags         角色管理
 // @Accept       json
 // @Produce      json
-// @Param        req body system.CreateRoleReq true "角色创建参数"
+// @Param        req body systemDto.CreateRoleReq true "角色创建参数"
 // @Success      200 {object} response.Response "创建成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/systemManage/addRole [post]
@@ -103,7 +103,7 @@ func (h *SystemHandler) AddAdminRole(c *gin.Context) {
 // @Tags         角色管理
 // @Accept       json
 // @Produce      json
-// @Param        req body system.UpdateRoleReq true "角色更新参数"
+// @Param        req body systemDto.UpdateRoleReq true "角色更新参数"
 // @Success      200 {object} response.Response "更新成功"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/systemManage/updateRole [put]

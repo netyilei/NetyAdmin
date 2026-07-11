@@ -8,6 +8,7 @@ import (
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
 	systemService "NetyAdmin/internal/service/system"
+	systemVO "NetyAdmin/internal/domain/vo/system"
 )
 
 type ConfigHandler struct {
@@ -39,7 +40,7 @@ func bindConfigQuery(c *gin.Context) (systemDto.ConfigQuery, error) {
 // @Accept       json
 // @Produce      json
 // @Param        groupName query string true "配置组名（仅白名单内分组可访问）"
-// @Success      200 {object} response.Response{data=[]system.SysConfigVO} "配置列表"
+// @Success      200 {object} response.Response{data=[]systemVO.SysConfigVO} "配置列表"
 // @Router       /admin/v1/system/configs/public [get]
 func (h *ConfigHandler) ListPublic(c *gin.Context) {
 	req, err := bindConfigQuery(c)
@@ -63,7 +64,7 @@ func (h *ConfigHandler) ListPublic(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        groupName query string true "配置组名"
-// @Success      200 {object} response.Response{data=[]system.SysConfigVO} "配置列表"
+// @Success      200 {object} response.Response{data=[]systemVO.SysConfigVO} "配置列表"
 // @Router       /admin/v1/system/configs [get]
 func (h *ConfigHandler) List(c *gin.Context) {
 	req, err := bindConfigQuery(c)
@@ -86,7 +87,7 @@ func (h *ConfigHandler) List(c *gin.Context) {
 // @Tags         系统配置管理
 // @Accept       json
 // @Produce      json
-// @Param        req body system.UpdateConfigReq true "配置信息"
+// @Param        req body systemDto.UpdateConfigReq true "配置信息"
 // @Success      200 {object} response.Response "保存成功"
 // @Router       /admin/v1/system/configs [put]
 func (h *ConfigHandler) Upsert(c *gin.Context) {
@@ -111,7 +112,7 @@ func (h *ConfigHandler) Upsert(c *gin.Context) {
 // @Tags         系统配置管理
 // @Accept       json
 // @Produce      json
-// @Param        req body system.TestEmailReq true "测试邮件信息"
+// @Param        req body systemDto.TestEmailReq true "测试邮件信息"
 // @Success      200 {object} response.Response "发送成功"
 // @Router       /admin/v1/system/test-email [post]
 func (h *ConfigHandler) TestEmail(c *gin.Context) {
