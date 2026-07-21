@@ -8,7 +8,6 @@ import (
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/response"
 	systemService "NetyAdmin/internal/service/system"
-	systemVO "NetyAdmin/internal/domain/vo/system"
 )
 
 type ConfigHandler struct {
@@ -40,7 +39,7 @@ func bindConfigQuery(c *gin.Context) (systemDto.ConfigQuery, error) {
 // @Accept       json
 // @Produce      json
 // @Param        groupName query string true "配置组名（仅白名单内分组可访问）"
-// @Success      200 {object} response.Response{data=[]systemVO.SysConfigVO} "配置列表"
+// @Success      200 {object} response.Response{data=[]NetyAdmin_internal_domain_vo_system.SysConfigVO} "配置列表"
 // @Router       /admin/v1/system/configs/public [get]
 func (h *ConfigHandler) ListPublic(c *gin.Context) {
 	req, err := bindConfigQuery(c)
@@ -64,7 +63,7 @@ func (h *ConfigHandler) ListPublic(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        groupName query string true "配置组名"
-// @Success      200 {object} response.Response{data=[]systemVO.SysConfigVO} "配置列表"
+// @Success      200 {object} response.Response{data=[]NetyAdmin_internal_domain_vo_system.SysConfigVO} "配置列表"
 // @Router       /admin/v1/system/configs [get]
 func (h *ConfigHandler) List(c *gin.Context) {
 	req, err := bindConfigQuery(c)
