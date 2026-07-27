@@ -105,7 +105,8 @@ BEGIN
         (open_menu_id, '应用管理', 'open-platform_apps', '/open-platform/apps', 'view.open-platform_apps', 'ic:baseline-apps', 1, false, '1', '2', 'route.open-platform_apps', NOW(), NOW()),
         (open_menu_id, 'API管理', 'open-platform_apis', '/open-platform/apis', 'view.open-platform_apis', 'ic:baseline-api', 2, false, '1', '2', 'route.open-platform_apis', NOW(), NOW()),
         (open_menu_id, '接口权限', 'open-platform_scopes', '/open-platform/scopes', 'view.open-platform_scopes', 'ic:baseline-security', 3, false, '1', '2', 'route.open-platform_scopes', NOW(), NOW()),
-        (open_menu_id, 'IP 访问控制', 'open-platform_ip-access', '/open-platform/ip-access', 'view.open-platform_ip-access', 'ic:baseline-security', 4, false, '1', '2', 'route.open-platform_ip-access', NOW(), NOW())
+        (open_menu_id, 'IP 访问控制', 'open-platform_ip-access', '/open-platform/ip-access', 'view.open-platform_ip-access', 'ic:baseline-security', 4, false, '1', '2', 'route.open-platform_ip-access', NOW(), NOW()),
+        (open_menu_id, '调用统计', 'open-platform_statistics', '/open-platform/statistics', 'view.open-platform_statistics', 'ic:outline-bar-chart', 5, false, '1', '2', 'route.open-platform_statistics', NOW(), NOW())
         ON CONFLICT (route_name) WHERE deleted_at = 0 DO UPDATE SET i18_n_key = EXCLUDED.i18_n_key, component = EXCLUDED.component, parent_id = EXCLUDED.parent_id, route_path = EXCLUDED.route_path; 
     END IF; 
  END $$;

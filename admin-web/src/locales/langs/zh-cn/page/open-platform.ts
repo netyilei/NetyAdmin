@@ -90,6 +90,31 @@ const openPlatform = {
       typePlaceholder: '请选择动作类型',
       statusPlaceholder: '请选择状态'
     }
+  },
+  statistics: {
+    title: '调用统计',
+    totalCalls: '总调用量',
+    successCalls: '成功量',
+    failCalls: '失败量',
+    avgLatency: '平均延迟',
+    trend: '调用趋势',
+    appRanking: '应用调用排行',
+    apiRanking: 'API调用排行',
+    statusDistribution: '状态码分布',
+    latencyStats: '延迟统计',
+    p50: 'P50',
+    p95: 'P95',
+    p99: 'P99',
+    maxLatency: '最大延迟',
+    calls: '调用次数',
+    day: '按天',
+    week: '按周',
+    month: '按月',
+    refresh: '刷新',
+    startTime: '开始时间',
+    endTime: '结束时间',
+    appFilter: '应用筛选',
+    percent: '占比'
   }
 };
 

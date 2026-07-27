@@ -62,7 +62,8 @@ const (
 	CodeRequestExpired  Code = 101303
 	CodeScopeMismatch   Code = 101304
 	CodeRateLimited     Code = 101305
-	CodeAppDisabled     Code = 101306
+	CodeAppDisabled             Code = 101306
+	CodeStatisticsInvalidParams Code = 101307
 
 	// IP 访问控制 (1014xx)
 	CodeIPBlocked     Code = 101401
@@ -159,7 +160,8 @@ var codeMessages = map[Code]string{
 	CodeRequestExpired:  "请求已过期",
 	CodeScopeMismatch:   "权限不足 (Scope 不匹配)",
 	CodeRateLimited:     "已触发流量限制",
-	CodeAppDisabled:     "应用已被禁用",
+	CodeAppDisabled:             "应用已被禁用",
+	CodeStatisticsInvalidParams: "统计参数无效",
 
 	// IP 访问控制 (1014xx)
 	CodeIPBlocked:     "访问受限 (您的 IP 已被封锁)",

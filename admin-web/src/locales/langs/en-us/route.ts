@@ -37,6 +37,7 @@ const route = {
   open_platform_scopes: 'Scope Manage',
   'open-platform_scopes': 'Scope Manage',
   'open-platform_log': 'Call Log',
+  'open-platform_statistics': 'Call Statistics',
   'ops_open-platform-log': 'Call Log',
   message: 'Message Center',
   message_log: 'Send Log',

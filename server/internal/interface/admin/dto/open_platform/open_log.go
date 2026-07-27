@@ -29,3 +29,13 @@ type RecordOpenLogReq struct {
 	// service 层透传到 entity 后由 LogBus 刷盘写入 sys_open_platform_logs.request_id 列。
 	RequestID string
 }
+
+// StatisticsQuery is the HTTP form-binding query for statistics.
+// Result types (TrendItem, OverviewStats, etc.) live in domain/entity/open_platform.
+type StatisticsQuery struct {
+	Type        string `form:"type" binding:"required"`
+	StartTime   string `form:"startTime"`
+	EndTime     string `form:"endTime"`
+	AppID       string `form:"appId"`
+	Granularity string `form:"granularity"`
+}

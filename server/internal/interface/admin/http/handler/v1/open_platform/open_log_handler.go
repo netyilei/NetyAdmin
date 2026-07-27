@@ -54,6 +54,35 @@ func (h *OpenLogHandler) List(c *gin.Context) {
 	response.SuccessWithPage(c, req.Current, req.Size, total, list)
 }
 
+// @Summary      获取开放平台调用统计
+// @Description  获取开放平台调用统计，支持趋势、应用排行、API排行、状态码分布、延迟统计、总览概览
+// @Tags         开放平台日志
+// @Accept       json
+// @Produce      json
+// @Param        type query string true "统计类型(trend/top_apps/top_apis/status_distribution/latency_stats/overview)"
+// @Param        startTime query string false "开始时间"
+// @Param        endTime query string false "结束时间"
+// @Param        appId query string false "应用ID"
+// @Param        granularity query string false "趋势粒度(day/week/month，默认day)"
+// @Success      200 {object} response.Response "统计数据"
+// @Security    ApiKeyAuth
+// @Router       /admin/v1/ops/open-platform-log/statistics [get]
+func (h *OpenLogHandler) Statistics(c *gin.Context) {
+	var req openDto.StatisticsQuery
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.FailWithCode(c, errorx.CodeInvalidParams)
+		return
+	}
+
+	data, err := h.svc.GetStatistics(c.Request.Context(), &req)
+	if err != nil {
+		response.Fail(c, err)
+		return
+	}
+
+	response.Success(c, data)
+}
+
 // Get 获取日志详情
 func (h *OpenLogHandler) Get(c *gin.Context) {
 	idStr := c.Param("id")

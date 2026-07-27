@@ -84,5 +84,6 @@ func (r *OpsRouter) registerOpenLog(group *gin.RouterGroup) {
 	logGroup := group.Group("/ops/open-platform-log")
 	{
 		logGroup.GET("", r.openLog.List)
+		logGroup.GET("/statistics", r.openLog.Statistics)
 	}
 }

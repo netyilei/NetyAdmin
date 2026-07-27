@@ -96,4 +96,58 @@ export namespace Log {
     list: TaskLog[];
     total: number;
   };
+
+  // 统计相关类型
+  type TrendItem = {
+    date: string;
+    totalCalls: number;
+    successCalls: number;
+    failCalls: number;
+    avgLatency: number;
+  };
+
+  type AppStatItem = {
+    appId: string;
+    appName: string;
+    calls: number;
+    percent: number;
+  };
+
+  type ApiStatItem = {
+    apiPath: string;
+    apiMethod: string;
+    calls: number;
+    percent: number;
+  };
+
+  type StatusDistItem = {
+    statusCode: number;
+    calls: number;
+    percent: number;
+  };
+
+  type LatencyStats = {
+    avgLatency: number;
+    p50: number;
+    p95: number;
+    p99: number;
+    maxLatency: number;
+  };
+
+  type OverviewStats = {
+    totalCalls: number;
+    successCalls: number;
+    failCalls: number;
+    avgLatency: number;
+    appCount: number;
+    apiCount: number;
+  };
+
+  type StatisticsParams = {
+    type: 'trend' | 'top_apps' | 'top_apis' | 'status_distribution' | 'latency_stats' | 'overview';
+    startTime?: string;
+    endTime?: string;
+    appId?: string;
+    granularity?: 'day' | 'week' | 'month';
+  };
 }

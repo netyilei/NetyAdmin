@@ -2,8 +2,10 @@ package open_platform
 
 import (
 	"context"
+	"fmt"
 
 	"NetyAdmin/internal/domain/entity/open_platform"
+	"NetyAdmin/internal/pkg/errorx"
 	openDto "NetyAdmin/internal/interface/admin/dto/open_platform"
 	openRepo "NetyAdmin/internal/repository/open_platform"
 )
@@ -16,6 +18,7 @@ type OpenLogService interface {
 	GetLog(ctx context.Context, id uint64) (*open_platform.OpenPlatformLog, error)
 	DeleteBatch(ctx context.Context, ids []uint64) error
 	ClearOldLogs(ctx context.Context, days int) error
+	GetStatistics(ctx context.Context, req *openDto.StatisticsQuery) (interface{}, error)
 }
 
 type openLogService struct {
@@ -75,4 +78,33 @@ func (s *openLogService) DeleteBatch(ctx context.Context, ids []uint64) error {
 
 func (s *openLogService) ClearOldLogs(ctx context.Context, days int) error {
 	return s.repo.Clear(ctx, days)
+}
+
+// GetStatistics dispatches to the concrete repository method based on req.Type.
+// Single switch site — no separate validStatTypes map (default branch rejects).
+func (s *openLogService) GetStatistics(ctx context.Context, req *openDto.StatisticsQuery) (interface{}, error) {
+	repoQuery := &openRepo.StatisticsRepoQuery{
+		Type:        req.Type,
+		StartTime:   req.StartTime,
+		EndTime:     req.EndTime,
+		AppID:       req.AppID,
+		Granularity: req.Granularity,
+	}
+
+	switch req.Type {
+	case "trend":
+		return s.repo.GetTrendStats(ctx, repoQuery)
+	case "top_apps":
+		return s.repo.GetTopAppsStats(ctx, repoQuery)
+	case "top_apis":
+		return s.repo.GetTopApisStats(ctx, repoQuery)
+	case "status_distribution":
+		return s.repo.GetStatusDistributionStats(ctx, repoQuery)
+	case "latency_stats":
+		return s.repo.GetLatencyStats(ctx, repoQuery)
+	case "overview":
+		return s.repo.GetOverviewStats(ctx, repoQuery)
+	default:
+		return nil, errorx.New(errorx.CodeStatisticsInvalidParams, fmt.Sprintf("不支持的统计类型: %s", req.Type))
+	}
 }

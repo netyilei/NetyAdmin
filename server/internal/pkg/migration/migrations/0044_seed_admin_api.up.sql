@@ -23,6 +23,7 @@ DECLARE
         open_api_menu_id BIGINT;
         scope_menu_id BIGINT;
         open_log_menu_id BIGINT;
+        statistics_menu_id BIGINT;
         msg_tpl_menu_id BIGINT;
         msg_log_menu_id BIGINT;
     BEGIN
@@ -48,6 +49,7 @@ DECLARE
         SELECT id INTO open_api_menu_id FROM admin_menu WHERE route_name = 'open-platform_apis' AND deleted_at = 0;
         SELECT id INTO scope_menu_id FROM admin_menu WHERE route_name = 'open-platform_scopes' AND deleted_at = 0;
         SELECT id INTO open_log_menu_id FROM admin_menu WHERE route_name = 'ops_open-platform-log' AND deleted_at = 0;
+        SELECT id INTO statistics_menu_id FROM admin_menu WHERE route_name = 'open-platform_statistics' AND deleted_at = 0;
         SELECT id INTO msg_tpl_menu_id FROM admin_menu WHERE route_name = 'settings_message-template' AND deleted_at = 0;
         SELECT id INTO msg_log_menu_id FROM admin_menu WHERE route_name = 'ops_message-log' AND deleted_at = 0;
 
@@ -337,6 +339,14 @@ DECLARE
         INSERT INTO admin_api (menu_id, name, method, path, description, auth, created_at, updated_at)
         VALUES 
         (open_log_menu_id, '获取调用日志列表', 'GET', '/admin/v1/ops/open-platform-log', '获取开放平台调用日志列表', '1', NOW(), NOW())
+        ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
+    END IF;
+
+    -- 开放平台调用统计 API 初始化
+    IF statistics_menu_id IS NOT NULL THEN
+        INSERT INTO admin_api (menu_id, name, method, path, description, auth, created_at, updated_at)
+        VALUES 
+        (statistics_menu_id, '获取调用统计', 'GET', '/admin/v1/ops/open-platform-log/statistics', '获取开放平台调用统计数据', '1', NOW(), NOW())
         ON CONFLICT (method, path) WHERE deleted_at = 0 DO NOTHING;
     END IF;
 

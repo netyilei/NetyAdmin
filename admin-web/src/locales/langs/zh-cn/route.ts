@@ -37,6 +37,7 @@ const route = {
   open_platform_scopes: '权限范围管理',
   'open-platform_scopes': '权限范围管理',
   'open-platform_log': '调用日志',
+  'open-platform_statistics': '调用统计',
   message: '消息中心',
   message_log: '发送日志',
   message_send_sms: '发送短信',

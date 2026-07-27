@@ -92,6 +92,31 @@ const openPlatform = {
       typePlaceholder: 'Select action type',
       statusPlaceholder: 'Select status'
     }
+  },
+  statistics: {
+    title: 'Call Statistics',
+    totalCalls: 'Total Calls',
+    successCalls: 'Success',
+    failCalls: 'Failed',
+    avgLatency: 'Avg Latency',
+    trend: 'Call Trend',
+    appRanking: 'App Ranking',
+    apiRanking: 'API Ranking',
+    statusDistribution: 'Status Distribution',
+    latencyStats: 'Latency Stats',
+    p50: 'P50',
+    p95: 'P95',
+    p99: 'P99',
+    maxLatency: 'Max Latency',
+    calls: 'Calls',
+    day: 'Day',
+    week: 'Week',
+    month: 'Month',
+    refresh: 'Refresh',
+    startTime: 'Start Time',
+    endTime: 'End Time',
+    appFilter: 'App Filter',
+    percent: 'Percent'
   }
 };
 

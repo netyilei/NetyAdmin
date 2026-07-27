@@ -69,3 +69,11 @@ export function fetchGetTaskLogs(params: Log.TaskLogSearchParams) {
     params
   });
 }
+
+export function fetchGetOpenLogStatistics<T = unknown>(params?: Log.StatisticsParams) {
+  return request<T>({
+    url: '/admin/v1/ops/open-platform-log/statistics',
+    method: 'get',
+    params
+  });
+}
