@@ -64,10 +64,10 @@ type appService struct {
 	storageMgr    *storage.Manager
 	configWatcher configsync.ConfigWatcher
 	rateLimiter   *ratelimit.Limiter
-	tm            *database.TransactionManager
+	tm            database.TxManager
 }
 
-func NewAppService(repo openRepo.AppRepository, cacheFast cache.ConfigCache, cacheSlow cache.SecurityCache, aesKey string, ipacSvc ipacSvcPkg.IPACService, ipacRepo ipacRepoPkg.IPACRepository, storageMgr *storage.Manager, configWatcher configsync.ConfigWatcher, rateLimiter *ratelimit.Limiter, tm *database.TransactionManager) AppService {
+func NewAppService(repo openRepo.AppRepository, cacheFast cache.ConfigCache, cacheSlow cache.SecurityCache, aesKey string, ipacSvc ipacSvcPkg.IPACService, ipacRepo ipacRepoPkg.IPACRepository, storageMgr *storage.Manager, configWatcher configsync.ConfigWatcher, rateLimiter *ratelimit.Limiter, tm database.TxManager) AppService {
 	return &appService{
 		repo:          repo,
 		cacheFast:     cacheFast,

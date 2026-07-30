@@ -464,7 +464,7 @@ type serviceSet struct {
 	captcha                  systemService.CaptchaService
 }
 
-func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr *cache.LazyCacheManager, redisClient *redis.Client, taskManager *task.Manager, configWatcher configsync.ConfigWatcher, cfg *config.Config, captchaStore base64Captcha.Store, eventBus pubsub.EventBus, tm *database.TransactionManager, captchaMgr *captcha.Manager, tokenStore userServicePkg.TokenStore) *serviceSet {
+func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr *cache.LazyCacheManager, redisClient *redis.Client, taskManager *task.Manager, configWatcher configsync.ConfigWatcher, cfg *config.Config, captchaStore base64Captcha.Store, eventBus pubsub.EventBus, tm database.TxManager, captchaMgr *captcha.Manager, tokenStore userServicePkg.TokenStore) *serviceSet {
 	storageMgr := storagePkg.NewManager(storagePkg.NewMinioDriverFactory())
 	// 限流器：复用 Bootstrap 已建立的 Redis 连接，Redis 不可用时自动降级为进程内内存限流
 	rateLimiter := ratelimitPkg.New(redisClient, cfg.Redis.Prefix)

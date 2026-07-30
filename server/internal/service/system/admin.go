@@ -52,10 +52,10 @@ type adminService struct {
 	cacheFast  cache.ConfigCache   // 配置类：admin info（FetchFast + InvalidateByTags）
 	cacheSlow  cache.SecurityCache // 安全类：登录锁/黑名单/auth_state（Get/Set/Exists/InvalidateByTags）
 	tokenStore userService.TokenStore
-	tm         *database.TransactionManager
+	tm         database.TxManager
 }
 
-func NewAdminService(adminRepo systemRepo.AdminRepository, roleRepo systemRepo.RoleRepository, jwtInstance *jwt.JWT, cacheFast cache.ConfigCache, cacheSlow cache.SecurityCache, tokenStore userService.TokenStore, tm *database.TransactionManager) AdminService {
+func NewAdminService(adminRepo systemRepo.AdminRepository, roleRepo systemRepo.RoleRepository, jwtInstance *jwt.JWT, cacheFast cache.ConfigCache, cacheSlow cache.SecurityCache, tokenStore userService.TokenStore, tm database.TxManager) AdminService {
 	return &adminService{
 		adminRepo:  adminRepo,
 		roleRepo:   roleRepo,

@@ -37,10 +37,10 @@ type taskService struct {
 	cfgRepo       systemRepo.ConfigRepository
 	watcher       configsync.ConfigWatcher
 	logRecordFunc TaskLogRecordFunc
-	tm            *database.TransactionManager
+	tm            database.TxManager
 }
 
-func NewTaskService(manager *task.Manager, logRepo taskRepo.TaskLogRepository, cfgRepo systemRepo.ConfigRepository, watcher configsync.ConfigWatcher, logRecordFunc TaskLogRecordFunc, tm *database.TransactionManager) TaskService {
+func NewTaskService(manager *task.Manager, logRepo taskRepo.TaskLogRepository, cfgRepo systemRepo.ConfigRepository, watcher configsync.ConfigWatcher, logRecordFunc TaskLogRecordFunc, tm database.TxManager) TaskService {
 	s := &taskService{
 		manager:       manager,
 		logRepo:       logRepo,

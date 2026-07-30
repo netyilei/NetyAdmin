@@ -34,10 +34,10 @@ import (
 //     taskManager.Stop / logBus.Stop 单步 drain 的最大时长，由 stopWithTimeout 包装执行。
 //   - pkgSentry.Flush 自带 2s 内部超时（见 Run 末尾）。
 //   - 最坏耗时（假设 srv.Shutdown 不超占预算，HTTP 请求一般 ms 级完成）：
-//       srv.Shutdown       ≤ 30s （实际通常远小于此值）
-//       taskManager.Stop   ≤ 5s  （stopWithTimeout 包装）
-//       logBus.Stop        ≤ 5s  （stopWithTimeout 包装）
-//       pkgSentry.Flush    ≤ 2s
+//     srv.Shutdown       ≤ 30s （实际通常远小于此值）
+//     taskManager.Stop   ≤ 5s  （stopWithTimeout 包装）
+//     logBus.Stop        ≤ 5s  （stopWithTimeout 包装）
+//     pkgSentry.Flush    ≤ 2s
 //     drain 段合计 ≤ 12s（5s + 5s + 2s），远小于 30s 总预算，
 //     留有 18s+ 缓冲应对 dbHealthChecker.Stop / eventBus.Close / sqlDB.Close 的偶发抖动。
 //   - drainTimeout 故意远小于 ShutdownTimeout：保证 drain 步骤即便全部超时，
@@ -62,14 +62,14 @@ type App struct {
 	cfg             *config.Config
 	db              *gorm.DB
 	engine          *gin.Engine
-	tm              *database.TransactionManager
+	tm              database.TxManager
 	dbHealthChecker *database.HealthChecker
 	taskManager     *task.Manager
 	logBus          logService.LogBusService
 	eventBus        pubsub.EventBus
 }
 
-func NewApp(cfg *config.Config, db *gorm.DB, engine *gin.Engine, tm *database.TransactionManager, dbHealthChecker *database.HealthChecker, taskManager *task.Manager, logBus logService.LogBusService, eventBus pubsub.EventBus) *App {
+func NewApp(cfg *config.Config, db *gorm.DB, engine *gin.Engine, tm database.TxManager, dbHealthChecker *database.HealthChecker, taskManager *task.Manager, logBus logService.LogBusService, eventBus pubsub.EventBus) *App {
 	return &App{
 		cfg:             cfg,
 		db:              db,

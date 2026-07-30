@@ -36,8 +36,8 @@ type userBase struct {
 	storageMgr    *storagePkg.Manager
 	captchaStore  base64Captcha.Store
 	tokenStore    TokenStore
-	cacheSlow      cache.SecurityCache
-	tm            *database.TransactionManager
+	cacheSlow     cache.SecurityCache
+	tm            database.TxManager
 }
 
 // NewUserBase 构造共享底层依赖。由 wire 层调用一次，分别传给 NewUserAdminService / NewUserClientService。
@@ -51,7 +51,7 @@ func NewUserBase(
 	captchaStore base64Captcha.Store,
 	tokenStore TokenStore,
 	cacheSlow cache.SecurityCache,
-	tm *database.TransactionManager,
+	tm database.TxManager,
 ) userBase {
 	return userBase{
 		repo:          repo,
@@ -61,7 +61,7 @@ func NewUserBase(
 		storageMgr:    storageMgr,
 		captchaStore:  captchaStore,
 		tokenStore:    tokenStore,
-		cacheSlow:      cacheSlow,
+		cacheSlow:     cacheSlow,
 		tm:            tm,
 	}
 }

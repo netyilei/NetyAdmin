@@ -43,8 +43,8 @@ type roleService struct {
 	menuRepo   systemRepo.MenuRepository
 	apiRepo    systemRepo.APIRepository
 	buttonRepo systemRepo.ButtonRepository
-	cacheFast   cache.ConfigCache
-	tm         *database.TransactionManager
+	cacheFast  cache.ConfigCache
+	tm         database.TxManager
 }
 
 func NewRoleService(
@@ -53,14 +53,14 @@ func NewRoleService(
 	apiRepo systemRepo.APIRepository,
 	buttonRepo systemRepo.ButtonRepository,
 	cacheFast cache.ConfigCache,
-	tm *database.TransactionManager,
+	tm database.TxManager,
 ) RoleService {
 	return &roleService{
 		roleRepo:   roleRepo,
 		menuRepo:   menuRepo,
 		apiRepo:    apiRepo,
 		buttonRepo: buttonRepo,
-		cacheFast:   cacheFast,
+		cacheFast:  cacheFast,
 		tm:         tm,
 	}
 }

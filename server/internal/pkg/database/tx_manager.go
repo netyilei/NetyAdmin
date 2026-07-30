@@ -40,9 +40,29 @@ type Tx struct {
 // 用于优雅关闭时检测是否有未提交事务（若有则 slog.Error 告警，避免数据丢失）。
 // 使用 atomic.Int64 保证并发安全。
 type TransactionManager struct {
-	db           *gorm.DB
+	db            *gorm.DB
 	activeTxCount atomic.Int64
 }
+
+// TxManager 是事务管理器的抽象接口，支持 Mock 测试。
+//
+// 所有 Service 应依赖此接口而非 *TransactionManager 具体类型，
+// 便于在服务层单元测试中用 mock 替代真实事务管理器，无需数据库连接。
+type TxManager interface {
+	// Begin 开启一个新事务，并将其写入返回的 context 中。
+	Begin(ctx context.Context) (context.Context, *Tx)
+	// Commit 提交事务。
+	Commit(tx *Tx) error
+	// Rollback 回滚事务。
+	Rollback(tx *Tx)
+	// WithTransaction 执行闭包内的事务，自动处理 panic 与 error 时的 Rollback。
+	WithTransaction(ctx context.Context, fn func(txCtx context.Context) error) error
+	// ActiveTransactions 返回当前活跃事务数。
+	ActiveTransactions() int64
+}
+
+// compile-time check: *TransactionManager 满足 TxManager 接口
+var _ TxManager = (*TransactionManager)(nil)
 
 // NewTransactionManager 构造事务管理器实例。
 //

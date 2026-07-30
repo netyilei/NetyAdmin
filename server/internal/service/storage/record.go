@@ -95,7 +95,7 @@ type recordService struct {
 	configSvc  ConfigService
 	storageMgr *storage.Manager
 	appSvc     openSvcPkg.AppService
-	tm         *database.TransactionManager
+	tm         database.TxManager
 	hmacKey    string // 凭证签名密钥（复用 [jwt] secret）
 }
 
@@ -105,7 +105,7 @@ func NewRecordService(
 	storageMgr *storage.Manager,
 	appSvc openSvcPkg.AppService,
 	hmacKey string,
-	tm *database.TransactionManager,
+	tm database.TxManager,
 ) RecordService {
 	return &recordService{
 		recordRepo: recordRepo,

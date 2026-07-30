@@ -36,10 +36,10 @@ type bannerGroupService struct {
 	storageService storageService.ConfigService
 	cache          cache.ConfigCache
 	watcher        configsync.ConfigWatcher
-	tm             *database.TransactionManager
+	tm             database.TxManager
 }
 
-func NewBannerGroupService(repo contentRepo.ContentBannerGroupRepository, bannerItemRepo contentRepo.ContentBannerItemRepository, storageService storageService.ConfigService, cache cache.ConfigCache, watcher configsync.ConfigWatcher, tm *database.TransactionManager) BannerGroupService {
+func NewBannerGroupService(repo contentRepo.ContentBannerGroupRepository, bannerItemRepo contentRepo.ContentBannerItemRepository, storageService storageService.ConfigService, cache cache.ConfigCache, watcher configsync.ConfigWatcher, tm database.TxManager) BannerGroupService {
 	return &bannerGroupService{
 		repo:           repo,
 		bannerItemRepo: bannerItemRepo,

@@ -40,17 +40,17 @@ type menuService struct {
 	buttonRepo systemRepo.ButtonRepository
 	apiRepo    systemRepo.APIRepository
 	roleRepo   systemRepo.RoleRepository
-	cacheFast   cache.ConfigCache
-	tm         *database.TransactionManager
+	cacheFast  cache.ConfigCache
+	tm         database.TxManager
 }
 
-func NewMenuService(menuRepo systemRepo.MenuRepository, buttonRepo systemRepo.ButtonRepository, apiRepo systemRepo.APIRepository, roleRepo systemRepo.RoleRepository, cacheFast cache.ConfigCache, tm *database.TransactionManager) MenuService {
+func NewMenuService(menuRepo systemRepo.MenuRepository, buttonRepo systemRepo.ButtonRepository, apiRepo systemRepo.APIRepository, roleRepo systemRepo.RoleRepository, cacheFast cache.ConfigCache, tm database.TxManager) MenuService {
 	return &menuService{
 		menuRepo:   menuRepo,
 		buttonRepo: buttonRepo,
 		apiRepo:    apiRepo,
 		roleRepo:   roleRepo,
-		cacheFast:   cacheFast,
+		cacheFast:  cacheFast,
 		tm:         tm,
 	}
 }

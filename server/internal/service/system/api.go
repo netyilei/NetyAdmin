@@ -29,16 +29,16 @@ type APIService interface {
 }
 
 type apiService struct {
-	apiRepo  systemRepo.APIRepository
+	apiRepo   systemRepo.APIRepository
 	cacheFast cache.ConfigCache
-	tm       *database.TransactionManager
+	tm        database.TxManager
 }
 
-func NewAPIService(apiRepo systemRepo.APIRepository, cacheFast cache.ConfigCache, tm *database.TransactionManager) APIService {
+func NewAPIService(apiRepo systemRepo.APIRepository, cacheFast cache.ConfigCache, tm database.TxManager) APIService {
 	return &apiService{
-		apiRepo:  apiRepo,
+		apiRepo:   apiRepo,
 		cacheFast: cacheFast,
-		tm:       tm,
+		tm:        tm,
 	}
 }
 

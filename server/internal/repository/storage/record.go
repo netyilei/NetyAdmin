@@ -18,8 +18,8 @@ type RecordRepository interface {
 	Delete(ctx context.Context, id uint) error
 	DeleteMultiple(ctx context.Context, ids []uint) error
 	GetByID(ctx context.Context, id uint) (*storageEntity.Record, error)
-	// LockRecordByID 行锁读取指定 record（SELECT FOR UPDATE），用于上传完成确认流程的 TOCTOU 防护。
-	// 调用方需在 TransactionManager 事务上下文中调用，以保证行锁与后续状态翻转同事务。
+		// LockRecordByID 行锁读取指定 record（SELECT FOR UPDATE），用于上传完成确认流程的 TOCTOU 防护。
+		// 调用方需在事务上下文中调用，以保证行锁与后续状态翻转同事务。
 	LockRecordByID(ctx context.Context, id uint) (*storageEntity.Record, error)
 	// FlipStatusToUploaded 将 record 状态翻转为 uploaded（仅当当前为 pending）。
 	// WHERE 条件含 status=pending 保证幂等：返回 updated=true 表示本次实际翻转发生。
@@ -92,7 +92,7 @@ func (r *recordRepository) GetByID(ctx context.Context, id uint) (*storageEntity
 }
 
 // LockRecordByID 行锁读取指定 record（SELECT FOR UPDATE），用于上传完成确认流程的 TOCTOU 防护。
-// 调用方需在 TransactionManager 事务上下文中调用，以保证行锁与后续 FlipStatusToUploaded 同事务。
+// 调用方需在事务上下文中调用，以保证行锁与后续 FlipStatusToUploaded 同事务。
 func (r *recordRepository) LockRecordByID(ctx context.Context, id uint) (*storageEntity.Record, error) {
 	var record storageEntity.Record
 	err := r.getDB(ctx).Set("gorm:query_option", "FOR UPDATE").

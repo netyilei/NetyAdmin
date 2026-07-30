@@ -36,10 +36,10 @@ type categoryService struct {
 	storageService storageService.ConfigService
 	cache          cache.ConfigCache
 	watcher        configsync.ConfigWatcher
-	tm             *database.TransactionManager
+	tm             database.TxManager
 }
 
-func NewCategoryService(repo contentRepo.ContentCategoryRepository, articleRepo contentRepo.ContentArticleRepository, storageService storageService.ConfigService, cache cache.ConfigCache, watcher configsync.ConfigWatcher, tm *database.TransactionManager) CategoryService {
+func NewCategoryService(repo contentRepo.ContentCategoryRepository, articleRepo contentRepo.ContentArticleRepository, storageService storageService.ConfigService, cache cache.ConfigCache, watcher configsync.ConfigWatcher, tm database.TxManager) CategoryService {
 	return &categoryService{
 		repo:           repo,
 		articleRepo:    articleRepo,

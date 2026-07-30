@@ -596,7 +596,7 @@ bash scripts/test-coverage.sh
 门禁规则：
 - Service 层（`internal/service/...`）平均覆盖率 **≥ 70%**，未达标脚本以非零退出码退出
 - 新增 Service 方法必须配套单元测试（参考 `admin_auth_test.go` / `user_auth_test.go` / `menu_test.go` / `record_test.go`）
-- Mock 策略：手写 mock 结构体实现接口（项目无 `testify/mock` 依赖）；TM 依赖场景用 sqlite in-memory 支撑 `Begin/Commit/Rollback`
+- Mock 策略：手写 mock 结构体实现接口（项目无 `testify/mock` 依赖）；Service 层测试用 `mockTxManager`（`database.TxManager` 接口的内存实现）替代真实事务管理器，无需数据库连接
 
 #### Repository 集成测试（TODO）
 

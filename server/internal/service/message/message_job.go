@@ -20,10 +20,10 @@ type MsgSendJob struct {
 	repo    msgRepo.MsgRepository
 	drivers map[string]msgPkg.Driver
 	watcher configsync.ConfigWatcher
-	tm      *database.TransactionManager
+	tm      database.TxManager
 }
 
-func NewMsgSendJob(repo msgRepo.MsgRepository, drivers map[string]msgPkg.Driver, watcher configsync.ConfigWatcher, tm *database.TransactionManager) *MsgSendJob {
+func NewMsgSendJob(repo msgRepo.MsgRepository, drivers map[string]msgPkg.Driver, watcher configsync.ConfigWatcher, tm database.TxManager) *MsgSendJob {
 	return &MsgSendJob{
 		repo:    repo,
 		drivers: drivers,

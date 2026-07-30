@@ -43,7 +43,7 @@ type IPACService interface {
 type ipacService struct {
 	repo     ipacRepo.IPACRepository
 	eventBus pubsub.EventBus
-	tm       *database.TransactionManager
+	tm       database.TxManager
 
 	mu sync.RWMutex
 	// 用 cidranger.Ranger (path-compressed trie) 替代 []*net.IPNet 线性扫描，
@@ -69,7 +69,7 @@ type appIPRules struct {
 	IPFilterEnabled bool
 }
 
-func NewIPACService(repo ipacRepo.IPACRepository, eventBus pubsub.EventBus, tm *database.TransactionManager) IPACService {
+func NewIPACService(repo ipacRepo.IPACRepository, eventBus pubsub.EventBus, tm database.TxManager) IPACService {
 	s := &ipacService{
 		repo:       repo,
 		eventBus:   eventBus,

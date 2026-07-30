@@ -9,8 +9,8 @@
 //
 // Mock 策略：
 //   - menuRepo / buttonRepo / apiRepo / roleRepo / cacheFast 使用手写 mock 结构体
-//   - tm 使用真实 *database.TransactionManager + sqlite in-memory（TM 需要 *gorm.DB 才能 Begin/Commit/Rollback）
-//   - mock repos 不实际读写 sqlite，仅记录调用并返回预设 error；sqlite 仅用于支撑 TM 的事务句柄
+//   - tm 使用 mockTxManager（database.TxManager 接口的内存实现），不依赖真实数据库
+//   - mock repos 不实际读写数据库，仅记录调用并返回预设 error；mockTxManager 的 WithTransaction 直接执行闭包
 //
 // 注：menuService.Delete 内部使用 tm.WithTransaction 闭包 API，
 // 任一 repo 返回 error → 闭包返回 error → WithTransaction 自动 Rollback → DeleteBatch 见非业务错误 → fail-closed。
@@ -26,7 +26,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
 	systemEntity "NetyAdmin/internal/domain/entity/system"
@@ -42,10 +41,10 @@ import (
 // 其余方法返回零值；通过 hasChildrenErr / clearRoleMenusErr / deleteErr 控制错误注入。
 type mockMenuRepo struct {
 	hasChildrenResult bool
-	hasChildrenErr   error
+	hasChildrenErr    error
 	clearRoleMenusErr error
-	deleteErr        error
-	deleteCalls      int
+	deleteErr         error
+	deleteCalls       int
 }
 
 func (r *mockMenuRepo) HasChildren(_ context.Context, _ uint) (bool, error) {
@@ -69,11 +68,15 @@ func (r *mockMenuRepo) GetByRouteName(_ context.Context, _ string) (*systemEntit
 func (r *mockMenuRepo) List(_ context.Context, _ *systemRepo.MenuRepoQuery) ([]*systemEntity.Menu, int64, error) {
 	return nil, 0, nil
 }
-func (r *mockMenuRepo) GetTree(_ context.Context) ([]*systemEntity.Menu, error)         { return nil, nil }
-func (r *mockMenuRepo) GetAll(_ context.Context) ([]systemEntity.Menu, error)           { return nil, nil }
-func (r *mockMenuRepo) GetAllPages(_ context.Context) ([]*systemEntity.Menu, error)     { return nil, nil }
-func (r *mockMenuRepo) GetAllWithButtons(_ context.Context) ([]systemEntity.Menu, error) { return nil, nil }
-func (r *mockMenuRepo) GetAllWithApis(_ context.Context) ([]systemEntity.Menu, error)   { return nil, nil }
+func (r *mockMenuRepo) GetTree(_ context.Context) ([]*systemEntity.Menu, error)     { return nil, nil }
+func (r *mockMenuRepo) GetAll(_ context.Context) ([]systemEntity.Menu, error)       { return nil, nil }
+func (r *mockMenuRepo) GetAllPages(_ context.Context) ([]*systemEntity.Menu, error) { return nil, nil }
+func (r *mockMenuRepo) GetAllWithButtons(_ context.Context) ([]systemEntity.Menu, error) {
+	return nil, nil
+}
+func (r *mockMenuRepo) GetAllWithApis(_ context.Context) ([]systemEntity.Menu, error) {
+	return nil, nil
+}
 func (r *mockMenuRepo) ExistsByRouteName(_ context.Context, _ string, _ ...uint) (bool, error) {
 	return false, nil
 }
@@ -91,11 +94,11 @@ var _ systemRepo.MenuRepository = (*mockMenuRepo)(nil)
 type mockButtonRepo struct{ err error }
 
 func (r *mockButtonRepo) ClearRoleButtonsByMenuID(_ context.Context, _ uint) error { return r.err }
-func (r *mockButtonRepo) DeleteByMenuID(_ context.Context, _ uint) error            { return r.err }
+func (r *mockButtonRepo) DeleteByMenuID(_ context.Context, _ uint) error           { return r.err }
 func (r *mockButtonRepo) Create(_ context.Context, _ *systemEntity.Button) error   { return nil }
 func (r *mockButtonRepo) Update(_ context.Context, _ *systemEntity.Button) error   { return nil }
-func (r *mockButtonRepo) Delete(_ context.Context, _ uint) error                    { return nil }
-func (r *mockButtonRepo) ClearRoleButtons(_ context.Context, _ uint) error          { return nil }
+func (r *mockButtonRepo) Delete(_ context.Context, _ uint) error                   { return nil }
+func (r *mockButtonRepo) ClearRoleButtons(_ context.Context, _ uint) error         { return nil }
 func (r *mockButtonRepo) GetByID(_ context.Context, _ uint) (*systemEntity.Button, error) {
 	return nil, gorm.ErrRecordNotFound
 }
@@ -153,12 +156,12 @@ var _ systemRepo.APIRepository = (*mockAPIRepo)(nil)
 
 type mockRoleRepo struct{ err error }
 
-func (r *mockRoleRepo) ClearHomeMenuRef(_ context.Context, _ uint) error { return r.err }
+func (r *mockRoleRepo) ClearHomeMenuRef(_ context.Context, _ uint) error     { return r.err }
 func (r *mockRoleRepo) Create(_ context.Context, _ *systemEntity.Role) error { return nil }
 func (r *mockRoleRepo) Update(_ context.Context, _ *systemEntity.Role) error { return nil }
-func (r *mockRoleRepo) Delete(_ context.Context, _ uint) error              { return nil }
+func (r *mockRoleRepo) Delete(_ context.Context, _ uint) error               { return nil }
 func (r *mockRoleRepo) ClearUserRoles(_ context.Context, _ uint) error       { return nil }
-func (r *mockRoleRepo) ClearPermissions(_ context.Context, _ uint) error    { return nil }
+func (r *mockRoleRepo) ClearPermissions(_ context.Context, _ uint) error     { return nil }
 func (r *mockRoleRepo) GetByID(_ context.Context, _ uint) (*systemEntity.Role, error) {
 	return nil, gorm.ErrRecordNotFound
 }
@@ -181,7 +184,7 @@ var _ systemRepo.RoleRepository = (*mockRoleRepo)(nil)
 // ============== mockMenuCacheMgr：cache.ConfigCache 内存实现 ==============
 // （与 admin_auth_test.go 中的 mockCacheMgr 同构，独立定义以避免同包冲突）
 type mockMenuCacheMgr struct {
-	mu             sync.Mutex
+	mu              sync.Mutex
 	invalidateCalls int
 }
 
@@ -201,31 +204,16 @@ func (m *mockMenuCacheMgr) DeleteFast(_ context.Context, _ string) error { retur
 func (m *mockMenuCacheMgr) GetFast(_ context.Context, _ string, _ []string, _ time.Duration, _ interface{}) error {
 	return nil
 }
-func (m *mockMenuCacheMgr) IsCacheEnabled(_ string) bool                            { return true }
+func (m *mockMenuCacheMgr) IsCacheEnabled(_ string) bool { return true }
 
 var _ cache.ConfigCache = (*mockMenuCacheMgr)(nil)
 
 // ============== 测试夹具 ==============
 
-// setupMenuTestDB 构造 sqlite in-memory DB 仅供 TM 调用 Begin/Commit/Rollback。
-// 不需要 AutoMigrate 任何业务表：mock repos 不实际读写 sqlite。
-func setupMenuTestDB(t *testing.T) *gorm.DB {
-	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	sqlDB, err := db.DB()
-	require.NoError(t, err)
-	sqlDB.SetMaxOpenConns(1)
-	return db
-}
-
 // newTestMenuService 构造 menuService + 配套 mocks。
 // 返回值中的 cacheFast 用于断言 InvalidateByTags 调用次数。
 func newTestMenuService(t *testing.T) (*menuService, *mockMenuRepo, *mockButtonRepo, *mockAPIRepo, *mockRoleRepo, *mockMenuCacheMgr) {
 	t.Helper()
-	db := setupMenuTestDB(t)
-	tm := database.NewTransactionManager(db)
-
 	menuRepo := &mockMenuRepo{}
 	buttonRepo := &mockButtonRepo{}
 	apiRepo := &mockAPIRepo{}
@@ -237,8 +225,8 @@ func newTestMenuService(t *testing.T) (*menuService, *mockMenuRepo, *mockButtonR
 		buttonRepo: buttonRepo,
 		apiRepo:    apiRepo,
 		roleRepo:   roleRepo,
-		cacheFast:   cacheMgr,
-		tm:         tm,
+		cacheFast:  cacheMgr,
+		tm:         &database.MockTxManager{},
 	}
 	return svc, menuRepo, buttonRepo, apiRepo, roleRepo, cacheMgr
 }

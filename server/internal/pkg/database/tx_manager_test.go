@@ -3,38 +3,75 @@ package database
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
 // testEntity 仅用于事务测试的临时表实体，不参与业务，也不做软删除。
 type testEntity struct {
-	ID   uint   `gorm:"primaryKey"`
+	ID   uint `gorm:"primaryKey"`
 	Name string
 }
 
-// setupTestDB 构造一个内存级 SQLite 库并完成 AutoMigrate，
-// 每个用例独立一份，避免用例间数据污染。
-//
-// 注意：SQLite ":memory:" 是 per-connection 的（每个连接独享一份内存库），
-// 若不限制连接池大小，AutoMigrate 在 conn1 建表后，后续查询可能落到 conn2
-// 而报 "no such table"。这里强制 SetMaxOpenConns(1) 让所有操作复用同一连接，
-// 既保证表结构可见，也使事务提交/回滚后的可见性断言稳定可靠。
+// getTestDSN 获取测试数据库 DSN，三档兜底：
+//  1. TEST_PG_DSN 环境变量
+//  2. NETYADMIN_DB_HOST 等逐字段环境变量
+//  3. 默认值：localhost:5432 / postgres / postgres / netyadmin_test
+func getTestDSN() string {
+	if dsn := os.Getenv("TEST_PG_DSN"); dsn != "" {
+		return dsn
+	}
+	host := os.Getenv("NETYADMIN_DB_HOST")
+	if host == "" {
+		host = "localhost"
+	}
+	port := os.Getenv("NETYADMIN_DB_PORT")
+	if port == "" {
+		port = "5432"
+	}
+	user := os.Getenv("NETYADMIN_DB_USER")
+	if user == "" {
+		user = "postgres"
+	}
+	password := os.Getenv("NETYADMIN_DB_PASSWORD")
+	if password == "" {
+		password = "postgres"
+	}
+	dbname := os.Getenv("NETYADMIN_DB_NAME")
+	if dbname == "" {
+		dbname = "netyadmin_test"
+	}
+	sslmode := os.Getenv("NETYADMIN_DB_SSLMODE")
+	if sslmode == "" {
+		sslmode = "disable"
+	}
+	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		host, port, user, password, dbname, sslmode)
+}
+
+// setupTestDB 构造一个 PostgreSQL 测试库连接并完成 AutoMigrate，
+// 每个用例独立创建表（通过 Cleanup 清理），避免用例间数据污染。
 func setupTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+
+	dsn := getTestDSN()
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
 	require.NotNil(t, db)
 
-	sqlDB, err := db.DB()
-	require.NoError(t, err)
-	sqlDB.SetMaxOpenConns(1)
-
 	require.NoError(t, db.AutoMigrate(&testEntity{}))
+
+	// 每个用例结束后清理测试表数据
+	t.Cleanup(func() {
+		db.Exec("DELETE FROM test_entities")
+	})
+
 	return db
 }
 

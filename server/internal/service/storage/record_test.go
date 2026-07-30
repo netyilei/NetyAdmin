@@ -12,12 +12,11 @@
 //
 // Mock 策略：
 //   - recordRepo 使用手写 mock 结构体
-//   - tm 使用真实 *database.TransactionManager + sqlite in-memory
+//   - tm 使用 mockTxManager（database.TxManager 接口的内存实现），不依赖真实数据库
 //   - hmacKey 使用已知常量，配合 utils.SignUploadRecord 生成有效签名
 //   - configSvc / storageMgr / appSvc 在 CompleteUpload 路径不使用，置 nil
 //
 // 注：CompleteUpload 内部使用 tm.WithTransaction 调用 LockRecordByID + FlipStatusToUploaded。
-// sqlite 仅用于支撑 TM 的事务句柄；mock repo 不实际读写 sqlite。
 package storage
 
 import (
@@ -28,7 +27,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
 	storageEntity "NetyAdmin/internal/domain/entity/storage"
@@ -80,9 +78,9 @@ func (r *mockRecordRepo) FlipStatusToUploaded(_ context.Context, _ uint, _ int64
 
 // 以下方法 CompleteUpload 不使用，仅满足接口签名
 func (r *mockRecordRepo) Create(_ context.Context, _ *storageEntity.Record) error { return nil }
-func (r *mockRecordRepo) UpdateSecret(_ context.Context, _ uint, _ string) error    { return nil }
-func (r *mockRecordRepo) Delete(_ context.Context, _ uint) error                    { return nil }
-func (r *mockRecordRepo) DeleteMultiple(_ context.Context, _ []uint) error          { return nil }
+func (r *mockRecordRepo) UpdateSecret(_ context.Context, _ uint, _ string) error  { return nil }
+func (r *mockRecordRepo) Delete(_ context.Context, _ uint) error                  { return nil }
+func (r *mockRecordRepo) DeleteMultiple(_ context.Context, _ []uint) error        { return nil }
 func (r *mockRecordRepo) CleanupExpiredPending(_ context.Context, _ time.Time) (int64, error) {
 	return 0, nil
 }
@@ -108,23 +106,10 @@ var _ storageRepo.RecordRepository = (*mockRecordRepo)(nil)
 
 const testHMACKey = "TestHMACKey-2025-ABC!@#def123"
 
-// setupRecordTestDB 构造 sqlite in-memory DB 仅供 TM 调用 Begin/Commit/Rollback。
-func setupRecordTestDB(t *testing.T) *gorm.DB {
-	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	sqlDB, err := db.DB()
-	require.NoError(t, err)
-	sqlDB.SetMaxOpenConns(1)
-	return db
-}
-
 // newTestRecordService 构造 recordService + 配套 mocks。
 // configSvc / storageMgr / appSvc 在 CompleteUpload 路径不使用，置 nil。
 func newTestRecordService(t *testing.T) (*recordService, *mockRecordRepo) {
 	t.Helper()
-	db := setupRecordTestDB(t)
-	tm := database.NewTransactionManager(db)
 	repo := &mockRecordRepo{}
 
 	svc := &recordService{
@@ -132,7 +117,7 @@ func newTestRecordService(t *testing.T) (*recordService, *mockRecordRepo) {
 		configSvc:  nil,
 		storageMgr: nil,
 		appSvc:     nil,
-		tm:         tm,
+		tm:         &database.MockTxManager{},
 		hmacKey:    testHMACKey,
 	}
 	return svc, repo
@@ -156,15 +141,15 @@ func makePendingRecord(t *testing.T, id uint) *storageEntity.Record {
 
 	r := &storageEntity.Record{
 		StorageConfigID: 1,
-		FileName:         "test.png",
-		FilePath:         objectKey,
-		FileSize:         1024,
-		MimeType:         "image/png",
-		Source:           source,
-		SourceID:         sourceID,
-		Status:           storageEntity.RecordStatusPending,
-		Secret:           secret,
-		ExpiresAt:        &expiresAt,
+		FileName:        "test.png",
+		FilePath:        objectKey,
+		FileSize:        1024,
+		MimeType:        "image/png",
+		Source:          source,
+		SourceID:        sourceID,
+		Status:          storageEntity.RecordStatusPending,
+		Secret:          secret,
+		ExpiresAt:       &expiresAt,
 	}
 	r.ID = id // 通过嵌入的 entity.Model.ID 设置，确保签名验签 ID 一致
 	return r
@@ -178,7 +163,7 @@ func TestCompleteUpload_Success(t *testing.T) {
 	record := makePendingRecord(t, 100)
 	repo.getByIDRecord = record
 	repo.lockRecord = record // 行锁返回同一 record（pending 状态）
-	repo.flipResult = true    // FlipStatusToUploaded 成功
+	repo.flipResult = true   // FlipStatusToUploaded 成功
 
 	vo, err := svc.CompleteUpload(context.Background(),
 		100,

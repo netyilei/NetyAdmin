@@ -9,8 +9,8 @@ import (
 
 	"gorm.io/gorm"
 
-	systemDto "NetyAdmin/internal/interface/admin/dto/system"
 	systemEntity "NetyAdmin/internal/domain/entity/system"
+	systemDto "NetyAdmin/internal/interface/admin/dto/system"
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/errorx"
@@ -31,14 +31,14 @@ type ButtonService interface {
 
 type buttonService struct {
 	buttonRepo systemRepo.ButtonRepository
-	cacheFast   cache.ConfigCache
-	tm         *database.TransactionManager
+	cacheFast  cache.ConfigCache
+	tm         database.TxManager
 }
 
-func NewButtonService(buttonRepo systemRepo.ButtonRepository, cacheFast cache.ConfigCache, tm *database.TransactionManager) ButtonService {
+func NewButtonService(buttonRepo systemRepo.ButtonRepository, cacheFast cache.ConfigCache, tm database.TxManager) ButtonService {
 	return &buttonService{
 		buttonRepo: buttonRepo,
-		cacheFast:   cacheFast,
+		cacheFast:  cacheFast,
 		tm:         tm,
 	}
 }

@@ -32,16 +32,16 @@ type DictService interface {
 }
 
 type dictService struct {
-	dictRepo dictRepo.DictRepository
+	dictRepo  dictRepo.DictRepository
 	cacheFast cache.ConfigCache
-	tm       *database.TransactionManager
+	tm        database.TxManager
 }
 
-func NewDictService(dictRepo dictRepo.DictRepository, cacheFast cache.ConfigCache, tm *database.TransactionManager) DictService {
+func NewDictService(dictRepo dictRepo.DictRepository, cacheFast cache.ConfigCache, tm database.TxManager) DictService {
 	return &dictService{
-		dictRepo: dictRepo,
+		dictRepo:  dictRepo,
 		cacheFast: cacheFast,
-		tm:       tm,
+		tm:        tm,
 	}
 }
 

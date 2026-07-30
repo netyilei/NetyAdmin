@@ -44,7 +44,7 @@ type configService struct {
 	cache      cache.ConfigCache
 	eventBus   pubsub.EventBus
 	aesKey     string
-	tm         *database.TransactionManager
+	tm         database.TxManager
 }
 
 func NewConfigService(
@@ -54,7 +54,7 @@ func NewConfigService(
 	cache cache.ConfigCache,
 	eventBus pubsub.EventBus,
 	aesKey string,
-	tm *database.TransactionManager,
+	tm database.TxManager,
 ) ConfigService {
 	return &configService{
 		configRepo: configRepo,

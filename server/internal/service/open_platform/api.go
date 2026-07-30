@@ -29,18 +29,18 @@ type OpenApiService interface {
 }
 
 type openApiService struct {
-	apiRepo  openRepo.OpenApiRepository
-	appRepo  openRepo.AppRepository
+	apiRepo   openRepo.OpenApiRepository
+	appRepo   openRepo.AppRepository
 	cacheFast cache.ConfigCache
-	tm       *database.TransactionManager
+	tm        database.TxManager
 }
 
-func NewOpenApiService(apiRepo openRepo.OpenApiRepository, appRepo openRepo.AppRepository, cacheFast cache.ConfigCache, tm *database.TransactionManager) OpenApiService {
+func NewOpenApiService(apiRepo openRepo.OpenApiRepository, appRepo openRepo.AppRepository, cacheFast cache.ConfigCache, tm database.TxManager) OpenApiService {
 	return &openApiService{
-		apiRepo:  apiRepo,
-		appRepo:  appRepo,
+		apiRepo:   apiRepo,
+		appRepo:   appRepo,
 		cacheFast: cacheFast,
-		tm:       tm,
+		tm:        tm,
 	}
 }
 
