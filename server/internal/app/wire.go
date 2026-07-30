@@ -157,7 +157,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	// 6. Services & Handlers
 	tokenStore := userServicePkg.NewTokenStore(repos.user, lazyCacheMgr)
 	services := initServices(repos, jwtInstance, lazyCacheMgr, redisClient, taskManager, configWatcher, cfg, captchaStore, eventBus, tm, captchaMgr, tokenStore)
-	handlers := initHandlers(services, repos)
+	handlers := initHandlers(services)
 
 	// 7. Register PubSubBus subscribers（fail-closed：订阅失败阻断启动）
 	// ConfigSync

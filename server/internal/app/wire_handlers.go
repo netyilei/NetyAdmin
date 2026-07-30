@@ -52,7 +52,7 @@ type handlerSet struct {
 	}
 }
 
-func initHandlers(services *serviceSet, repos *repositorySet) *handlerSet {
+func initHandlers(services *serviceSet) *handlerSet {
 	h := &handlerSet{}
 	h.auth = auth.NewAuthHandler(services.admin, services.captcha)
 	h.common = common.NewCommonHandler(services.captcha)
