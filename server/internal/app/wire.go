@@ -2,10 +2,7 @@ package app
 
 import (
 	"context"
-	"crypto/rsa"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,27 +11,11 @@ import (
 
 	sentrygin "github.com/getsentry/sentry-go/gin"
 	"github.com/gin-gonic/gin"
-	"github.com/mojocn/base64Captcha"
-	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
 	"NetyAdmin/internal/config"
-	"NetyAdmin/internal/interface/admin/http/handler/v1/admin"
-	"NetyAdmin/internal/interface/admin/http/handler/v1/auth"
-	"NetyAdmin/internal/interface/admin/http/handler/v1/common"
-	"NetyAdmin/internal/interface/admin/http/handler/v1/content"
-	dictHandler "NetyAdmin/internal/interface/admin/http/handler/v1/dict"
-	"NetyAdmin/internal/interface/admin/http/handler/v1/error_log"
-	ipacHandler "NetyAdmin/internal/interface/admin/http/handler/v1/ipac"
-	msgHandler "NetyAdmin/internal/interface/admin/http/handler/v1/message"
-	openHandler "NetyAdmin/internal/interface/admin/http/handler/v1/open_platform"
-	"NetyAdmin/internal/interface/admin/http/handler/v1/operation_log"
-	"NetyAdmin/internal/interface/admin/http/handler/v1/route"
-	storageHandler "NetyAdmin/internal/interface/admin/http/handler/v1/storage"
-	"NetyAdmin/internal/interface/admin/http/handler/v1/system"
-	taskHandler "NetyAdmin/internal/interface/admin/http/handler/v1/task"
-	userHandler "NetyAdmin/internal/interface/admin/http/handler/v1/user"
-	clientHandler "NetyAdmin/internal/interface/client/http/handler/v1"
+	"NetyAdmin/internal/interface/admin/http/router"
+	clientRouter "NetyAdmin/internal/interface/client/http/router"
 	"NetyAdmin/internal/middleware"
 	authPkg "NetyAdmin/internal/pkg/auth"
 	"NetyAdmin/internal/pkg/cache"
@@ -43,46 +24,26 @@ import (
 	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
-	msgPkg "NetyAdmin/internal/pkg/message"
 	"NetyAdmin/internal/pkg/pubsub"
-	ratelimitPkg "NetyAdmin/internal/pkg/ratelimit"
 	pkgredis "NetyAdmin/internal/pkg/redis"
 	"NetyAdmin/internal/pkg/response"
 	pkgSentry "NetyAdmin/internal/pkg/sentry"
-	storagePkg "NetyAdmin/internal/pkg/storage"
 	"NetyAdmin/internal/pkg/task"
-	"NetyAdmin/internal/pkg/utils"
 
-	logEntity "NetyAdmin/internal/domain/entity/log"
-	openEntity "NetyAdmin/internal/domain/entity/open_platform"
-	taskEntity "NetyAdmin/internal/domain/entity/task"
-	"NetyAdmin/internal/interface/admin/http/router"
-	clientRouter "NetyAdmin/internal/interface/client/http/router"
 	"NetyAdmin/internal/job"
 	"NetyAdmin/internal/pkg/migration"
-	contentRepo "NetyAdmin/internal/repository/content"
-	dictRepoPkg "NetyAdmin/internal/repository/dict"
-	ipacRepo "NetyAdmin/internal/repository/ipac"
-	logRepo "NetyAdmin/internal/repository/log"
-	msgRepo "NetyAdmin/internal/repository/message"
-	openRepo "NetyAdmin/internal/repository/open_platform"
-	storageRepo "NetyAdmin/internal/repository/storage"
-	sysRepo "NetyAdmin/internal/repository/system"
-	taskRepoPkg "NetyAdmin/internal/repository/task"
-	userRepoPkg "NetyAdmin/internal/repository/user"
-	contentAdminService "NetyAdmin/internal/service/content/admin"
-	contentClientService "NetyAdmin/internal/service/content/client"
-	dictServicePkg "NetyAdmin/internal/service/dict"
-	ipacServicePkg "NetyAdmin/internal/service/ipac"
-	logService "NetyAdmin/internal/service/log"
-	msgServicePkg "NetyAdmin/internal/service/message"
-	openServicePkg "NetyAdmin/internal/service/open_platform"
-	storageService "NetyAdmin/internal/service/storage"
-	systemService "NetyAdmin/internal/service/system"
-	taskServicePkg "NetyAdmin/internal/service/task"
 	userServicePkg "NetyAdmin/internal/service/user"
 )
 
+// Bootstrap 是应用主初始化函数（依赖注入组合根）。
+//
+// 接收解析好的 *config.Config 和 GORM *gorm.DB 连接池，
+// 依次初始化 Sentry、DB Migration、Redis、Cache、JWT、Repositories、
+// Services、Handlers、PubSub 订阅、Router、Task Registration，
+// 最后组装为 *App 返回。main.go 拿到 *App 后调用 Run() 启动 HTTP 服务。
+//
+// 初始化顺序由依赖关系决定（如：logBus 必须在 taskService 之前创建，
+// storageConfig 必须在 uploadRecord 之前创建等）。
 func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	// 0. Sentry 错误追踪初始化（DSN 为空时自动跳过）
 	//    尽早初始化，确保后续 panic 和错误都能被捕获
@@ -242,7 +203,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 
 	// 8. Router
 	authMW := middleware.NewAuthMiddleware(jwtInstance, repos.user, tokenStore, repos.admin, lazyCacheMgr)
-	router := router.NewRouter(
+	r := router.NewRouter(
 		handlers.auth,
 		handlers.common,
 		handlers.admin,
@@ -283,7 +244,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	)...)
 	taskManager.Register(services.msgSendJob)
 
-	cRouter := clientRouter.NewClientRouter(
+	cr := clientRouter.NewClientRouter(
 		handlers.client.echo,
 		handlers.client.user,
 		handlers.client.auth,
@@ -336,8 +297,9 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	// 公开路由（含 /health）天然豁免 IPAC 检查，Redis 故障 fail-closed 不会影响健康检查。
 	engine.GET("/health", dbHealthChecker.Handler())
 
-	router.Register(engine)
-	cRouter.Register(engine)
+	// 路由注册
+	r.Register(engine)
+	cr.Register(engine)
 	gin.DefaultWriter = os.Stdout
 
 	// 静态文件服务：提供前端 SPA 页面（admin-web/dist/）
@@ -360,407 +322,4 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	})
 
 	return NewApp(cfg, db, engine, tm, dbHealthChecker, taskManager, services.logBus, eventBus), nil
-}
-
-// generateNodeID 生成进程级唯一节点标识，用于事件总线过滤本节点回环消息
-// 格式: hostname-ULID后8位（hostname 提供主机维度，ULID 后缀提供进程维度）
-func generateNodeID() string {
-	host, err := os.Hostname()
-	if err != nil || host == "" {
-		host = "unknown"
-	}
-	ulid := utils.NewULID()
-	if len(ulid) > 8 {
-		ulid = ulid[len(ulid)-8:]
-	}
-	return fmt.Sprintf("%s-%s", host, ulid)
-}
-
-type repositorySet struct {
-	systemConfig       sysRepo.ConfigRepository
-	admin              sysRepo.AdminRepository
-	role               sysRepo.RoleRepository
-	menu               sysRepo.MenuRepository
-	api                sysRepo.APIRepository
-	button             sysRepo.ButtonRepository
-	operationLog       *logRepo.OperationRepository
-	errorLog           *logRepo.ErrorRepository
-	storageConfig      storageRepo.ConfigRepository
-	uploadRecord       storageRepo.RecordRepository
-	contentCategory    contentRepo.ContentCategoryRepository
-	contentArticle     contentRepo.ContentArticleRepository
-	contentBannerGroup contentRepo.ContentBannerGroupRepository
-	contentBannerItem  contentRepo.ContentBannerItemRepository
-	taskLog            taskRepoPkg.TaskLogRepository
-	dict               dictRepoPkg.DictRepository
-	ipac               ipacRepo.IPACRepository
-	app                openRepo.AppRepository
-	openApi            openRepo.OpenApiRepository
-	openLog            openRepo.OpenLogRepository
-	message            msgRepo.MsgRepository
-	user               userRepoPkg.UserRepository
-}
-
-func initRepositories(db *gorm.DB) *repositorySet {
-	return &repositorySet{
-		systemConfig:       sysRepo.NewConfigRepository(db),
-		admin:              sysRepo.NewAdminRepository(db),
-		role:               sysRepo.NewRoleRepository(db),
-		menu:               sysRepo.NewMenuRepository(db),
-		api:                sysRepo.NewAPIRepository(db),
-		button:             sysRepo.NewButtonRepository(db),
-		operationLog:       logRepo.NewOperationRepository(db),
-		errorLog:           logRepo.NewErrorRepository(db),
-		storageConfig:      storageRepo.NewConfigRepository(db),
-		uploadRecord:       storageRepo.NewRecordRepository(db),
-		contentCategory:    contentRepo.NewContentCategoryRepository(db),
-		contentArticle:     contentRepo.NewContentArticleRepository(db),
-		contentBannerGroup: contentRepo.NewContentBannerGroupRepository(db),
-		contentBannerItem:  contentRepo.NewContentBannerItemRepository(db),
-		taskLog:            taskRepoPkg.NewTaskLogRepository(db),
-		dict:               dictRepoPkg.NewDictRepository(db),
-		ipac:               ipacRepo.NewIPACRepository(db),
-		app:                openRepo.NewAppRepository(db),
-		openApi:            openRepo.NewOpenApiRepository(db),
-		openLog:            openRepo.NewOpenLogRepository(db),
-		message:            msgRepo.NewMsgRepository(db),
-		user:               userRepoPkg.NewUserRepository(db),
-	}
-}
-
-type serviceSet struct {
-	admin                   systemService.AdminService
-	role                    systemService.RoleService
-	menu                    systemService.MenuService
-	api                     systemService.APIService
-	button                  systemService.ButtonService
-	task                    taskServicePkg.TaskService
-	sysConfig               systemService.ConfigService
-	dict                    dictServicePkg.DictService
-	ipac                    ipacServicePkg.IPACService
-	app                     openServicePkg.AppService
-	openApi                 openServicePkg.OpenApiService
-	openLog                 openServicePkg.OpenLogService
-	message                 msgServicePkg.MessageService
-	msgSendJob              task.Task
-	userAdmin               userServicePkg.UserAdminService
-	userClient              userServicePkg.UserClientService
-	verification            userServicePkg.VerificationService
-	operationLog            logService.OperationService
-	errorLog                logService.ErrorService
-	storageConfig           storageService.ConfigService
-	uploadRecord            storageService.RecordService
-	contentCategoryAdmin    contentAdminService.CategoryService
-	contentArticleAdmin     contentAdminService.ArticleService
-	contentBannerGroupAdmin contentAdminService.BannerGroupService
-	contentBannerItemAdmin  contentAdminService.BannerItemService
-
-	contentCategoryClient    contentClientService.CategoryService
-	contentArticleClient     contentClientService.ArticleService
-	contentBannerGroupClient contentClientService.BannerGroupService
-	contentBannerItemClient  contentClientService.BannerItemService
-	emailDriver              msgPkg.Driver
-	logBus                   logService.LogBusService
-	captcha                  systemService.CaptchaService
-}
-
-func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr *cache.LazyCacheManager, redisClient *redis.Client, taskManager *task.Manager, configWatcher configsync.ConfigWatcher, cfg *config.Config, captchaStore base64Captcha.Store, eventBus pubsub.EventBus, tm database.TxManager, captchaMgr *captcha.Manager, tokenStore userServicePkg.TokenStore) *serviceSet {
-	storageMgr := storagePkg.NewManager(storagePkg.NewMinioDriverFactory())
-	// 限流器：复用 Bootstrap 已建立的 Redis 连接，Redis 不可用时自动降级为进程内内存限流
-	rateLimiter := ratelimitPkg.New(redisClient, cfg.Redis.Prefix)
-
-	s := &serviceSet{}
-
-	// ====================================================================
-	// Phase 1: 创建 logBus（必须先于 taskService / openLog）
-	//
-	// 循环依赖处理策略（Task 21）：
-	// taskService 与 openLog 通过 recordFunc 闭包将日志写入 logBus，
-	// 形成「service → logBus」的单向依赖；logBus 自身仅依赖 repos
-	// （operationLog / errorLog / openLog / taskLog）+ configWatcher，
-	// 不反向依赖任何 service。因此本无真正的循环依赖，原 wire.go 中的
-	// 「闭包捕获 s.logBus + 延迟到末尾才赋值」trick 是人为引入的初始化
-	// 顺序问题——它依赖 Go 闭包对 s 指针的延迟绑定：闭包定义时 s.logBus
-	// 为 nil，仅在运行时（HTTP 请求 / 任务完成回调）才被读取，那时 s 已
-	// 经完整构造。该模式虽在当前调用链下安全，但隐式且脆弱——任何人在
-	// initServices 内部、logBus 赋值前同步调用 recordFunc 都会 nil-panic。
-	//
-	// 修复方案（Option B：拆分初始化阶段）：把 logBus 的构造提前到所有
-	// 依赖它的 service 之前，recordFunc 闭包改为直接捕获已初始化的 logBus
-	// 局部变量，彻底消除延迟绑定 trick。这样即使闭包被同步调用也不会 panic，
-	// 且初始化顺序在代码上一目了然，不再依赖隐式约定。
-	// ====================================================================
-	writers := map[logEntity.LogType]logService.LogBatchWriter{
-		logEntity.LogTypeOperation: logService.NewOperationLogWriter(repos.operationLog),
-		logEntity.LogTypeError:     logService.NewErrorLogWriter(repos.errorLog),
-		logEntity.LogTypeOpen:      logService.NewOpenLogWriter(repos.openLog),
-		logEntity.LogTypeTask:      logService.NewTaskLogWriter(repos.taskLog),
-	}
-	configs := map[logEntity.LogType]logService.BucketConfig{
-		logEntity.LogTypeOperation: {Priority: logEntity.PriorityP1},
-		logEntity.LogTypeError:     {Priority: logEntity.PriorityP0},
-		logEntity.LogTypeOpen:      {Priority: logEntity.PriorityP2},
-		logEntity.LogTypeTask:      {Priority: logEntity.PriorityP2},
-	}
-	logBus := logService.NewLogBusService(writers, configs, configWatcher)
-	s.logBus = logBus
-
-	// ====================================================================
-	// Phase 2: 创建其余 services（recordFunc 闭包直接捕获上方 logBus 局部
-	// 变量，不再依赖 s.logBus 延迟绑定）
-	// ====================================================================
-	s.admin = systemService.NewAdminService(repos.admin, repos.role, jwtInstance, lazyCacheMgr, lazyCacheMgr, tokenStore, tm)
-	s.role = systemService.NewRoleService(repos.role, repos.menu, repos.api, repos.button, lazyCacheMgr, tm)
-	s.menu = systemService.NewMenuService(repos.menu, repos.button, repos.api, repos.role, lazyCacheMgr, tm)
-	s.api = systemService.NewAPIService(repos.api, lazyCacheMgr, tm)
-	s.button = systemService.NewButtonService(repos.button, lazyCacheMgr, tm)
-	s.task = taskServicePkg.NewTaskService(taskManager, repos.taskLog, repos.systemConfig, configWatcher, func(ctx context.Context, logRecord *taskEntity.TaskLog) error {
-		return logBus.Record(ctx, logRecord)
-	}, tm)
-
-	// Message Drivers：仅在对应 [email]/[sms].enabled = true 时注入 driver。
-	// 未启用的 channel 不在 drivers map 中，发送该 channel 的消息会在 job 层返回
-	// "no driver found for channel: xxx"（message_job.go 的既有失败路径）。
-	configProvider := msgPkg.NewWatcherConfigProvider(configWatcher)
-	drivers := make(map[string]msgPkg.Driver)
-	if cfg.Email.Enabled {
-		drivers["email"] = msgPkg.NewEmailDriver(msgPkg.EmailConfig{
-			Host:           cfg.Email.Host,
-			Port:           cfg.Email.Port,
-			User:           cfg.Email.User,
-			Password:       cfg.Email.Password,
-			From:           cfg.Email.From,
-			SSL:            cfg.Email.SSL,
-			StartTLS:       cfg.Email.StartTLS,
-			AuthType:       cfg.Email.AuthType,
-			ConnectTimeout: cfg.Email.ConnectTimeout,
-			SendTimeout:    cfg.Email.SendTimeout,
-		}, configProvider)
-		s.emailDriver = drivers["email"]
-		slog.Info("Email driver 已启用", "host", cfg.Email.Host, "port", cfg.Email.Port)
-	} else {
-		slog.Info("Email driver 未启用（[email].enabled = false）")
-	}
-
-	if cfg.Sms.Enabled {
-		drivers["sms"] = msgPkg.NewTencentSmsDriver(msgPkg.SmsConfig{
-			SecretID:  cfg.Sms.SecretID,
-			SecretKey: cfg.Sms.SecretKey,
-			AppID:     cfg.Sms.AppID,
-			SignName:  cfg.Sms.SignName,
-			Region:    cfg.Sms.Region,
-		}, configProvider)
-		slog.Info("SMS driver 已启用 (tencent)", "region", cfg.Sms.Region, "sign_name", cfg.Sms.SignName)
-	} else {
-		slog.Info("SMS driver 未启用（[sms].enabled = false）")
-	}
-
-	s.sysConfig = systemService.NewConfigService(repos.systemConfig, configWatcher, eventBus, s.emailDriver)
-	s.dict = dictServicePkg.NewDictService(repos.dict, lazyCacheMgr, tm)
-	s.ipac = ipacServicePkg.NewIPACService(repos.ipac, eventBus, tm)
-	s.app = openServicePkg.NewAppService(repos.app, lazyCacheMgr, lazyCacheMgr, cfg.Security.AESKey, s.ipac, repos.ipac, storageMgr, configWatcher, rateLimiter, tm)
-	s.openApi = openServicePkg.NewOpenApiService(repos.openApi, repos.app, lazyCacheMgr, tm)
-	s.openLog = openServicePkg.NewOpenLogService(repos.openLog, func(ctx context.Context, logRecord *openEntity.OpenPlatformLog) error {
-		return logBus.Record(ctx, logRecord)
-	})
-
-	s.message = msgServicePkg.NewMessageService(repos.message, taskManager, drivers, lazyCacheMgr)
-	s.msgSendJob = msgServicePkg.NewMsgSendJob(repos.message, drivers, configWatcher, tm)
-	s.verification = userServicePkg.NewVerificationService(lazyCacheMgr, s.message, configWatcher, captchaStore)
-	// userBase 由 admin/client 两端 service 共享：复用 repo/jwt/cache/tm 等底层依赖，
-	// 避免重复构造与字段漂移。两端 service 仅 import 本端 DTO，保证 BFF 端隔离（spec D4）。
-	userBase := userServicePkg.NewUserBase(repos.user, jwtInstance, s.verification, configWatcher, storageMgr, captchaStore, tokenStore, lazyCacheMgr, tm)
-	s.userAdmin = userServicePkg.NewUserAdminService(userBase)
-	s.userClient = userServicePkg.NewUserClientService(userBase)
-
-	s.operationLog = logService.NewOperationService(repos.operationLog)
-	s.errorLog = logService.NewErrorService(repos.errorLog, configWatcher, lazyCacheMgr, logBus)
-	s.captcha = systemService.NewCaptchaService(captchaMgr, configWatcher)
-	s.storageConfig = storageService.NewConfigService(repos.storageConfig, repos.uploadRecord, storageMgr, lazyCacheMgr, eventBus, cfg.Security.AESKey, tm)
-	s.uploadRecord = storageService.NewRecordService(repos.uploadRecord, s.storageConfig, storageMgr, s.app, cfg.Security.UploadHMACKey, tm)
-	// Admin content services
-	s.contentCategoryAdmin = contentAdminService.NewCategoryService(repos.contentCategory, repos.contentArticle, s.storageConfig, lazyCacheMgr, configWatcher, tm)
-	s.contentArticleAdmin = contentAdminService.NewArticleService(repos.contentArticle, repos.contentCategory, lazyCacheMgr, configWatcher)
-	s.contentBannerGroupAdmin = contentAdminService.NewBannerGroupService(repos.contentBannerGroup, repos.contentBannerItem, s.storageConfig, lazyCacheMgr, configWatcher, tm)
-	s.contentBannerItemAdmin = contentAdminService.NewBannerItemService(repos.contentBannerItem, repos.contentBannerGroup, repos.contentArticle, lazyCacheMgr)
-
-	// Client content services（共享 Repository + cacheFast；CategoryService 委托 admin 实现避免重复）
-	s.contentArticleClient = contentClientService.NewArticleService(repos.contentArticle, repos.contentCategory, lazyCacheMgr, configWatcher)
-	s.contentBannerGroupClient = contentClientService.NewBannerGroupService(repos.contentBannerGroup, lazyCacheMgr, configWatcher)
-	s.contentBannerItemClient = contentClientService.NewBannerItemService(repos.contentBannerItem)
-	s.contentCategoryClient = contentClientService.NewCategoryService(s.contentCategoryAdmin)
-
-	if err := s.storageConfig.LoadAllConfigs(context.Background()); err != nil {
-		slog.Error("load storage configs failed", "err", err)
-	}
-
-	return s
-}
-
-type handlerSet struct {
-	auth         *auth.AuthHandler
-	common       *common.CommonHandler
-	admin        *admin.AdminHandler
-	operationLog *operation_log.OperationLogHandler
-	errorLog     *error_log.ErrorLogHandler
-	system       *system.SystemHandler
-	storage      *storageHandler.StorageHandler
-	ipac         *ipacHandler.IPACHandler
-	app          *openHandler.AppHandler
-	openApi      *openHandler.OpenApiHandler
-	openLog      *openHandler.OpenLogHandler
-	message      *msgHandler.MessageHandler
-	dict         *dictHandler.DictHandler
-	task         *taskHandler.TaskHandler
-	userAdmin    *userHandler.UserHandler
-	content      struct {
-		Category    *content.ContentCategoryHandler
-		Article     *content.ContentArticleHandler
-		BannerGroup *content.ContentBannerGroupHandler
-		BannerItem  *content.ContentBannerItemHandler
-	}
-	route  *route.RouteHandler
-	client struct {
-		echo    *clientHandler.EchoHandler
-		user    *clientHandler.UserHandler
-		auth    *clientHandler.AuthHandler
-		message *clientHandler.MessageHandler
-		content *clientHandler.ContentHandler
-		storage *clientHandler.ClientStorageHandler
-	}
-}
-
-func initHandlers(services *serviceSet, repos *repositorySet) *handlerSet {
-	h := &handlerSet{}
-	h.auth = auth.NewAuthHandler(services.admin, services.captcha)
-	h.common = common.NewCommonHandler(services.captcha)
-	h.admin = admin.NewAdminHandler(services.admin)
-	h.operationLog = operation_log.NewOperationLogHandler(services.operationLog)
-	h.errorLog = error_log.NewErrorLogHandler(services.errorLog)
-	h.system = system.NewSystemHandler(services.role, services.menu, services.api, services.button, services.sysConfig)
-	h.storage = storageHandler.NewStorageHandler(services.storageConfig, services.uploadRecord)
-	h.ipac = ipacHandler.NewIPACHandler(services.ipac)
-	h.app = openHandler.NewAppHandler(services.app)
-	h.openApi = openHandler.NewOpenApiHandler(services.openApi)
-	h.openLog = openHandler.NewOpenLogHandler(services.openLog)
-	h.message = msgHandler.NewMessageHandler(services.message)
-	h.dict = dictHandler.NewDictHandler(services.dict)
-	h.task = taskHandler.NewTaskHandler(services.task)
-	h.userAdmin = userHandler.NewUserHandler(services.userAdmin)
-	h.content.Category = content.NewContentCategoryHandler(services.contentCategoryAdmin)
-	h.content.Article = content.NewContentArticleHandler(services.contentArticleAdmin)
-	h.content.BannerGroup = content.NewContentBannerGroupHandler(services.contentBannerGroupAdmin)
-	h.content.BannerItem = content.NewContentBannerItemHandler(services.contentBannerItemAdmin)
-	h.route = route.NewRouteHandler(services.menu, services.admin)
-
-	h.client.echo = clientHandler.NewEchoHandler()
-	h.client.user = clientHandler.NewUserHandler(services.userClient, services.uploadRecord)
-	h.client.auth = clientHandler.NewAuthHandler(services.verification, services.captcha, services.userClient)
-	h.client.message = clientHandler.NewMessageHandler(services.message)
-	h.client.content = clientHandler.NewContentHandler(services.contentArticleClient, services.contentCategoryClient, services.contentBannerGroupClient, services.contentBannerItemClient)
-	h.client.storage = clientHandler.NewClientStorageHandler(services.uploadRecord)
-
-	return h
-}
-
-// safeSubscribe 包装 eventBus.Subscribe：返回 error 实现 fail-closed。
-// panic 恢复下沉到 pubsub/bus.go 的 dispatch 层（通过 recovery.GoSafe）。
-//
-// 设计说明：PubSub 消息分发是异步的，dispatch 在 goroutine 中调用 handler。
-// 早期版本在 safeSubscribe 内部做 sync recover 包裹，但由于 dispatch 启动
-// goroutine 时已用 recovery.GoSafe 包裹（SubTask 5.3），此处再包一层
-// recover 属于冗余。简化为透传 handler，让恢复逻辑统一由 dispatch 的 GoSafe
-// 负责——所有 PubSub 异步路径的 panic 都走同一条「slog.Error + Sentry
-// CaptureException」管线，避免恢复逻辑分散在多处导致行为不一致。
-//
-// handler 接收 ctx，dispatch 已在其中通过 msg.Meta 恢复 request_id 到子 ctx
-// （Task 8.4），handler 内部可用 slogutil.LoggerFromContext(ctx) 关联到原始请求。
-//
-// fail-closed 语义（P1-7）：订阅失败（如 topic 已注册 / 注册表写入异常）会
-// 导致关键事件（ConfigSync / StorageSync / CacheInvalidation / IPACReload /
-// CacheDelete）不被消费，服务"看起来正常"实则数据不一致。因此 Subscribe
-// 失败必须阻断 Bootstrap 启动，调用方须 `return nil, err`。
-//
-// 保留此函数是为了维持 wire.go 调用点的可读性（语义化命名），并作为未来
-// 若需要在 Subscribe 注册阶段做扩展（如 metrics 埋点）的扩展点。
-func safeSubscribe(bus pubsub.EventBus, topic string, handler func(ctx context.Context, msg []byte)) error {
-	if err := bus.Subscribe(topic, handler); err != nil {
-		return fmt.Errorf("subscribe %s: %w", topic, err)
-	}
-	return nil
-}
-
-// loadRSAPrivateKey 从 config 加载 RSA 私钥用于 RS256 签发。
-// 优先读 PrivateKeyFile；为空则用 PrivateKeyPEM 内联。两者均空返回 error（fail-closed）。
-// 同时兼容 PKCS#1（RSA PRIVATE KEY）与 PKCS#8（PRIVATE KEY）两种 PEM 编码。
-func loadRSAPrivateKey(cfg *config.JWTConfig) (*rsa.PrivateKey, error) {
-	pemBytes, err := loadPEMSource(cfg.PrivateKeyFile, cfg.PrivateKeyPEM)
-	if err != nil {
-		return nil, fmt.Errorf("读取私钥失败: %w", err)
-	}
-	block, _ := pem.Decode(pemBytes)
-	if block == nil {
-		return nil, fmt.Errorf("私钥 PEM 解码失败：不是合法的 PEM 格式")
-	}
-
-	// 优先尝试 PKCS#1（传统 RSA PRIVATE KEY 格式）
-	if key, err := x509.ParsePKCS1PrivateKey(block.Bytes); err == nil {
-		return key, nil
-	}
-
-	// 回退到 PKCS#8（通用 PRIVATE KEY 格式，可能含 ECDSA/RSA 等）
-	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("私钥解析失败（PKCS#1/PKCS#8 均不支持）: %w", err)
-	}
-	rsaKey, ok := key.(*rsa.PrivateKey)
-	if !ok {
-		return nil, fmt.Errorf("私钥不是 RSA 类型（实际类型 %T），RS256 签名仅支持 RSA 私钥", key)
-	}
-	return rsaKey, nil
-}
-
-// loadRSAPublicKey 从 config 加载 RSA 公钥用于 RS256 验签。
-// 优先读 PublicKeyFile；为空则用 PublicKeyPEM 内联。两者均空返回 error（fail-closed）。
-// 公钥统一使用 PKIX 编码（PUBLIC KEY PEM block）。
-func loadRSAPublicKey(cfg *config.JWTConfig) (*rsa.PublicKey, error) {
-	pemBytes, err := loadPEMSource(cfg.PublicKeyFile, cfg.PublicKeyPEM)
-	if err != nil {
-		return nil, fmt.Errorf("读取公钥失败: %w", err)
-	}
-	block, _ := pem.Decode(pemBytes)
-	if block == nil {
-		return nil, fmt.Errorf("公钥 PEM 解码失败：不是合法的 PEM 格式")
-	}
-
-	// PKIX 公钥解析（适用于 "PUBLIC KEY" PEM block，X.509 SubjectPublicKeyInfo）
-	key, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
-		// 兼容 PKCS#1 RSA PUBLIC KEY（少数工具导出格式）
-		if rsaPub, perr := x509.ParsePKCS1PublicKey(block.Bytes); perr == nil {
-			return rsaPub, nil
-		}
-		return nil, fmt.Errorf("公钥解析失败（PKIX/PKCS#1 均不支持）: %w", err)
-	}
-	rsaKey, ok := key.(*rsa.PublicKey)
-	if !ok {
-		return nil, fmt.Errorf("公钥不是 RSA 类型（实际类型 %T），RS256 验签仅支持 RSA 公钥", key)
-	}
-	return rsaKey, nil
-}
-
-// loadPEMSource 统一加载 PEM 内容：优先读 file path，为空则用内联 PEM 字符串。
-// file path 与 inline 同时为空返回 error（fail-closed）。
-func loadPEMSource(filePath, inlinePEM string) ([]byte, error) {
-	if filePath != "" {
-		data, err := os.ReadFile(filePath)
-		if err != nil {
-			return nil, fmt.Errorf("读取文件 %q 失败: %w", filePath, err)
-		}
-		return data, nil
-	}
-	if inlinePEM == "" {
-		return nil, fmt.Errorf("file path 与 inline PEM 均为空（fail-closed）")
-	}
-	return []byte(inlinePEM), nil
 }

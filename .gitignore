@@ -32,3 +32,9 @@ AGENTS.md
 SHARED.md
 DESIGN.md
 .trae/
+
+# AI 智能体会话产物（计划文件、智能体输出等）
+.zcode/
+
+# AI 记忆系统本地备份
+_agentmemory_backup/
