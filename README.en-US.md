@@ -41,7 +41,7 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 | Module | Features |
 |--------|----------|
 | **RBAC** | Admin, Role, Menu, Button, API management |
-| **User Module** | Client-side user system, multi-terminal login, TokenStore abstraction (cache/database), account lock & auto-unlock, secure encryption |
+| **User Module** | Client-side user system, multi-terminal login, TokenStore abstraction (cache/database), account lock & auto-unlock, secure encryption, OAuth third-party account binding base (OAuthBindingService), multi-type user JWT auth extension (TypedUserJWTAuth + RegisterTypedAuthModule) |
 | **Message Hub** | Unified sending entry (SMS/Email/Internal), template rendering, async retry, STARTTLS support |
 | **Open Platform** | AppKey authentication, secure signature, configurable distributed rate limiting (token bucket), Scope permissions, app-level storage binding |
 | **IP Access Control** | Global/App-level IP governance, CIDR matching, high-performance memory filtering |
