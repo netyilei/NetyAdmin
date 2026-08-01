@@ -17,6 +17,8 @@
 - **安全加固**：密码使用 bcrypt 加密，支持图形验证码与消息验证码协同校验。
 - **登录锁定**：密码错误次数超限自动锁定账户，支持 TTL 自动解锁、管理员解锁、找回密码解锁。
 - **灵活适配**：支持手机号、邮箱、用户名多种注册/登录方式。
+- **OAuth 绑定基座**：内置 `OAuthBindingService`，提供第三方账号绑定关系的统一存储与查询能力（FindByOpenID / FindByUnionID / Bind / Unbind / ListByUserID），下游项目仅需实现 provider 适配（调用微信/支付宝/GitHub/Apple 等 API 换取 openid），无需重复实现绑定关系管理。读路径走 ConfigCache（L1+L2 链），写路径在事务提交后失效缓存。
+- **多类型用户扩展**：通过 `TypedUserJWTAuth` 中间件 + `RegisterTypedAuthModule` 路由注册方法，支持下游项目接入角色专属鉴权路由（如 `/client/v1/{userType}/...`），基座不感知 userType 语义，保持通用性。
 
 ---
 
@@ -24,21 +26,30 @@
 
 ```
 server/internal/domain/entity/user/
-├── user.go             # 用户实体与 Token 哈希实体
+├── user.go             # 用户实体、Token 哈希实体、OAuth 绑定实体（UserOAuthBinding）
 
 server/internal/repository/user/
-├── user.go             # 用户仓储实现
+├── user.go             # 用户仓储实现（含 OAuth 绑定 CRUD：FindOAuthBinding / FindOAuthBindingByUnionID / FindOAuthBindingByUserProvider / CreateOAuthBinding / DeleteOAuthBinding / ListOAuthBindings）
 
 server/internal/service/user/
 ├── user.go             # 用户业务逻辑 (核心: GetInfo/ChangePassword/UpdateProfile)
 ├── user_auth.go        # 认证逻辑 (Register/Login/RefreshToken/ResetPassword)
 ├── user_admin.go       # 管理逻辑 (List/Create/Update/Delete)
+├── oauth_binding.go    # OAuth 绑定服务 (FindByOpenID/FindByUnionID/Bind/Unbind/ListByUserID，含缓存与事务)
 └── verification.go     # 验证码逻辑 (SMS/Email)
 
 server/internal/interface/client/http/handler/v1/
 ├── auth_handler.go     # 登录/验证码 Handler
 └── user_handler.go     # 资料/密码 Handler
+
+server/internal/middleware/
+└── auth.go             # 客户端鉴权中间件 (UserJWTAuth + TypedUserJWTAuth)
+
+server/internal/interface/client/http/router/
+└── router.go           # ClientRouter.RegisterTypedAuthModule — 多类型用户路由注册入口
 ```
+
+> 下游项目接入新 userType 时，无需修改基座 `ClientRouter`，只需在自身项目 wire 装配阶段调用 `clientRouter.RegisterTypedAuthModule(userType, module, accessor)` 即可。
 
 ---
 
@@ -76,6 +87,27 @@ type UserTokenHash struct {
     ExpiredAt time.Time `gorm:"index"`
 }
 ```
+
+### 3.3 OAuth 绑定表 (`user_oauth_bindings`)
+
+存储第三方账号与系统用户的绑定关系，支持微信/支付宝/GitHub/Apple 等多 provider 接入。
+
+```go
+type UserOAuthBinding struct {
+    ID        uint      `gorm:"primaryKey"`
+    UserID    string    `gorm:"size:26;index;not null"`           // 系统用户 ID（ULID）
+    Provider  string    `gorm:"size:32;not null"`                  // 第三方渠道：wechat / alipay / github / apple ...
+    OpenID    string    `gorm:"size:128;not null"`                 // provider 内唯一标识
+    UnionID   string    `gorm:"size:128"`                          // 跨应用唯一标识（微信 unionid 场景）
+    CreatedAt time.Time `gorm:"autoCreateTime"`
+}
+
+// 唯一约束：(provider, openid) — 防止同一第三方账号绑定多个系统用户
+// 索引：(provider, unionid) — 支持微信 unionid 跨应用登录查找
+// 索引：(user_id) — 支持 ListByUserID 查询用户已绑定的所有第三方账号
+```
+
+DDL 详见迁移脚本 `server/internal/pkg/migration/migrations/0064_user_oauth_bindings.up.sql`。
 
 ---
 
@@ -204,36 +236,83 @@ func (s *userService) AddCoins(ctx context.Context, userID string, amount int64)
 
 ### 6.2 实现三方登录 (以"微信登录"为例)
 
-**1. 创建三方关联表**
+基座已内置 `OAuthBindingService`，下游项目无需自行创建绑定表和仓储，只需实现 provider 适配器（调用第三方 API 换取 openid/unionid），然后委托给基座服务完成绑定关系的存储与查询。
+
+**1. 注入 OAuthBindingService**
+
+基座 `wire_services.go` 已默认装配 `OAuthBindingService`（注入 `OAuthBindingRepo`、`TxManager`、`ConfigCache`）。下游项目如需在自身 Service 中调用，通过依赖注入获取即可：
 
 ```go
-type UserOAuth struct {
-    ID       uint   `gorm:"primaryKey"`
-    UserID   string `gorm:"size:26;index"`
-    Provider string `gorm:"size:20"` // wechat, github
-    OpenID   string `gorm:"size:100;uniqueIndex"`
+// 下游项目的 Service
+type myAuthService struct {
+    oauthBinding userSvc.OAuthBindingService  // 基座提供
+    userRepo     userRepo.UserRepository      // 基座提供
+    jwt          *jwt.JWT
+    // ...
 }
+
+func NewMyAuthService(oauthBinding userSvc.OAuthBindingService, ...) *myAuthService { ... }
 ```
 
-**2. 编写登录逻辑**
+**2. 编写微信登录逻辑（调用基座服务）**
 
 ```go
-func (s *userService) LoginByWechat(ctx context.Context, code string) (*userVO.UserLoginVO, error) {
-    // 1. 调用微信接口获取 OpenID
-    openID := s.wechat.GetOpenID(code)
-    
-    // 2. 查找关联用户
-    oauth, _ := s.repo.GetOAuth(ctx, "wechat", openID)
-    if oauth == nil {
-        // 执行自动注册或返回引导绑定错误
-        return nil, errorx.CodeUserNotFound
+func (s *myAuthService) LoginByWechat(ctx context.Context, code string) (*userVO.UserLoginVO, error) {
+    // 1. 调用微信接口获取 OpenID + UnionID（下游项目自实现 provider 适配）
+    openID, unionID, err := s.wechatClient.ExchangeCode(ctx, code)
+    if err != nil {
+        return nil, errorx.New(errorx.CodeInternalError, "微信授权失败")
     }
-    
-    // 3. 执行常规登录发放 Token 流程
-    user, _ := s.repo.GetByID(ctx, oauth.UserID)
+
+    // 2. 走基座缓存的 FindByOpenID 查找绑定关系（高频读路径，L1+L2 缓存）
+    bound, err := s.oauthBinding.FindByOpenID(ctx, "wechat", openID)
+    if err != nil {
+        return nil, err
+    }
+    if bound == nil {
+        // 未绑定：可选自动注册新用户，然后调用 Bind 建立绑定关系
+        user, err := s.registerNewWechatUser(ctx, openID, unionID)
+        if err != nil {
+            return nil, err
+        }
+        // Bind 内部走事务 + UNIQUE 冲突映射 CodeOAuthAlreadyBound
+        if err := s.oauthBinding.Bind(ctx, user.ID, "wechat", openID, unionID); err != nil {
+            return nil, err
+        }
+        return s.issueTokens(ctx, user)
+    }
+
+    // 3. 已绑定：签发 token
+    user, err := s.userRepo.GetByID(ctx, bound.UserID)
+    if err != nil {
+        return nil, err
+    }
     return s.issueTokens(ctx, user)
 }
 ```
+
+**3. 缓存与并发安全说明**
+
+| 关注点 | 基座行为 | 下游项目需关注 |
+|--------|---------|---------------|
+| 读路径缓存 | `FindByOpenID` / `FindByUnionID` 走 `ConfigCache.FetchFast`（TTL 30min），自动适配 L1（BigCache）/L2（Redis） | 无需感知，缓存命中时无 DB 查询 |
+| 并发绑定冲突 | `Bind` 用 `tm.WithTransaction` 包裹 check-then-create；并发下捕获 `pgconn.PgError` Code "23505" 并映射为 `CodeOAuthAlreadyBound` | 直接 return err，由 Handler 经 `response.Fail` 自动输出业务错误码 |
+| 解绑缓存失效 | `Unbind` 先查 binding 拿 openid/unionid，删除后精确失效对应 cache key + 按 userID tag 失效 | 无需手动清缓存 |
+| 服务层解耦 | `OAuthBindingDTO` 仅含 `UserID/Provider/OpenID/UnionID`，不含 `ID/CreatedAt` 等持久化字段 | DTO 字段不可扩展为持久化字段（违反 [server-architecture.md §5.4](./server-architecture.md#54-dtoentity-隔离规范)） |
+
+**4. 多类型用户路由接入（可选）**
+
+若下游项目需要为新角色（如"技师"、"商户"）接入专属鉴权路由，复用基座 `ClientRouter.RegisterTypedAuthModule`：
+
+```go
+// 下游项目 wire 装配阶段
+clientRouter.RegisterTypedAuthModule("tech", techModule, techClaimsAccessor)
+// 注册后路由：
+//   /client/v1/tech/public  — 无鉴权（OAuth 回调、登录端点）
+//   /client/v1/tech         — TypedUserJWTAuth(techClaimsAccessor) 应用
+```
+
+详见 [server-architecture.md §5.5 多类型用户路由](./server-architecture.md)。
 
 ---
 

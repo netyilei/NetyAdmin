@@ -41,7 +41,7 @@ NetyAdmin 是一个基于 **Go + Gin** 后端和 **Vue 3 + TypeScript** 前端�
 | 模块 | 功能 |
 |------|------|
 | **RBAC** | 管理员、角色、菜单、按钮、API 管理 |
-| **用户模块** | C端用户体系、多端登录、TokenStore 抽象（缓存/数据库）、账户锁定与自动解锁、安全加密 |
+| **用户模块** | C端用户体系、多端登录、TokenStore 抽象（缓存/数据库）、账户锁定与自动解锁、安全加密、OAuth 第三方账号绑定基座（OAuthBindingService）、多类型用户 JWT 鉴权扩展（TypedUserJWTAuth + RegisterTypedAuthModule） |
 | **消息中心** | 统一发送入口（SMS/Email/站内信）、模板渲染、异步重试、STARTTLS 支持 |
 | **开放平台** | AppKey 认证、安全签名、可配置分布式限流（令牌桶）、Scope 权限、应用级存储绑定 |
 | **IP 访问控制** | 全局/应用级 IP 治理、CIDR 匹配、高性能内存过滤 |

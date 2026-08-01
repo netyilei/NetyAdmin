@@ -41,6 +41,29 @@ NetyAdmin 客户端 API 采用**双层认证**：
 
 ---
 
+## 多类型用户路由扩展
+
+基座默认提供 `/client/v1/` 下的标准接口（见上方完整接口列表）。当下游项目需要接入新角色（如"技师"、"商户"、"骑手"）的专属接口时，基座通过 `ClientRouter.RegisterTypedAuthModule` 提供路由扩展能力，无需修改基座代码：
+
+| 路径前缀 | 鉴权 | 用途 |
+|----------|------|------|
+| `/client/v1/{userType}/public` | 仅开放平台签名 | 该角色的登录、注册、OAuth 回调等公开端点 |
+| `/client/v1/{userType}` | 开放平台签名 + `TypedUserJWTAuth` | 该角色专属的鉴权路由（JWT Claims `type` 字段必须等于 `{userType}`） |
+
+**接入流程**（下游项目 wire 装配阶段）：
+
+```go
+clientRouter.RegisterTypedAuthModule("tech", techModule, techClaimsAccessor)
+```
+
+- 基座不感知 `userType` 语义，只负责按规则挂载路由组与应用 `TypedUserJWTAuth` 中间件
+- 各 `userType` 的 JWT 严格隔离，token 不可跨角色使用
+- 未调用 `RegisterTypedAuthModule` 时，行为与基座默认完全一致
+
+详见 [Server 架构设计 §5.5 多类型用户路由扩展](./server-architecture.md)。
+
+---
+
 ## 完整接口列表
 
 ### 认证模块（[01-auth.md](./01-auth.md)）

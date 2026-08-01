@@ -123,7 +123,7 @@ server/
     │   └── system_log_cleanup.go # 日志清理
     │
     ├── middleware/                # Gin中间件
-    │   ├── auth.go               # JWT认证（薄壳，注入 ClaimsAccessor 到 pkg/auth.RequireAuth）
+    │   ├── auth.go               # 客户端鉴权中间件（UserJWTAuth + TypedUserJWTAuth 多类型用户支持）
     │   ├── open_platform_auth.go # 开放平台签名校验
     │   ├── operation_log.go      # 操作日志记录
     │   ├── permission.go         # RBAC权限校验
@@ -155,14 +155,16 @@ server/
     │   ├── log/                  # 日志仓储
     │   ├── open_platform/        # 开放平台仓储（App、OpenLog）
     │   ├── storage/              # 存储仓储
-    │   └── system/               # 系统管理仓储
+    │   ├── system/               # 系统管理仓储
+    │   └── user/                 # 用户仓储（含 OAuth 绑定 CRUD：FindOAuthBinding / CreateOAuthBinding / DeleteOAuthBinding 等）
     │
     └── service/                   # 业务服务层
         ├── content/              # 内容管理服务
         ├── log/                  # 日志服务
         ├── open_platform/        # 开放平台服务（AppService含GetAppStorageDriver）
         ├── storage/              # 存储服务（RecordService含应用存储配置解析）
-        └── system/               # 系统管理服务（含 CaptchaService 验证码生成/校验，位于 service/system/captcha.go）
+        ├── system/               # 系统管理服务（含 CaptchaService 验证码生成/校验，位于 service/system/captcha.go）
+        └── user/                 # 用户服务（user_auth/user/user_admin/oauth_binding，OAuthBindingService 含缓存与事务）
 	```
 
 ### 2.1 核心依赖
@@ -531,6 +533,53 @@ userBase := userService.NewUserBase(...)
 s.userAdmin = userService.NewUserAdminService(userBase)
 s.userClient = userService.NewUserClientService(userBase)
 ```
+
+### 5.5 多类型用户路由扩展（TypedUserJWTAuth）
+
+基座默认提供 `user` 类型用户的 JWT 鉴权与路由注册。当下游项目需要接入新角色（如"技师"、"商户"、"骑手"）时，**无需修改基座 `ClientRouter`**，只需在自身 wire 装配阶段调用 `clientRouter.RegisterTypedAuthModule(userType, module, accessor)` 即可。
+
+#### 注册接口
+
+```go
+// internal/interface/client/http/router/router.go
+func (r *ClientRouter) RegisterTypedAuthModule(
+    userType string,                                                  // 角色标识，如 "tech" / "merchant"
+    module v1.ClientModuleRouter,                                     // 该角色的路由模块（实现 RegisterPublic + RegisterAuth）
+    accessor authPkg.ClaimsAccessor[*jwtPkg.UserClaims],              // 该角色的 Claims 解析器
+)
+```
+
+#### 路由分组规则
+
+注册后自动生成两个路由组：
+
+| 路径 | 鉴权 | 用途 |
+|------|------|------|
+| `/client/v1/{userType}/public` | 无 | OAuth 回调、登录、注册等公开端点 |
+| `/client/v1/{userType}` | `TypedUserJWTAuth(accessor)` | 该 userType 专属的鉴权路由 |
+
+`TypedUserJWTAuth` 中间件校验 JWT Claims 的 `type` 字段必须等于 `{userType}`，与默认 `UserJWTAuth`（校验 `type == jwt.DefaultUserType`）严格隔离，防止跨角色 token 互用。
+
+#### 设计要点
+
+- **基座无感知**：`ClientRouter` 不关心 `userType` 语义，只负责按规则挂载路由组与应用中间件
+- **复用 `ClientModuleRouter` 接口**：无需新建 `TypedClientModuleRouter` 接口，下游项目实现已有的 `RegisterPublic + RegisterAuth` 即可
+- **JWT 隔离**：每个 `userType` 有独立的 `ClaimsAccessor`，token 不可跨角色使用
+- **降级兼容**：未调用 `RegisterTypedAuthModule` 时，行为与旧版本完全一致（仅 `/client/v1/` 默认路由）
+
+#### 使用示例
+
+```go
+// 下游项目 wire 装配阶段
+techAccessor := jwt.NewUserClaimsAccessor("tech")   // type=tech
+clientRouter.RegisterTypedAuthModule("tech", techModule, techAccessor)
+
+// 注册后：
+//   POST /client/v1/tech/public/login    — 无鉴权，登录入口
+//   GET  /client/v1/tech/profile         — TypedUserJWTAuth 校验 type=tech
+```
+
+详见 [用户模块详解 §6.2 多类型用户路由接入](./server-module-user.md#62-实现三方登录-以微信登录为例)。
 
 ---
 
