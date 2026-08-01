@@ -1,12 +1,12 @@
 package ipac
 
 type IPACQuery struct {
-	AppID    *string `form:"appId"`
-	IPAddr   string  `form:"ipAddr"`
-	Type     int     `form:"type"`
-	Status   *int    `form:"status"`
-	Current  int     `form:"current"`
-	Size     int     `form:"size"`
+	AppID   *string `form:"appId"`
+	IPAddr  string  `form:"ipAddr"`
+	Type    int     `form:"type"`
+	Status  *int    `form:"status"`
+	Current int     `form:"current"`
+	Size    int     `form:"size"`
 }
 
 type CreateIPACReq struct {

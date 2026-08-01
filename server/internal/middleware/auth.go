@@ -30,7 +30,7 @@ type AuthMiddleware struct {
 	userRepo   userRepoPkg.UserRepository
 	adminRepo  systemRepoPkg.AdminRepository
 	tokenStore userService.TokenStore
-	cacheSlow   cache.SecurityCache
+	cacheSlow  cache.SecurityCache
 }
 
 // NewAuthMiddleware 装配认证中间件依赖。j/userRepo/adminRepo 必须非空（fail-fast），
@@ -44,7 +44,7 @@ func NewAuthMiddleware(j *jwtPkg.JWT, repo userRepoPkg.UserRepository, ts userSe
 		userRepo:   repo,
 		adminRepo:  ar,
 		tokenStore: ts,
-		cacheSlow:   cm,
+		cacheSlow:  cm,
 	}
 }
 
@@ -143,6 +143,18 @@ func (m *AuthMiddleware) JWTAuth() gin.HandlerFunc {
 // UserJWTAuth 是 Client 端用户 JWT 鉴权中间件。校验链同 JWTAuth。
 func (m *AuthMiddleware) UserJWTAuth() gin.HandlerFunc {
 	return auth.RequireAuth(m.jwt, m.tokenStore, userClaimsAccessor{mw: m})
+}
+
+// TypedUserJWTAuth accepts an externally-provided ClaimsAccessor for custom user types
+// (e.g. "tech", "merchant", "rider"). The base framework remains agnostic to the
+// concrete userType semantics — the caller is responsible for account lookup and
+// type validation within the accessor.
+//
+// This enables multi-role terminal authentication: each role gets its own accessor
+// (querying its own table, enforcing its own status checks) while reusing the
+// base framework's JWT parsing, tokenStore verification, and RequireAuth skeleton.
+func (m *AuthMiddleware) TypedUserJWTAuth(accessor auth.ClaimsAccessor[*jwtPkg.UserClaims]) gin.HandlerFunc {
+	return auth.RequireAuth(m.jwt, m.tokenStore, accessor)
 }
 
 // 编译期检查 accessor 实现 ClaimsAccessor 接口

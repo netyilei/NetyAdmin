@@ -10,8 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	authPkg "NetyAdmin/internal/pkg/auth"
 	userEntity "NetyAdmin/internal/domain/entity/user"
+	authPkg "NetyAdmin/internal/pkg/auth"
 )
 
 // mockCacheManager 是 authPkg.CacheManager 的内存实现，用于单测。

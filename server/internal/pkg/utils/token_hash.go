@@ -15,6 +15,7 @@ import (
 //   - service/user/user.go
 //   - service/system/admin.go
 //   - middleware/auth.go（admin / user 两路）
+//
 // 都必须调用本函数，禁止再各自实现一份 sha256。
 func TokenHash(token string) string {
 	h := sha256.New()

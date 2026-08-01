@@ -168,7 +168,7 @@ type ServerConfig struct {
 	// 零值 = 默认 30s（在 app.go 中兜底）。
 	// 类型为 Duration（实现 encoding.TextUnmarshaler），使 go-toml/v2 能解析 "30s" 等字符串。
 	ShutdownTimeout Duration `toml:"shutdown_timeout" env:"NETYADMIN_SERVER_SHUTDOWN_TIMEOUT"`
-	MultiNode       bool          `toml:"multi_node"` // 多机部署设为 true：会校验事件总线是否为 redis 模式
+	MultiNode       bool     `toml:"multi_node"` // 多机部署设为 true：会校验事件总线是否为 redis 模式
 	// TrustedProxies 可信代理 IP 或 IPv4 CIDR 列表（如 ["127.0.0.1", "10.0.0.0/8"]）。
 	// 空数组（默认）= 不信任任何代理：c.ClientIP() 直接回退到 RemoteAddr，忽略 X-Forwarded-For / X-Real-IP 头，
 	// 防止攻击者伪造 IP 头绕过 IPAC 白名单/黑名单。

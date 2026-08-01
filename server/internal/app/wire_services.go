@@ -69,6 +69,7 @@ type serviceSet struct {
 	emailDriver              msgPkg.Driver
 	logBus                   logService.LogBusService
 	captcha                  systemService.CaptchaService
+	oauthBinding             userServicePkg.OAuthBindingService
 }
 
 func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr *cache.LazyCacheManager, redisClient *redis.Client, taskManager *task.Manager, configWatcher configsync.ConfigWatcher, cfg *config.Config, captchaStore base64Captcha.Store, eventBus pubsub.EventBus, tm database.TxManager, captchaMgr *captcha.Manager, tokenStore userServicePkg.TokenStore) *serviceSet {
@@ -200,6 +201,8 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr *cach
 	if err := s.storageConfig.LoadAllConfigs(context.Background()); err != nil {
 		slog.Error("load storage configs failed", "err", err)
 	}
+
+	s.oauthBinding = userServicePkg.NewOAuthBindingService(repos.user, tm, lazyCacheMgr)
 
 	return s
 }

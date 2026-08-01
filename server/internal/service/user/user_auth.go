@@ -250,13 +250,13 @@ func (s *userClientService) Login(ctx context.Context, req *clientDto.UserLoginR
 	}
 
 	// 6. 生成令牌
-	claims := s.jwt.NewUserClaims(user.ID, req.Platform, jwt.AccessToken, user.TokenVersion)
+	claims := s.jwt.NewUserClaims(user.ID, req.Platform, jwt.DefaultUserType, jwt.AccessToken, user.TokenVersion)
 	token, err := s.jwt.GenerateToken(claims)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "令牌生成失败")
 	}
 
-	refreshClaims := s.jwt.NewUserClaims(user.ID, req.Platform, jwt.RefreshToken, user.TokenVersion)
+	refreshClaims := s.jwt.NewUserClaims(user.ID, req.Platform, jwt.DefaultUserType, jwt.RefreshToken, user.TokenVersion)
 	refreshToken, err := s.jwt.GenerateToken(refreshClaims)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "刷新令牌生成失败")
@@ -311,13 +311,13 @@ func (s *userClientService) RefreshToken(ctx context.Context, refreshToken strin
 		return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌已失效，请重新登录")
 	}
 
-	newClaims := s.jwt.NewUserClaims(user.ID, claims.Platform, jwt.AccessToken, user.TokenVersion)
+	newClaims := s.jwt.NewUserClaims(user.ID, claims.Platform, jwt.DefaultUserType, jwt.AccessToken, user.TokenVersion)
 	token, err := s.jwt.GenerateToken(newClaims)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "生成令牌失败")
 	}
 
-	newRefreshClaims := s.jwt.NewUserClaims(user.ID, claims.Platform, jwt.RefreshToken, user.TokenVersion)
+	newRefreshClaims := s.jwt.NewUserClaims(user.ID, claims.Platform, jwt.DefaultUserType, jwt.RefreshToken, user.TokenVersion)
 	newRefreshToken, err := s.jwt.GenerateToken(newRefreshClaims)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "刷新令牌失败")

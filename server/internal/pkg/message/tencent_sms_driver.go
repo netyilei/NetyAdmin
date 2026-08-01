@@ -100,8 +100,8 @@ func (d *tencentSmsDriver) Send(ctx context.Context, receiver, title, content st
 //   - phone:       手机号，带国际区号（如 "+8613800138000"）
 //   - templateID:  腾讯云短信模板 ID（如 "1234567"，需在控制台审核通过）
 //   - params:      模板参数，腾讯云要求按模板变量顺序传 []string。
-//                  本实现按 params 的 key 字典序排序后取 value，保证顺序稳定。
-//                  业务侧模板变量命名建议用数字 key（如 "1","2","3"）以便排序。
+//     本实现按 params 的 key 字典序排序后取 value，保证顺序稳定。
+//     业务侧模板变量命名建议用数字 key（如 "1","2","3"）以便排序。
 func (d *tencentSmsDriver) SendWithTemplate(ctx context.Context, phone, templateID string, params map[string]string) error {
 	if phone == "" {
 		return fmt.Errorf("tencent sms: phone is empty")

@@ -15,12 +15,16 @@ import (
 
 	"NetyAdmin/internal/config"
 	"NetyAdmin/internal/middleware"
+	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/database"
+	jwtPkg "NetyAdmin/internal/pkg/jwt"
 	"NetyAdmin/internal/pkg/pubsub"
 	"NetyAdmin/internal/pkg/recovery"
 	pkgSentry "NetyAdmin/internal/pkg/sentry"
 	"NetyAdmin/internal/pkg/task"
+	userRepoPkg "NetyAdmin/internal/repository/user"
 	logService "NetyAdmin/internal/service/log"
+	userServicePkg "NetyAdmin/internal/service/user"
 )
 
 // drainTimeout 是 taskManager.Stop / logBus.Stop 的最大等待时长。
@@ -67,9 +71,34 @@ type App struct {
 	taskManager     *task.Manager
 	logBus          logService.LogBusService
 	eventBus        pubsub.EventBus
+
+	// Security infrastructure — exposed for downstream projects to compose
+	// custom auth flows (SMS login, OAuth, biometric, etc.) without modifying
+	// the base framework.
+	jwt          *jwtPkg.JWT
+	tokenStore   userServicePkg.TokenStore
+	verifySvc    userServicePkg.VerificationService
+	userRepo     userRepoPkg.UserRepository
+	cacheSlow    cache.SecurityCache
+	oauthBinding userServicePkg.OAuthBindingService
 }
 
-func NewApp(cfg *config.Config, db *gorm.DB, engine *gin.Engine, tm database.TxManager, dbHealthChecker *database.HealthChecker, taskManager *task.Manager, logBus logService.LogBusService, eventBus pubsub.EventBus) *App {
+func NewApp(
+	cfg *config.Config,
+	db *gorm.DB,
+	engine *gin.Engine,
+	tm database.TxManager,
+	dbHealthChecker *database.HealthChecker,
+	taskManager *task.Manager,
+	logBus logService.LogBusService,
+	eventBus pubsub.EventBus,
+	jwtInstance *jwtPkg.JWT,
+	tokenStore userServicePkg.TokenStore,
+	verifySvc userServicePkg.VerificationService,
+	userRepo userRepoPkg.UserRepository,
+	cacheSlow cache.SecurityCache,
+	oauthBinding userServicePkg.OAuthBindingService,
+) *App {
 	return &App{
 		cfg:             cfg,
 		db:              db,
@@ -79,8 +108,46 @@ func NewApp(cfg *config.Config, db *gorm.DB, engine *gin.Engine, tm database.TxM
 		taskManager:     taskManager,
 		logBus:          logBus,
 		eventBus:        eventBus,
+		jwt:             jwtInstance,
+		tokenStore:      tokenStore,
+		verifySvc:       verifySvc,
+		userRepo:        userRepo,
+		cacheSlow:       cacheSlow,
+		oauthBinding:    oauthBinding,
 	}
 }
+
+// --- Security infrastructure getters ---
+//
+// Downstream projects use these to build custom authentication flows
+// (SMS code login, third-party OAuth, biometric, etc.) without forking
+// the base framework or re-implementing JWT/tokenStore/verification.
+
+// JWT returns the RS256 JWT instance for token signing and verification.
+func (a *App) JWT() *jwtPkg.JWT { return a.jwt }
+
+// TokenStore returns the token hash store for session management
+// (access/refresh token storage, blacklist, multi-device session control).
+func (a *App) TokenStore() userServicePkg.TokenStore { return a.tokenStore }
+
+// VerificationService returns the verification code service (SMS/email captcha
+// sending and validation). Downstream projects use this to implement
+// phone-code login, password reset, etc.
+func (a *App) VerificationService() userServicePkg.VerificationService { return a.verifySvc }
+
+// UserRepository returns the user repository for account lookup
+// (GetByID, GetByPhone, GetByEmail, etc.). Downstream projects use this
+// to implement custom login flows that need to query the users table.
+func (a *App) UserRepository() userRepoPkg.UserRepository { return a.userRepo }
+
+// SecurityCache returns the L2 security cache (Redis-backed) for sensitive
+// data like auth state, login rate limit counters, token blacklists.
+func (a *App) SecurityCache() cache.SecurityCache { return a.cacheSlow }
+
+// OAuthBindingService returns the third-party OAuth binding service for
+// account binding lookup and management (WeChat, Alipay, GitHub, Apple, etc.).
+// Downstream projects implement provider adapters and delegate storage to this service.
+func (a *App) OAuthBindingService() userServicePkg.OAuthBindingService { return a.oauthBinding }
 
 func (a *App) Run() error {
 	addr := fmt.Sprintf(":%d", a.cfg.Server.Port)

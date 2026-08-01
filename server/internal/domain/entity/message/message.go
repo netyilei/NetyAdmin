@@ -30,7 +30,7 @@ const (
 	MsgStatusSuccess = 1
 	MsgStatusFailed  = 2
 
-	MsgTplStatusEnabled = 1
+	MsgTplStatusEnabled  = 1
 	MsgTplStatusDisabled = 0
 
 	MsgChannelInternal = "internal"

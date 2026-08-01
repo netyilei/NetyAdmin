@@ -52,3 +52,23 @@ const (
 	UserGenderMale    = "1"
 	UserGenderFemale  = "2"
 )
+
+// UserOAuthBinding stores third-party OAuth account bindings (WeChat, Alipay,
+// GitHub, Apple, etc.). A user can bind multiple providers, but each (provider,
+// openid) pair maps to exactly one user.
+//
+// Downstream projects implement the provider-specific adapter (calling
+// WeChat/Alipay APIs to exchange code for openid), then use OAuthBindingService
+// to look up or create bindings — no need to re-implement binding storage.
+type UserOAuthBinding struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	UserID    string    `gorm:"column:user_id;size:26;not null;index" json:"userId"`
+	Provider  string    `gorm:"column:provider;size:20;not null" json:"provider"` // wechat/alipay/github/apple...
+	OpenID    string    `gorm:"column:openid;size:64;not null" json:"openId"`
+	UnionID   string    `gorm:"column:unionid;size:64" json:"unionId"`
+	CreatedAt time.Time `gorm:"column:created_at;autoCreateTime" json:"createdAt"`
+}
+
+func (UserOAuthBinding) TableName() string {
+	return "user_oauth_bindings"
+}

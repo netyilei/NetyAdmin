@@ -321,5 +321,6 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		})
 	})
 
-	return NewApp(cfg, db, engine, tm, dbHealthChecker, taskManager, services.logBus, eventBus), nil
+	return NewApp(cfg, db, engine, tm, dbHealthChecker, taskManager, services.logBus, eventBus,
+		jwtInstance, tokenStore, services.verification, repos.user, lazyCacheMgr, services.oauthBinding), nil
 }

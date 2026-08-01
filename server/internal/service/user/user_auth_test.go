@@ -125,10 +125,10 @@ var _ cache.SecurityCache = (*mockUserCacheMgr)(nil)
 
 // ============== mockUserTokenStore：TokenStore 内存实现 ==============
 type mockUserTokenStore struct {
-	createCalls  int
-	deleteCalls  int
-	createErr    error
-	deleteErr    error
+	createCalls int
+	deleteCalls int
+	createErr   error
+	deleteErr   error
 }
 
 func (s *mockUserTokenStore) Create(_ context.Context, _ *userEntity.UserTokenHash) error {
@@ -211,17 +211,34 @@ func (r *mockUserRepo) List(_ context.Context, _ *userRepo.UserRepoQuery) ([]use
 func (r *mockUserRepo) SearchForAutocomplete(_ context.Context, _ string, _ int) ([]userEntity.User, error) {
 	return nil, nil
 }
-func (r *mockUserRepo) Update(_ context.Context, _ *userEntity.User) error              { return nil }
-func (r *mockUserRepo) Delete(_ context.Context, _ string) error                        { return nil }
-func (r *mockUserRepo) DeleteBatch(_ context.Context, _ []string) error                { return nil }
-func (r *mockUserRepo) IncrementTokenVersion(_ context.Context, _ string) error         { return nil }
-func (r *mockUserRepo) CreateTokenHash(_ context.Context, _ *userEntity.UserTokenHash) error { return nil }
+func (r *mockUserRepo) Update(_ context.Context, _ *userEntity.User) error      { return nil }
+func (r *mockUserRepo) Delete(_ context.Context, _ string) error                { return nil }
+func (r *mockUserRepo) DeleteBatch(_ context.Context, _ []string) error         { return nil }
+func (r *mockUserRepo) IncrementTokenVersion(_ context.Context, _ string) error { return nil }
+func (r *mockUserRepo) CreateTokenHash(_ context.Context, _ *userEntity.UserTokenHash) error {
+	return nil
+}
 func (r *mockUserRepo) GetTokenHash(_ context.Context, _, _ string) (*userEntity.UserTokenHash, error) {
 	return nil, gorm.ErrRecordNotFound
 }
-func (r *mockUserRepo) DeleteTokenHash(_ context.Context, _, _ string) error            { return nil }
-func (r *mockUserRepo) DeleteAllTokenHashes(_ context.Context, _ string) error          { return nil }
-func (r *mockUserRepo) DeleteExpiredTokenHashes(_ context.Context) (int64, error)       { return 0, nil }
+func (r *mockUserRepo) DeleteTokenHash(_ context.Context, _, _ string) error      { return nil }
+func (r *mockUserRepo) DeleteAllTokenHashes(_ context.Context, _ string) error    { return nil }
+func (r *mockUserRepo) DeleteExpiredTokenHashes(_ context.Context) (int64, error) { return 0, nil }
+
+func (r *mockUserRepo) FindOAuthBinding(_ context.Context, _, _ string) (*userEntity.UserOAuthBinding, error) {
+	return nil, nil
+}
+func (r *mockUserRepo) FindOAuthBindingByUnionID(_ context.Context, _, _ string) (*userEntity.UserOAuthBinding, error) {
+	return nil, nil
+}
+func (r *mockUserRepo) FindOAuthBindingByUserProvider(_ context.Context, _, _ string) (*userEntity.UserOAuthBinding, error) {
+	return nil, nil
+}
+func (r *mockUserRepo) CreateOAuthBinding(_ context.Context, _ *userEntity.UserOAuthBinding) error { return nil }
+func (r *mockUserRepo) DeleteOAuthBinding(_ context.Context, _, _ string) error                    { return nil }
+func (r *mockUserRepo) ListOAuthBindings(_ context.Context, _ string) ([]userEntity.UserOAuthBinding, error) {
+	return nil, nil
+}
 
 var _ userRepo.UserRepository = (*mockUserRepo)(nil)
 
@@ -276,7 +293,7 @@ func (w *mockConfigWatcher) GetGroupConfigs(group string) map[string]string {
 	return out
 }
 
-func (w *mockConfigWatcher) IsCacheEnabled(_ string) bool { return true }
+func (w *mockConfigWatcher) IsCacheEnabled(_ string) bool        { return true }
 func (w *mockConfigWatcher) ForceReload(_ context.Context) error { return nil }
 
 var _ configsync.ConfigWatcher = (*mockConfigWatcher)(nil)
@@ -286,8 +303,8 @@ type mockCaptchaStore struct {
 	verifyResult bool
 }
 
-func (s *mockCaptchaStore) Set(_, _ string) error                 { return nil }
-func (s *mockCaptchaStore) Get(_ string, _ bool) string           { return "" }
+func (s *mockCaptchaStore) Set(_, _ string) error       { return nil }
+func (s *mockCaptchaStore) Get(_ string, _ bool) string { return "" }
 func (s *mockCaptchaStore) Verify(_ string, _ string, _ bool) bool {
 	return s.verifyResult
 }
@@ -328,7 +345,7 @@ func newTestUserClientService(t *testing.T) (*userClientService, *mockUserRepo, 
 			"captcha_config:user_login_enabled": "false",
 			// 默认登录失败重试配置
 			"user_config:login_max_retry":     "5",
-			"user_config:login_lock_duration":  "900", // 15min
+			"user_config:login_lock_duration": "900", // 15min
 		},
 	}
 
@@ -340,7 +357,7 @@ func newTestUserClientService(t *testing.T) (*userClientService, *mockUserRepo, 
 			configWatcher: watcher,
 			captchaStore:  &mockCaptchaStore{verifyResult: false},
 			tokenStore:    store,
-			cacheSlow:      cacheMgr,
+			cacheSlow:     cacheMgr,
 		},
 	}
 	return svc, repo, cacheMgr, store, verifySvc, j
@@ -476,7 +493,7 @@ func TestUserLogout_WritesRefreshTokenToBlacklist(t *testing.T) {
 	user := enabledUser("01HTESTUSERLOGOUT0001", "logout")
 	repo.UserByID = user
 
-	claims := j.NewUserClaims(user.ID, "web", jwt.RefreshToken, user.TokenVersion)
+	claims := j.NewUserClaims(user.ID, "web", jwt.DefaultUserType, jwt.RefreshToken, user.TokenVersion)
 	refresh, err := j.GenerateToken(claims)
 	require.NoError(t, err)
 
@@ -507,7 +524,7 @@ func TestUserRefreshToken_Success(t *testing.T) {
 	user := enabledUser("01HTESTUSERREFRESH001", "refresh")
 	repo.UserByID = user
 
-	claims := j.NewUserClaims(user.ID, "web", jwt.RefreshToken, user.TokenVersion)
+	claims := j.NewUserClaims(user.ID, "web", jwt.DefaultUserType, jwt.RefreshToken, user.TokenVersion)
 	refresh, err := j.GenerateToken(claims)
 	require.NoError(t, err)
 
@@ -546,7 +563,7 @@ func TestUserRefreshToken_BlacklistedRejected(t *testing.T) {
 	user := enabledUser("01HTESTUSERREFRESH002", "blacklisted")
 	repo.UserByID = user
 
-	claims := j.NewUserClaims(user.ID, "web", jwt.RefreshToken, user.TokenVersion)
+	claims := j.NewUserClaims(user.ID, "web", jwt.DefaultUserType, jwt.RefreshToken, user.TokenVersion)
 	refresh, err := j.GenerateToken(claims)
 	require.NoError(t, err)
 
@@ -568,7 +585,7 @@ func TestUserRefreshToken_UserDisabled(t *testing.T) {
 	user.Status = entity.StatusDisabled
 	repo.UserByID = user
 
-	claims := j.NewUserClaims(user.ID, "web", jwt.RefreshToken, user.TokenVersion)
+	claims := j.NewUserClaims(user.ID, "web", jwt.DefaultUserType, jwt.RefreshToken, user.TokenVersion)
 	refresh, err := j.GenerateToken(claims)
 	require.NoError(t, err)
 

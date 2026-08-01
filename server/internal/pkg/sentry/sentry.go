@@ -186,7 +186,8 @@ const maxScrubDepth = 10
 
 // sensitiveKeyPattern 匹配敏感字段名（小写，子串匹配）。
 // 命中以下任一关键词的字段值会被替换为 [REDACTED]：
-//   password / secret / token / appsecret / app_key / access_key / refresh_token
+//
+//	password / secret / token / appsecret / app_key / access_key / refresh_token
 //
 // 采用 unanchored 子串匹配，故 user_password、app_secret、access_token、authTokenV2
 // 等变体均能命中；case-insensitive 由调用方 strings.ToLower(key) 保证。

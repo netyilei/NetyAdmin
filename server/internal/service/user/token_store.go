@@ -36,7 +36,7 @@ type TokenStore interface {
 // Redis 删除一次即对整个集群立即生效，无 PubSub 窗口期，无需广播。
 // token 永不进 L1 (BigCache 本地内存)，避免多机 L1 同步窗口期的安全风险。
 type tokenStore struct {
-	repo     userRepo.UserRepository
+	repo      userRepo.UserRepository
 	cacheSlow cache.SecurityCache
 }
 

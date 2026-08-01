@@ -10,6 +10,7 @@ import (
 // 接受离散参数而非整个 Config struct，因为项目存在两个 Config 类型：
 //   - pkg/storage.Config（驱动配置）
 //   - domain/entity/storage.Config（DB 实体）
+//
 // 两者字段名一致但类型不同，离散参数避免类型耦合。
 //
 // 优先级：

@@ -13,6 +13,11 @@ type Claims interface {
 	jwt.Claims
 }
 
+// DefaultUserType is the standard userType for C-end users.
+// Downstream projects define their own constants (e.g. "tech", "merchant")
+// when calling NewUserClaims for custom user types.
+const DefaultUserType = "user"
+
 type AdminClaims struct {
 	UserID       uint     `json:"userId"`
 	Username     string   `json:"userName"`
@@ -113,12 +118,12 @@ func (j *JWT) NewAdminClaims(userID uint, username string, roles []string, token
 	}
 }
 
-func (j *JWT) NewUserClaims(uid string, platform string, tokenType TokenType, tokenVersion uint64) *UserClaims {
+func (j *JWT) NewUserClaims(uid, platform, userType string, tokenType TokenType, tokenVersion uint64) *UserClaims {
 	expTime := j.expirationFor(tokenType)
 	return &UserClaims{
 		UID:          uid,
 		Platform:     platform,
-		Type:         "user",
+		Type:         userType,
 		TokenVersion: tokenVersion,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expTime),

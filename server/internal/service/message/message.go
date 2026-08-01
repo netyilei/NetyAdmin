@@ -52,7 +52,7 @@ type messageService struct {
 	repo       msgRepo.MsgRepository
 	dispatcher task.Dispatcher
 	drivers    map[string]msgPkg.Driver
-	cacheFast   cache.ConfigCache
+	cacheFast  cache.ConfigCache
 }
 
 func NewMessageService(repo msgRepo.MsgRepository, dispatcher task.Dispatcher, drivers map[string]msgPkg.Driver, cacheFast cache.ConfigCache) MessageService {
@@ -60,7 +60,7 @@ func NewMessageService(repo msgRepo.MsgRepository, dispatcher task.Dispatcher, d
 		repo:       repo,
 		dispatcher: dispatcher,
 		drivers:    drivers,
-		cacheFast:   cacheFast,
+		cacheFast:  cacheFast,
 	}
 }
 

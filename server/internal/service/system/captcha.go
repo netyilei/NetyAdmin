@@ -20,7 +20,7 @@ type CaptchaService interface {
 
 type captchaService struct {
 	captchaMgr *captcha.Manager
-	watcher     configsync.ConfigWatcher
+	watcher    configsync.ConfigWatcher
 }
 
 func NewCaptchaService(captchaMgr *captcha.Manager, watcher configsync.ConfigWatcher) CaptchaService {

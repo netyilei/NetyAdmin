@@ -206,7 +206,7 @@ func TestUserClaims_RoundTrip(t *testing.T) {
 	j, err := jwt.New(priv, pub, 30*time.Minute, 168*time.Hour)
 	require.NoError(t, err)
 
-	claims := j.NewUserClaims("user-123", "web", jwt.AccessToken, 5)
+	claims := j.NewUserClaims("user-123", "web", jwt.DefaultUserType, jwt.AccessToken, 5)
 	token, err := j.GenerateToken(claims)
 	require.NoError(t, err)
 
@@ -216,5 +216,5 @@ func TestUserClaims_RoundTrip(t *testing.T) {
 	assert.Equal(t, "user-123", parsed.UID)
 	assert.Equal(t, "web", parsed.Platform)
 	assert.Equal(t, uint64(5), parsed.TokenVersion)
-	assert.Equal(t, "user", parsed.Type)
+	assert.Equal(t, jwt.DefaultUserType, parsed.Type)
 }

@@ -56,7 +56,7 @@ type VerificationService interface {
 }
 
 type verificationService struct {
-	cacheSlow     cache.SecurityCache
+	cacheSlow    cache.SecurityCache
 	msgSvc       msgSvc.MessageService
 	watcher      configsync.ConfigWatcher
 	captchaStore base64Captcha.Store
@@ -64,7 +64,7 @@ type verificationService struct {
 
 func NewVerificationService(cacheSlow cache.SecurityCache, msgSvc msgSvc.MessageService, watcher configsync.ConfigWatcher, captchaStore base64Captcha.Store) VerificationService {
 	return &verificationService{
-		cacheSlow:     cacheSlow,
+		cacheSlow:    cacheSlow,
 		msgSvc:       msgSvc,
 		watcher:      watcher,
 		captchaStore: captchaStore,

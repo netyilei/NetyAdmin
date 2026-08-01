@@ -206,11 +206,11 @@ func (r *mockAdminRepo) ExistsByUsername(_ context.Context, _ string, _ ...uint)
 func (r *mockAdminRepo) List(_ context.Context, _ *systemRepo.AdminRepoQuery) ([]systemEntity.Admin, int64, error) {
 	return nil, 0, nil
 }
-func (r *mockAdminRepo) Update(_ context.Context, _ *systemEntity.Admin) error              { return nil }
-func (r *mockAdminRepo) IncrementTokenVersion(_ context.Context, _ uint) error              { return nil }
-func (r *mockAdminRepo) ClearRoles(_ context.Context, _ uint) error                        { return nil }
-func (r *mockAdminRepo) Delete(_ context.Context, _ uint) error                             { return nil }
-func (r *mockAdminRepo) UpdateRoles(_ context.Context, _ uint, _ []uint) error              { return nil }
+func (r *mockAdminRepo) Update(_ context.Context, _ *systemEntity.Admin) error { return nil }
+func (r *mockAdminRepo) IncrementTokenVersion(_ context.Context, _ uint) error { return nil }
+func (r *mockAdminRepo) ClearRoles(_ context.Context, _ uint) error            { return nil }
+func (r *mockAdminRepo) Delete(_ context.Context, _ uint) error                { return nil }
+func (r *mockAdminRepo) UpdateRoles(_ context.Context, _ uint, _ []uint) error { return nil }
 func (r *mockAdminRepo) GetAuthStateByID(_ context.Context, _ uint) (*systemRepo.AdminAuthState, error) {
 	return nil, nil
 }

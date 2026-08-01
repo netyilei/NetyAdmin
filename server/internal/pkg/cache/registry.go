@@ -14,10 +14,10 @@ const (
 	TTL_RBAC = 3 * time.Hour
 
 	// Tags
-	TagRBACMenu     = "rbac:menu"
-	TagRBACRole     = "rbac:role"
-	TagRBACAPI      = "rbac:api"
-	TagAdminInfo    = "admin:info"
+	TagRBACMenu  = "rbac:menu"
+	TagRBACRole  = "rbac:role"
+	TagRBACAPI   = "rbac:api"
+	TagAdminInfo = "admin:info"
 	// TagDict 字典缓存标签前缀
 	TagDictPrefix = "dict:"
 	// TagStorageConfig 存储配置缓存标签
@@ -30,8 +30,8 @@ const (
 	TagContentBanner = "content:banner"
 	// TagMsgTemplate 消息模板缓存标签
 	TagMsgTemplate = "msg:template"
-	TagApp     = "open:app"
-	TagOpenApi = "open:api"
+	TagApp         = "open:app"
+	TagOpenApi     = "open:api"
 
 	// SysConfig Group: 内容缓存配置
 	ConfigGroupContentCache = "content_cache"
@@ -40,7 +40,25 @@ const (
 	ConfigKeyBannerCacheTTL   = "banner_cache_ttl"
 	ConfigKeyCategoryCacheTTL = "category_cache_ttl"
 	ConfigKeyArticleCacheTTL  = "article_cache_ttl"
+
+	// TagOAuthBinding OAuth 绑定缓存标签（按 userID 维度失效）
+	TagOAuthBinding = "oauth:binding"
 )
+
+// KeyOAuthBindingByOpenID 按 provider+openid 查找 OAuth 绑定的缓存 Key
+func KeyOAuthBindingByOpenID(provider, openid string) string {
+	return fmt.Sprintf("oauth:binding:openid:%s:%s", provider, openid)
+}
+
+// KeyOAuthBindingByUnionID 按 provider+unionid 查找 OAuth 绑定的缓存 Key
+func KeyOAuthBindingByUnionID(provider, unionid string) string {
+	return fmt.Sprintf("oauth:binding:unionid:%s:%s", provider, unionid)
+}
+
+// TagOAuthBindingByUserID 按 userID 维度的 OAuth 绑定缓存 Tag（用于精准失效）
+func TagOAuthBindingByUserID(userID string) string {
+	return fmt.Sprintf("oauth:binding:user:%s", userID)
+}
 
 // 定义系统统一的缓存 Key 生成函数
 // 严禁在业务代码中硬编码 Key 字符串。

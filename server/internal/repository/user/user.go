@@ -39,6 +39,23 @@ type UserRepository interface {
 	// DeleteExpiredTokenHashes 物理删除所有已过期的 token hash 记录（expired_at < NOW()）。
 	// 返回受影响行数。供 token_hash_cleanup Job 定时调用，避免 user_token_hashes 表无限堆积。
 	DeleteExpiredTokenHashes(ctx context.Context) (int64, error)
+
+	// --- OAuth binding ---
+
+	// FindOAuthBinding looks up a third-party binding by provider + openid.
+	// Returns gorm.ErrRecordNotFound if not bound.
+	FindOAuthBinding(ctx context.Context, provider, openid string) (*userEntity.UserOAuthBinding, error)
+	// FindOAuthBindingByUnionID looks up by provider + unionid (WeChat unionid scenario).
+	FindOAuthBindingByUnionID(ctx context.Context, provider, unionid string) (*userEntity.UserOAuthBinding, error)
+	// FindOAuthBindingByUserProvider looks up by userID + provider.
+	// Used by Unbind to find the binding (for cache invalidation) before deleting.
+	FindOAuthBindingByUserProvider(ctx context.Context, userID, provider string) (*userEntity.UserOAuthBinding, error)
+	// CreateOAuthBinding inserts a new OAuth binding record.
+	CreateOAuthBinding(ctx context.Context, binding *userEntity.UserOAuthBinding) error
+	// DeleteOAuthBinding removes a binding by userID + provider (unbind).
+	DeleteOAuthBinding(ctx context.Context, userID, provider string) error
+	// ListOAuthBindings returns all OAuth bindings for a user.
+	ListOAuthBindings(ctx context.Context, userID string) ([]userEntity.UserOAuthBinding, error)
 }
 
 type UserRepoQuery struct {
@@ -238,4 +255,46 @@ func (r *userRepository) DeleteAllTokenHashes(ctx context.Context, userID string
 func (r *userRepository) DeleteExpiredTokenHashes(ctx context.Context) (int64, error) {
 	res := r.getDB(ctx).Where("expired_at < NOW()", nil).Delete(&userEntity.UserTokenHash{})
 	return res.RowsAffected, res.Error
+}
+
+// --- OAuth binding implementations ---
+
+func (r *userRepository) FindOAuthBinding(ctx context.Context, provider, openid string) (*userEntity.UserOAuthBinding, error) {
+	var binding userEntity.UserOAuthBinding
+	if err := r.getDB(ctx).Where("provider = ? AND openid = ?", provider, openid).First(&binding).Error; err != nil {
+		return nil, err
+	}
+	return &binding, nil
+}
+
+func (r *userRepository) FindOAuthBindingByUnionID(ctx context.Context, provider, unionid string) (*userEntity.UserOAuthBinding, error) {
+	var binding userEntity.UserOAuthBinding
+	if err := r.getDB(ctx).Where("provider = ? AND unionid = ?", provider, unionid).First(&binding).Error; err != nil {
+		return nil, err
+	}
+	return &binding, nil
+}
+
+func (r *userRepository) FindOAuthBindingByUserProvider(ctx context.Context, userID, provider string) (*userEntity.UserOAuthBinding, error) {
+	var binding userEntity.UserOAuthBinding
+	if err := r.getDB(ctx).Where("user_id = ? AND provider = ?", userID, provider).First(&binding).Error; err != nil {
+		return nil, err
+	}
+	return &binding, nil
+}
+
+func (r *userRepository) CreateOAuthBinding(ctx context.Context, binding *userEntity.UserOAuthBinding) error {
+	return r.getDB(ctx).Create(binding).Error
+}
+
+func (r *userRepository) DeleteOAuthBinding(ctx context.Context, userID, provider string) error {
+	return r.getDB(ctx).Where("user_id = ? AND provider = ?", userID, provider).Delete(&userEntity.UserOAuthBinding{}).Error
+}
+
+func (r *userRepository) ListOAuthBindings(ctx context.Context, userID string) ([]userEntity.UserOAuthBinding, error) {
+	var bindings []userEntity.UserOAuthBinding
+	if err := r.getDB(ctx).Where("user_id = ?", userID).Find(&bindings).Error; err != nil {
+		return nil, err
+	}
+	return bindings, nil
 }

@@ -9,15 +9,15 @@ type AppQuery struct {
 }
 
 type CreateAppReq struct {
-	Name              string   `json:"name" binding:"required"`
-	Status            int      `json:"status" binding:"oneof=0 1"`
-	IPFilterEnabled   bool     `json:"ipFilterEnabled"`
-	RateLimitEnabled  bool     `json:"rateLimitEnabled"`
-	Remark            string   `json:"remark"`
-	QuotaConfig       string   `json:"quotaConfig"`
-	CacheTTL          int      `json:"cacheTTL"`
-	StorageID         uint     `json:"storageId"`
-	Scopes            []string `json:"scopes"`
+	Name             string   `json:"name" binding:"required"`
+	Status           int      `json:"status" binding:"oneof=0 1"`
+	IPFilterEnabled  bool     `json:"ipFilterEnabled"`
+	RateLimitEnabled bool     `json:"rateLimitEnabled"`
+	Remark           string   `json:"remark"`
+	QuotaConfig      string   `json:"quotaConfig"`
+	CacheTTL         int      `json:"cacheTTL"`
+	StorageID        uint     `json:"storageId"`
+	Scopes           []string `json:"scopes"`
 }
 
 // UpdateAppReq 应用更新请求。
@@ -25,16 +25,16 @@ type CreateAppReq struct {
 // 因此本 DTO 不含 AppKey 字段；AppKey 初始值由 CreateApp 生成（ULID），后续只读。
 // AppSecret 同样不在本接口修改，由独立的 ResetAppSecret 方法处理轮换。
 type UpdateAppReq struct {
-	ID                string   `json:"id" binding:"required"`
-	Name              string   `json:"name" binding:"required"`
-	Status            int      `json:"status" binding:"oneof=0 1"`
-	IPFilterEnabled   bool     `json:"ipFilterEnabled"`
-	RateLimitEnabled  bool     `json:"rateLimitEnabled"`
-	Remark            string   `json:"remark"`
-	QuotaConfig       string   `json:"quotaConfig"`
-	CacheTTL          int      `json:"cacheTTL"`
-	StorageID         uint     `json:"storageId"`
-	Scopes            []string `json:"scopes"`
+	ID               string   `json:"id" binding:"required"`
+	Name             string   `json:"name" binding:"required"`
+	Status           int      `json:"status" binding:"oneof=0 1"`
+	IPFilterEnabled  bool     `json:"ipFilterEnabled"`
+	RateLimitEnabled bool     `json:"rateLimitEnabled"`
+	Remark           string   `json:"remark"`
+	QuotaConfig      string   `json:"quotaConfig"`
+	CacheTTL         int      `json:"cacheTTL"`
+	StorageID        uint     `json:"storageId"`
+	Scopes           []string `json:"scopes"`
 }
 
 type ResetSecretReq struct {

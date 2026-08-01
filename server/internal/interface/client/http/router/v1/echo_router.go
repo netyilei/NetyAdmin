@@ -1,8 +1,8 @@
 package v1
 
 import (
-	"github.com/gin-gonic/gin"
 	handler "NetyAdmin/internal/interface/client/http/handler/v1"
+	"github.com/gin-gonic/gin"
 )
 
 type echoRouter struct {

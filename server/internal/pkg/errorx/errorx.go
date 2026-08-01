@@ -28,6 +28,7 @@ const (
 	CodeUserLocked        Code = 101007
 	CodeOldPasswordWrong  Code = 101008
 	CodePasswordTooWeak   Code = 101009
+	CodeOAuthAlreadyBound Code = 101010
 
 	CodeRoleNotFound      Code = 102001
 	CodeRoleInUse         Code = 102002
@@ -57,11 +58,11 @@ const (
 	CodeMsgDriverNotFound     Code = 101205
 
 	// 开放平台 (1013xx)
-	CodeAppKeyInvalid   Code = 101301
-	CodeSignatureFailed Code = 101302
-	CodeRequestExpired  Code = 101303
-	CodeScopeMismatch   Code = 101304
-	CodeRateLimited     Code = 101305
+	CodeAppKeyInvalid           Code = 101301
+	CodeSignatureFailed         Code = 101302
+	CodeRequestExpired          Code = 101303
+	CodeScopeMismatch           Code = 101304
+	CodeRateLimited             Code = 101305
 	CodeAppDisabled             Code = 101306
 	CodeStatisticsInvalidParams Code = 101307
 
@@ -118,6 +119,7 @@ var codeMessages = map[Code]string{
 	CodeUserLocked:        "账户已锁定",
 	CodeOldPasswordWrong:  "原密码错误",
 	CodePasswordTooWeak:   "密码强度不足",
+	CodeOAuthAlreadyBound: "第三方账号已绑定其他用户",
 
 	CodeRoleNotFound:      "角色不存在",
 	CodeRoleInUse:         "角色正在使用中",
@@ -155,11 +157,11 @@ var codeMessages = map[Code]string{
 	CodeTaskNotRunning:     "任务未在运行",
 
 	// 开放平台 (1013xx)
-	CodeAppKeyInvalid:   "AppKey无效",
-	CodeSignatureFailed: "签名验证失败",
-	CodeRequestExpired:  "请求已过期",
-	CodeScopeMismatch:   "权限不足 (Scope 不匹配)",
-	CodeRateLimited:     "已触发流量限制",
+	CodeAppKeyInvalid:           "AppKey无效",
+	CodeSignatureFailed:         "签名验证失败",
+	CodeRequestExpired:          "请求已过期",
+	CodeScopeMismatch:           "权限不足 (Scope 不匹配)",
+	CodeRateLimited:             "已触发流量限制",
 	CodeAppDisabled:             "应用已被禁用",
 	CodeStatisticsInvalidParams: "统计参数无效",
 

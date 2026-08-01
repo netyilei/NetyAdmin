@@ -5,14 +5,14 @@ import "NetyAdmin/internal/domain/entity"
 type Admin struct {
 	entity.Model
 	entity.Operator
-	Username      string  `gorm:"column:username;size:50;not null;uniqueIndex" json:"userName"`
-	Password      string  `gorm:"column:password;size:100;not null" json:"-"`
-	Nickname      string  `gorm:"column:nickname;size:50" json:"nickName"`
-	Phone         string  `gorm:"column:phone;size:20" json:"userPhone"`
-	Email         string  `gorm:"column:email;size:100" json:"userEmail"`
-	Gender        string  `gorm:"column:gender;size:1;default:1" json:"userGender"`
-	Status        string  `gorm:"column:status;size:1;default:1" json:"status"`
-	LastLoginAt   *string `gorm:"column:last_login_at;size:30" json:"lastLoginAt"`
+	Username    string  `gorm:"column:username;size:50;not null;uniqueIndex" json:"userName"`
+	Password    string  `gorm:"column:password;size:100;not null" json:"-"`
+	Nickname    string  `gorm:"column:nickname;size:50" json:"nickName"`
+	Phone       string  `gorm:"column:phone;size:20" json:"userPhone"`
+	Email       string  `gorm:"column:email;size:100" json:"userEmail"`
+	Gender      string  `gorm:"column:gender;size:1;default:1" json:"userGender"`
+	Status      string  `gorm:"column:status;size:1;default:1" json:"status"`
+	LastLoginAt *string `gorm:"column:last_login_at;size:30" json:"lastLoginAt"`
 	// TokenVersion 是会话失效的版本号（BUG #5 纵深防御）。
 	// 敏感操作（改密/禁用/删除/角色变更）递增此值；JWT claims 携带签发时的版本号，
 	// 中间件比较 claims.TokenVersion < Admin.TokenVersion → 拒绝旧 token。
