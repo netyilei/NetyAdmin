@@ -28,12 +28,12 @@ const adminAuthStateTTL = 30 * time.Second
 
 // AuthMiddleware 持有认证中间件的全部依赖，通过依赖注入构造，消除包级全局变量。
 type AuthMiddleware struct {
-	jwt          *jwtPkg.JWT
-	userRepo     userRepoPkg.UserRepository
+	jwt           *jwtPkg.JWT
+	userRepo      userRepoPkg.UserRepository
 	userTokenRepo userRepoPkg.UserTokenRepository
-	adminRepo    systemRepoPkg.AdminRepository
-	tokenStore   userService.TokenStore
-	cacheSlow    cache.SecurityCache
+	adminRepo     systemRepoPkg.AdminRepository
+	tokenStore    userService.TokenStore
+	cacheSlow     cache.SecurityCache
 }
 
 // NewAuthMiddleware 装配认证中间件依赖。j/userRepo/adminRepo 必须非空（fail-fast），

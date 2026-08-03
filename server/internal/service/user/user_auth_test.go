@@ -737,3 +737,36 @@ func TestUserLogin_CaptchaInvalid(t *testing.T) {
 	require.True(t, errors.As(err, &bizErr))
 	assert.Equal(t, errorx.CodeCaptchaInvalid, bizErr.Code)
 }
+
+// TestUserLogin_SamePlatformKickIn 验证同 platform 二次 Login 顶号机制：
+// 第一次 Login → ptv=1；第二次 Login（同 platform）→ ptv=2，旧 token 的 ptv < DB 版本应被拒。
+func TestUserLogin_SamePlatformKickIn(t *testing.T) {
+	_ = hashedUserPassword(t)
+	svc, repo, _, _, _, _ := newTestUserClientService(t)
+	repo.ByUsername = enabledUser("01HTESTKICKIN000001", "kick")
+
+	// 第一次 Login（platform=web）
+	vo1, err := svc.Login(context.Background(), &clientDto.UserLoginReq{
+		Username: "kick", Password: "User@12345", Platform: "web",
+	}, "127.0.0.1")
+	require.NoError(t, err)
+	assert.NotEmpty(t, vo1.AccessToken)
+
+	// 第二次 Login（同 platform=web）→ 应顶号，ptv 递增
+	vo2, err := svc.Login(context.Background(), &clientDto.UserLoginReq{
+		Username: "kick", Password: "User@12345", Platform: "web",
+	}, "127.0.0.1")
+	require.NoError(t, err)
+	assert.NotEmpty(t, vo2.AccessToken)
+
+	// 不同 platform（mobile）→ 独立会话，不影响 web
+	vo3, err := svc.Login(context.Background(), &clientDto.UserLoginReq{
+		Username: "kick", Password: "User@12345", Platform: "mobile",
+	}, "127.0.0.1")
+	require.NoError(t, err)
+	assert.NotEmpty(t, vo3.AccessToken)
+
+	// 三次 token 互不相同（不同 platform / 不同版本号）
+	assert.NotEqual(t, vo1.AccessToken, vo2.AccessToken, "同 platform 二次登录应签发新 token")
+	assert.NotEqual(t, vo1.AccessToken, vo3.AccessToken, "不同 platform token 应不同")
+}

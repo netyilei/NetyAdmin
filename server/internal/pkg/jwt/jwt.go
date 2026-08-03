@@ -27,10 +27,10 @@ type AdminClaims struct {
 }
 
 type UserClaims struct {
-	UID             string `json:"uid"`
-	Platform        string `json:"platform"`
-	Type            string `json:"type"`
-	TokenVersion    uint64 `json:"tv"`  // BUG #5：签发时的用户级 Token 版本号（admin 敏感操作递增 users.token_version）
+	UID              string `json:"uid"`
+	Platform         string `json:"platform"`
+	Type             string `json:"type"`
+	TokenVersion     uint64 `json:"tv"`  // BUG #5：签发时的用户级 Token 版本号（admin 敏感操作递增 users.token_version）
 	PlatTokenVersion uint64 `json:"ptv"` // 端级 Token 版本号（client Login 递增 user_tokens.token_version），同 platform 顶号
 	jwt.RegisteredClaims
 }

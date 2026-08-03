@@ -19,11 +19,11 @@ import (
 // Cache granularity:
 //   - Key:   KeyUserToken(userID, platform)  — one entry per (user, platform).
 //   - Value: the UserToken row (token_version + access_hash), used by middleware for
-//            both version check and hash check in one lookup.
+//     both version check and hash check in one lookup.
 //   - Tags:  TagUserTokenByUser(userID)              — invalidate all platforms of a user
-//            (admin sensitive ops: password change / disable / delete).
-//            TagUserTokenByPlatform(userID, platform) — invalidate one platform only
-//            (login kick-in: same platform re-login).
+//     (admin sensitive ops: password change / disable / delete).
+//     TagUserTokenByPlatform(userID, platform) — invalidate one platform only
+//     (login kick-in: same platform re-login).
 //
 // Invalidation contract: every write path (UpsertAndIncrement / UpdateHashes /
 // ClearHashes / DeleteExpired) invalidates the affected entries. TTL is the safety net

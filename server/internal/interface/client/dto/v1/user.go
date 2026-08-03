@@ -8,7 +8,6 @@ type UserLoginReq struct {
 	//   - 同 platform 再次登录 → 顶掉该 platform 的旧会话（顶号）
 	//   - 不同 platform → 各自独立会话，互不影响（多端并存）
 	// 取值由客户端自定义（如 web/mobile/miniapp），基座不限制枚举。
-	// 缺省时 service 层兜底为 "unknown"（所有缺省登录共用一行，会互相顶号，不建议）。
 	Platform    string `json:"platform" binding:"required"`
 	CaptchaKey  string `json:"captchaKey"`
 	CaptchaCode string `json:"captchaCode"`

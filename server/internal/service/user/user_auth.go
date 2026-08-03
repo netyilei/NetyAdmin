@@ -380,10 +380,13 @@ func (s *userClientService) RefreshToken(ctx context.Context, refreshToken strin
 	// 不递增 token_version——版本号递增仅由 Login 负责（同 platform 顶号）；刷新是同一会话的延续。
 	// 旧 access hash 不单独删：当前入参仅含旧 refresh token，无法定位旧 access hash；
 	// 旧 access 由其自然过期或下次 Logout 清理，不影响其他设备。
+	// fail-closed：UpdateHashes 失败必须返错——否则客户端拿到新 token 但 DB 仍是旧 hash，
+	// 下次请求 middleware hash 校验必拒（新 token 立即不可用的静默失败）。
 	if err := s.userTokenRepo.UpdateHashes(ctx, user.ID, claims.Platform,
 		authPkg.HashToken(token), authPkg.HashToken(newRefreshToken),
 		time.Unix(newClaims.ExpiresAt.Unix(), 0), time.Unix(newRefreshClaims.ExpiresAt.Unix(), 0)); err != nil {
-		slog.Warn("UpdateHashes on refresh failed", "userID", user.ID, "platform", claims.Platform, "err", err)
+		slog.Error("UpdateHashes on refresh failed", "userID", user.ID, "platform", claims.Platform, "err", err)
+		return nil, errorx.New(errorx.CodeInternalError, "令牌存储失败")
 	}
 
 	return &userVO.UserLoginVO{
@@ -529,10 +532,11 @@ func (s *userClientService) ChangePassword(ctx context.Context, userID string, r
 func (s *userClientService) Logout(ctx context.Context, userID string, accessToken, refreshToken string) error {
 	// 从 accessToken 解析 platform，清空 user_tokens 该 platform 行的 hash。
 	// hash 清空后中间件 hash 校验会拒绝后续携带该 token 的请求（纵深防御）。
+	// accessToken 无效（解析失败）→ 跳过 ClearHashes（token 本就不可用，自然过期即可）。
 	claims := &jwt.UserClaims{}
 	if err := s.jwt.ParseToken(accessToken, claims); err == nil && claims.Platform != "" {
 		if err := s.userTokenRepo.ClearHashes(ctx, userID, claims.Platform); err != nil {
-			// 清空失败不阻断，继续处理 refresh token 黑名单（access token 也会自然过期）
+			// ClearHashes 失败不阻断——access token 也会自然过期，refresh 黑名单是主防御
 			slog.Warn("logout: clear user_tokens hashes failed", "userID", userID, "platform", claims.Platform, "err", err)
 		}
 	}
