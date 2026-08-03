@@ -45,10 +45,26 @@ func WrapWithTimeout(handler http.Handler, timeout time.Duration) http.Handler {
 	tw := http.TimeoutHandler(handler, timeout, TimedOutBody)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// SSE/流式响应豁免：长连接不适用请求级超时（TimeoutHandler 缓冲会吞掉流式输出，见上方注释）。
-		if strings.Contains(strings.ToLower(r.Header.Get("Accept")), eventStreamMIME) {
+		// 用 Accept 媒体类型协商匹配（非裸子串），避免恶意客户端用 "text/event-stream" 子串
+		// 混入 Accept 绕过超时（DoS 面）。匹配 media-range 边界（逗号/分号/空格分隔）。
+		if acceptsEventStream(r.Header.Get("Accept")) {
 			handler.ServeHTTP(w, r)
 			return
 		}
 		tw.ServeHTTP(w, r)
 	})
+}
+
+// acceptsEventStream 检查 Accept 头是否包含精确的 "text/event-stream" 媒体类型。
+// 不用 strings.Contains——子串匹配会把 "application/json, text/event-stream-fake" 误判。
+// 这里按 RFC 7231 media-range 边界（逗号分隔条目，分号分隔参数）精确比对。
+func acceptsEventStream(accept string) bool {
+	for _, item := range strings.Split(accept, ",") {
+		// 取类型部分（分号前），去 OWS（可选空白）
+		mediaType := strings.TrimSpace(strings.SplitN(item, ";", 2)[0])
+		if strings.EqualFold(mediaType, eventStreamMIME) {
+			return true
+		}
+	}
+	return false
 }

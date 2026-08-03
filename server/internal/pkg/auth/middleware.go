@@ -35,12 +35,22 @@ type ClaimsAccessor[C jwtv5.Claims] interface {
 
 	// TokenStoreKey 从已解析的 claims 中提取 tokenStore 的 userID key。
 	// admin 端返回 AdminTokenKey(claims.UserID)，user 端返回 claims.UID。
+	// 仅在 SkipLegacyTokenStoreCheck() == false 时被调用。
 	TokenStoreKey(claims C) string
 
 	// LookupAccount 查询账户并完成全部业务校验（启用状态 + TokenVersion 版本号）。
+	// rawToken 是 Bearer token 原文（仅 user 端用：与 user_tokens.access_hash 比对做纵深防御）。
 	// 返回 AccountCheckResult，中间件据此决定放行或拒绝。
 	// 错误语义：返回 error 表示账户不存在或查询失败，中间件统一返回 CodeUserDisabled。
-	LookupAccount(ctx context.Context, claims C) (*AccountCheckResult, error)
+	LookupAccount(ctx context.Context, claims C, rawToken string) (*AccountCheckResult, error)
+
+	// SkipLegacyTokenStoreCheck 控制是否跳过 RequireAuth 内的通用 tokenStore hash 校验。
+	//   - admin 端返回 false：保留对 admin_tokens 表的 hash 校验（纵深防御，登出/强制下线立即生效）。
+	//   - user 端返回 true：user 会话已迁移到 user_tokens 表（按 platform 维度），通用 tokenStore
+	//     仍指向 admin_tokens，再走会把所有 user 请求误判为 hash 未命中。user 端的 hash 校验
+	//     改由 LookupAccount 内部针对 user_tokens 完成。
+	// 向后兼容：未实现该方法的 accessor（嵌入式复用旧接口）走默认 false，保持原行为。
+	SkipLegacyTokenStoreCheck() bool
 }
 
 // RequireAuth 是 admin/user 两端 JWT 鉴权的通用骨架。
@@ -49,7 +59,7 @@ type ClaimsAccessor[C jwtv5.Claims] interface {
 //  1. Authorization: Bearer <token>
 //  2. ParseToken（含 alg confusion 防护）
 //  3. Subject 必须为 access token
-//  4. tokenStore 哈希校验（tokenStore 关闭时跳过）
+//  4. tokenStore 哈希校验（tokenStore 关闭或 accessor.SkipLegacyTokenStoreCheck 时跳过）
 //  5. 账户查询 + 启用状态校验 + TokenVersion 校验（由 accessor.LookupAccount 完成）
 //  6. 注入上下文（由 accessor 返回的 SetContext 回调执行）
 func RequireAuth[C jwtv5.Claims](
@@ -80,8 +90,11 @@ func RequireAuth[C jwtv5.Claims](
 			return
 		}
 
-		// 会话哈希校验：tokenStore 关闭（nil）时跳过
-		if tokenStore != nil {
+		// 会话哈希校验：tokenStore 关闭（nil）或 accessor 选择跳过时跳过。
+		// user 端会话已迁移到 user_tokens 表（按 platform 维度），通用 tokenStore 仍指向
+		// admin_tokens——若 user 端仍走这里会把所有请求误判为 hash 未命中。
+		// user 端的 hash 校验改由 LookupAccount 内部针对 user_tokens.access_hash 完成。
+		if tokenStore != nil && !accessor.SkipLegacyTokenStoreCheck() {
 			userIDKey := accessor.TokenStoreKey(claims)
 			if _, err := tokenStore.Get(c.Request.Context(), userIDKey, HashToken(token)); err != nil {
 				// P1-6: 记录原始错误用于排查（如 Redis 故障、token hash 不匹配等）。
@@ -96,9 +109,8 @@ func RequireAuth[C jwtv5.Claims](
 		}
 
 		// 账户查询 + 启用状态 + TokenVersion 校验
-		// 校验细节（包括版本号比较）由 accessor.LookupAccount 内部完成，
-		// 中间件只关心最终结果（status + setContext）。
-		result, err := accessor.LookupAccount(c.Request.Context(), claims)
+		// 校验细节（包括版本号比较、user 端的 user_tokens hash 比对）由 accessor.LookupAccount 完成。
+		result, err := accessor.LookupAccount(c.Request.Context(), claims, token)
 		// P1-7: 区分"账户不存在"（CodeUnauthorized）与"账户禁用"（CodeUserDisabled）。
 		// - err != nil 或 result == nil：账户查询失败或不存在，返回 CodeUnauthorized
 		// - result.Status != StatusEnabled：账户存在但被禁用或会话已失效，返回 CodeUserDisabled

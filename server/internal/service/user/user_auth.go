@@ -249,15 +249,20 @@ func (s *userClientService) Login(ctx context.Context, req *clientDto.UserLoginR
 		slog.Warn("update user login info failed", "userID", user.ID, "err", err)
 	}
 
-	// 6. 生成令牌（端级顶号：先 UPSERT user_tokens 拿新版本号，再签发携带该版本号的 token）
+	// 6-7. 端级顶号 + 令牌签发 + hash 落库（同一 TM 事务，避免版本号递增与 hash 写入部分失败）。
 	//    UPSERT 原子递增 (user_id, platform) 的 token_version：
 	//      - 同 platform 再次登录 → 版本号 +1 → 旧 token claims.ptv < 新版本 → 中间件拒绝（顶号）
 	//      - 不同 platform → 各自独立行，互不影响（多端并存）
-	platTV, err := s.userTokenRepo.UpsertAndIncrement(ctx, &userEntity.UserToken{
+	//    事务边界：UpsertAndIncrement + UpdateHashes 必须同事务——
+	//    若分开提交，第 6 步成功（版本号已 bump）但第 7 步失败（hash 未落库），
+	//    会导致新 token 携带正确 ptv 但 DB 无 hash，Logout 后纵深防御失效（§5.2 红线）。
+	txCtx, tx := s.tm.Begin(ctx)
+	platTV, err := s.userTokenRepo.UpsertAndIncrement(txCtx, &userEntity.UserToken{
 		UserID:   user.ID,
 		Platform: req.Platform,
 	})
 	if err != nil {
+		s.tm.Rollback(tx)
 		slog.Error("UpsertAndIncrement user_tokens failed", "userID", user.ID, "platform", req.Platform, "err", err)
 		return nil, errorx.New(errorx.CodeInternalError, "会话初始化失败")
 	}
@@ -265,24 +270,29 @@ func (s *userClientService) Login(ctx context.Context, req *clientDto.UserLoginR
 	claims := s.jwt.NewUserClaims(user.ID, req.Platform, jwt.DefaultUserType, jwt.AccessToken, user.TokenVersion, platTV)
 	token, err := s.jwt.GenerateToken(claims)
 	if err != nil {
+		s.tm.Rollback(tx)
 		return nil, errorx.New(errorx.CodeInternalError, "令牌生成失败")
 	}
 
 	refreshClaims := s.jwt.NewUserClaims(user.ID, req.Platform, jwt.DefaultUserType, jwt.RefreshToken, user.TokenVersion, platTV)
 	refreshToken, err := s.jwt.GenerateToken(refreshClaims)
 	if err != nil {
+		s.tm.Rollback(tx)
 		return nil, errorx.New(errorx.CodeInternalError, "刷新令牌生成失败")
 	}
 
-	// 7. 回写 token hash 到 user_tokens（access/refresh hash + 过期时间）。
-	//    注意：此处用 UpdateHashes 而非 UpsertAndIncrement——版本号已在第 6 步递增过，
-	//    再调 UpsertAndIncrement 会二次 +1 导致 claims.ptv 与 DB 不一致。
-	//    中间件可用 hash 校验做纵深防御（如 Logout 后立即失效），与版本号校验并存。
+	// 回写 token hash（不递增版本——版本号已在 UpsertAndIncrement 递增过）。
+	// 中间件 LookupAccount 比对 user_tokens.access_hash 做纵深防御（Logout 后立即失效）。
 	accessExp := time.Unix(claims.ExpiresAt.Unix(), 0)
 	refreshExp := time.Unix(refreshClaims.ExpiresAt.Unix(), 0)
-	if err := s.userTokenRepo.UpdateHashes(ctx, user.ID, req.Platform,
+	if err := s.userTokenRepo.UpdateHashes(txCtx, user.ID, req.Platform,
 		authPkg.HashToken(token), authPkg.HashToken(refreshToken), accessExp, refreshExp); err != nil {
+		s.tm.Rollback(tx)
 		slog.Error("UpdateHashes user_tokens failed", "userID", user.ID, "platform", req.Platform, "err", err)
+		return nil, errorx.New(errorx.CodeInternalError, "令牌存储失败")
+	}
+	if err := s.tm.Commit(tx); err != nil {
+		slog.Error("commit user_tokens login transaction failed", "userID", user.ID, "platform", req.Platform, "err", err)
 		return nil, errorx.New(errorx.CodeInternalError, "令牌存储失败")
 	}
 

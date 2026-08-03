@@ -69,7 +69,10 @@ func (adminClaimsAccessor) TokenStoreKey(claims *jwtPkg.AdminClaims) string {
 	return auth.AdminTokenKey(claims.UserID)
 }
 
-func (a adminClaimsAccessor) LookupAccount(ctx context.Context, claims *jwtPkg.AdminClaims) (*auth.AccountCheckResult, error) {
+// admin 端保留通用 tokenStore hash 校验（指向 admin_tokens 表）。
+func (adminClaimsAccessor) SkipLegacyTokenStoreCheck() bool { return false }
+
+func (a adminClaimsAccessor) LookupAccount(ctx context.Context, claims *jwtPkg.AdminClaims, _ string) (*auth.AccountCheckResult, error) {
 	// 鉴权状态（token_version + status）走 L1+L2 缓存，DB QPS 降低 30x+。
 	// 双写一致性：
 	//   - 主动失效：Service 层 TM 事务（IncrementTokenVersion + Update/Delete）Commit 后调用
@@ -121,7 +124,12 @@ func (userClaimsAccessor) TokenStoreKey(claims *jwtPkg.UserClaims) string {
 	return claims.UID
 }
 
-func (a userClaimsAccessor) LookupAccount(ctx context.Context, claims *jwtPkg.UserClaims) (*auth.AccountCheckResult, error) {
+// user 端会话已迁移到 user_tokens（按 platform 维度），通用 tokenStore 仍指向 admin_tokens
+// （admin 专用），不能再走通用 hash 校验——否则所有 user 请求都因 admin_tokens 无记录被拒。
+// user 端 hash 校验改由 LookupAccount 内部针对 user_tokens.access_hash 完成。
+func (userClaimsAccessor) SkipLegacyTokenStoreCheck() bool { return true }
+
+func (a userClaimsAccessor) LookupAccount(ctx context.Context, claims *jwtPkg.UserClaims, rawToken string) (*auth.AccountCheckResult, error) {
 	user, err := a.mw.userRepo.GetByID(ctx, claims.UID)
 	if err != nil || user == nil {
 		return nil, err
@@ -131,14 +139,19 @@ func (a userClaimsAccessor) LookupAccount(ctx context.Context, claims *jwtPkg.Us
 	if claims.TokenVersion < user.TokenVersion {
 		return &auth.AccountCheckResult{Status: entity.StatusDisabled}, nil
 	}
-	// 端级 TokenVersion 校验：同 platform 重新登录后 user_tokens.token_version 被递增，
-	// 旧 token 携带的 ptv < DB 当前版本 → 该端会话失效（顶号），不影响其他 platform。
-	// userTokenRepo 未注入（兼容老装配）或行不存在（旧基座签发的 token）→ 跳过端级校验，
-	// 仅靠用户级版本号 + tokenStore hash 校验兜底，保持 fail-open 兼容。
+	// 端级 TokenVersion + hash 校验（user_tokens 表，按 platform 维度）：
+	//   - 版本号校验：同 platform 重新登录后 token_version 被递增，旧 token 的 ptv < DB → 顶号。
+	//   - hash 校验（纵深防御）：Logout 后 ClearHashes 清空 access_hash，下次请求 hash 不匹配 → 立即失效。
+	// userTokenRepo 未注入（兼容老装配）→ 仅靠用户级版本号兜底（不阻断，便于灰度升级）。
+	// 行不存在（旧基座签发的 token，无 user_tokens 记录）→ 同样跳过端级校验。
 	if a.mw.userTokenRepo != nil && claims.Platform != "" {
 		ut, utErr := a.mw.userTokenRepo.GetByPlatform(ctx, claims.UID, claims.Platform)
 		if utErr == nil && ut != nil {
 			if claims.PlatTokenVersion < ut.TokenVersion {
+				return &auth.AccountCheckResult{Status: entity.StatusDisabled}, nil
+			}
+			// hash 比对（Logout 后清空 → 不匹配 → 拒绝）。空 hash 视为未设置，跳过（首次登录前状态）。
+			if ut.AccessHash != "" && ut.AccessHash != auth.HashToken(rawToken) {
 				return &auth.AccountCheckResult{Status: entity.StatusDisabled}, nil
 			}
 		} else if utErr != nil && !errors.Is(utErr, gorm.ErrRecordNotFound) {

@@ -254,14 +254,16 @@ func KeyAppApis(appID string) string {
 	return fmt.Sprintf("open:app:%s:apis", appID)
 }
 
-// KeyUserTokenHash 用户登录态 Token 哈希缓存 Key
-func KeyUserTokenHash(userID, tokenHash string) string {
-	return fmt.Sprintf("user:token:%s:%s", userID, tokenHash)
+// KeyAdminToken 管理员登录态 Token 哈希缓存 Key（admin_tokens 表的会话校验加速）。
+// user 端会话已迁移到 user_tokens 表（按 platform 维度，不经过此缓存）。
+func KeyAdminToken(adminID, tokenHash string) string {
+	return fmt.Sprintf("user:token:%s:%s", adminID, tokenHash)
 }
 
-// TagUserToken 用户登录态 Token 缓存标签（按用户维度失效）
-func TagUserToken(userID string) string {
-	return fmt.Sprintf("user:token:%s", userID)
+// TagAdminToken 管理员登录态 Token 缓存标签（按 admin 维度失效）。
+// 注意：缓存 key 前缀沿用历史 "user:token:" 以保持向后兼容（已部署库的缓存无需清理）。
+func TagAdminToken(adminID string) string {
+	return fmt.Sprintf("user:token:%s", adminID)
 }
 
 // KeyCaptchaToken 图形验证码缓存 Key

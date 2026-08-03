@@ -11,16 +11,16 @@ import (
 	userRepo "NetyAdmin/internal/repository/user"
 )
 
-// TokenStore 是会话令牌哈希的存储抽象。
+// TokenStore 是 admin 端会话令牌哈希的存储抽象（对应 admin_tokens 表）。
 //
 // 设计原则（RULES.md §0.1）：单一最优实现。
-// DB 是唯一真相源（token 哈希表），Redis 缓存作为加速层在 store 内部组合，
+// DB 是唯一真相源（admin_tokens 表），Redis 缓存作为加速层在 store 内部组合，
 // 调用方不感知缓存存在。这避免了 dbTokenStore / cacheTokenStore 双实现
 // 运行时切换的补丁形态。
 //
-// admin 与 user 共用同一 store 实现，通过 userID 自然隔离（admin 端使用
-// service/system/admin.go 中的 AdminTokenKey() 生成 key），不再依赖
-// "a:" 字符串前缀这种隐式约定。
+// 仅 admin 端使用：通过 AdminTokenKey() 生成 key（service/system/admin.go）。
+// user（client）端会话已迁移到 user_tokens 表（按 platform 维度），不走此 store——
+// 其 hash 校验在 middleware/auth.go 的 userClaimsAccessor.LookupAccount 内完成。
 type TokenStore interface {
 	Create(ctx context.Context, hash *userEntity.AdminToken) error
 	Get(ctx context.Context, userID, tokenHash string) (*userEntity.AdminToken, error)
@@ -28,7 +28,7 @@ type TokenStore interface {
 	DeleteAll(ctx context.Context, userID string) error
 }
 
-// tokenStore 唯一实现：DB 持久化 + Redis 缓存加速。
+// tokenStore 唯一实现：DB 持久化（admin_tokens）+ Redis 缓存加速。
 //
 // 缓存层级（铁律：非 Fast 方法只走 L2，绝不碰 L1）：
 // token 是安全敏感数据，登出/踢人/刷新时必须立即全节点失效。
@@ -57,8 +57,8 @@ func (s *tokenStore) Create(ctx context.Context, hash *userEntity.AdminToken) er
 		if ttl <= 0 {
 			ttl = time.Hour
 		}
-		key := cache.KeyUserTokenHash(hash.UserID, hash.TokenHash)
-		tag := cache.TagUserToken(hash.UserID)
+		key := cache.KeyAdminToken(hash.UserID, hash.TokenHash)
+		tag := cache.TagAdminToken(hash.UserID)
 		if err := s.cacheSlow.Set(ctx, key, "1", ttl, tag); err != nil {
 			slog.Warn("set token cache failed", "key", key, "err", err)
 		}
@@ -69,7 +69,7 @@ func (s *tokenStore) Create(ctx context.Context, hash *userEntity.AdminToken) er
 func (s *tokenStore) Get(ctx context.Context, userID, tokenHash string) (*userEntity.AdminToken, error) {
 	// 缓存命中：直接返回占位实体（会话仍有效）
 	if s.cacheSlow != nil {
-		key := cache.KeyUserTokenHash(userID, tokenHash)
+		key := cache.KeyAdminToken(userID, tokenHash)
 		var val string
 		if err := s.cacheSlow.Get(ctx, key, &val); err == nil && val != "" {
 			return &userEntity.AdminToken{UserID: userID, TokenHash: tokenHash}, nil
@@ -81,7 +81,7 @@ func (s *tokenStore) Get(ctx context.Context, userID, tokenHash string) (*userEn
 
 func (s *tokenStore) Delete(ctx context.Context, userID, tokenHash string) error {
 	if s.cacheSlow != nil {
-		key := cache.KeyUserTokenHash(userID, tokenHash)
+		key := cache.KeyAdminToken(userID, tokenHash)
 		// 用非 Fast 的 Delete（铁律：只走 L2）。
 		// token 只存在 L2 (Redis 共享层)，删除一次即对整个集群立即生效，
 		// 无 PubSub 窗口期，无需广播。
@@ -94,7 +94,7 @@ func (s *tokenStore) Delete(ctx context.Context, userID, tokenHash string) error
 
 func (s *tokenStore) DeleteAll(ctx context.Context, userID string) error {
 	if s.cacheSlow != nil {
-		tag := cache.TagUserToken(userID)
+		tag := cache.TagAdminToken(userID)
 		if err := s.cacheSlow.InvalidateByTags(ctx, tag); err != nil {
 			slog.Error("invalidate cache failed", "tag", tag, "err", err)
 		}
