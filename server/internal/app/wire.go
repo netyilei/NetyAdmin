@@ -326,6 +326,10 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		})
 	})
 
+	// 预构造 OpenPlatformAuth（供 RegisterModule 在下游模块的 authGroup 挂载）
+	openPlatformAuthFn := middleware.OpenPlatformAuth(services.app, services.openApi, services.openLog, services.ipac)
+
 	return NewApp(cfg, db, engine, tm, dbHealthChecker, taskManager, services.logBus, eventBus,
-		jwtInstance, tokenStore, services.verification, repos.user, lazyCacheMgr, services.oauthBinding), nil
+		jwtInstance, tokenStore, services.verification, repos.user, lazyCacheMgr, services.oauthBinding,
+		authMW, services.role, services.ipac, openPlatformAuthFn), nil
 }

@@ -15,6 +15,7 @@ import (
 
 	"NetyAdmin/internal/config"
 	"NetyAdmin/internal/middleware"
+	ipacService "NetyAdmin/internal/service/ipac"
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/database"
 	jwtPkg "NetyAdmin/internal/pkg/jwt"
@@ -81,6 +82,13 @@ type App struct {
 	userRepo     userRepoPkg.UserRepository
 	cacheSlow    cache.SecurityCache
 	oauthBinding userServicePkg.OAuthBindingService
+
+	// Module 装配扩展点（供 RegisterModule 使用，下游通过 App.RegisterModule 注入业务模块）
+	authMW           *middleware.AuthMiddleware
+	authVerifier     middleware.AuthVerifier
+	ipacSvc          ipacService.IPACService
+	openPlatformAuth gin.HandlerFunc
+	routerDeps       RouterDeps
 }
 
 func NewApp(
@@ -98,22 +106,37 @@ func NewApp(
 	userRepo userRepoPkg.UserRepository,
 	cacheSlow cache.SecurityCache,
 	oauthBinding userServicePkg.OAuthBindingService,
+	// Module 装配依赖（下游 RegisterModule 时使用）
+	authMW *middleware.AuthMiddleware,
+	authVerifier middleware.AuthVerifier,
+	ipacSvc ipacService.IPACService,
+	openPlatformAuth gin.HandlerFunc,
 ) *App {
 	return &App{
-		cfg:             cfg,
-		db:              db,
-		engine:          engine,
-		tm:              tm,
-		dbHealthChecker: dbHealthChecker,
-		taskManager:     taskManager,
-		logBus:          logBus,
-		eventBus:        eventBus,
-		jwt:             jwtInstance,
-		tokenStore:      tokenStore,
-		verifySvc:       verifySvc,
-		userRepo:        userRepo,
-		cacheSlow:       cacheSlow,
-		oauthBinding:    oauthBinding,
+		cfg:              cfg,
+		db:               db,
+		engine:           engine,
+		tm:               tm,
+		dbHealthChecker:  dbHealthChecker,
+		taskManager:      taskManager,
+		logBus:           logBus,
+		eventBus:         eventBus,
+		jwt:              jwtInstance,
+		tokenStore:       tokenStore,
+		verifySvc:        verifySvc,
+		userRepo:         userRepo,
+		cacheSlow:        cacheSlow,
+		oauthBinding:     oauthBinding,
+		authMW:           authMW,
+		authVerifier:     authVerifier,
+		ipacSvc:          ipacSvc,
+		openPlatformAuth: openPlatformAuth,
+		routerDeps: RouterDeps{
+			AuthMiddleware:   authMW,
+			OpenPlatformAuth: openPlatformAuth,
+			JWT:              jwtInstance,
+			Config:           cfg,
+		},
 	}
 }
 
