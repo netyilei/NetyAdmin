@@ -687,7 +687,7 @@ func (h *ContentArticleHandler) List(c *gin.Context) { ... }
 
 ```bash
 cd server
-swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal
+swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal  # --parseDependency 必带：注解引用跨包 DTO（如 systemDto.CreateAdminReq / v1.EchoRequest），省略将报 ParseComment error 且路由残缺
 ```
 
 - 生成产物：`server/docs/`（`docs.go`、`swagger.json`、`swagger.yaml`）

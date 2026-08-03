@@ -276,6 +276,21 @@ func NewRouter(
 }
 ```
 
+### 2.4 Swagger API 文档
+
+后端 API 文档由 [swaggo/swag](https://github.com/swaggo/swag) 从 handler 注解自动生成：
+
+```bash
+cd server
+swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal
+```
+
+- 生成产物：`server/docs/`（`docs.go`、`swagger.json`、`swagger.yaml`）
+- 访问地址：`http://localhost:9090/swagger/index.html`（仅 `debug` 模式开放）
+- 注解规范：见 [Server 架构设计 §7 Swagger 规范](./server-architecture.md)
+
+> **`--parseDependency` 必带**：本基座 handler 注解大量引用跨包 DTO 类型（如 `systemDto.CreateAdminReq`、`v1.EchoRequest`）。swag 默认不解析依赖包类型，省略该参数会报 `ParseComment error ... cannot find type definition`，导致对应路由的请求/响应模型在文档中缺失。
+
 ---
 
 ## 三、前端 API 管理
