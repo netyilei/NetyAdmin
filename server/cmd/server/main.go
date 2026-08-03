@@ -6,8 +6,6 @@ import (
 	"NetyAdmin/internal/app"
 	"NetyAdmin/internal/config"
 	"NetyAdmin/internal/pkg/recovery"
-
-	_ "NetyAdmin/docs" // Swagger generated docs
 )
 
 // @title           NetyAdmin API

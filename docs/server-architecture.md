@@ -685,14 +685,17 @@ func (h *ContentArticleHandler) List(c *gin.Context) { ... }
 
 ### 7.3 生成与访问
 
+> `swaggo/swag` 仅为**生成工具**，不进入 go.mod 运行时依赖。首次使用先安装 CLI：
+
 ```bash
 cd server
+go install github.com/swaggo/swag/cmd/swag@v1.16.6
 swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal  # --parseDependency 必带：注解引用跨包 DTO（如 systemDto.CreateAdminReq / v1.EchoRequest），省略将报 ParseComment error 且路由残缺
 ```
 
-- 生成产物：`server/docs/`（`docs.go`、`swagger.json`、`swagger.yaml`）
-- 访问地址：`http://localhost:9090/swagger/index.html`（仅 `debug` 模式开放）
-- 路由注册：`internal/interface/admin/http/router/router.go`
+- 生成产物：`server/docs/`（`swagger.json`、`swagger.yaml`，供 Apifox / Postman 等联调工具导入；生成的 `docs.go` 为运行时产物，不再编译进二进制，可删除）
+- 联调方式：将 `swagger.json` 导入联调工具；运行时不再提供 `/swagger` UI 页面
+- 注解规范：handler 注释 `@Param`/`@Summary`/`@Router` 等
 
 ---
 

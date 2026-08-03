@@ -278,15 +278,16 @@ func NewRouter(
 
 ### 2.4 Swagger API 文档
 
-后端 API 文档由 [swaggo/swag](https://github.com/swaggo/swag) 从 handler 注解自动生成：
+后端 API 文档由 [swaggo/swag](https://github.com/swaggo/swag) 从 handler 注解自动生成。`swaggo/swag` 为生成工具，不进入 go.mod 运行时依赖：
 
 ```bash
 cd server
+go install github.com/swaggo/swag/cmd/swag@v1.16.6
 swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal
 ```
 
-- 生成产物：`server/docs/`（`docs.go`、`swagger.json`、`swagger.yaml`）
-- 访问地址：`http://localhost:9090/swagger/index.html`（仅 `debug` 模式开放）
+- 生成产物：`server/docs/`（`swagger.json`、`swagger.yaml`，供 Apifox / Postman 等联调工具导入；生成的 `docs.go` 不再编译进二进制，可删除）
+- 联调方式：将 `swagger.json` 导入联调工具；运行时不再提供 `/swagger` UI 页面
 - 注解规范：见 [Server 架构设计 §7 Swagger 规范](./server-architecture.md)
 
 > **`--parseDependency` 必带**：本基座 handler 注解大量引用跨包 DTO 类型（如 `systemDto.CreateAdminReq`、`v1.EchoRequest`）。swag 默认不解析依赖包类型，省略该参数会报 `ParseComment error ... cannot find type definition`，导致对应路由的请求/响应模型在文档中缺失。
