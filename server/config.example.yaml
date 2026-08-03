@@ -28,7 +28,7 @@ database:
   port: 5432
   user: postgres
   password: "<CHANGE_ME_IN_PRODUCTION>"
-  dbname: "so"
+  dbname: "netyadmin"
   sslmode: disable
   max_idle: 10
   max_open: 50
@@ -204,5 +204,6 @@ login_ratelimit:
   # 算法：Redis ZSET 滑动窗口（ZADD + ZREMRANGEBYSCORE + ZCARD）。
   # Redis 未配置（cache disabled）时限流器降级为 no-op（fail-open），不阻断登录关键路径。
   # 环境变量覆盖：NETYADMIN_LOGIN_RATELIMIT_WINDOW / NETYADMIN_LOGIN_RATELIMIT_MAX
+  # 开发环境建议放宽（如 max=100），避免联测时多用户登录触发限流；生产环境收紧至 10
   window: "1m"  # 滑动窗口时长
-  max: 10       # 窗口内单个 IP 允许的最大登录尝试次数
+  max: 100      # 窗口内单个 IP 允许的最大登录尝试次数（模板默认 100 便于开发联测，生产建议改 10）

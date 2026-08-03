@@ -14,6 +14,7 @@ import (
 	"gorm.io/gorm"
 
 	"NetyAdmin/internal/config"
+	openDto "NetyAdmin/internal/interface/admin/dto/open_platform"
 	"NetyAdmin/internal/interface/admin/http/router"
 	clientRouter "NetyAdmin/internal/interface/client/http/router"
 	"NetyAdmin/internal/middleware"
@@ -33,6 +34,7 @@ import (
 	"NetyAdmin/internal/job"
 	"NetyAdmin/internal/pkg/migration"
 	userRepoPkg "NetyAdmin/internal/repository/user"
+	openServicePkg "NetyAdmin/internal/service/open_platform"
 	userServicePkg "NetyAdmin/internal/service/user"
 )
 
@@ -326,6 +328,31 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		})
 	})
 
+	// 启动期安全检测：默认 app 使用占位密钥时打 WARN（B-4）
+	// 新库重建后 sys_apps 的 app_secret 为 'placeholder-reset-secret-required'（种子占位），
+	// 所有开放平台签名校验必然失败——此检测避免联测时长时间排查才发现需重置密钥。
+	checkPlaceholderAppSecret(context.Background(), services.app)
+
 	return NewApp(cfg, db, engine, tm, dbHealthChecker, taskManager, services.logBus, eventBus,
 		jwtInstance, tokenStore, services.verification, repos.user, lazyCacheMgr, services.oauthBinding), nil
+}
+
+// placeholderAppSecret 是种子数据 0043_seed_sys_apps 中的占位密钥（未加密明文）。
+// 启动期检测到 app_secret 仍为该值时打 WARN，提示管理员重置。
+const placeholderAppSecret = "placeholder-reset-secret-required"
+
+// checkPlaceholderAppSecret 检测所有应用的 AppSecret 是否仍为种子占位符，是则打 WARN。
+// 检测失败（DB 错误等）不阻断启动——仅提示，主流程由 ValidateConfig / 探活保障。
+func checkPlaceholderAppSecret(ctx context.Context, appSvc openServicePkg.AppService) {
+	apps, _, err := appSvc.ListApps(ctx, &openDto.AppQuery{Current: 1, Size: 100})
+	if err != nil {
+		slog.Warn("启动期 app_secret 占位检测失败（不阻断启动）", "err", err)
+		return
+	}
+	for _, app := range apps {
+		if app.AppSecret == placeholderAppSecret {
+			slog.Warn("应用使用占位密钥，开放平台签名校验将失败，请立即通过 admin 接口重置密钥",
+				"appID", app.ID, "appName", app.Name)
+		}
+	}
 }
