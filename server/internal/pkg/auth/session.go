@@ -18,8 +18,8 @@ import (
 // UserServiceTokenStore 是 service/user.TokenStore 的镜像接口，
 // 避免 pkg/auth 反向依赖 service 层（保持依赖方向：service → pkg）。
 type UserServiceTokenStore interface {
-	Create(ctx context.Context, hash *userEntity.UserTokenHash) error
-	Get(ctx context.Context, userID, tokenHash string) (*userEntity.UserTokenHash, error)
+	Create(ctx context.Context, hash *userEntity.AdminToken) error
+	Get(ctx context.Context, userID, tokenHash string) (*userEntity.AdminToken, error)
 	Delete(ctx context.Context, userID, tokenHash string) error
 	DeleteAll(ctx context.Context, userID string) error
 }
@@ -121,14 +121,14 @@ func StoreSessionPair(
 	if tokenStore == nil {
 		return nil
 	}
-	if err := tokenStore.Create(ctx, &userEntity.UserTokenHash{
+	if err := tokenStore.Create(ctx, &userEntity.AdminToken{
 		UserID:    userIDKey,
 		TokenHash: HashToken(access),
 		ExpiredAt: accessExp,
 	}); err != nil {
 		return err
 	}
-	return tokenStore.Create(ctx, &userEntity.UserTokenHash{
+	return tokenStore.Create(ctx, &userEntity.AdminToken{
 		UserID:    userIDKey,
 		TokenHash: HashToken(refresh),
 		ExpiredAt: refreshExp,

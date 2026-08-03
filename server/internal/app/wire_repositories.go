@@ -38,6 +38,7 @@ type repositorySet struct {
 	openLog            openRepo.OpenLogRepository
 	message            msgRepo.MsgRepository
 	user               userRepoPkg.UserRepository
+	userToken          userRepoPkg.UserTokenRepository
 }
 
 func initRepositories(db *gorm.DB) *repositorySet {
@@ -64,5 +65,6 @@ func initRepositories(db *gorm.DB) *repositorySet {
 		openLog:            openRepo.NewOpenLogRepository(db),
 		message:            msgRepo.NewMsgRepository(db),
 		user:               userRepoPkg.NewUserRepository(db),
+		userToken:          userRepoPkg.NewUserTokenRepository(db),
 	}
 }

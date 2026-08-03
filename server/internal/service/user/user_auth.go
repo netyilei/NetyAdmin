@@ -249,22 +249,40 @@ func (s *userClientService) Login(ctx context.Context, req *clientDto.UserLoginR
 		slog.Warn("update user login info failed", "userID", user.ID, "err", err)
 	}
 
-	// 6. 生成令牌
-	claims := s.jwt.NewUserClaims(user.ID, req.Platform, jwt.DefaultUserType, jwt.AccessToken, user.TokenVersion)
+	// 6. 生成令牌（端级顶号：先 UPSERT user_tokens 拿新版本号，再签发携带该版本号的 token）
+	//    UPSERT 原子递增 (user_id, platform) 的 token_version：
+	//      - 同 platform 再次登录 → 版本号 +1 → 旧 token claims.ptv < 新版本 → 中间件拒绝（顶号）
+	//      - 不同 platform → 各自独立行，互不影响（多端并存）
+	platTV, err := s.userTokenRepo.UpsertAndIncrement(ctx, &userEntity.UserToken{
+		UserID:   user.ID,
+		Platform: req.Platform,
+	})
+	if err != nil {
+		slog.Error("UpsertAndIncrement user_tokens failed", "userID", user.ID, "platform", req.Platform, "err", err)
+		return nil, errorx.New(errorx.CodeInternalError, "会话初始化失败")
+	}
+
+	claims := s.jwt.NewUserClaims(user.ID, req.Platform, jwt.DefaultUserType, jwt.AccessToken, user.TokenVersion, platTV)
 	token, err := s.jwt.GenerateToken(claims)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "令牌生成失败")
 	}
 
-	refreshClaims := s.jwt.NewUserClaims(user.ID, req.Platform, jwt.DefaultUserType, jwt.RefreshToken, user.TokenVersion)
+	refreshClaims := s.jwt.NewUserClaims(user.ID, req.Platform, jwt.DefaultUserType, jwt.RefreshToken, user.TokenVersion, platTV)
 	refreshToken, err := s.jwt.GenerateToken(refreshClaims)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "刷新令牌生成失败")
 	}
 
-	// 7. 存储 Token 哈希（统一走 authPkg.StoreSessionPair，含 tokenStore nil 守卫）
-	if err := authPkg.StoreSessionPair(ctx, s.tokenStore, user.ID, token, refreshToken,
-		time.Unix(claims.ExpiresAt.Unix(), 0), time.Unix(refreshClaims.ExpiresAt.Unix(), 0)); err != nil {
+	// 7. 回写 token hash 到 user_tokens（access/refresh hash + 过期时间）。
+	//    注意：此处用 UpdateHashes 而非 UpsertAndIncrement——版本号已在第 6 步递增过，
+	//    再调 UpsertAndIncrement 会二次 +1 导致 claims.ptv 与 DB 不一致。
+	//    中间件可用 hash 校验做纵深防御（如 Logout 后立即失效），与版本号校验并存。
+	accessExp := time.Unix(claims.ExpiresAt.Unix(), 0)
+	refreshExp := time.Unix(refreshClaims.ExpiresAt.Unix(), 0)
+	if err := s.userTokenRepo.UpdateHashes(ctx, user.ID, req.Platform,
+		authPkg.HashToken(token), authPkg.HashToken(refreshToken), accessExp, refreshExp); err != nil {
+		slog.Error("UpdateHashes user_tokens failed", "userID", user.ID, "platform", req.Platform, "err", err)
 		return nil, errorx.New(errorx.CodeInternalError, "令牌存储失败")
 	}
 
@@ -311,13 +329,26 @@ func (s *userClientService) RefreshToken(ctx context.Context, refreshToken strin
 		return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌已失效，请重新登录")
 	}
 
-	newClaims := s.jwt.NewUserClaims(user.ID, claims.Platform, jwt.DefaultUserType, jwt.AccessToken, user.TokenVersion)
+	// 端级版本校验：同 platform 重新登录后旧 refresh token 立即失效（顶号）。
+	// user_tokens 行不存在（旧版本基座签发的 token / 首次登录前）→ 跳过端级校验，仅靠用户级版本兜底。
+	ut, utErr := s.userTokenRepo.GetByPlatform(ctx, user.ID, claims.Platform)
+	if utErr == nil && ut != nil {
+		if claims.PlatTokenVersion < ut.TokenVersion {
+			return nil, errorx.New(errorx.CodeUnauthorized, "该设备已有新登录，请重新登录")
+		}
+	} else if !errors.Is(utErr, gorm.ErrRecordNotFound) {
+		// 非「行不存在」的 DB 错误 → fail-closed 拒绝刷新，避免故障窗口放过旧 token
+		slog.Error("GetByPlatform user_tokens failed", "userID", user.ID, "platform", claims.Platform, "err", utErr)
+		return nil, errorx.New(errorx.CodeInternalError, "会话校验异常，请重新登录")
+	}
+
+	newClaims := s.jwt.NewUserClaims(user.ID, claims.Platform, jwt.DefaultUserType, jwt.AccessToken, user.TokenVersion, claims.PlatTokenVersion)
 	token, err := s.jwt.GenerateToken(newClaims)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "生成令牌失败")
 	}
 
-	newRefreshClaims := s.jwt.NewUserClaims(user.ID, claims.Platform, jwt.DefaultUserType, jwt.RefreshToken, user.TokenVersion)
+	newRefreshClaims := s.jwt.NewUserClaims(user.ID, claims.Platform, jwt.DefaultUserType, jwt.RefreshToken, user.TokenVersion, claims.PlatTokenVersion)
 	newRefreshToken, err := s.jwt.GenerateToken(newRefreshClaims)
 	if err != nil {
 		return nil, errorx.New(errorx.CodeInternalError, "刷新令牌失败")
@@ -335,14 +366,14 @@ func (s *userClientService) RefreshToken(ctx context.Context, refreshToken strin
 		}
 	}
 
-	// 刷新令牌：仅删除当前会话的旧 refresh hash，再写入新 access + refresh hash 对。
-	// 不调用 DeleteAll——多设备登录场景下，刷新一个 token 不应踢掉该用户其他设备的合法会话（P1-A 修复）。
-	// 旧 access hash 不删：当前入参仅含旧 refresh token，无法定位旧 access hash；
+	// 刷新令牌：更新 user_tokens 当前 platform 行的 access/refresh hash（不递增版本号，会话延续语义）。
+	// 不递增 token_version——版本号递增仅由 Login 负责（同 platform 顶号）；刷新是同一会话的延续。
+	// 旧 access hash 不单独删：当前入参仅含旧 refresh token，无法定位旧 access hash；
 	// 旧 access 由其自然过期或下次 Logout 清理，不影响其他设备。
-	// 不递增 TokenVersion——版本号递增由改密/禁用/删除等敏感操作负责。
-	if err := authPkg.DeleteAndReplaceSession(ctx, s.tokenStore, user.ID, refreshToken, token, newRefreshToken,
+	if err := s.userTokenRepo.UpdateHashes(ctx, user.ID, claims.Platform,
+		authPkg.HashToken(token), authPkg.HashToken(newRefreshToken),
 		time.Unix(newClaims.ExpiresAt.Unix(), 0), time.Unix(newRefreshClaims.ExpiresAt.Unix(), 0)); err != nil {
-		return nil, errorx.New(errorx.CodeInternalError, "令牌存储失败")
+		slog.Warn("UpdateHashes on refresh failed", "userID", user.ID, "platform", claims.Platform, "err", err)
 	}
 
 	return &userVO.UserLoginVO{
@@ -482,16 +513,17 @@ func (s *userClientService) ChangePassword(ctx context.Context, userID string, r
 	return nil
 }
 
-// Logout 退出登录：删旧 access token hash + 将 refresh token 加入黑名单（TTL 为其剩余有效期）。
+// Logout 退出登录：清空 user_tokens 当前 platform 的 hash + 将 refresh token 加入黑名单。
 // 修复 P0-1 BUG：原实现仅删除 access token hash，refresh token 仍可用于换取新 access token。
 // 此处将 refresh token 写入黑名单（与 RefreshToken 中相同黑名单 key），使后续 RefreshToken 调用被拒绝。
 func (s *userClientService) Logout(ctx context.Context, userID string, accessToken, refreshToken string) error {
-	// 删旧 access token hash（tokenStore 为空时跳过，与原行为一致）
-	if s.tokenStore != nil {
-		accessHash := authPkg.HashToken(accessToken)
-		if err := s.tokenStore.Delete(ctx, userID, accessHash); err != nil {
-			// 删除失败不阻断，继续处理 refresh token 黑名单
-			slog.Warn("logout: delete access token hash failed", "userID", userID, "err", err)
+	// 从 accessToken 解析 platform，清空 user_tokens 该 platform 行的 hash。
+	// hash 清空后中间件 hash 校验会拒绝后续携带该 token 的请求（纵深防御）。
+	claims := &jwt.UserClaims{}
+	if err := s.jwt.ParseToken(accessToken, claims); err == nil && claims.Platform != "" {
+		if err := s.userTokenRepo.ClearHashes(ctx, userID, claims.Platform); err != nil {
+			// 清空失败不阻断，继续处理 refresh token 黑名单（access token 也会自然过期）
+			slog.Warn("logout: clear user_tokens hashes failed", "userID", userID, "platform", claims.Platform, "err", err)
 		}
 	}
 	// 将 refresh token 写入黑名单，TTL 为其剩余有效期

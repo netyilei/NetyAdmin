@@ -34,17 +34,21 @@ func (User) TableName() string {
 	return "users"
 }
 
-// UserTokenHash 用户登录凭证哈希实体
-type UserTokenHash struct {
+// AdminToken stores the admin login credential hash.
+// Each row records one issued (access or refresh) token hash; RequireAuth verifies
+// the presented token against this table. Renamed from UserTokenHash (and the
+// underlying table user_token_hashes → admin_tokens) to separate concerns:
+// admin sessions live here; client multi-device sessions live in user_tokens.
+type AdminToken struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
-	UserID    string    `gorm:"column:user_id;size:26;not null;index" json:"userId"`
+	UserID    string    `gorm:"column:user_id;size:26;not null;index" json:"userId"` // stores admin_id
 	TokenHash string    `gorm:"column:token_hash;size:64;not null" json:"tokenHash"`
 	ExpiredAt time.Time `gorm:"column:expired_at;not null;index" json:"expiredAt"`
 	CreatedAt time.Time `gorm:"column:created_at;autoCreateTime" json:"createdAt"`
 }
 
-func (UserTokenHash) TableName() string {
-	return "user_token_hashes"
+func (AdminToken) TableName() string {
+	return "admin_tokens"
 }
 
 const (

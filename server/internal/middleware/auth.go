@@ -2,9 +2,11 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"NetyAdmin/internal/domain/entity"
 	"NetyAdmin/internal/pkg/auth"
@@ -26,25 +28,27 @@ const adminAuthStateTTL = 30 * time.Second
 
 // AuthMiddleware 持有认证中间件的全部依赖，通过依赖注入构造，消除包级全局变量。
 type AuthMiddleware struct {
-	jwt        *jwtPkg.JWT
-	userRepo   userRepoPkg.UserRepository
-	adminRepo  systemRepoPkg.AdminRepository
-	tokenStore userService.TokenStore
-	cacheSlow  cache.SecurityCache
+	jwt          *jwtPkg.JWT
+	userRepo     userRepoPkg.UserRepository
+	userTokenRepo userRepoPkg.UserTokenRepository
+	adminRepo    systemRepoPkg.AdminRepository
+	tokenStore   userService.TokenStore
+	cacheSlow    cache.SecurityCache
 }
 
 // NewAuthMiddleware 装配认证中间件依赖。j/userRepo/adminRepo 必须非空（fail-fast），
-// tokenStore/cacheSlow 可为 nil（关闭相应能力）。
-func NewAuthMiddleware(j *jwtPkg.JWT, repo userRepoPkg.UserRepository, ts userService.TokenStore, ar systemRepoPkg.AdminRepository, cm cache.SecurityCache) *AuthMiddleware {
+// tokenStore/cacheSlow/userTokenRepo 可为 nil（关闭相应能力）。
+func NewAuthMiddleware(j *jwtPkg.JWT, repo userRepoPkg.UserRepository, utr userRepoPkg.UserTokenRepository, ts userService.TokenStore, ar systemRepoPkg.AdminRepository, cm cache.SecurityCache) *AuthMiddleware {
 	if j == nil || repo == nil || ar == nil {
 		panic("NewAuthMiddleware: j/userRepo/adminRepo 必须非空")
 	}
 	return &AuthMiddleware{
-		jwt:        j,
-		userRepo:   repo,
-		adminRepo:  ar,
-		tokenStore: ts,
-		cacheSlow:  cm,
+		jwt:           j,
+		userRepo:      repo,
+		userTokenRepo: utr,
+		adminRepo:     ar,
+		tokenStore:    ts,
+		cacheSlow:     cm,
 	}
 }
 
@@ -122,9 +126,25 @@ func (a userClaimsAccessor) LookupAccount(ctx context.Context, claims *jwtPkg.Us
 	if err != nil || user == nil {
 		return nil, err
 	}
-	// TokenVersion 校验
+	// 用户级 TokenVersion 校验：admin 后台敏感操作（改密/禁用/删除）递增 users.token_version
+	// 后，旧 token 立即失效——顶掉该用户所有端的会话。
 	if claims.TokenVersion < user.TokenVersion {
 		return &auth.AccountCheckResult{Status: entity.StatusDisabled}, nil
+	}
+	// 端级 TokenVersion 校验：同 platform 重新登录后 user_tokens.token_version 被递增，
+	// 旧 token 携带的 ptv < DB 当前版本 → 该端会话失效（顶号），不影响其他 platform。
+	// userTokenRepo 未注入（兼容老装配）或行不存在（旧基座签发的 token）→ 跳过端级校验，
+	// 仅靠用户级版本号 + tokenStore hash 校验兜底，保持 fail-open 兼容。
+	if a.mw.userTokenRepo != nil && claims.Platform != "" {
+		ut, utErr := a.mw.userTokenRepo.GetByPlatform(ctx, claims.UID, claims.Platform)
+		if utErr == nil && ut != nil {
+			if claims.PlatTokenVersion < ut.TokenVersion {
+				return &auth.AccountCheckResult{Status: entity.StatusDisabled}, nil
+			}
+		} else if utErr != nil && !errors.Is(utErr, gorm.ErrRecordNotFound) {
+			// DB 异常（非行不存在）→ fail-closed，避免故障窗口放过应被顶号的旧 token
+			return nil, utErr
+		}
 	}
 	return &auth.AccountCheckResult{
 		Status: user.Status,

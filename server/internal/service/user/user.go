@@ -30,6 +30,7 @@ import (
 // userAdminService / userClientService 上，以保持 BFF 端隔离的编译期可观测性。
 type userBase struct {
 	repo          userRepo.UserRepository
+	userTokenRepo userRepo.UserTokenRepository
 	jwt           *jwt.JWT
 	verifySvc     VerificationService
 	configWatcher configsync.ConfigWatcher
@@ -44,6 +45,7 @@ type userBase struct {
 // 返回未导出类型 userBase：调用方（wire）使用 := 推断持有，不能再命名声明，但可透传给同包导出构造函数。
 func NewUserBase(
 	repo userRepo.UserRepository,
+	userTokenRepo userRepo.UserTokenRepository,
 	jwtInstance *jwt.JWT,
 	verifySvc VerificationService,
 	configWatcher configsync.ConfigWatcher,
@@ -55,6 +57,7 @@ func NewUserBase(
 ) userBase {
 	return userBase{
 		repo:          repo,
+		userTokenRepo: userTokenRepo,
 		jwt:           jwtInstance,
 		verifySvc:     verifySvc,
 		configWatcher: configWatcher,

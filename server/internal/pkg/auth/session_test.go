@@ -121,12 +121,12 @@ type inMemoryTokenStore struct {
 	createCalls    int
 }
 
-func (s *inMemoryTokenStore) Create(_ context.Context, _ *userEntity.UserTokenHash) error {
+func (s *inMemoryTokenStore) Create(_ context.Context, _ *userEntity.AdminToken) error {
 	s.createCalls++
 	return nil
 }
 
-func (s *inMemoryTokenStore) Get(_ context.Context, _, _ string) (*userEntity.UserTokenHash, error) {
+func (s *inMemoryTokenStore) Get(_ context.Context, _, _ string) (*userEntity.AdminToken, error) {
 	return nil, errors.New("not implemented")
 }
 

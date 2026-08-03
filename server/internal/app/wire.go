@@ -202,7 +202,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	}
 
 	// 8. Router
-	authMW := middleware.NewAuthMiddleware(jwtInstance, repos.user, tokenStore, repos.admin, lazyCacheMgr)
+	authMW := middleware.NewAuthMiddleware(jwtInstance, repos.user, repos.userToken, tokenStore, repos.admin, lazyCacheMgr)
 	r := router.NewRouter(
 		handlers.auth,
 		handlers.common,
@@ -239,7 +239,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		repos.message,
 		repos.openLog,
 		repos.uploadRecord,
-		repos.user,
+		repos.userToken,
 		configWatcher,
 	)...)
 	taskManager.Register(services.msgSendJob)

@@ -22,8 +22,8 @@ import (
 // service/system/admin.go 中的 AdminTokenKey() 生成 key），不再依赖
 // "a:" 字符串前缀这种隐式约定。
 type TokenStore interface {
-	Create(ctx context.Context, hash *userEntity.UserTokenHash) error
-	Get(ctx context.Context, userID, tokenHash string) (*userEntity.UserTokenHash, error)
+	Create(ctx context.Context, hash *userEntity.AdminToken) error
+	Get(ctx context.Context, userID, tokenHash string) (*userEntity.AdminToken, error)
 	Delete(ctx context.Context, userID, tokenHash string) error
 	DeleteAll(ctx context.Context, userID string) error
 }
@@ -46,7 +46,7 @@ func NewTokenStore(repo userRepo.UserRepository, cacheSlow cache.SecurityCache) 
 	return &tokenStore{repo: repo, cacheSlow: cacheSlow}
 }
 
-func (s *tokenStore) Create(ctx context.Context, hash *userEntity.UserTokenHash) error {
+func (s *tokenStore) Create(ctx context.Context, hash *userEntity.AdminToken) error {
 	if err := s.repo.CreateTokenHash(ctx, hash); err != nil {
 		return fmt.Errorf("repo.CreateTokenHash: %w", err)
 	}
@@ -66,13 +66,13 @@ func (s *tokenStore) Create(ctx context.Context, hash *userEntity.UserTokenHash)
 	return nil
 }
 
-func (s *tokenStore) Get(ctx context.Context, userID, tokenHash string) (*userEntity.UserTokenHash, error) {
+func (s *tokenStore) Get(ctx context.Context, userID, tokenHash string) (*userEntity.AdminToken, error) {
 	// 缓存命中：直接返回占位实体（会话仍有效）
 	if s.cacheSlow != nil {
 		key := cache.KeyUserTokenHash(userID, tokenHash)
 		var val string
 		if err := s.cacheSlow.Get(ctx, key, &val); err == nil && val != "" {
-			return &userEntity.UserTokenHash{UserID: userID, TokenHash: tokenHash}, nil
+			return &userEntity.AdminToken{UserID: userID, TokenHash: tokenHash}, nil
 		}
 	}
 	// 缓存未命中：回源 DB

@@ -206,7 +206,7 @@ func TestUserClaims_RoundTrip(t *testing.T) {
 	j, err := jwt.New(priv, pub, 30*time.Minute, 168*time.Hour)
 	require.NoError(t, err)
 
-	claims := j.NewUserClaims("user-123", "web", jwt.DefaultUserType, jwt.AccessToken, 5)
+	claims := j.NewUserClaims("user-123", "web", jwt.DefaultUserType, jwt.AccessToken, 5, 0)
 	token, err := j.GenerateToken(claims)
 	require.NoError(t, err)
 

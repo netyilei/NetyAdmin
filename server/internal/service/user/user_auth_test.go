@@ -131,7 +131,7 @@ type mockUserTokenStore struct {
 	deleteErr   error
 }
 
-func (s *mockUserTokenStore) Create(_ context.Context, _ *userEntity.UserTokenHash) error {
+func (s *mockUserTokenStore) Create(_ context.Context, _ *userEntity.AdminToken) error {
 	if s.createErr != nil {
 		err := s.createErr
 		s.createErr = nil
@@ -151,7 +151,7 @@ func (s *mockUserTokenStore) Delete(_ context.Context, _, _ string) error {
 	return nil
 }
 
-func (s *mockUserTokenStore) Get(_ context.Context, _, _ string) (*userEntity.UserTokenHash, error) {
+func (s *mockUserTokenStore) Get(_ context.Context, _, _ string) (*userEntity.AdminToken, error) {
 	return nil, errors.New("not implemented")
 }
 
@@ -215,10 +215,10 @@ func (r *mockUserRepo) Update(_ context.Context, _ *userEntity.User) error      
 func (r *mockUserRepo) Delete(_ context.Context, _ string) error                { return nil }
 func (r *mockUserRepo) DeleteBatch(_ context.Context, _ []string) error         { return nil }
 func (r *mockUserRepo) IncrementTokenVersion(_ context.Context, _ string) error { return nil }
-func (r *mockUserRepo) CreateTokenHash(_ context.Context, _ *userEntity.UserTokenHash) error {
+func (r *mockUserRepo) CreateTokenHash(_ context.Context, _ *userEntity.AdminToken) error {
 	return nil
 }
-func (r *mockUserRepo) GetTokenHash(_ context.Context, _, _ string) (*userEntity.UserTokenHash, error) {
+func (r *mockUserRepo) GetTokenHash(_ context.Context, _, _ string) (*userEntity.AdminToken, error) {
 	return nil, gorm.ErrRecordNotFound
 }
 func (r *mockUserRepo) DeleteTokenHash(_ context.Context, _, _ string) error      { return nil }
@@ -493,7 +493,7 @@ func TestUserLogout_WritesRefreshTokenToBlacklist(t *testing.T) {
 	user := enabledUser("01HTESTUSERLOGOUT0001", "logout")
 	repo.UserByID = user
 
-	claims := j.NewUserClaims(user.ID, "web", jwt.DefaultUserType, jwt.RefreshToken, user.TokenVersion)
+	claims := j.NewUserClaims(user.ID, "web", jwt.DefaultUserType, jwt.RefreshToken, user.TokenVersion, 0)
 	refresh, err := j.GenerateToken(claims)
 	require.NoError(t, err)
 
@@ -524,7 +524,7 @@ func TestUserRefreshToken_Success(t *testing.T) {
 	user := enabledUser("01HTESTUSERREFRESH001", "refresh")
 	repo.UserByID = user
 
-	claims := j.NewUserClaims(user.ID, "web", jwt.DefaultUserType, jwt.RefreshToken, user.TokenVersion)
+	claims := j.NewUserClaims(user.ID, "web", jwt.DefaultUserType, jwt.RefreshToken, user.TokenVersion, 0)
 	refresh, err := j.GenerateToken(claims)
 	require.NoError(t, err)
 
@@ -563,7 +563,7 @@ func TestUserRefreshToken_BlacklistedRejected(t *testing.T) {
 	user := enabledUser("01HTESTUSERREFRESH002", "blacklisted")
 	repo.UserByID = user
 
-	claims := j.NewUserClaims(user.ID, "web", jwt.DefaultUserType, jwt.RefreshToken, user.TokenVersion)
+	claims := j.NewUserClaims(user.ID, "web", jwt.DefaultUserType, jwt.RefreshToken, user.TokenVersion, 0)
 	refresh, err := j.GenerateToken(claims)
 	require.NoError(t, err)
 
@@ -585,7 +585,7 @@ func TestUserRefreshToken_UserDisabled(t *testing.T) {
 	user.Status = entity.StatusDisabled
 	repo.UserByID = user
 
-	claims := j.NewUserClaims(user.ID, "web", jwt.DefaultUserType, jwt.RefreshToken, user.TokenVersion)
+	claims := j.NewUserClaims(user.ID, "web", jwt.DefaultUserType, jwt.RefreshToken, user.TokenVersion, 0)
 	refresh, err := j.GenerateToken(claims)
 	require.NoError(t, err)
 

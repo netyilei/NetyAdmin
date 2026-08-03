@@ -137,7 +137,7 @@ type mockTokenStore struct {
 	createErr    error
 }
 
-func (s *mockTokenStore) Create(_ context.Context, _ *userEntity.UserTokenHash) error {
+func (s *mockTokenStore) Create(_ context.Context, _ *userEntity.AdminToken) error {
 	if s.createErr != nil {
 		err := s.createErr
 		s.createErr = nil
@@ -155,7 +155,7 @@ func (s *mockTokenStore) Delete(_ context.Context, _, _ string) error {
 	return nil
 }
 
-func (s *mockTokenStore) Get(_ context.Context, _, _ string) (*userEntity.UserTokenHash, error) {
+func (s *mockTokenStore) Get(_ context.Context, _, _ string) (*userEntity.AdminToken, error) {
 	return nil, errors.New("not implemented")
 }
 

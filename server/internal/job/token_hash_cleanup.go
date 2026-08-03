@@ -9,18 +9,22 @@ import (
 	userRepo "NetyAdmin/internal/repository/user"
 )
 
-// TokenHashCleanupJob 用户 token hash 清理任务。
-// 定时物理删除 user_token_hashes 表中 expired_at < NOW() 的过期记录，
-// 避免用户登录/刷新令牌过程中产生的 token hash 行无限堆积。
+// TokenHashCleanupJob cleans up expired client session rows from user_tokens.
 //
-// 触发方式：Cron 表达式 "0 0 * * * *"，每小时整点执行一次。
-// 利用 user_token_hashes 表上的 idx_user_token_expired 索引加速范围删除。
+// Why only user_tokens (not admin_tokens): client sessions accumulate per
+// (user_id, platform) and a single device can produce many rows over time
+// (re-install, re-login on new device with same platform string, etc.).
+// admin_tokens are reclaimed by admin Logout / forced logout flows and do not
+// need a background sweep.
+//
+// Trigger: cron "0 0 * * * *" (top of every hour). Uses the
+// idx_user_tokens_access_expires index for the range scan.
 type TokenHashCleanupJob struct {
-	userRepo userRepo.UserRepository
+	userTokenRepo userRepo.UserTokenRepository
 }
 
-func NewTokenHashCleanupJob(userRepo userRepo.UserRepository) *TokenHashCleanupJob {
-	return &TokenHashCleanupJob{userRepo: userRepo}
+func NewTokenHashCleanupJob(userTokenRepo userRepo.UserTokenRepository) *TokenHashCleanupJob {
+	return &TokenHashCleanupJob{userTokenRepo: userTokenRepo}
 }
 
 func (j *TokenHashCleanupJob) Name() string {
@@ -32,13 +36,13 @@ func (j *TokenHashCleanupJob) DisplayName() string {
 }
 
 func (j *TokenHashCleanupJob) Run(ctx context.Context) error {
-	affected, err := j.userRepo.DeleteExpiredTokenHashes(ctx)
+	affected, err := j.userTokenRepo.DeleteExpired(ctx)
 	if err != nil {
-		slog.Error("清理过期 token hash 失败", "error", err)
+		slog.Error("清理过期 user_tokens 失败", "error", err)
 		return err
 	}
 	if affected > 0 {
-		slog.Info("已清理过期 token hash 记录", "count", affected)
+		slog.Info("已清理过期 user_tokens 记录", "count", affected)
 	}
 	return nil
 }

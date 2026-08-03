@@ -177,7 +177,7 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr *cach
 	s.verification = userServicePkg.NewVerificationService(lazyCacheMgr, s.message, configWatcher, captchaStore)
 	// userBase 由 admin/client 两端 service 共享：复用 repo/jwt/cache/tm 等底层依赖，
 	// 避免重复构造与字段漂移。两端 service 仅 import 本端 DTO，保证 BFF 端隔离（spec D4）。
-	userBase := userServicePkg.NewUserBase(repos.user, jwtInstance, s.verification, configWatcher, storageMgr, captchaStore, tokenStore, lazyCacheMgr, tm)
+	userBase := userServicePkg.NewUserBase(repos.user, repos.userToken, jwtInstance, s.verification, configWatcher, storageMgr, captchaStore, tokenStore, lazyCacheMgr, tm)
 	s.userAdmin = userServicePkg.NewUserAdminService(userBase)
 	s.userClient = userServicePkg.NewUserClientService(userBase)
 

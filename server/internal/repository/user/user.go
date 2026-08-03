@@ -31,13 +31,13 @@ type UserRepository interface {
 	// 支持 context 传播事务：若 ctx 中携带 *Tx 则复用事务句柄。
 	IncrementTokenVersion(ctx context.Context, id string) error
 
-	// Token Hash 相关
-	CreateTokenHash(ctx context.Context, hash *userEntity.UserTokenHash) error
-	GetTokenHash(ctx context.Context, userID, tokenHash string) (*userEntity.UserTokenHash, error)
+	// AdminToken (admin-side session storage) — typed AdminToken maps to admin_tokens table.
+	CreateTokenHash(ctx context.Context, hash *userEntity.AdminToken) error
+	GetTokenHash(ctx context.Context, userID, tokenHash string) (*userEntity.AdminToken, error)
 	DeleteTokenHash(ctx context.Context, userID, tokenHash string) error
 	DeleteAllTokenHashes(ctx context.Context, userID string) error
-	// DeleteExpiredTokenHashes 物理删除所有已过期的 token hash 记录（expired_at < NOW()）。
-	// 返回受影响行数。供 token_hash_cleanup Job 定时调用，避免 user_token_hashes 表无限堆积。
+	// DeleteExpiredTokenHashes 物理删除所有 expired_at < NOW() 的 admin token 记录。
+	// 返回受影响行数。供 token_hash_cleanup Job 定时调用，避免 admin_tokens 表无限堆积。
 	DeleteExpiredTokenHashes(ctx context.Context) (int64, error)
 
 	// --- OAuth binding ---
@@ -229,12 +229,12 @@ func (r *userRepository) IncrementTokenVersion(ctx context.Context, id string) e
 		UpdateColumn("token_version", gorm.Expr("token_version + ?", 1)).Error
 }
 
-func (r *userRepository) CreateTokenHash(ctx context.Context, hash *userEntity.UserTokenHash) error {
+func (r *userRepository) CreateTokenHash(ctx context.Context, hash *userEntity.AdminToken) error {
 	return r.getDB(ctx).Create(hash).Error
 }
 
-func (r *userRepository) GetTokenHash(ctx context.Context, userID, tokenHash string) (*userEntity.UserTokenHash, error) {
-	var hash userEntity.UserTokenHash
+func (r *userRepository) GetTokenHash(ctx context.Context, userID, tokenHash string) (*userEntity.AdminToken, error) {
+	var hash userEntity.AdminToken
 	if err := r.getDB(ctx).Where("user_id = ? AND token_hash = ?", userID, tokenHash).First(&hash).Error; err != nil {
 		return nil, err
 	}
@@ -242,18 +242,18 @@ func (r *userRepository) GetTokenHash(ctx context.Context, userID, tokenHash str
 }
 
 func (r *userRepository) DeleteTokenHash(ctx context.Context, userID, tokenHash string) error {
-	return r.getDB(ctx).Where("user_id = ? AND token_hash = ?", userID, tokenHash).Delete(&userEntity.UserTokenHash{}).Error
+	return r.getDB(ctx).Where("user_id = ? AND token_hash = ?", userID, tokenHash).Delete(&userEntity.AdminToken{}).Error
 }
 
 func (r *userRepository) DeleteAllTokenHashes(ctx context.Context, userID string) error {
-	return r.getDB(ctx).Where("user_id = ?", userID).Delete(&userEntity.UserTokenHash{}).Error
+	return r.getDB(ctx).Where("user_id = ?", userID).Delete(&userEntity.AdminToken{}).Error
 }
 
-// DeleteExpiredTokenHashes 物理删除所有 expired_at < NOW() 的 token hash 记录。
-// user_token_hashes 表无 soft_delete 字段，Delete 即硬删除。
-// 利用 idx_user_token_expired 索引加速范围扫描。
+// DeleteExpiredTokenHashes 物理删除所有 expired_at < NOW() 的 admin token 记录。
+// admin_tokens 表无 soft_delete 字段，Delete 即硬删除。
+// 利用 idx_admin_tokens_expired 索引加速范围扫描。
 func (r *userRepository) DeleteExpiredTokenHashes(ctx context.Context) (int64, error) {
-	res := r.getDB(ctx).Where("expired_at < NOW()", nil).Delete(&userEntity.UserTokenHash{})
+	res := r.getDB(ctx).Where("expired_at < NOW()", nil).Delete(&userEntity.AdminToken{})
 	return res.RowsAffected, res.Error
 }
 
