@@ -24,9 +24,9 @@ import (
 	pkgSentry "NetyAdmin/internal/pkg/sentry"
 	"NetyAdmin/internal/pkg/task"
 	userRepoPkg "NetyAdmin/internal/repository/user"
+	ipacService "NetyAdmin/internal/service/ipac"
 	logService "NetyAdmin/internal/service/log"
 	msgService "NetyAdmin/internal/service/message"
-	ipacService "NetyAdmin/internal/service/ipac"
 	userServicePkg "NetyAdmin/internal/service/user"
 )
 
@@ -86,7 +86,7 @@ type App struct {
 	oauthBinding userServicePkg.OAuthBindingService
 
 	// Module 装配扩展点（供 RegisterModule 使用，下游通过 App.RegisterModule 注入业务模块）
-	started           bool                          // Run() 启动后置 true，RegisterModule 检测此标志拒绝启动后注册
+	started          bool // Run() 启动后置 true，RegisterModule 检测此标志拒绝启动后注册
 	authMW           *middleware.AuthMiddleware
 	authVerifier     middleware.AuthVerifier
 	ipacSvc          ipacService.IPACService
@@ -208,7 +208,11 @@ func (a *App) CacheMgr() *cache.LazyCacheManager { return a.cacheMgr }
 
 // RedisClient returns the Redis client for downstream direct use
 // (rate limiting, distributed locks, slot management, etc.).
-// Returns nil if Redis is disabled in config.
+//
+// **WARNING**: Returns nil if Redis is disabled in config. Downstream code MUST
+// nil-check before use (e.g., `if r := app.RedisClient(); r != nil { ... }`),
+// otherwise calling methods on nil will panic. The base framework internally
+// follows this pattern at all Redis usage sites.
 func (a *App) RedisClient() *redis.Client { return a.redisClient }
 
 // UserTokenRepository returns the user_tokens repository for downstream
