@@ -13,4 +13,6 @@ CREATE TABLE IF NOT EXISTS admin_button (
 
 CREATE UNIQUE INDEX IF NOT EXISTS admin_button_code_key ON admin_button(code) WHERE deleted_at = 0;
 CREATE INDEX IF NOT EXISTS idx_admin_button_deleted ON admin_button(deleted_at);
+-- 高频查询: 按钮管理页加载、菜单删除级联查询
+CREATE INDEX IF NOT EXISTS idx_admin_button_menu_id ON admin_button(menu_id);
 

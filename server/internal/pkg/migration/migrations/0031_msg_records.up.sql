@@ -17,4 +17,8 @@ CREATE TABLE IF NOT EXISTS msg_records (
 
 CREATE INDEX IF NOT EXISTS idx_msg_rec_user ON msg_records(user_id);
 CREATE INDEX IF NOT EXISTS idx_msg_rec_status ON msg_records(status);
+-- 高频查询: 消息记录列表（按 channel 过滤 + 时间排序）
+CREATE INDEX IF NOT EXISTS idx_msg_records_channel_time ON msg_records(channel, created_at DESC);
+-- 高频查询: 客户端用户消息列表
+CREATE INDEX IF NOT EXISTS idx_msg_records_user_status ON msg_records(user_id, status);
 

@@ -8,9 +8,14 @@ CREATE TABLE IF NOT EXISTS sys_task_logs (
     end_time TIMESTAMP WITH TIME ZONE NOT NULL,
     duration DOUBLE PRECISION NOT NULL,
     status VARCHAR(20) NOT NULL,
+    request_id VARCHAR(50),
     message TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_sys_task_logs_name ON sys_task_logs(name);
 CREATE INDEX IF NOT EXISTS idx_sys_task_logs_status ON sys_task_logs(status);
+-- request_id 全链路传播（Task 8.5）
+CREATE INDEX IF NOT EXISTS idx_sys_task_logs_request_id ON sys_task_logs(request_id);
+-- 高频查询: 获取最新任务日志 WHERE name = ? ORDER BY id DESC LIMIT 1
+CREATE INDEX IF NOT EXISTS idx_task_logs_name_id ON sys_task_logs(name, id DESC);
 

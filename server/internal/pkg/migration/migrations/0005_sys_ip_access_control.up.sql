@@ -18,4 +18,6 @@ CREATE TABLE IF NOT EXISTS sys_ip_access_control (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ipac_app_ip ON sys_ip_access_control(app_id, ip_addr) WHERE deleted_at = 0;
 CREATE INDEX IF NOT EXISTS idx_ipac_status ON sys_ip_access_control(status);
 CREATE INDEX IF NOT EXISTS idx_ipac_deleted ON sys_ip_access_control(deleted_at);
+-- 高频查询: WHERE status = ? AND (expired_at IS NULL OR expired_at > NOW())
+CREATE INDEX IF NOT EXISTS idx_ipac_status_expired ON sys_ip_access_control(status, expired_at) WHERE deleted_at = 0;
 

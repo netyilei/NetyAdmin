@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS upload_record (
     status VARCHAR(20) NOT NULL DEFAULT 'uploaded',
     secret VARCHAR(128) NOT NULL DEFAULT '',
     expires_at TIMESTAMP,
-    deleted_at BIGINT DEFAULT 0
+    deleted_at BIGINT DEFAULT 0,
+    CONSTRAINT fk_upload_record_storage_config FOREIGN KEY (storage_config_id) REFERENCES storage_config(id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_upload_record_storage_config ON upload_record(storage_config_id);

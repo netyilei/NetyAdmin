@@ -14,4 +14,6 @@ CREATE TABLE IF NOT EXISTS msg_templates (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_msg_tpl_code ON msg_templates(code) WHERE deleted_at = 0;
+-- 高频查询: 模板列表按渠道+状态筛选
+CREATE INDEX IF NOT EXISTS idx_msg_templates_channel_status ON msg_templates(channel, status) WHERE deleted_at = 0;
 

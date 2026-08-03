@@ -37,4 +37,10 @@ CREATE INDEX IF NOT EXISTS idx_content_article_publish_status ON content_article
 CREATE INDEX IF NOT EXISTS idx_content_article_published_at ON content_article(published_at);
 CREATE INDEX IF NOT EXISTS idx_content_article_scheduled_at ON content_article(scheduled_at);
 CREATE INDEX IF NOT EXISTS idx_content_article_is_top ON content_article(is_top, top_sort);
+-- 高频查询: 客户端文章列表（最高频的前台查询）
+CREATE INDEX IF NOT EXISTS idx_content_article_status_pub_time ON content_article(publish_status, published_at DESC);
+-- 高频查询: 定时发布任务（每分钟执行）
+CREATE INDEX IF NOT EXISTS idx_content_article_status_scheduled ON content_article(publish_status, scheduled_at);
+-- 高频查询: 管理后台按分类+状态筛选
+CREATE INDEX IF NOT EXISTS idx_content_article_cat_status ON content_article(category_id, publish_status);
 

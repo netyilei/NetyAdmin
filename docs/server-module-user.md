@@ -107,7 +107,7 @@ type UserOAuthBinding struct {
 // 索引：(user_id) — 支持 ListByUserID 查询用户已绑定的所有第三方账号
 ```
 
-DDL 详见迁移脚本 `server/internal/pkg/migration/migrations/0064_user_oauth_bindings.up.sql`。
+DDL 详见迁移脚本 `server/internal/pkg/migration/migrations/0054_user_oauth_bindings.up.sql`。
 
 ---
 

@@ -1,1 +1,0 @@
-DROP TABLE IF EXISTS msg_blacklist CASCADE;

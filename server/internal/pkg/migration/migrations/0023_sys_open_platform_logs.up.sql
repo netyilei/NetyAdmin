@@ -11,10 +11,15 @@ CREATE TABLE IF NOT EXISTS sys_open_platform_logs (
     request_body TEXT,
     response_body TEXT,
     error_msg TEXT,
+    request_id VARCHAR(50),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_open_log_app_id ON sys_open_platform_logs(app_id);
 CREATE INDEX IF NOT EXISTS idx_open_log_created_at ON sys_open_platform_logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_open_log_status ON sys_open_platform_logs(status_code);
+-- request_id 全链路传播（Task 8.5）
+CREATE INDEX IF NOT EXISTS idx_open_log_request_id ON sys_open_platform_logs(request_id);
+-- 高频查询: 日志管理（按应用 + 时间范围查询）
+CREATE INDEX IF NOT EXISTS idx_open_log_app_time ON sys_open_platform_logs(app_id, created_at DESC);
 

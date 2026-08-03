@@ -19,4 +19,6 @@ CREATE TABLE IF NOT EXISTS content_category (
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_content_category_code ON content_category(code) WHERE deleted_at = 0;
 CREATE INDEX IF NOT EXISTS idx_content_category_parent ON content_category(parent_id);
+-- 高频查询: 分类列表按状态筛选
+CREATE INDEX IF NOT EXISTS idx_content_category_status ON content_category(status) WHERE deleted_at = 0;
 

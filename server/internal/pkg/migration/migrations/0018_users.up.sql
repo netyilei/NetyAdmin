@@ -15,11 +15,14 @@ CREATE TABLE IF NOT EXISTS users (
     last_login_at TIMESTAMP WITH TIME ZONE,
     last_login_ip VARCHAR(50),
     remark TEXT,
-    last_read_announcement_id BIGINT DEFAULT 0
+    last_read_announcement_id BIGINT DEFAULT 0,
+    token_version BIGINT NOT NULL DEFAULT 0 -- Token 版本号（敏感操作递增，使旧 Token 失效）
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS users_username_key ON users(username) WHERE deleted_at = 0;
 CREATE UNIQUE INDEX IF NOT EXISTS users_phone_key ON users(phone) WHERE deleted_at = 0 AND phone IS NOT NULL AND phone != '';
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_key ON users(email) WHERE deleted_at = 0 AND email IS NOT NULL AND email != '';
 CREATE INDEX IF NOT EXISTS idx_users_deleted ON users(deleted_at);
+-- 高频查询: 用户列表按状态筛选
+CREATE INDEX IF NOT EXISTS idx_users_status ON users(status) WHERE deleted_at = 0;
 

@@ -20,7 +20,7 @@ type OpenPlatformLog struct {
 	ResponseBody  string `gorm:"type:text" json:"responseBody"`
 	ErrorMsg      string `gorm:"type:text" json:"errorMsg"`
 	// RequestID 由 OpenPlatformAuth 中间件在调用 logSvc.Record 时填入，
-	// 对应 DB 列 sys_open_platform_logs.request_id（迁移 0060 新增）。
+	// 对应 DB 列 sys_open_platform_logs.request_id（建表迁移 0023 已含该列）。
 	RequestID string    `gorm:"column:request_id;size:50;comment:请求ID" json:"requestId"`
 	CreatedAt time.Time `gorm:"index" json:"createdAt"`
 }

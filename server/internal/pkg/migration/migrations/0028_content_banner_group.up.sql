@@ -22,4 +22,6 @@ CREATE TABLE IF NOT EXISTS content_banner_group (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_content_banner_group_code ON content_banner_group(code) WHERE deleted_at = 0;
+-- 高频查询: Banner 组按位置+状态查询
+CREATE INDEX IF NOT EXISTS idx_banner_group_position_status ON content_banner_group(position, status) WHERE deleted_at = 0;
 

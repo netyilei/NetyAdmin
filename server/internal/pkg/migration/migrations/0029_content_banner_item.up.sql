@@ -26,4 +26,6 @@ CREATE TABLE IF NOT EXISTS content_banner_item (
 CREATE INDEX IF NOT EXISTS idx_content_banner_item_group ON content_banner_item(group_id);
 CREATE INDEX IF NOT EXISTS idx_content_banner_item_status ON content_banner_item(status);
 CREATE INDEX IF NOT EXISTS idx_content_banner_item_time ON content_banner_item(start_time, end_time);
+-- 高频查询: 客户端 Banner 加载
+CREATE INDEX IF NOT EXISTS idx_banner_item_group_status ON content_banner_item(group_id, status);
 

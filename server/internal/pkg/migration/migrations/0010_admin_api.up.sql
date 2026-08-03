@@ -14,4 +14,6 @@ CREATE TABLE IF NOT EXISTS admin_api (
 
 CREATE UNIQUE INDEX IF NOT EXISTS admin_api_method_path_key ON admin_api(method, path) WHERE deleted_at = 0;
 CREATE INDEX IF NOT EXISTS idx_admin_api_deleted ON admin_api(deleted_at);
+-- 高频查询: API 管理页加载、菜单删除级联查询
+CREATE INDEX IF NOT EXISTS idx_admin_api_menu_id ON admin_api(menu_id);
 

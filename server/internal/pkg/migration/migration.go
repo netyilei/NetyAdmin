@@ -4,9 +4,14 @@
 // 迁移 SQL 文件以 go:embed 方式编译进二进制，部署时无需携带迁移文件。
 //
 // 迁移文件组织（golang-migrate 标准 NNNN_name.up.sql / .down.sql 格式）：
-//   - 0001-0036: 表结构（CREATE TABLE，含历史增量变更压扁后的最终形态）
-//   - 0037-0039: 外键约束
-//   - 0040-0057: 种子数据（INSERT，无 down 文件，重建即恢复）
+//   - 0001-0035: 表结构（CREATE TABLE，含历史增量变更压扁后的最终形态：列、联合索引、外键）
+//   - 0036-0053: 种子数据（INSERT，配 down 文件，见 docs/server-module-migration.md §4.5）
+//   - 0054+: 新功能迁移
+//
+// 编号规划（见 docs/server-module-migration.md §2.3）：
+//   - 基座业务迁移 0001-0499（当前最新 0054）
+//   - 下游项目自建迁移 1000-9999（与基座更新隔离，避免编号冲突）
+//   - 运维/兜底脚本不入迁移链（server/scripts/sequence_sync.sql）
 //
 // 版本管理：golang-migrate 会在数据库中创建 schema_migrations 表追踪版本号。
 package migration

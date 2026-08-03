@@ -27,4 +27,6 @@ CREATE INDEX IF NOT EXISTS idx_storage_config_provider ON storage_config(provide
 CREATE INDEX IF NOT EXISTS idx_storage_config_status ON storage_config(status);
 CREATE INDEX IF NOT EXISTS idx_storage_config_is_default ON storage_config(is_default);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_storage_config_name ON storage_config(name) WHERE deleted_at = 0;
+-- 高频查询: 获取默认存储配置
+CREATE INDEX IF NOT EXISTS idx_storage_config_default_status ON storage_config(is_default, status) WHERE deleted_at = 0;
 

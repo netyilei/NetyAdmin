@@ -13,9 +13,12 @@ CREATE TABLE IF NOT EXISTS admin_user (
     email VARCHAR(100),
     gender VARCHAR(1) DEFAULT '1',
     status VARCHAR(1) DEFAULT '1',
-    last_login_at VARCHAR(30)
+    last_login_at VARCHAR(30),
+    token_version BIGINT NOT NULL DEFAULT 0 -- Token 版本号（敏感操作递增，使旧 Token 失效）
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS admin_user_username_key ON admin_user(username) WHERE deleted_at = 0;
 CREATE INDEX IF NOT EXISTS idx_admin_user_deleted ON admin_user(deleted_at);
+-- 高频查询: 管理员列表按状态筛选
+CREATE INDEX IF NOT EXISTS idx_admin_user_status ON admin_user(status) WHERE deleted_at = 0;
 

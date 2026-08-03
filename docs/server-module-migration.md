@@ -31,31 +31,42 @@ server/internal/pkg/migration/
     ├── 0002_sys_dict_data.up.sql
     ├── 0002_sys_dict_data.down.sql
     ├── ...
-    ├── 0036_upload_record.up.sql       # 含历史 ALTER 合并后的最终表结构
-    ├── 0037_fk_storage.up.sql          # 外键约束阶段
+    ├── 0035_upload_record.up.sql       # 含历史 ALTER/索引/外键合并后的最终表结构
     ├── ...
-    ├── 0040_seed_sys_dict_type.up.sql   # 种子数据阶段（含 down 文件，见 §4.5）
-    ├── 0040_seed_sys_dict_type.down.sql
+    ├── 0036_seed_sys_dict_type.up.sql   # 种子数据阶段（含 down 文件，见 §4.5）
+    ├── 0036_seed_sys_dict_type.down.sql
     ├── ...
-    ├── 0057_seed_admin_auth.up.sql      # 必须最后执行（依赖前置 menu/api/button）
-    ├── 0057_seed_admin_auth.down.sql
-    ├── 0061_sequence_sync.up.sql        # 序列同步（幂等，dump 导入后修复主键序列）
-    └── 0061_sequence_sync.down.sql      # no-op（序列同步不可逆，见 §4.6）
+    ├── 0053_seed_admin_auth.up.sql      # 必须最后执行（依赖前置 menu/api/button）
+    ├── 0053_seed_admin_auth.down.sql
+    └── 0054_user_oauth_bindings.up.sql  # 新功能迁移（第三方 OAuth 绑定表）
 
 server/scripts/
-└── sequence_sync.sql            # 运维工具：dump 导入后修复主键序列（已集成为 0061 迁移）
+└── sequence_sync.sql            # 运维工具：dump 导入后修复主键序列（独立脚本，不入迁移链，见 §2.3 编号规划）
 ```
 
 ### 文件编号规则
 
 | 序号范围 | 阶段 | 说明 |
 |---------|------|------|
-| 0001-0036 | 表结构 | `CREATE TABLE`，每个表一个文件 |
-| 0037-0039 | 外键约束 | `ALTER TABLE ADD CONSTRAINT`，跨表依赖独立成文件 |
-| 0040-0057 | 种子数据 | `INSERT`，必须配对 up/down 文件（见 §4.5） |
-| 0058+ | 后续变更 | 表结构 ALTER、序列同步等 |
+| 0001-0035 | 表结构 | `CREATE TABLE`，每个表一个文件，含最终列/联合索引/外键（历史补丁已压扁） |
+| 0036-0053 | 种子数据 | `INSERT`，必须配对 up/down 文件（见 §4.5） |
+| 0054+ | 新功能 | 新功能建表等 |
 
-> **关键约束**：`0057_seed_admin_auth` 必须排在所有种子数据最后，因为它依赖前置的 menu/api/button 全部就绪后做超级管理员的全量授权。
+> **关键约束**：`0053_seed_admin_auth` 必须排在所有种子数据最后，因为它依赖前置的 menu/api/button 全部就绪后做超级管理员的全量授权。
+
+### 2.3 编号规划（基座 / 下游协作，重要）
+
+迁移文件为**全局递增序号**，基座与基于基座开发的下游项目共用同一个 `migrations/` 目录，必须划分号段避免编号冲突：
+
+| 号段 | 归属 | 说明 |
+|------|------|------|
+| `0001-0499` | 基座业务迁移 | 建表 / 种子 / 新功能。基座新增迁移继续使用段内下一个连续号（当前最新为 0054，下一个用 0055） |
+| `1000-9999` | 下游项目迁移 | 基于基座开发的项目，自建迁移从 `1001` 起编号，**绝不使用** `0001-0499` 段 |
+| 不入链 | 运维/兜底脚本 | 如 `server/scripts/sequence_sync.sql`，**不放入迁移链**（原因见下） |
+
+> **为什么运维脚本不入迁移链**：golang-migrate 的 `Up()` 只执行编号**大于**当前库版本的迁移。若兜底脚本占用大号段（如 8001），任何已部署库执行过它后版本号即停在 8001，基座之后新增的业务迁移（0055+，编号更小）将**永不执行**。故运维/兜底一律放 `server/scripts/` 独立脚本，迁移链只保留业务迁移。
+
+**下游项目新增迁移的正确做法**：在 `migrations/` 下创建 `1001_xxx.up.sql` / `1001_xxx.down.sql`（以此类推）。基座更新新增 `0055+` 迁移时，与下游 `1001+` 编号永不冲突，`git merge` 后直接可用。
 
 ---
 
@@ -86,7 +97,7 @@ NNNN_descriptive_name.up.sql    # 正向迁移
 NNNN_descriptive_name.down.sql  # 回滚迁移（表/约束必须提供，种子数据可不提供）
 ```
 
-- **NNNN**：4 位全局唯一递增数字，紧接当前最大序号（当前最大为 0057，下一个用 0001 不对，用 0058）。
+- **NNNN**：4 位全局唯一递增数字。基座段 `0001-0499`（当前最新为 0054，下一个用 0055）；下游项目段 `1001-9999`（见 §2.3）。
 - **descriptive_name**：简短英文描述，蛇形命名。
 
 推荐用 golang-migrate CLI 生成（自动分配序号）：
@@ -104,7 +115,7 @@ migrate create -ext sql -dir internal/pkg/migration/migrations -seq add_user_ava
 ### 4.3 up 文件规范
 
 ```sql
--- 0058_add_user_avatar.up.sql
+-- 0065_add_user_avatar.up.sql
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar VARCHAR(500);
 CREATE INDEX IF NOT EXISTS idx_users_avatar ON users(avatar) WHERE avatar IS NOT NULL;
 ```
@@ -114,7 +125,7 @@ CREATE INDEX IF NOT EXISTS idx_users_avatar ON users(avatar) WHERE avatar IS NOT
 down 文件用于回滚，必须可安全执行：
 
 ```sql
--- 0058_add_user_avatar.down.sql
+-- 0065_add_user_avatar.down.sql
 ALTER TABLE users DROP COLUMN IF EXISTS avatar;
 ```
 
@@ -122,7 +133,7 @@ ALTER TABLE users DROP COLUMN IF EXISTS avatar;
 
 ### 4.5 种子数据规范
 
-种子数据文件（0040-0057）**必须配对 up/down 文件**。原因：
+种子数据文件（0036-0053）**必须配对 up/down 文件**。原因：
 
 1. **CI 可逆性测试**：CI 流水线执行 `migrate up && migrate down 1 && migrate up` 验证迁移可逆性，缺失 down 文件会导致测试失败。
 2. **开发环境回滚**：开发者误执行 up 后可通过 down 回滚到迁移前状态，避免清库重建。
@@ -154,12 +165,12 @@ down 文件必须是 up 文件的**精确反向操作**，使用与 up 相同的
 部分迁移操作本质上是**幂等修复**而非数据/结构变更，无有意义的回退路径。这类迁移的 down 文件应明确标注「不可逆」并说明原因，文件内容可为 `SELECT 1;` 占位：
 
 ```sql
--- 0061_sequence_sync.down.sql
--- 不可逆：序列同步是幂等修复操作，对数据无破坏性影响，down 不需要回退
+-- 0055_xxx_irreversible.down.sql
+-- 不可逆：本迁移是幂等修复操作，对数据无破坏性影响，down 不需要回退
 -- 说明：
---   1. setval 只是将序列当前值对齐到 MAX(id)，不删除数据、不修改表结构；
---   2. 回退 setval 没有意义——下一次 sequence_sync 仍会重新对齐；
---   3. 若强制回退，需要知道同步前的序列原值（不可知），无安全回退路径。
+--   1. 修复操作只对齐/修正数据，不删除数据、不修改表结构；
+--   2. 回退没有意义——下一次同类修复仍会重新对齐；
+--   3. 若强制回退，需要知道修复前的原值（不可知），无安全回退路径。
 SELECT 1;
 ```
 
@@ -204,23 +215,31 @@ if cfg.Migration.Enabled {
 
 ### 全新部署（空数据库）
 
-直接启动服务，`m.Up()` 从版本 0001 顺序执行全部迁移（当前最新版本为 0061），自动建表 + 种子数据 + 序列同步。
+直接启动服务，`m.Up()` 从版本 0001 顺序执行全部迁移（当前最新版本为 0054），自动建表 + 种子数据。
 
 ### 已有数据库升级到 golang-migrate
 
 现有生产库已有全部表和数据，但无 `schema_migrations` 表。**必须在部署新版二进制前**，在生产库手动建立版本基线：
 
 ```sql
--- 告诉 golang-migrate 当前库已是最新版本（当前为 0061）的状态
+-- 告诉 golang-migrate 当前库已是最新版本（当前为 0054）的状态
 CREATE TABLE IF NOT EXISTS schema_migrations (version bigint PRIMARY KEY, dirty boolean NOT NULL DEFAULT false);
-INSERT INTO schema_migrations (version, dirty) VALUES (61, false);
+INSERT INTO schema_migrations (version, dirty) VALUES (54, false);
 ```
 
 建立基线后，新版二进制启动时 `m.Up()` 检测到已是最新版本，跳过所有迁移，**零数据变更**。
 
-> **不丢数据保证**：up 文件全部用 `IF NOT EXISTS` / `ON CONFLICT DO NOTHING`；基线 force 到 61 后 Up 不会执行任何 DDL。
+> **不丢数据保证**：up 文件全部用 `IF NOT EXISTS` / `ON CONFLICT DO NOTHING`；基线 force 到 54 后 Up 不会执行任何 DDL。
 >
 > **基线版本同步**：每次新增迁移文件后，上述 INSERT 语句的版本号需相应更新为最新版本号。可用 `ls internal/pkg/migration/migrations/*.up.sql | tail -1` 查看最新版本。
+
+### 历史补丁压扁后的已有库升级指引（重要）
+
+迁移链曾将历史补丁（token_version / request_id 列、23 个联合索引、5 个外键、msg_blacklist 删表）压扁进建表文件，并将迁移链重编号为连续序号（当前 `0001-0054`）。因此：
+
+- **全新库 / 按上节 force 基线到 0054 的库**：编号与文件一一对应，后续 `m.Up()` 正常增量。
+- **任何已跟踪的旧编号库（`schema_migrations` 版本 ≠ 0054）**：新旧文件编号已错位，版本对照不可靠，**必须删库重建**（本项目开发期惯例）。
+- **无 schema_migrations 表的既有库**：按上节「已有数据库升级到 golang-migrate」force 基线到 0054 即可（schema 需自行与最新建表文件对齐）。
 
 ---
 

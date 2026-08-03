@@ -29,4 +29,8 @@ CREATE TABLE IF NOT EXISTS admin_menu (
 
 CREATE UNIQUE INDEX IF NOT EXISTS admin_menu_route_name_key ON admin_menu(route_name) WHERE deleted_at = 0;
 CREATE INDEX IF NOT EXISTS idx_admin_menu_deleted ON admin_menu(deleted_at);
+-- 高频查询: 菜单树渲染、菜单管理
+CREATE INDEX IF NOT EXISTS idx_admin_menu_parent_id ON admin_menu(parent_id) WHERE deleted_at = 0;
+-- 高频查询: WHERE status = ? ORDER BY order_by ASC, id ASC
+CREATE INDEX IF NOT EXISTS idx_admin_menu_status_order ON admin_menu(status, order_by, id) WHERE deleted_at = 0;
 

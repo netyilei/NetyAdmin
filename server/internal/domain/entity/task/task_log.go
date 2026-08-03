@@ -16,7 +16,7 @@ type TaskLog struct {
 	Status    string    `gorm:"column:status;size:20;not null;index" json:"status"`
 	Message   string    `gorm:"column:message;type:text" json:"message"`
 	// RequestID 由 task manager 在 onFinish 回调中填入，对应 DB 列
-	// sys_task_logs.request_id（迁移 0060 新增）。
+	// sys_task_logs.request_id（建表迁移 0006 已含该列）。
 	RequestID string `gorm:"column:request_id;size:50;comment:请求ID" json:"requestId"`
 }
 

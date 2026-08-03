@@ -20,4 +20,6 @@ CREATE TABLE IF NOT EXISTS admin_operation_log (
 CREATE INDEX IF NOT EXISTS idx_admin_operation_log_admin_id ON admin_operation_log(admin_id);
 CREATE INDEX IF NOT EXISTS idx_admin_operation_log_action ON admin_operation_log(action);
 CREATE INDEX IF NOT EXISTS idx_admin_operation_log_created_at ON admin_operation_log(created_at);
+-- 高频查询: 操作日志按管理员+时间查询
+CREATE INDEX IF NOT EXISTS idx_operation_log_admin_time ON admin_operation_log(admin_id, created_at DESC);
 

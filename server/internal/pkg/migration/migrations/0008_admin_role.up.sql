@@ -16,4 +16,6 @@ CREATE TABLE IF NOT EXISTS admin_role (
 CREATE UNIQUE INDEX IF NOT EXISTS admin_role_code_key ON admin_role(code) WHERE deleted_at = 0;
 CREATE UNIQUE INDEX IF NOT EXISTS admin_role_name_key ON admin_role(name) WHERE deleted_at = 0;
 CREATE INDEX IF NOT EXISTS idx_admin_role_deleted ON admin_role(deleted_at);
+-- 高频查询: 角色列表按状态筛选
+CREATE INDEX IF NOT EXISTS idx_admin_role_status ON admin_role(status) WHERE deleted_at = 0;
 
