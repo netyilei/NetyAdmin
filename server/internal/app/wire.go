@@ -331,5 +331,6 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 
 	return NewApp(cfg, db, engine, tm, dbHealthChecker, taskManager, services.logBus, eventBus,
 		jwtInstance, tokenStore, services.verification, repos.user, lazyCacheMgr, services.oauthBinding,
-		authMW, services.role, services.ipac, openPlatformAuthFn), nil
+		authMW, services.role, services.ipac, openPlatformAuthFn,
+		redisClient, lazyCacheMgr, repos.userToken, services.message), nil
 }

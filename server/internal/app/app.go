@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
 	"NetyAdmin/internal/config"
 	"NetyAdmin/internal/middleware"
-	ipacService "NetyAdmin/internal/service/ipac"
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/database"
 	jwtPkg "NetyAdmin/internal/pkg/jwt"
@@ -25,6 +25,8 @@ import (
 	"NetyAdmin/internal/pkg/task"
 	userRepoPkg "NetyAdmin/internal/repository/user"
 	logService "NetyAdmin/internal/service/log"
+	msgService "NetyAdmin/internal/service/message"
+	ipacService "NetyAdmin/internal/service/ipac"
 	userServicePkg "NetyAdmin/internal/service/user"
 )
 
@@ -90,6 +92,13 @@ type App struct {
 	ipacSvc          ipacService.IPACService
 	openPlatformAuth gin.HandlerFunc
 	routerDeps       RouterDeps
+
+	// Infrastructure — exposed via getters for downstream service construction
+	// (repos, caches, message service, etc.) via App.DB() / App.CacheMgr() / ...
+	redisClient  *redis.Client
+	cacheMgr     *cache.LazyCacheManager
+	userTokenRep userRepoPkg.UserTokenRepository
+	messageSvc   msgService.MessageService
 }
 
 func NewApp(
@@ -112,6 +121,11 @@ func NewApp(
 	authVerifier middleware.AuthVerifier,
 	ipacSvc ipacService.IPACService,
 	openPlatformAuth gin.HandlerFunc,
+	// Infrastructure（下游 getter 暴露）
+	redisClient *redis.Client,
+	cacheMgr *cache.LazyCacheManager,
+	userTokenRep userRepoPkg.UserTokenRepository,
+	messageSvc msgService.MessageService,
 ) *App {
 	return &App{
 		cfg:              cfg,
@@ -132,6 +146,10 @@ func NewApp(
 		authVerifier:     authVerifier,
 		ipacSvc:          ipacSvc,
 		openPlatformAuth: openPlatformAuth,
+		redisClient:      redisClient,
+		cacheMgr:         cacheMgr,
+		userTokenRep:     userTokenRep,
+		messageSvc:       messageSvc,
 		routerDeps: RouterDeps{
 			AuthMiddleware:   authMW,
 			OpenPlatformAuth: openPlatformAuth,
@@ -172,6 +190,35 @@ func (a *App) SecurityCache() cache.SecurityCache { return a.cacheSlow }
 // account binding lookup and management (WeChat, Alipay, GitHub, Apple, etc.).
 // Downstream projects implement provider adapters and delegate storage to this service.
 func (a *App) OAuthBindingService() userServicePkg.OAuthBindingService { return a.oauthBinding }
+
+// --- Infrastructure getters ---
+//
+// 下游模块构造 Service 层时需要的基础设施依赖。
+// 与上面的安全组件 getter 同模式——下游通过这些 getter 拿到 DB / 缓存 / Redis 等。
+
+// DB returns the GORM DB connection for downstream Repository construction.
+func (a *App) DB() *gorm.DB { return a.db }
+
+// TxManager returns the transaction manager for downstream transaction orchestration.
+func (a *App) TxManager() database.TxManager { return a.tm }
+
+// CacheMgr returns the lazy cache manager (L1 BigCache + L2 Redis + configWatcher联动)
+// for downstream cache usage.
+func (a *App) CacheMgr() *cache.LazyCacheManager { return a.cacheMgr }
+
+// RedisClient returns the Redis client for downstream direct use
+// (rate limiting, distributed locks, slot management, etc.).
+// Returns nil if Redis is disabled in config.
+func (a *App) RedisClient() *redis.Client { return a.redisClient }
+
+// UserTokenRepository returns the user_tokens repository for downstream
+// multi-device session management (platform-scoped token version checks,
+// SSE session kick-in, etc.).
+func (a *App) UserTokenRepository() userRepoPkg.UserTokenRepository { return a.userTokenRep }
+
+// MessageService returns the unified message service (SMS/Email/Internal)
+// for downstream notification features (e.g., admin push notifications).
+func (a *App) MessageService() msgService.MessageService { return a.messageSvc }
 
 func (a *App) Run() error {
 	a.started = true // 标记已启动，RegisterModule 此后调用会 panic（路由不可变更）
