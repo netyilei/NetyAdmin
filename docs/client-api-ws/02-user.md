@@ -97,10 +97,17 @@ POST /client/v1/user/login
 |------|------|------|------|
 | userName | string | 是 | 用户名 |
 | password | string | 是 | 密码 |
-| platform | string | 否 | 登录平台标识：`web` / `app` / `mini_program` 等 |
+| platform | string | **是** | 登录平台标识，用于多端会话隔离（见下方「多端登录说明」）。取值由客户端自定义，如 `web` / `mobile` / `miniapp` |
 | captchaKey | string | 条件必填 | 图形验证码 ID（captchaEnabled=true 时必填） |
 | captchaCode | string | 条件必填 | 图形验证码值（captchaEnabled=true 时必填） |
 | code | string | 条件必填 | 短信/邮箱验证码（verifyEnabled=true 时必填） |
+
+> **多端登录说明**：`platform` 字段控制会话隔离粒度：
+> - **同 platform 再次登录** → 顶掉该 platform 的旧会话（旧 token 立即失效）
+> - **不同 platform** → 各自独立会话，互不影响（如 web + mobile 可同时在线）
+> - 管理员敏感操作（改密/禁用/删除）→ 顶掉该用户**所有 platform** 的会话
+>
+> 详见 [多端登录与会话管理](#多端登录与会话管理)。
 
 > **提示**：登录前先调用 `GET /client/v1/auth/scene-config?scene=login` 获取当前场景的验证配置，据此决定提交哪些字段。
 
@@ -225,6 +232,10 @@ Content-Type: application/json
 | expiresIn | int64 | accessToken 剩余有效时间（秒） |
 
 > **安全说明**：每次刷新令牌后，旧的 RefreshToken 会被加入黑名单（缓存 TTL 等于 Token 剩余有效期），不可再次使用。客户端必须在刷新成功后立即替换本地存储的 RefreshToken。
+>
+> **多端会话校验**：刷新时会校验 refresh token 携带的端级版本号（`ptv`）与 DB `user_tokens` 当前版本：
+> - 同 platform 重新登录后，旧 refresh token 的 `ptv` < DB 当前版本 → 拒绝刷新（顶号生效）
+> - 刷新不递增版本号（会话延续语义），仅更新当前 platform 的 access hash
 
 **可能错误码**：
 
@@ -233,6 +244,7 @@ Content-Type: application/json
 | `100001` | 缺少刷新令牌（body 未提供 `refreshToken` 或为空字符串） |
 | `101005` | 令牌已过期 |
 | `101006` | 令牌无效 |
+| `101002` | 该设备已有新登录（同 platform 被顶号），需重新登录 |
 
 ---
 
@@ -625,8 +637,9 @@ POST /client/v1/user/logout
 ```
 
 > **说明**：退出登录后：
-> - 当前 access token 立即失效。
+> - 当前 platform 的会话立即失效（清空 user_tokens 该 platform 行的 hash）。
 > - refresh token 会写入黑名单（TTL = 剩余有效期），后续刷新令牌请求会被拒绝。
+> - **仅影响当前 platform**：如用户同时在 web 和 mobile 登录，web 端 Logout 不会影响 mobile 端会话。
 
 **可能错误码**：
 
@@ -634,3 +647,66 @@ POST /client/v1/user/logout
 |------|------|
 | `100001` | 参数错误（缺少 `X-Refresh-Token` header 或为空，msg 为「缺少刷新令牌」） |
 | `100002` | 未授权 |
+
+---
+
+## 多端登录与会话管理
+
+NetyAdmin 客户端支持同一账号在多个平台（web / mobile / miniapp 等）同时登录，每个平台维护独立的会话。
+
+### 会话模型
+
+| 维度 | 存储表 | 说明 |
+|------|--------|------|
+| 客户端（C 端）多端会话 | `user_tokens` | 按 `(user_id, platform)` 唯一，每个 platform 一行，存 token_version + access/refresh hash |
+| 管理端（admin）会话 | `admin_tokens` | admin 专用，与客户端会话隔离 |
+
+### platform 字段
+
+`platform` 由客户端自定义传入（Login 请求必填），基座不限制枚举值。常见取值：
+
+| platform | 含义 | 顶号行为 |
+|----------|------|---------|
+| `web` | Web 浏览器 | 同浏览器再次登录顶掉旧 web 会话 |
+| `mobile` | 移动 App | 同 App 再次登录顶掉旧 mobile 会话 |
+| `miniapp` | 小程序 | 同小程序再次登录顶掉旧 miniapp 会话 |
+
+> 自定义 platform 同样适用：基座按 `(user_id, platform)` 字符串维度隔离，任意取值都会独立管理。
+
+### 顶号语义
+
+| 场景 | 触发动作 | 影响 |
+|------|---------|------|
+| **同 platform 重新登录** | Login 递增该 platform 的 `token_version` | 旧 token 立即失效（携带的 `ptv` < DB 当前版本）→ 下次请求被拒 |
+| **不同 platform 登录** | 各自独立行，互不干扰 | web 与 mobile 可同时在线 |
+| **管理员改密/禁用/删除** | 递增 `users.token_version`（用户级） | 该用户**所有 platform** 的会话全部失效 |
+| **Logout** | 清空当前 platform 的 hash | 仅当前 platform 失效，其他 platform 不受影响 |
+
+### Token 校验链
+
+每次携带 access token 的请求，中间件执行双重校验：
+
+1. **用户级版本校验**：`claims.tv < users.token_version` → 拒绝（管理员操作触发全端失效）
+2. **端级版本校验**：`claims.ptv < user_tokens.token_version` → 拒绝（同 platform 顶号）
+3. **hash 校验**：`access_hash` 不匹配 → 拒绝（Logout 后纵深防御）
+
+> 校验走 L2 Redis 缓存（key 按 `user_id:platform` 维度），DB QPS 降低 30x+；缓存变更（Login/Refresh/Logout）实时失效，TTL 30s 兜底。
+
+### JWT Claims 字段
+
+| 字段 | JSON key | 说明 |
+|------|----------|------|
+| UID | `uid` | 用户 ID |
+| Platform | `platform` | 登录平台 |
+| TokenVersion | `tv` | 用户级版本号（管理员操作递增） |
+| PlatTokenVersion | `ptv` | 端级版本号（Login 递增，顶号依据） |
+
+### 相关接口
+
+| 接口 | 多端行为 |
+|------|---------|
+| `POST /client/v1/user/login` | 必填 `platform`，递增该 platform 版本号 |
+| `POST /client/v1/user/refresh-token` | 校验 `ptv`，续签不递增版本（会话延续） |
+| `POST /client/v1/user/logout` | 仅清当前 platform 的会话 |
+| `PUT /admin/v1/systemManage/users/:id`（改密） | 递增用户级版本号，顶掉所有 platform |
+| `PATCH /admin/v1/systemManage/users/:id/status`（禁用） | 同上 |

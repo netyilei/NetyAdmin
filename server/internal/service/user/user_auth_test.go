@@ -36,6 +36,7 @@ import (
 	clientDto "NetyAdmin/internal/interface/client/dto/v1"
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/configsync"
+	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
 	"NetyAdmin/internal/pkg/password"
@@ -242,6 +243,85 @@ func (r *mockUserRepo) ListOAuthBindings(_ context.Context, _ string) ([]userEnt
 
 var _ userRepo.UserRepository = (*mockUserRepo)(nil)
 
+// ============== mockUserTokenRepo：userRepo.UserTokenRepository 内存实现 ==============
+//
+// 模拟 user_tokens 多端会话表行为：UpsertAndIncrement 递增版本号，GetByPlatform 返回当前行。
+// 用于 Login/RefreshToken/Logout 的端级顶号逻辑测试。
+type mockUserTokenRepo struct {
+	versions  map[string]uint64          // key: userID+":"+platform → token_version
+	accessHash map[string]string         // key: userID+":"+platform → access_hash
+}
+
+func newMockUserTokenRepo() *mockUserTokenRepo {
+	return &mockUserTokenRepo{
+		versions:   make(map[string]uint64),
+		accessHash: make(map[string]string),
+	}
+}
+
+func (m *mockUserTokenRepo) key(userID, platform string) string {
+	return userID + ":" + platform
+}
+
+func (m *mockUserTokenRepo) UpsertAndIncrement(_ context.Context, t *userEntity.UserToken) (uint64, error) {
+	k := m.key(t.UserID, t.Platform)
+	m.versions[k]++
+	v := m.versions[k]
+	if t.AccessHash != "" {
+		m.accessHash[k] = t.AccessHash
+	}
+	return v, nil
+}
+
+func (m *mockUserTokenRepo) GetByPlatform(_ context.Context, userID, platform string) (*userEntity.UserToken, error) {
+	k := m.key(userID, platform)
+	v, ok := m.versions[k]
+	if !ok {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return &userEntity.UserToken{
+		UserID:       userID,
+		Platform:     platform,
+		TokenVersion: v,
+		AccessHash:   m.accessHash[k],
+	}, nil
+}
+
+func (m *mockUserTokenRepo) UpdateAccessHash(_ context.Context, userID, platform, accessHash string, _ time.Time) error {
+	m.accessHash[m.key(userID, platform)] = accessHash
+	return nil
+}
+
+func (m *mockUserTokenRepo) UpdateHashes(_ context.Context, userID, platform, accessHash, _ string, _, _ time.Time) error {
+	if accessHash != "" {
+		m.accessHash[m.key(userID, platform)] = accessHash
+	}
+	return nil
+}
+
+func (m *mockUserTokenRepo) ClearHashes(_ context.Context, userID, platform string) error {
+	m.accessHash[m.key(userID, platform)] = ""
+	return nil
+}
+
+func (m *mockUserTokenRepo) DeleteExpired(_ context.Context) (int64, error) { return 0, nil }
+
+var _ userRepo.UserTokenRepository = (*mockUserTokenRepo)(nil)
+
+// noopTxManager 是 database.TxManager 的空实现，供测试使用（不依赖真实 DB 事务）。
+// Begin 返回原 ctx + 空 Tx；Commit/Rollback 无副作用；WithTransaction 直接执行闭包。
+type noopTxManager struct{}
+
+func (noopTxManager) Begin(ctx context.Context) (context.Context, *database.Tx) { return ctx, &database.Tx{} }
+func (noopTxManager) Commit(*database.Tx) error                                 { return nil }
+func (noopTxManager) Rollback(*database.Tx)                                      {}
+func (noopTxManager) WithTransaction(ctx context.Context, fn func(context.Context) error) error {
+	return fn(ctx)
+}
+func (noopTxManager) ActiveTransactions() int64 { return 0 }
+
+var _ database.TxManager = noopTxManager{}
+
 // ============== mockVerifySvc：VerificationService 内存实现 ==============
 //
 // 默认行为：GetVerifyConfig 返回 (nil, nil)，使 Login 跳过短信/邮箱验证码路径，
@@ -352,12 +432,14 @@ func newTestUserClientService(t *testing.T) (*userClientService, *mockUserRepo, 
 	svc := &userClientService{
 		userBase: userBase{
 			repo:          repo,
+			userTokenRepo: newMockUserTokenRepo(),
 			jwt:           j,
 			verifySvc:     verifySvc,
 			configWatcher: watcher,
 			captchaStore:  &mockCaptchaStore{verifyResult: false},
 			tokenStore:    store,
 			cacheSlow:     cacheMgr,
+			tm:            &noopTxManager{},
 		},
 	}
 	return svc, repo, cacheMgr, store, verifySvc, j
@@ -408,7 +490,8 @@ func TestUserLogin_Success(t *testing.T) {
 	assert.NotNil(t, vo)
 	assert.NotEmpty(t, vo.AccessToken)
 	assert.NotEmpty(t, vo.RefreshToken)
-	assert.Equal(t, 2, store.createCalls, "应写入 access + refresh 两个 hash")
+	// Login 现走 user_tokens（UpsertAndIncrement + UpdateHashes），不再调 admin tokenStore
+	assert.Equal(t, 0, store.createCalls, "Login 不应再调 tokenStore.Create（改走 user_tokens）")
 }
 
 func TestUserLogin_UserNotFound(t *testing.T) {
@@ -500,7 +583,10 @@ func TestUserLogout_WritesRefreshTokenToBlacklist(t *testing.T) {
 	err = svc.Logout(context.Background(), user.ID, "access-stub", refresh)
 	require.NoError(t, err)
 
-	assert.Equal(t, 1, store.deleteCalls, "应删除 access token hash")
+	// Logout 现走 user_tokens.ClearHashes（解析 accessToken claims 取 platform）。
+	// accessToken 为 "access-stub"（无效 JWT）→ ParseToken 失败 → ClearHashes 跳过，
+	// 不再调 admin tokenStore.Delete。
+	assert.Equal(t, 0, store.deleteCalls, "Logout 不应再调 tokenStore.Delete（改走 user_tokens）")
 	blacklistKey := "auth:blacklist:refresh:" + refresh
 	exists, _ := cacheMgr.Exists(context.Background(), blacklistKey)
 	assert.True(t, exists, "refresh token 应写入黑名单")
@@ -513,7 +599,7 @@ func TestUserLogout_NoRefreshToken(t *testing.T) {
 
 	err := svc.Logout(context.Background(), user.ID, "access-stub", "")
 	require.NoError(t, err)
-	assert.Equal(t, 1, store.deleteCalls)
+	assert.Equal(t, 0, store.deleteCalls, "Logout 不应再调 tokenStore.Delete（改走 user_tokens）")
 }
 
 // ============== RefreshToken 测试 ==============
@@ -541,9 +627,9 @@ func TestUserRefreshToken_Success(t *testing.T) {
 	exists, _ := cacheMgr.Exists(context.Background(), blacklistKey)
 	assert.True(t, exists)
 
-	// tokenStore 替换会话
-	assert.Equal(t, 1, store.deleteCalls, "应 Delete 旧 refresh hash")
-	assert.Equal(t, 2, store.createCalls, "应 Create 新 access + refresh 两个 hash")
+	// RefreshToken 现走 user_tokens（UpdateHashes），不再调 admin tokenStore 的 Create/Delete
+	assert.Equal(t, 0, store.deleteCalls, "RefreshToken 不应再调 tokenStore.Delete（改走 user_tokens）")
+	assert.Equal(t, 0, store.createCalls, "RefreshToken 不应再调 tokenStore.Create（改走 user_tokens）")
 }
 
 func TestUserRefreshToken_InvalidTokenRejected(t *testing.T) {

@@ -4,7 +4,12 @@ package v1
 type UserLoginReq struct {
 	Username    string `json:"userName" binding:"required"`
 	Password    string `json:"password" binding:"required"`
-	Platform    string `json:"platform"`
+	// Platform 登录平台标识，必填。用于多端会话隔离：
+	//   - 同 platform 再次登录 → 顶掉该 platform 的旧会话（顶号）
+	//   - 不同 platform → 各自独立会话，互不影响（多端并存）
+	// 取值由客户端自定义（如 web/mobile/miniapp），基座不限制枚举。
+	// 缺省时 service 层兜底为 "unknown"（所有缺省登录共用一行，会互相顶号，不建议）。
+	Platform    string `json:"platform" binding:"required"`
 	CaptchaKey  string `json:"captchaKey"`
 	CaptchaCode string `json:"captchaCode"`
 	Code        string `json:"code"`
