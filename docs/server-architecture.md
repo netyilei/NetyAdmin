@@ -1125,7 +1125,10 @@ func WrapWithTimeout(handler http.Handler, timeout time.Duration) http.Handler {
 
 ## JWT 认证（RS256 非对称签名）
 
-NetyAdmin 自 Round 4 审计起，JWT 签名算法由对称 HS256 改为非对称 RS256：私钥签发（服务端持有）+ 公钥验证（可下发至网关 / 微服务）。`pkg/jwt/jwt.go` 是 JWT 工具的唯一入口，集成 TokenVersion 版本号机制用于主动吊销。
+NetyAdmin 自 Round 4 审计起，JWT 签名算法由对称 HS256 改为非对称 RS256：私钥签发（服务端持有）+ 公钥验证（可下发至网关 / 微服务）。`pkg/jwt/jwt.go` 是 JWT 工具的唯一入口，集成双版本号机制用于主动吊销：
+
+- **用户级 TokenVersion（`tv`）**：`users.token_version`，admin 敏感操作（改密/禁用/删除）递增，顶掉该用户所有端的会话。
+- **端级 PlatTokenVersion（`ptv`）**：`user_tokens.token_version`，C 端 Login 按 platform 递增，顶掉同 platform 的旧会话（同端顶号、跨端并存）。
 
 ### 配置项
 

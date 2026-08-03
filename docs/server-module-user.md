@@ -75,15 +75,38 @@ type User struct {
 }
 ```
 
-### 3.2 Token 哈希表 (`user_token_hashes`)
+### 3.2 会话存储表
 
-用于存储已签发的 AccessToken 哈希，支持多端登录管理。
+C 端采用**多端会话表**（按 platform 维度隔离），admin 端采用独立的 token 哈希表，两表职责分离：
+
+#### 3.2.1 客户端多端会话表 (`user_tokens`)
+
+按 `(user_id, platform)` 唯一，每个 platform 一行——同 platform 重新登录顶掉旧会话（顶号），不同 platform 各自独立（多端并存）。
 
 ```go
-type UserTokenHash struct {
+type UserToken struct {
+    ID               uint       `gorm:"primaryKey"`
+    UserID           string     `gorm:"size:26;not null;index"`
+    Platform         string     `gorm:"size:50;not null;uniqueIndex"` // web/mobile/miniapp...
+    TokenVersion     uint64     `gorm:"not null;default:0"`            // 端级版本号，Login 递增（顶号依据）
+    AccessHash       string     `gorm:"size:64"`                       // 当前 access token 哈希
+    RefreshHash      string     `gorm:"size:64"`                       // 当前 refresh token 哈希
+    AccessExpiresAt  *time.Time                                        // 用于过期清理
+    RefreshExpiresAt *time.Time
+    CreatedAt        time.Time  `gorm:"autoCreateTime"`
+    UpdatedAt        time.Time  `gorm:"autoUpdateTime"`
+}
+```
+
+#### 3.2.2 管理端 Token 哈希表 (`admin_tokens`)
+
+admin 专用，存储已签发的 AccessToken 哈希，支持登出/强制下线后立即失效。
+
+```go
+type AdminToken struct {
     ID        uint      `gorm:"primaryKey"`
-    UserID    string    `gorm:"size:26;index"`
-    TokenHash string    `gorm:"size:64;not null"` // SHA256(token)
+    UserID    string    `gorm:"size:26;index"`                  // 存储 admin_id
+    TokenHash string    `gorm:"size:64;not null"`               // SHA256(token)
     ExpiredAt time.Time `gorm:"index"`
 }
 ```
@@ -169,21 +192,22 @@ DDL 详见迁移脚本 `server/internal/pkg/migration/migrations/0054_user_oauth
 ### 5.2 登录与 Token 管理
 
 - **双 Token 机制**：登录成功返回 `accessToken` (短效) 和 `refreshToken` (长效)。
-- **Token 存储**：通过 `TokenStore` 抽象层管理，支持缓存和数据库两种存储后端。
-- **Token 哈希**：登录和刷新令牌时，AccessToken 与 RefreshToken 的 SHA256 哈希均存入 `user_token_hashes` 表，用于后续主动拉黑或单端登录控制。
+- **多端会话**：C 端登录时按 `platform` 维度 UPSERT `user_tokens` 表，递增端级 `token_version`。同 platform 再次登录顶掉旧会话（顶号），不同 platform 各自独立（多端并存）。详见 [客户端 API 文档 - 多端登录与会话管理](./client-api-ws/02-user.md#多端登录与会话管理)。
+- **Token 哈希**：C 端 access/refresh 哈希存入 `user_tokens` 表（按 platform 维度）；admin 端存入 `admin_tokens` 表。
+- **双版本校验**：中间件同时校验用户级版本号（`users.token_version`，admin 敏感操作递增顶所有端）和端级版本号（`user_tokens.token_version`，Login 递增顶同端）。
 - **RefreshToken 黑名单**：刷新令牌后，旧 RefreshToken 立即加入缓存黑名单（TTL 等于 Token 剩余有效期），防止已使用的 RefreshToken 被重放。黑名单 Key 由 `cache.KeyAuthBlacklistRefreshToken(token)` 工厂函数生成。
-- **校验**：`UserJWTAuth` 中间件解析 Token 后，根据存储后端校验 Token 有效性。
+- **校验**：`UserJWTAuth` 中间件解析 Token 后，执行双版本校验 + hash 校验（走 L2 缓存加速）。
 
 ### 5.3 登录存储介质
 
-通过 `sys_configs` 表 `user_config` 分组的 `login_storage` 配置项控制 Token 存储方式：
+C 端会话固定走 `user_tokens` 表（按 platform 维度），不再依赖 `login_storage` 配置切换缓存/DB 模式（该配置保留但仅影响 admin 端 tokenStore 的缓存层）。
 
 | 值 | 说明 | 适用场景 |
 |---|---|---|
-| `cache` | 缓存模式（Redis/BigCache） | 推荐，支持多机部署，自动过期清理 |
-| `db` | 数据库模式（user_token_hashes 表） | 无 Redis 环境，数据持久化 |
+| `cache` | 缓存模式（Redis/BigCache） | admin 端 tokenStore 加速层（推荐，支持多机部署） |
+| `db` | 数据库模式（admin_tokens 表） | 无 Redis 环境，admin 会话持久化 |
 
-> **注意**：`cache` 模式使用系统的缓存模块（SecurityCache），自动适配单机（BigCache）和集群（Redis）部署。多机部署时必须选择 `cache` 模式并启用 Redis。
+> **注意**：此配置仅影响 admin 端 tokenStore 的缓存层。C 端会话固定走 `user_tokens` 表 + 独立 L2 缓存层（按 platform 维度），不受此配置控制。
 
 ### 5.4 账户锁定机制
 
@@ -321,9 +345,9 @@ clientRouter.RegisterTypedAuthModule("tech", techModule, techClaimsAccessor)
 1. **唯一性检查**：注册时务必并发安全地检查 `username`、`email`、`phone`。
 2. **软删除隔离**：使用 `soft_delete` 插件时，确保唯一索引包含 `deleted_at` 字段。
 3. **敏感操作**：修改密码或注销账号前，建议二次校验消息验证码。
-4. **Token 清理**：使用 `db` 存储模式时，建议定期运行任务清理 `user_token_hashes` 中过期的记录；使用 `cache` 模式时自动过期。
+4. **Token 清理**：`token_hash_cleanup` 定时任务（每小时）自动清理 `user_tokens` 和 `admin_tokens` 表中过期的记录，无需手动干预。
 5. **锁定策略**：生产环境建议 `login_max_retry` 设为 5，`login_lock_duration` 设为 3600 秒以上。
-6. **多机部署**：多机部署时务必使用 `cache` 存储模式并启用 Redis，确保 Token 和锁定状态在所有节点间共享。
+6. **多机部署**：多机部署时务必启用 Redis，C 端会话缓存（user_tokens L2 层）和 admin 端 tokenStore 均依赖 Redis 跨节点共享。
 
 ---
 

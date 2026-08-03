@@ -381,27 +381,28 @@ NetyAdmin 默认注册以下任务（在 `internal/job/init.go` 中通过 `AllJo
 | `article_publish` | interval | `1m` | Normal (50) | 文章定时发布扫描 |
 | `system_log_cleanup` | cron | `0 0 2 * * *` | Low (10) | 系统日志（任务/操作/错误/消息/开放平台）按保留天数清理 |
 | `upload_record_cleanup` | cron | `0 */30 * * * *` | Low (10) | 将超期未通知的 pending 上传记录标记为 expired |
-| `token_hash_cleanup` | cron | `0 0 * * * *` | Low (10) | 物理删除 `user_token_hashes` 表中 `expired_at < NOW()` 的过期 token hash 记录 |
+| `token_hash_cleanup` | cron | `0 0 * * * *` | Low (10) | 物理删除 `user_tokens` + `admin_tokens` 表中过期的会话记录 |
 
 ### 9.1 Token Hash 清理任务（`token_hash_cleanup`）
 
 #### 背景
 
-用户登录、刷新令牌、登出黑名单等流程会在 `user_token_hashes` 表写入 token hash 行（含 `expired_at` 过期时间）。即便 token 已过期失效，这些行仍会留在表中，长期运行后表会无限堆积，影响查询性能与存储空间。
+用户登录、刷新令牌、admin 登录等流程会在 `user_tokens`（C 端多端会话）和 `admin_tokens`（admin 会话）表写入记录。即便 token 已过期失效，这些行仍会留在表中，长期运行后表会无限堆积，影响查询性能与存储空间。
 
-`0019_user_token_hashes.up.sql` 迁移已为 `expired_at` 列创建 `idx_user_token_expired` 索引，专门用于支撑过期清理的高效范围删除。
+`0055_user_tokens.up.sql` 迁移已为 `access_expires_at` 列创建 `idx_user_tokens_access_expires` 索引；`0019_admin_tokens.up.sql` 为 `expired_at` 列创建 `idx_admin_tokens_expired` 索引，支撑过期清理的高效范围删除。
 
 #### 实现细节
 
-- **Repository 方法**：`UserRepository.DeleteExpiredTokenHashes(ctx) (int64, error)`
-  - SQL 语义：`DELETE FROM user_token_hashes WHERE expired_at < NOW()`
-  - `user_token_hashes` 表无 `soft_delete` 字段，`Delete` 即硬删除
+- **清理范围**：同时清理两张表
+  - `user_tokens`：`UserTokenRepository.DeleteExpired(ctx)` — 删除 access + refresh 均过期的行
+  - `admin_tokens`：`UserRepository.DeleteExpiredTokenHashes(ctx)` — 删除 `expired_at < NOW()` 的行
+  - 两表均无 `soft_delete` 字段，`Delete` 即硬删除
   - 通过 `r.getDB(ctx)` 复用 ctx 中携带的事务句柄（与项目其他 repo 方法一致）
 - **Job 实现**：`internal/job/token_hash_cleanup.go` 的 `TokenHashCleanupJob`
   - Cron 表达式 `0 0 * * * *`（每小时整点执行一次，6 字段——任务引擎用 `cron.WithSeconds()` 初始化）
-  - 调用 repo 方法后，若 `affected > 0` 用 `slog.Info` 记录清理行数
+  - 依次调用两个 repo 方法，若 `affected > 0` 用 `slog.Info` 分别记录清理行数
   - 失败时返回 error，由任务引擎的 `onFinish` 回调写入 `sys_task_logs` 表
-- **DI 注册**：`wire.go` 中 `job.AllJobs(...)` 调用追加 `repos.user` 参数；`init.go` 的 `AllJobs` 签名已同步增加 `userRepository userRepo.UserRepository` 形参
+- **DI 注册**：`wire.go` 中 `job.AllJobs(...)` 调用追加 `repos.userToken` + `repos.user` 参数；`init.go` 的 `AllJobs` 签名已同步增加对应形参
 
 #### 配置覆盖
 
