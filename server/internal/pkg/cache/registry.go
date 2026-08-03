@@ -266,6 +266,25 @@ func TagAdminToken(adminID string) string {
 	return fmt.Sprintf("user:token:%s", adminID)
 }
 
+// KeyUserToken 客户端（C 端）多端会话缓存 Key（user_tokens 表的鉴权加速）。
+// 按 (userID, platform) 维度——与 user_tokens 唯一键一致，每个端独立缓存。
+// 缓存值为 UserToken 行（token_version + access_hash），供 middleware 做端级版本校验 + hash 校验。
+func KeyUserToken(userID, platform string) string {
+	return fmt.Sprintf("user:session:%s:%s", userID, platform)
+}
+
+// TagUserTokenByUser 客户端会话缓存标签（按 userID 维度失效）。
+// 用于 admin 敏感操作（改密/禁用/删除）后一次性踢掉该用户所有 platform 的会话缓存。
+func TagUserTokenByUser(userID string) string {
+	return fmt.Sprintf("user:session:user:%s", userID)
+}
+
+// TagUserTokenByPlatform 客户端会话缓存标签（按 userID+platform 维度失效）。
+// 用于同 platform 重新登录后精准失效旧会话缓存（顶号），不影响其他 platform。
+func TagUserTokenByPlatform(userID, platform string) string {
+	return fmt.Sprintf("user:session:plat:%s:%s", userID, platform)
+}
+
 // KeyCaptchaToken 图形验证码缓存 Key
 func KeyCaptchaToken(captchaID string) string {
 	return fmt.Sprintf("captcha:%s", captchaID)

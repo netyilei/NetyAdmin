@@ -32,6 +32,7 @@ import (
 
 	"NetyAdmin/internal/job"
 	"NetyAdmin/internal/pkg/migration"
+	userRepoPkg "NetyAdmin/internal/repository/user"
 	userServicePkg "NetyAdmin/internal/service/user"
 )
 
@@ -156,6 +157,9 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 
 	// 6. Services & Handlers
 	tokenStore := userServicePkg.NewTokenStore(repos.user, lazyCacheMgr)
+	// user_tokens 加 L2 缓存层（与 admin tokenStore 同模式：DB 真相源 + Redis 加速）。
+	// 替换 repos.userToken 为带缓存的实现，使 middleware/service/job 全部走缓存。
+	repos.userToken = userRepoPkg.NewCachedUserTokenRepository(repos.userToken, lazyCacheMgr)
 	services := initServices(repos, jwtInstance, lazyCacheMgr, redisClient, taskManager, configWatcher, cfg, captchaStore, eventBus, tm, captchaMgr, tokenStore)
 	handlers := initHandlers(services)
 
