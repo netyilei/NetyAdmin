@@ -190,8 +190,15 @@ type DatabaseConfig struct {
 // DSN 返回 PostgreSQL 的 keyword=value 格式 DSN（pgx 通用）。
 // 用于 GORM 连接（GORM postgres driver 使用 pgx 底层，接受 keyword=value 格式）。
 func (c DatabaseConfig) DSN() string {
-	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		c.Host, c.Port, c.User, c.Password, c.DBName, c.SSLMode)
+	// 注意：密码为空时省略 password= 段。
+	// lib/pq（pgx 兼容解析）对空值参数 `password=` 的解析存在缺陷，
+	// 会导致后续 `dbname=` 参数丢失，连接落到默认 postgres 库而非目标库。
+	passwordPart := ""
+	if c.Password != "" {
+		passwordPart = " password=" + c.Password
+	}
+	return fmt.Sprintf("host=%s port=%d user=%s%s dbname=%s sslmode=%s",
+		c.Host, c.Port, c.User, passwordPart, c.DBName, c.SSLMode)
 }
 
 // DSNURL 返回 PostgreSQL 的 URL 格式 DSN（golang-migrate / lib/pq 通用）。

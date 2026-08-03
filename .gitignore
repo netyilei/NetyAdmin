@@ -38,3 +38,5 @@ DESIGN.md
 
 # AI 记忆系统本地备份
 _agentmemory_backup/
+# 本地测试密钥（RS256 JWT 签名，生产禁止提交）
+server/keys/
