@@ -3,7 +3,7 @@
 // cors.go 基于 github.com/gin-contrib/cors v1.7.7 实现跨域中间件。
 //
 // 安全策略：
-//   - Origin 白名单精确匹配（来自 config.toml 的 [cors].allowed_origins 或环境变量
+//   - Origin 白名单精确匹配（来自 config.yaml 的 [cors].allowed_origins 或环境变量
 //     NETYADMIN_CORS_ALLOWED_ORIGINS，逗号分隔）。
 //   - 空白名单 = 拒绝所有跨域（fail-closed），生产环境必须显式配置可信来源。
 //   - AllowCredentials: true —— 仅对白名单内的 Origin 生效，允许携带 Cookie。

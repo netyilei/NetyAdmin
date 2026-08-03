@@ -1,0 +1,208 @@
+# NetyAdmin 服务配置模板（YAML 格式）
+# 复制为 config.yaml 后按环境修改。敏感配置支持 NETYADMIN_* 环境变量覆盖（优先级高于本文件）。
+
+server:
+  port: 9090
+  mode: debug
+  read_timeout: 120
+  write_timeout: 120
+  # 请求处理超时（http.TimeoutHandler 包装 engine）。
+  # 应略小于 read_timeout / write_timeout，确保超时时由中间件返回 503 + JSON 错误体，
+  # 而非连接层超时断开（客户端收到空响应 / 连接重置）。
+  # 零值 = 默认 25s。环境变量：NETYADMIN_SERVER_HANDLER_TIMEOUT
+  handler_timeout: "25s"
+  # 优雅关闭超时（srv.Shutdown 等待在途请求的最大时长）。
+  # 零值 = 默认 30s。环境变量：NETYADMIN_SERVER_SHUTDOWN_TIMEOUT
+  shutdown_timeout: "30s"
+  # 多机部署时设为 true：启动时会校验 [bus] driver 是否为 "redis"，
+  # 若仍为 memory 模式会打印 WARN（缓存/IPAC/配置失效不会跨节点同步）。
+  multi_node: false
+  # 可信代理 IP 或 IPv4 CIDR 列表（如 ["127.0.0.1", "10.0.0.0/8"]）。
+  # 空数组（默认）= 不信任任何代理：c.ClientIP() 直接回退到 RemoteAddr，
+  # 攻击者无法通过伪造 X-Forwarded-For / X-Real-IP 头绕过 IPAC 白名单/黑名单。
+  # 生产环境如部署在 Nginx / CDN 之后，必须填写真实代理 IP/CIDR 才能正确解析客户端真实 IP。
+  trusted_proxies: []
+
+database:
+  host: localhost
+  port: 5432
+  user: postgres
+  password: "<CHANGE_ME_IN_PRODUCTION>"
+  dbname: "so"
+  sslmode: disable
+  max_idle: 10
+  max_open: 50
+
+redis:
+  enabled: true       # 是否启用 Redis (关闭则降级为本地内存缓存)
+  prefix: "netyadmin" # 统一的 Key 前缀 (多项目共用 Redis 时用于隔离)
+  host: localhost
+  port: 6379
+  password: ""
+  db: 0
+
+  # L1 缓存 (BigCache) 配置
+  #
+  # 三级缓存架构：L1 (BigCache 本地内存) → L2 (Redis 共享) → L3 (DB 回源)
+  #
+  # 数据分层原则：
+  #   - 配置类（App 信息/Scopes/API Keys、字典、菜单树）：走 L1+L2，读多写少、
+  #     变更可通过 PubSub 广播失效、非安全敏感。
+  #   - 安全类（token、黑名单、登录锁、验证码）：只走 L2 Redis，登出/锁定必须
+  #     立即全节点生效，L1 多机同步有窗口期不可接受。
+  #
+  # 多机部署：配置变更通过 PubSub (TopicCacheInvalidation/TopicCacheDelete)
+  #   自动跨节点失效 L1，窗口期通常 <100ms，对配置类可接受。
+  #
+  # 内存管理：BigCache 有 local_max_size_mb 硬上限，超限自动驱逐旧条目（LRU-like），
+  #   不会 OOM。local_ttl_min 兜底过期。仅排查 L1 问题时才关闭（降级纯 L2）。
+  l1_enabled: true        # 本地一级缓存，默认开启（配置类数据加速）
+  local_max_size_mb: 256  # 本地缓存最大内存占用 (MB)
+  local_max_entry_kb: 500 # 单条缓存记录最大大小 (KB)
+  local_ttl_min: 10       # 本地缓存默认过期时间 (分钟)
+
+  # Redis 连接池配置
+  #   - pool_size：连接池大小。零值 = 默认 10*GOMAXPROCS。环境变量：NETYADMIN_REDIS_POOL_SIZE
+  #   - min_idle_conns：最小空闲连接数，预热连接降低首请求延迟。零值 = 默认 10。环境变量：NETYADMIN_REDIS_MIN_IDLE_CONNS
+  #   - pool_timeout_sec：从连接池获取连接的超时时间（秒），超时返回错误避免请求堆积。零值 = 默认 3。环境变量：NETYADMIN_REDIS_POOL_TIMEOUT_SEC
+  pool_size: 50           # 连接池大小（默认 10*GOMAXPROCS）
+  min_idle_conns: 10      # 最小空闲连接数
+  pool_timeout_sec: 3     # 连接池获取连接超时（秒）
+
+jwt:
+  # RS256 私钥（签发 token）。优先用 private_key_file 加载文件；若 private_key_file 为空则用 private_key_pem 内联 PEM。
+  # 生产环境必须配置，启动时会校验非空。
+  private_key_file: ""
+  private_key_pem: ""
+  # RS256 公钥（验证 token）。优先用 public_key_file；若空则用 public_key_pem。
+  public_key_file: ""
+  public_key_pem: ""
+  # Access Token TTL（短时，默认 30 分钟）。Refresh Token TTL（长时，默认 168 小时 = 7 天）。
+  access_token_ttl: "30m"
+  refresh_token_ttl: "168h"
+
+tls:
+  # 是否启用 HTTPS（监听 443 + 80→443 跳转）。默认关闭，由前端 Nginx 终止 TLS 时无需开启。
+  enable: false
+  cert_file: ""
+  key_file: ""
+
+migration:
+  enabled: true
+  # 迁移文件已通过 go:embed 编译进二进制，无需配置 dir。
+  # 迁移文件位于 internal/pkg/migration/migrations/，采用 golang-migrate 标准
+  # NNNN_name.up.sql / .down.sql 格式。新增迁移请用：
+  #   migrate create -ext sql -dir internal/pkg/migration/migrations -seq <name>
+
+task:
+  enabled: true # 是否开启任务管理器
+  workers: 5    # 后台 Worker 数量（根据业务负载和服务器配置调节）
+
+  # 文章定时发布任务
+  # 代码中已定义默认：间隔执行(interval), 周期 1m, 权重 80, 默认开启。
+  jobs:
+    article_publish:
+      spec: "1m" # 您可以随时在这里修改执行频率，不写则按 1m 执行
+
+    log_cleanup:
+      enabled: true
+      spec: "0 0 2 * * *" # 每天凌晨2点
+
+security:
+  aes_key: "netyadmin-aes-key-32-chars-long!" # 32字节对应 AES-256
+  # 上传凭证 HMAC 签名密钥（用于 storage upload record 防伪造验签）。
+  # 生产环境必须配置为高熵随机值，不得为默认值或占位符。
+  # 环境变量覆盖：NETYADMIN_UPLOAD_HMAC_KEY
+  upload_hmac_key: "<CHANGE_ME_IN_PRODUCTION>"
+
+email:
+  # 邮件功能需双重开关同时打开：
+  #   1. 此处 enabled = true（启动期注入 SMTP driver，读 config.yaml）
+  #   2. 后台「系统配置」的 email_config/enabled = true（运行期是否放行邮件发送，读 sys_config 表）
+  # 与 [sms] 开关语义对称：driver 注入受此处 enabled 门控。
+  enabled: false
+  host: smtp.example.com
+  port: 465
+  user: "your-email@example.com"
+  password: "<CHANGE_ME_IN_PRODUCTION>"
+  from: "your-email@example.com"
+  ssl: true
+  starttls: false
+  auth_type: plain
+  connect_timeout: 30
+  send_timeout: 30
+
+sms:
+  # 短信功能需双重开关同时打开：
+  #   1. 此处 enabled = true（启动期注入腾讯云 driver，读 config.yaml）
+  #   2. 后台「系统配置」的 sms_config/enabled = true（运行期是否放行短信发送，读 sys_config 表）
+  # 仅打开 1 不打开 2：driver 注入了但 job 层会判 "sms service is disabled" 失败。
+  # 仅打开 2 不打开 1：job 层放行但无 driver，判 "no driver found for channel: sms" 失败。
+  enabled: false
+  driver: tencent       # 短信服务商（当前仅实现 tencent 腾讯云）
+  secret_id: ""         # 腾讯云 SecretID（访问密钥）
+  secret_key: ""        # 腾讯云 SecretKey
+  app_id: ""            # 短信应用 SmsSdkAppId（腾讯云控制台 → 短信 → 应用管理）
+  sign_name: ""         # 短信签名（需在腾讯云控制台审核通过）
+  region: "ap-guangzhou" # 接入地域（如 ap-guangzhou / ap-beijing / ap-shanghai）
+
+# bus:
+#   driver: redis    # 集群模式：基于 Redis Pub/Sub，支持多节点广播
+#   driver: memory   # 单机模式：基于内存 channel，无需 Redis
+# 不设置则根据 Redis.Enabled 自动选择（Redis 启用 -> redis，否则 -> memory）
+
+pubsub:
+  # 事件总线分发工作池配置（Task 23）。
+  # 消费 loop 收到消息后，通过 dispatchQueue 投递给 N 个 worker 并行调用 handler，
+  # 替代原本的 per-event goroutine，避免高吞吐场景下 goroutine 数量爆炸。
+  #   - workers：worker 协程数。零值 = 默认 16。环境变量：NETYADMIN_PUBSUB_WORKERS
+  #   - queue_size：dispatch 队列缓冲容量。零值 = 默认 1024。环境变量：NETYADMIN_PUBSUB_QUEUE_SIZE
+  # 队列满时 dispatch 阻塞（backpressure），让消费 loop 反压到上游 Publish；
+  # 关闭时（Close）先停止消费 loop，再关闭 dispatchQueue，worker 排空后退出。
+  workers: 16
+  queue_size: 1024
+
+sentry:
+  # DSN 为空时自动禁用 Sentry，不影响正常运行
+  # 联调时配置后，Go 后端的 panic 和错误会同步上报到 Sentry 看板
+  dsn: ""
+  environment: development    # development / production
+  release: "server@1.0.0"     # 版本号，用于 Sentry Release 追踪
+  # 错误事件采样率 (0.0-1.0)
+  #   未配置（删除该行）= 默认 1.0 全量上报
+  #   1.0 = 全量上报（开发环境建议）
+  #   0.0 = 显式关闭错误上报（注意：旧版本 0 会被误改 1.0，v1.0.1 已修复）
+  sample_rate: 1.0
+  # 性能追踪采样率 (0.0-1.0)，生产建议 0.2
+  traces_sample_rate: 0.2
+  # 需过滤的性能事务名（regex，匹配 sentrygin 事务名 "<METHOD> <FullPath>"）
+  # 用于剔除高频低价值请求对 Sentry 性能面板的污染
+  # 默认（无需配置即生效）：/health（K8s 探针）、/favicon、/assets/（前端静态资源）
+  # 此处配置会追加到默认清单之上，举例：
+  # ignore_transactions:
+  #   - "/api/v1/ping"
+  #   - "/metrics"
+
+cors:
+  # 跨域资源共享白名单（精确匹配，不支持通配符）。
+  # 空数组 = 拒绝所有跨域请求（fail-closed）。
+  # 生产环境必须显式列出可信前端来源，避免任意站点携带 Cookie 访问后端 API。
+  # 环境变量覆盖：NETYADMIN_CORS_ALLOWED_ORIGINS（逗号分隔，如 "https://admin.example.com,https://app.example.com"）
+  allowed_origins:
+    - "http://localhost:5173"
+
+security_headers:
+  # Content-Security-Policy 头内容（为空时不设置该头）。
+  # 默认值允许同源脚本与样式（'unsafe-inline' 用于 Vue 注入的内联样式）。
+  # 生产环境建议进一步收紧：移除 'unsafe-inline'，改用 nonce 或 hash。
+  # 环境变量覆盖：NETYADMIN_SECURITY_HEADERS_CSP
+  csp: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+
+login_ratelimit:
+  # 登录端点 IP 维度限流（仅作用于 admin /auth/login + /auth/refresh-token
+  # 与 client /user/login + /user/refresh-token 路由，不影响其他接口）。
+  # 算法：Redis ZSET 滑动窗口（ZADD + ZREMRANGEBYSCORE + ZCARD）。
+  # Redis 未配置（cache disabled）时限流器降级为 no-op（fail-open），不阻断登录关键路径。
+  # 环境变量覆盖：NETYADMIN_LOGIN_RATELIMIT_WINDOW / NETYADMIN_LOGIN_RATELIMIT_MAX
+  window: "1m"  # 滑动窗口时长
+  max: 10       # 窗口内单个 IP 允许的最大登录尝试次数

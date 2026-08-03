@@ -214,29 +214,29 @@ Email 配置通过 `sys_configs` 表 `email_config` 分组管理，支持的配�
 
 **QQ邮箱 / 163邮箱（SSL，端口465）**
 
-```toml
-ssl_enabled = true
-starttls_enabled = false
-auth_type = "plain"
-port = 465
+```yaml
+ssl_enabled: true
+starttls_enabled: false
+auth_type: plain
+port: 465
 ```
 
 **Gmail / Outlook（STARTTLS，端口587）**
 
-```toml
-ssl_enabled = false
-starttls_enabled = true
-auth_type = "plain"
-port = 587
+```yaml
+ssl_enabled: false
+starttls_enabled: true
+auth_type: plain
+port: 587
 ```
 
 **企业邮箱（常见配置）**
 
-```toml
-ssl_enabled = true
-starttls_enabled = false
-auth_type = "login"   # 部分企业邮箱要求 LOGIN 认证
-port = 465
+```yaml
+ssl_enabled: true
+starttls_enabled: false
+auth_type: login   # 部分企业邮箱要求 LOGIN 认证
+port: 465
 ```
 
 ---

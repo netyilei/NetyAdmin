@@ -24,20 +24,20 @@ cd NetyAdmin/server
 
 ### 2.2 配置数据库和 Redis
 
-编辑 `server/config.toml` 文件，根据您的实际环境修改数据库和 Redis 连接信息。
+编辑 `server/config.yaml` 文件，根据您的实际环境修改数据库和 Redis 连接信息。
 
-```toml
-# server/config.toml 示例
-[database]
-driver = "postgres"
-source = "host=localhost port=5432 user=netyadmin password=your_password dbname=netyadmin sslmode=disable TimeZone=Asia/Shanghai"
+```yaml
+# server/config.yaml 示例
+database:
+  driver: postgres
+  source: "host=localhost port=5432 user=netyadmin password=your_password dbname=netyadmin sslmode=disable TimeZone=Asia/Shanghai"
 
-[redis]
-enabled = true
-addr = "localhost:6379"
-password = ""
-db = 0
-prefix = "netyadmin:"
+redis:
+  enabled: true
+  addr: "localhost:6379"
+  password: ""
+  db: 0
+  prefix: "netyadmin:"
 ```
 
 ### 2.3 数据库迁移
@@ -54,7 +54,7 @@ go build -o netyadmin-server cmd/server/main.go
 ./netyadmin-server
 ```
 
-默认情况下，后端服务将在 `http://localhost:8010` 启动。您可以通过修改 `config.toml` 中的 `[server].port` 来更改端口。
+默认情况下，后端服务将在 `http://localhost:8010` 启动。您可以通过修改 `config.yaml` 中的 `[server].port` 来更改端口。
 
 ## 3. 前端部署 (`admin-web`)
 

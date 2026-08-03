@@ -33,16 +33,18 @@
 
 ### 2.3 配置项
 
-```toml
-[sentry]
-dsn = ""                        # 为空则禁用
-environment = "development"     # development / production
-release = "server@1.0.0"       # 版本号
-sample_rate = 1.0               # 错误事件采样率 (0.0-1.0)，不配置=默认1.0，显式0=关闭
-traces_sample_rate = 0.2        # 性能追踪采样率 (0.0-1.0)，0=关闭性能追踪
-# ignore_transactions 过滤高频低价值性能事务（regex），默认内置 /health /favicon /assets/
-# 用户配置会追加到默认清单之上
-# ignore_transactions = ["/api/v1/ping", "/metrics"]
+```yaml
+sentry:
+  dsn: ""                        # 为空则禁用
+  environment: development       # development / production
+  release: "server@1.0.0"       # 版本号
+  sample_rate: 1.0               # 错误事件采样率 (0.0-1.0)，不配置=默认1.0，显式0=关闭
+  traces_sample_rate: 0.2        # 性能追踪采样率 (0.0-1.0)，0=关闭性能追踪
+  # ignore_transactions 过滤高频低价值性能事务（regex），默认内置 /health /favicon /assets/
+  # 用户配置会追加到默认清单之上
+  # ignore_transactions:
+  #   - "/api/v1/ping"
+  #   - "/metrics"
 ```
 
 ### 2.4 中间件链顺序（关键）

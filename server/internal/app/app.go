@@ -151,7 +151,7 @@ func (a *App) OAuthBindingService() userServicePkg.OAuthBindingService { return 
 
 func (a *App) Run() error {
 	addr := fmt.Sprintf(":%d", a.cfg.Server.Port)
-	// 超时值从配置读取，避免硬编码（config.toml: read_timeout/write_timeout，单位秒）
+	// 超时值从配置读取，避免硬编码（config.yaml: read_timeout/write_timeout，单位秒）
 	readTimeout := time.Duration(a.cfg.Server.ReadTimeout) * time.Second
 	writeTimeout := time.Duration(a.cfg.Server.WriteTimeout) * time.Second
 	if readTimeout <= 0 {

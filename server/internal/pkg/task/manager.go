@@ -681,7 +681,7 @@ func (m *Manager) getTaskMetadata(t Task) TaskMetadata {
 		}
 	}
 
-	// 2. 智能覆盖：仅当 config.toml 中有明确非 nil 定义时才覆盖
+	// 2. 智能覆盖：仅当 config.yaml 中有明确非 nil 定义时才覆盖
 	if jobCfg, ok := m.cfg.Jobs[name]; ok {
 		if jobCfg.Enabled != nil {
 			meta.Enabled = *jobCfg.Enabled

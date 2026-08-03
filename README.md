@@ -153,7 +153,7 @@ cd NetyAdmin
 
 # 2. 启动服务端
 cd server
-# 编辑 config.toml 配置数据库
+# 编辑 config.yaml 配置数据库
 go mod download
 go run cmd/server/main.go
 
@@ -186,7 +186,7 @@ NetyAdmin/
 │   │   ├── repository/       # 数据访问
 │   │   └── service/          # 业务服务
 │   ├── migrations/           # 数据库迁移
-│   └── config.toml           # 配置文件
+│   └── config.yaml           # 配置文件
 │
 ├── admin-web/                 # 管理后台（Vue 3）
 │   ├── src/

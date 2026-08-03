@@ -274,22 +274,22 @@ per-handler recover 是 worker pool 的核心：它确保 handler panic 不会�
 
 ### 5.1 config.toml
 
-```toml
-[bus]
-# driver = "redis"    # 集群模式：基于 Redis Pub/Sub，支持多节点广播
-# driver = "memory"   # 单机模式：基于内存 channel，无需 Redis
-# 不设置则根据 Redis.Enabled 自动选择（Redis 启用 -> redis，否则 -> memory）
+```yaml
+bus:
+  # driver: redis    # 集群模式：基于 Redis Pub/Sub，支持多节点广播
+  # driver: memory   # 单机模式：基于内存 channel，无需 Redis
+  # 不设置则根据 Redis.Enabled 自动选择（Redis 启用 -> redis，否则 -> memory）
 
-[pubsub]
-# dispatch worker pool 配置（Task 23）。
-# 消费 loop 收到消息后，通过 dispatchQueue 投递给 N 个 worker 并行调用 handler，
-# 替代原本的 per-event goroutine，避免高吞吐场景下 goroutine 数量爆炸。
-#   - workers：worker 协程数。零值 = 默认 16。环境变量：NETYADMIN_PUBSUB_WORKERS
-#   - queue_size：dispatch 队列缓冲容量。零值 = 默认 1024。环境变量：NETYADMIN_PUBSUB_QUEUE_SIZE
-# 队列满时 dispatch 阻塞（backpressure），让消费 loop 反压到上游 Publish；
-# 关闭时（Close）先停止消费 loop，再关闭 dispatchQueue，worker 排空后退出。
-workers = 16
-queue_size = 1024
+pubsub:
+  # dispatch worker pool 配置（Task 23）。
+  # 消费 loop 收到消息后，通过 dispatchQueue 投递给 N 个 worker 并行调用 handler，
+  # 替代原本的 per-event goroutine，避免高吞吐场景下 goroutine 数量爆炸。
+  #   - workers：worker 协程数。零值 = 默认 16。环境变量：NETYADMIN_PUBSUB_WORKERS
+  #   - queue_size：dispatch 队列缓冲容量。零值 = 默认 1024。环境变量：NETYADMIN_PUBSUB_QUEUE_SIZE
+  # 队列满时 dispatch 阻塞（backpressure），让消费 loop 反压到上游 Publish；
+  # 关闭时（Close）先停止消费 loop，再关闭 dispatchQueue，worker 排空后退出。
+  workers: 16
+  queue_size: 1024
 ```
 
 ### 5.2 内置订阅者注册

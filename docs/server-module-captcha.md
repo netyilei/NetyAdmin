@@ -63,30 +63,30 @@ const (
 
 ## 四、配置说明
 
-### 4.1 配置文件（config.toml）
+### 4.1 配置文件（config.yaml）
 
-```toml
-[captcha]
-# 存储类型：redis / memory / db
-store_type = "redis"
+```yaml
+captcha:
+  # 存储类型：redis / memory / db
+  store_type: redis
 
-# 验证码类型：digit / string / math
-type = "string"
+  # 验证码类型：digit / string / math
+  type: string
 
-# 长度（数字/字符型）
-length = 4
+  # 长度（数字/字符型）
+  length: 4
 
-# 图片宽度
-width = 240
+  # 图片宽度
+  width: 240
 
-# 图片高度
-height = 80
+  # 图片高度
+  height: 80
 
-# 过期时间（秒）
-expire_seconds = 300
+  # 过期时间（秒）
+  expire_seconds: 300
 
-# 是否启用（总开关）
-enabled = true
+  # 是否启用（总开关）
+  enabled: true
 ```
 
 ### 4.2 动态配置（sys_configs）

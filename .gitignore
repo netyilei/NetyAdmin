@@ -2,7 +2,7 @@
 server/*.exe
 server/cover.html
 server/cover.out
-server/config.toml
+server/config.yaml
 
 # Node
 dist/

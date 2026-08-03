@@ -153,7 +153,7 @@ cd NetyAdmin
 
 # 2. Start server
 cd server
-# Edit config.toml to configure database
+# Edit config.yaml to configure database
 go mod download
 go run cmd/server/main.go
 
@@ -186,7 +186,7 @@ NetyAdmin/
 │   │   ├── repository/       # Data access
 │   │   └── service/          # Business services
 │   ├── migrations/           # Database migrations
-│   └── config.toml           # Configuration file
+│   └── config.yaml           # Configuration file
 │
 ├── admin-web/                 # Admin frontend (Vue 3)
 │   ├── src/

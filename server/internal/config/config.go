@@ -9,36 +9,35 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pelletier/go-toml/v2"
+	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	Server          ServerConfig          `toml:"server"`
-	TLS             TLSConfig             `toml:"tls"`
-	Database        DatabaseConfig        `toml:"database"`
-	Redis           RedisConfig           `toml:"redis"`
-	JWT             JWTConfig             `toml:"jwt"`
-	Log             LogConfig             `toml:"log"`
-	Migration       MigrationConfig       `toml:"migration"`
-	Task            TaskConfig            `toml:"task"`
-	Security        SecurityConfig        `toml:"security"`
-	Email           EmailConfig           `toml:"email"`
-	Sms             SmsConfig             `toml:"sms"`
-	Bus             BusConfig             `toml:"bus"`
-	PubSub          PubSubConfig          `toml:"pubsub"`
-	Sentry          SentryConfig          `toml:"sentry"`
-	CORS            CORSConfig            `toml:"cors"`
-	SecurityHeaders SecurityHeadersConfig `toml:"security_headers"`
-	LoginRateLimit  LoginRateLimitConfig  `toml:"login_ratelimit"`
+	Server          ServerConfig          `yaml:"server"`
+	TLS             TLSConfig             `yaml:"tls"`
+	Database        DatabaseConfig        `yaml:"database"`
+	Redis           RedisConfig           `yaml:"redis"`
+	JWT             JWTConfig             `yaml:"jwt"`
+	Log             LogConfig             `yaml:"log"`
+	Migration       MigrationConfig       `yaml:"migration"`
+	Task            TaskConfig            `yaml:"task"`
+	Security        SecurityConfig        `yaml:"security"`
+	Email           EmailConfig           `yaml:"email"`
+	Sms             SmsConfig             `yaml:"sms"`
+	Bus             BusConfig             `yaml:"bus"`
+	PubSub          PubSubConfig          `yaml:"pubsub"`
+	Sentry          SentryConfig          `yaml:"sentry"`
+	CORS            CORSConfig            `yaml:"cors"`
+	SecurityHeaders SecurityHeadersConfig `yaml:"security_headers"`
+	LoginRateLimit  LoginRateLimitConfig  `yaml:"login_ratelimit"`
 }
 
 // Duration 是 time.Duration 的包装类型，实现 encoding.TextUnmarshaler 接口，
-// 使 go-toml/v2 能将 TOML 字符串（如 "30m"/"168h"/"25s"）解析为 time.Duration。
+// 使 yaml.v3 能将 YAML 字符串（如 "30m"/"168h"/"25s"）解析为 time.Duration。
 //
-// 背景：go-toml/v2 原生不支持 time.Duration——它是 int64 的命名类型别名，
-// 不实现 TextUnmarshaler，直接 toml.Unmarshal 会报错：
-// "cannot decode TOML string into struct field of type time.Duration"。
-// 通过包装类型 + UnmarshalText 让 TOML 字符串走 time.ParseDuration 解析路径。
+// 背景：yaml.v3 把 "30m" 识别为字符串（!!str），直接解码到 time.Duration
+// （int64 命名类型别名）会报错 "cannot unmarshal !!str `30m` into time.Duration"。
+// 通过包装类型 + UnmarshalText 让 YAML 字符串走 time.ParseDuration 解析路径。
 //
 // 业务代码使用时需调用 .Duration() 方法转回 time.Duration（用于 jwt.New / http.Server 等）。
 type Duration time.Duration
@@ -62,22 +61,22 @@ func (d Duration) Duration() time.Duration {
 // 默认关闭：默认部署架构由前端 Nginx 终止 TLS，后端只听 HTTP。
 // 若后端直接对外暴露（无 Nginx/CDN），应启用 HTTPS 并配置 cert_file / key_file。
 type TLSConfig struct {
-	Enable   bool   `toml:"enable"`
-	CertFile string `toml:"cert_file"`
-	KeyFile  string `toml:"key_file"`
+	Enable   bool   `yaml:"enable"`
+	CertFile string `yaml:"cert_file"`
+	KeyFile  string `yaml:"key_file"`
 }
 
 // CORSConfig 跨域资源共享配置。
 // AllowedOrigins 为允许的来源白名单（精确匹配，不支持通配符）。
 // 空列表 = 拒绝所有跨域请求（fail-closed），生产环境必须显式配置可信来源。
 type CORSConfig struct {
-	AllowedOrigins []string `toml:"allowed_origins" env:"NETYADMIN_CORS_ALLOWED_ORIGINS"` // 允许的来源白名单；环境变量用逗号分隔
+	AllowedOrigins []string `yaml:"allowed_origins" env:"NETYADMIN_CORS_ALLOWED_ORIGINS"` // 允许的来源白名单；环境变量用逗号分隔
 }
 
 // SecurityHeadersConfig 安全响应头配置。
 // CSP 为空时不设置 Content-Security-Policy 头（保持兼容性，不强制）。
 type SecurityHeadersConfig struct {
-	CSP string `toml:"csp" env:"NETYADMIN_SECURITY_HEADERS_CSP"` // Content-Security-Policy 头内容
+	CSP string `yaml:"csp" env:"NETYADMIN_SECURITY_HEADERS_CSP"` // Content-Security-Policy 头内容
 }
 
 // LoginRateLimitConfig 登录端点 IP 维度限流配置。
@@ -87,104 +86,104 @@ type SecurityHeadersConfig struct {
 type LoginRateLimitConfig struct {
 	// Window 滑动窗口时长（如 "1m" / "5m"）。零值 = 默认 1m。
 	// 环境变量：NETYADMIN_LOGIN_RATELIMIT_WINDOW
-	// 类型为 Duration（实现 encoding.TextUnmarshaler），使 go-toml/v2 能解析 "1m" 等字符串。
-	Window Duration `toml:"window" env:"NETYADMIN_LOGIN_RATELIMIT_WINDOW"`
+	// 类型为 Duration（实现 encoding.TextUnmarshaler），使 yaml.v3 能解析 "1m" 等字符串。
+	Window Duration `yaml:"window" env:"NETYADMIN_LOGIN_RATELIMIT_WINDOW"`
 	// Max 窗口内单个 IP 允许的最大登录尝试次数。零值 = 默认 10。
 	// 环境变量：NETYADMIN_LOGIN_RATELIMIT_MAX
-	Max int `toml:"max" env:"NETYADMIN_LOGIN_RATELIMIT_MAX"`
+	Max int `yaml:"max" env:"NETYADMIN_LOGIN_RATELIMIT_MAX"`
 }
 
 // SentryConfig Sentry 错误追踪配置（后端 Go）
 // DSN 为空时自动禁用，不影响正常运行
 type SentryConfig struct {
-	DSN                string   `toml:"dsn" env:"NETYADMIN_SENTRY_DSN"`                 // Sentry DSN，为空则禁用
-	Environment        string   `toml:"environment" env:"NETYADMIN_SENTRY_ENVIRONMENT"` // 环境标识（development / production）
-	Release            string   `toml:"release" env:"NETYADMIN_SENTRY_RELEASE"`         // 版本号
-	SampleRate         *float64 `toml:"sample_rate"`                                    // 错误事件采样率 (0.0-1.0)；nil=未配置默认1.0，显式0=关闭错误上报
-	TracesSampleRate   float64  `toml:"traces_sample_rate"`                             // 性能追踪采样率 (0.0-1.0)；0=关闭性能追踪
-	IgnoreTransactions []string `toml:"ignore_transactions"`                            // 需过滤的性能事务名（regex），默认含 /health 等探针/静态资源噪声
+	DSN                string   `yaml:"dsn" env:"NETYADMIN_SENTRY_DSN"`                 // Sentry DSN，为空则禁用
+	Environment        string   `yaml:"environment" env:"NETYADMIN_SENTRY_ENVIRONMENT"` // 环境标识（development / production）
+	Release            string   `yaml:"release" env:"NETYADMIN_SENTRY_RELEASE"`         // 版本号
+	SampleRate         *float64 `yaml:"sample_rate"`                                    // 错误事件采样率 (0.0-1.0)；nil=未配置默认1.0，显式0=关闭错误上报
+	TracesSampleRate   float64  `yaml:"traces_sample_rate"`                             // 性能追踪采样率 (0.0-1.0)；0=关闭性能追踪
+	IgnoreTransactions []string `yaml:"ignore_transactions"`                            // 需过滤的性能事务名（regex），默认含 /health 等探针/静态资源噪声
 }
 
 type EmailConfig struct {
-	Enabled        bool   `toml:"enabled"`
-	Host           string `toml:"host"`
-	Port           int    `toml:"port"`
-	User           string `toml:"user"`
-	Password       string `toml:"password" env:"NETYADMIN_EMAIL_PASSWORD"`
-	From           string `toml:"from"`
-	SSL            bool   `toml:"ssl"`
-	StartTLS       bool   `toml:"starttls"`
-	AuthType       string `toml:"auth_type"`
-	ConnectTimeout int    `toml:"connect_timeout"`
-	SendTimeout    int    `toml:"send_timeout"`
+	Enabled        bool   `yaml:"enabled"`
+	Host           string `yaml:"host"`
+	Port           int    `yaml:"port"`
+	User           string `yaml:"user"`
+	Password       string `yaml:"password" env:"NETYADMIN_EMAIL_PASSWORD"`
+	From           string `yaml:"from"`
+	SSL            bool   `yaml:"ssl"`
+	StartTLS       bool   `yaml:"starttls"`
+	AuthType       string `yaml:"auth_type"`
+	ConnectTimeout int    `yaml:"connect_timeout"`
+	SendTimeout    int    `yaml:"send_timeout"`
 }
 
 type SmsConfig struct {
-	Enabled   bool   `toml:"enabled"`
-	Driver    string `toml:"driver"`
-	SecretID  string `toml:"secret_id" env:"NETYADMIN_SMS_SECRET_ID"`
-	SecretKey string `toml:"secret_key" env:"NETYADMIN_SMS_SECRET_KEY"`
-	AppID     string `toml:"app_id"`
-	SignName  string `toml:"sign_name"`
-	Region    string `toml:"region" env:"NETYADMIN_SMS_REGION"`
+	Enabled   bool   `yaml:"enabled"`
+	Driver    string `yaml:"driver"`
+	SecretID  string `yaml:"secret_id" env:"NETYADMIN_SMS_SECRET_ID"`
+	SecretKey string `yaml:"secret_key" env:"NETYADMIN_SMS_SECRET_KEY"`
+	AppID     string `yaml:"app_id"`
+	SignName  string `yaml:"sign_name"`
+	Region    string `yaml:"region" env:"NETYADMIN_SMS_REGION"`
 }
 
 type SecurityConfig struct {
-	AESKey        string `toml:"aes_key" env:"NETYADMIN_AES_KEY"` // 系统加解密 Key (16, 24 或 32 字节)
-	UploadHMACKey string `toml:"upload_hmac_key" env:"NETYADMIN_UPLOAD_HMAC_KEY"`
+	AESKey        string `yaml:"aes_key" env:"NETYADMIN_AES_KEY"` // 系统加解密 Key (16, 24 或 32 字节)
+	UploadHMACKey string `yaml:"upload_hmac_key" env:"NETYADMIN_UPLOAD_HMAC_KEY"`
 }
 
 type TaskConfig struct {
-	Enabled bool                 `toml:"enabled"`
-	Workers int                  `toml:"workers"`
-	Jobs    map[string]JobConfig `toml:"jobs"`
+	Enabled bool                 `yaml:"enabled"`
+	Workers int                  `yaml:"workers"`
+	Jobs    map[string]JobConfig `yaml:"jobs"`
 }
 
 type JobConfig struct {
-	Enabled *bool   `toml:"enabled"` // 是否启用
-	Type    *string `toml:"type"`    // 模式覆盖: once, cron, interval
-	Spec    *string `toml:"spec"`    // 参数覆盖: 间隔时间或 Cron 表达式
-	Weight  *int    `toml:"weight"`  // 权重覆盖 (0-100)
+	Enabled *bool   `yaml:"enabled"` // 是否启用
+	Type    *string `yaml:"type"`    // 模式覆盖: once, cron, interval
+	Spec    *string `yaml:"spec"`    // 参数覆盖: 间隔时间或 Cron 表达式
+	Weight  *int    `yaml:"weight"`  // 权重覆盖 (0-100)
 }
 
 // MigrationConfig 数据库迁移配置。
 // Dir 字段已移除：迁移文件以 go:embed 编译进二进制，不再从外部目录读取。
 type MigrationConfig struct {
-	Enabled bool `toml:"enabled"`
+	Enabled bool `yaml:"enabled"`
 }
 
 type ServerConfig struct {
-	Port         int    `toml:"port" env:"NETYADMIN_SERVER_PORT"`
-	Mode         string `toml:"mode" env:"NETYADMIN_SERVER_MODE"`
-	ReadTimeout  int    `toml:"read_timeout"`
-	WriteTimeout int    `toml:"write_timeout"`
+	Port         int    `yaml:"port" env:"NETYADMIN_SERVER_PORT"`
+	Mode         string `yaml:"mode" env:"NETYADMIN_SERVER_MODE"`
+	ReadTimeout  int    `yaml:"read_timeout"`
+	WriteTimeout int    `yaml:"write_timeout"`
 	// HandlerTimeout 是 http.TimeoutHandler 的请求处理超时阈值。
 	// 应略小于 ReadTimeout/WriteTimeout，确保超时时由中间件返回 503 + JSON 错误体，
 	// 而非连接层超时断开（客户端会收到空响应 / 连接重置）。
 	// 零值 = 默认 25s（在 app.go 中兜底）。
-	// 类型为 Duration（实现 encoding.TextUnmarshaler），使 go-toml/v2 能解析 "25s" 等字符串。
-	HandlerTimeout Duration `toml:"handler_timeout" env:"NETYADMIN_SERVER_HANDLER_TIMEOUT"`
+	// 类型为 Duration（实现 encoding.TextUnmarshaler），使 yaml.v3 能解析 "25s" 等字符串。
+	HandlerTimeout Duration `yaml:"handler_timeout" env:"NETYADMIN_SERVER_HANDLER_TIMEOUT"`
 	// ShutdownTimeout 是优雅关闭时 srv.Shutdown 等待在途请求的最大时长。
 	// 零值 = 默认 30s（在 app.go 中兜底）。
-	// 类型为 Duration（实现 encoding.TextUnmarshaler），使 go-toml/v2 能解析 "30s" 等字符串。
-	ShutdownTimeout Duration `toml:"shutdown_timeout" env:"NETYADMIN_SERVER_SHUTDOWN_TIMEOUT"`
-	MultiNode       bool     `toml:"multi_node"` // 多机部署设为 true：会校验事件总线是否为 redis 模式
+	// 类型为 Duration（实现 encoding.TextUnmarshaler），使 yaml.v3 能解析 "30s" 等字符串。
+	ShutdownTimeout Duration `yaml:"shutdown_timeout" env:"NETYADMIN_SERVER_SHUTDOWN_TIMEOUT"`
+	MultiNode       bool     `yaml:"multi_node"` // 多机部署设为 true：会校验事件总线是否为 redis 模式
 	// TrustedProxies 可信代理 IP 或 IPv4 CIDR 列表（如 ["127.0.0.1", "10.0.0.0/8"]）。
 	// 空数组（默认）= 不信任任何代理：c.ClientIP() 直接回退到 RemoteAddr，忽略 X-Forwarded-For / X-Real-IP 头，
 	// 防止攻击者伪造 IP 头绕过 IPAC 白名单/黑名单。
 	// 生产环境若部署在 Nginx/CDN 之后，必须填写真实代理 IP/CIDR 才能正确解析客户端真实 IP。
-	TrustedProxies []string `toml:"trusted_proxies"`
+	TrustedProxies []string `yaml:"trusted_proxies"`
 }
 
 type DatabaseConfig struct {
-	Host     string `toml:"host" env:"NETYADMIN_DB_HOST"`
-	Port     int    `toml:"port" env:"NETYADMIN_DB_PORT"`
-	User     string `toml:"user" env:"NETYADMIN_DB_USER"`
-	Password string `toml:"password" env:"NETYADMIN_DB_PASSWORD"`
-	DBName   string `toml:"dbname" env:"NETYADMIN_DB_NAME"`
-	SSLMode  string `toml:"sslmode" env:"NETYADMIN_DB_SSLMODE"`
-	MaxIdle  int    `toml:"max_idle"`
-	MaxOpen  int    `toml:"max_open"`
+	Host     string `yaml:"host" env:"NETYADMIN_DB_HOST"`
+	Port     int    `yaml:"port" env:"NETYADMIN_DB_PORT"`
+	User     string `yaml:"user" env:"NETYADMIN_DB_USER"`
+	Password string `yaml:"password" env:"NETYADMIN_DB_PASSWORD"`
+	DBName   string `yaml:"dbname" env:"NETYADMIN_DB_NAME"`
+	SSLMode  string `yaml:"sslmode" env:"NETYADMIN_DB_SSLMODE"`
+	MaxIdle  int    `yaml:"max_idle"`
+	MaxOpen  int    `yaml:"max_open"`
 }
 
 // DSN 返回 PostgreSQL 的 keyword=value 格式 DSN（pgx 通用）。
@@ -209,25 +208,25 @@ func (c DatabaseConfig) DSNURL() string {
 }
 
 type RedisConfig struct {
-	Enabled  bool   `toml:"enabled"`
-	Prefix   string `toml:"prefix"`
-	Host     string `toml:"host" env:"NETYADMIN_REDIS_HOST"`
-	Port     int    `toml:"port" env:"NETYADMIN_REDIS_PORT"`
-	Password string `toml:"password" env:"NETYADMIN_REDIS_PASSWORD"`
-	DB       int    `toml:"db"`
+	Enabled  bool   `yaml:"enabled"`
+	Prefix   string `yaml:"prefix"`
+	Host     string `yaml:"host" env:"NETYADMIN_REDIS_HOST"`
+	Port     int    `yaml:"port" env:"NETYADMIN_REDIS_PORT"`
+	Password string `yaml:"password" env:"NETYADMIN_REDIS_PASSWORD"`
+	DB       int    `yaml:"db"`
 
-	PoolSize       int `toml:"pool_size" env:"NETYADMIN_REDIS_POOL_SIZE"`
-	MinIdleConns   int `toml:"min_idle_conns" env:"NETYADMIN_REDIS_MIN_IDLE_CONNS"`
-	PoolTimeoutSec int `toml:"pool_timeout_sec" env:"NETYADMIN_REDIS_POOL_TIMEOUT_SEC"`
+	PoolSize       int `yaml:"pool_size" env:"NETYADMIN_REDIS_POOL_SIZE"`
+	MinIdleConns   int `yaml:"min_idle_conns" env:"NETYADMIN_REDIS_MIN_IDLE_CONNS"`
+	PoolTimeoutSec int `yaml:"pool_timeout_sec" env:"NETYADMIN_REDIS_POOL_TIMEOUT_SEC"`
 
-	L1Enabled       bool `toml:"l1_enabled"`
-	LocalMaxSizeMB  int  `toml:"local_max_size_mb"`
-	LocalMaxEntryKB int  `toml:"local_max_entry_kb"`
-	LocalTTLMin     int  `toml:"local_ttl_min"`
+	L1Enabled       bool `yaml:"l1_enabled"`
+	LocalMaxSizeMB  int  `yaml:"local_max_size_mb"`
+	LocalMaxEntryKB int  `yaml:"local_max_entry_kb"`
+	LocalTTLMin     int  `yaml:"local_ttl_min"`
 }
 
 type BusConfig struct {
-	Driver string `toml:"driver" env:"NETYADMIN_BUS_DRIVER"` // "redis" | "memory"，默认根据 Redis.Enabled 自动选择
+	Driver string `yaml:"driver" env:"NETYADMIN_BUS_DRIVER"` // "redis" | "memory"，默认根据 Redis.Enabled 自动选择
 }
 
 // PubSubConfig 事件总线分发工作池配置（Task 23）。
@@ -240,31 +239,31 @@ type BusConfig struct {
 //   - 队列满时 dispatch 阻塞（backpressure），让消费 loop 反压到上游 Publish。
 //   - 关闭时（Close）先停止消费 loop，再关闭 dispatchQueue，worker 排空后退出。
 type PubSubConfig struct {
-	Workers   int `toml:"workers" env:"NETYADMIN_PUBSUB_WORKERS"`       // worker 协程数，零值 = 默认 16
-	QueueSize int `toml:"queue_size" env:"NETYADMIN_PUBSUB_QUEUE_SIZE"` // dispatch 队列容量，零值 = 默认 1024
+	Workers   int `yaml:"workers" env:"NETYADMIN_PUBSUB_WORKERS"`       // worker 协程数，零值 = 默认 16
+	QueueSize int `yaml:"queue_size" env:"NETYADMIN_PUBSUB_QUEUE_SIZE"` // dispatch 队列容量，零值 = 默认 1024
 }
 
 // JWTConfig RS256 非对称签名 + Access/Refresh TTL 独立配置。
 //   - 私钥/公钥均支持 file path 或内联 PEM 两种加载方式，file path 优先。
 //   - 生产模式 fail-closed：私钥/公钥必须配置（file 或 PEM 至少一项），否则启动失败。
 //   - AccessTokenTTL 短时（默认 30m），RefreshTokenTTL 长时（默认 168h = 7 天）。
-//   - TTL 字段类型为 Duration（实现 encoding.TextUnmarshaler），使 go-toml/v2 能解析 "30m" 等字符串。
+//   - TTL 字段类型为 Duration（实现 encoding.TextUnmarshaler），使 yaml.v3 能解析 "30m" 等字符串。
 type JWTConfig struct {
-	PrivateKeyFile  string   `toml:"private_key_file"`
-	PrivateKeyPEM   string   `toml:"private_key_pem"`
-	PublicKeyFile   string   `toml:"public_key_file"`
-	PublicKeyPEM    string   `toml:"public_key_pem"`
-	AccessTokenTTL  Duration `toml:"access_token_ttl"`
-	RefreshTokenTTL Duration `toml:"refresh_token_ttl"`
+	PrivateKeyFile  string   `yaml:"private_key_file"`
+	PrivateKeyPEM   string   `yaml:"private_key_pem"`
+	PublicKeyFile   string   `yaml:"public_key_file"`
+	PublicKeyPEM    string   `yaml:"public_key_pem"`
+	AccessTokenTTL  Duration `yaml:"access_token_ttl"`
+	RefreshTokenTTL Duration `yaml:"refresh_token_ttl"`
 }
 
 type LogConfig struct {
-	Level      string `toml:"level"`
-	Filename   string `toml:"filename"`
-	MaxSize    int    `toml:"max_size"`
-	MaxBackups int    `toml:"max_backups"`
-	MaxAge     int    `toml:"max_age"`
-	Compress   bool   `toml:"compress"`
+	Level      string `yaml:"level"`
+	Filename   string `yaml:"filename"`
+	MaxSize    int    `yaml:"max_size"`
+	MaxBackups int    `yaml:"max_backups"`
+	MaxAge     int    `yaml:"max_age"`
+	Compress   bool   `yaml:"compress"`
 }
 
 func Load(path string) (*Config, error) {
@@ -274,11 +273,11 @@ func Load(path string) (*Config, error) {
 	}
 
 	var cfg Config
-	if err := toml.Unmarshal(data, &cfg); err != nil {
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("解析配置文件失败: %w", err)
 	}
 
-	// 12-factor: 环境变量优先于 TOML，覆盖带 env 标签的字段
+	// 12-factor: 环境变量优先于配置文件，覆盖带 env 标签的字段
 	if err := applyEnvOverrides(&cfg); err != nil {
 		return nil, fmt.Errorf("应用环境变量覆盖失败: %w", err)
 	}
@@ -287,8 +286,8 @@ func Load(path string) (*Config, error) {
 }
 
 // applyEnvOverrides 通过 reflect 遍历 Config 结构体，对带 `env:"NETYADMIN_XXX"` 标签的叶子字段
-// 用环境变量值覆盖 TOML 已解析的值。环境变量未设置时保留 TOML 值；显式设置为空字符串时覆盖为空。
-// 优先级：环境变量 > TOML > 零值。
+// 用环境变量值覆盖配置文件已解析的值。环境变量未设置时保留 TOML 值；显式设置为空字符串时覆盖为空。
+// 优先级：环境变量 > 配置文件 > 零值。
 func applyEnvOverrides(c *Config) error {
 	v := reflect.ValueOf(c).Elem()
 	return walkFields(v)
@@ -432,7 +431,7 @@ func ValidateConfig(cfg *Config) {
 		"your-password":             {},
 		"<CHANGE_ME_IN_PRODUCTION>": {},
 	}
-	// SMS SecretID/SecretKey 在 config.example.toml 默认为空字符串，故空值也视为未配置。
+	// SMS SecretID/SecretKey 在 config.example.yaml 默认为空字符串，故空值也视为未配置。
 	forbiddenSmsSecretID := map[string]struct{}{
 		"":                          {},
 		"<CHANGE_ME_IN_PRODUCTION>": {},
@@ -441,7 +440,7 @@ func ValidateConfig(cfg *Config) {
 		"":                          {},
 		"<CHANGE_ME_IN_PRODUCTION>": {},
 	}
-	// Redis password 在 config.example.toml 默认为空字符串，生产环境启用 Redis 时必须显式配置。
+	// Redis password 在 config.example.yaml 默认为空字符串，生产环境启用 Redis 时必须显式配置。
 	forbiddenRedisPwd := map[string]struct{}{
 		"":                          {},
 		"<CHANGE_ME_IN_PRODUCTION>": {},

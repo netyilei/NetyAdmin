@@ -36,7 +36,7 @@ server/
 ├── cmd/server/                    # 进程入口
 │   └── main.go                    # 加载配置 -> 初始化DB -> 启动服务
 │
-├── config.toml                    # 运行配置（TOML格式）
+├── config.yaml                    # 运行配置（TOML格式）
 ├── go.mod / go.sum               # Go模块依赖
 │
 ├── internal/pkg/migration/migrations/   # SQL迁移脚本
@@ -50,7 +50,7 @@ server/
     │   └── wire.go               # Wire依赖注入配置
     │
     ├── config/                    # 配置结构与加载
-    │   └── config.go             # TOML配置结构体定义
+    │   └── config.go             # YAML配置结构体定义
     │
     ├── domain/                    # 领域模型层
     │   ├── entity/               # 持久化实体（GORM Model）
@@ -418,14 +418,14 @@ r := gin.New()
 r.SetTrustedProxies(cfg.Server.TrustedProxies)  // 必须在路由注册前调用
 ```
 
-**配置项**（`config.toml`）：
+**配置项**（`config.yaml`）：
 
-```toml
-[server]
-# 可信代理 IP/CIDR 列表，默认空数组 = 不信任任何代理
-trusted_proxies = []
-# 生产环境部署在 Nginx/CDN 后须填写真实代理 IP/CIDR，例如：
-# trusted_proxies = ["127.0.0.1", "10.0.0.0/8", "172.16.0.0/12"]
+```yaml
+server:
+  # 可信代理 IP/CIDR 列表，默认空数组 = 不信任任何代理
+  trusted_proxies: []
+  # 生产环境部署在 Nginx/CDN 后须填写真实代理 IP/CIDR，例如：
+  # trusted_proxies: ["127.0.0.1", "10.0.0.0/8", "172.16.0.0/12"]
 ```
 
 **行为**：
@@ -718,11 +718,11 @@ NetyAdmin 遵循 [12-Factor App](https://12factor.net/) 配置原则：**配置�
 
 ### 配置优先级
 
-加载顺序：**环境变量 > TOML > 零值**。
+加载顺序：**环境变量 > YAML > 零值**。
 
-`config.Load` 内部先用 TOML 反序列化 `config.toml`，再通过 `reflect` 遍历 `Config` 结构体，对带 `env:"NETYADMIN_XXX"` 标签的字段用环境变量覆盖。环境变量未设置时保留 TOML 值；显式设置为空字符串时覆盖为空（`os.LookupEnv` 语义）。
+`config.Load` 内部先用 yaml.v3 反序列化 `config.yaml`，再通过 `reflect` 遍历 `Config` 结构体，对带 `env:"NETYADMIN_XXX"` 标签的字段用环境变量覆盖。环境变量未设置时保留 YAML 值；显式设置为空字符串时覆盖为空（`os.LookupEnv` 语义）。
 
-> 仅叶子字段支持 env 覆盖；`map` 类型字段（如 `ignore_transactions`、`task.jobs`）不参与覆盖，仍由 TOML 配置。`[]string` 类型字段（如 `[cors].allowed_origins`）支持逗号分隔的 env 覆盖（空字符串 = 空切片，符合 fail-closed 语义）。
+> 仅叶子字段支持 env 覆盖；`map` 类型字段（如 `ignore_transactions`、`task.jobs`）不参与覆盖，仍由 YAML 配置。`[]string` 类型字段（如 `cors.allowed_origins`）支持逗号分隔的 env 覆盖（空字符串 = 空切片，符合 fail-closed 语义）。
 
 ### 支持环境变量覆盖的字段
 
@@ -759,14 +759,14 @@ NetyAdmin 遵循 [12-Factor App](https://12factor.net/) 配置原则：**配置�
 
 ### 仓库配置文件
 
-- 仓库提交的配置文件为 **`server/config.example.toml`**（模板），所有敏感值已替换为 `<CHANGE_ME_IN_PRODUCTION>` 占位符。
-- **运行时不直接读取 `config.example.toml`**：部署时需先复制为 `config.toml` 并填入真实值，或仅通过环境变量覆盖。
+- 仓库提交的配置文件为 **`server/config.example.yaml`**（模板），所有敏感值已替换为 `<CHANGE_ME_IN_PRODUCTION>` 占位符。
+- **运行时不直接读取 `config.example.yaml`**：部署时需先复制为 `config.yaml` 并填入真实值，或仅通过环境变量覆盖。
 - 复制命令：
   ```bash
-  cp server/config.example.toml server/config.toml
+  cp server/config.example.yaml server/config.yaml
   ```
-- 本地开发：直接编辑 `config.toml`（建议加入 `.gitignore`，避免误提交真实密钥）。
-- 容器化部署：仅注入环境变量，`config.toml` 可保留占位符（启动期 `ValidateConfig` 会校验最终值）。
+- 本地开发：直接编辑 `config.yaml`（建议加入 `.gitignore`，避免误提交真实密钥）。
+- 容器化部署：仅注入环境变量，`config.yaml` 可保留占位符（启动期 `ValidateConfig` 会校验最终值）。
 
 ### 启动期强校验（`ValidateConfig`）
 
@@ -786,7 +786,7 @@ NetyAdmin 遵循 [12-Factor App](https://12factor.net/) 配置原则：**配置�
 
 ### 生产部署 Checklist
 
-1. `cp config.example.toml config.toml`，或仅依赖环境变量（推荐）。
+1. `cp config.example.yaml config.yaml`，或仅依赖环境变量（推荐）。
 2. 设置 `[server].mode = "release"`（或 `NETYADMIN_SERVER_MODE=release`）。
 3. 通过环境变量注入所有敏感值：
    ```bash
@@ -811,11 +811,12 @@ NetyAdmin 通过 `[cors]` 配置项实现 **Origin 白名单** 跨域策略，�
 
 ### 配置项
 
-```toml
-[cors]
-# 允许跨域的来源白名单（精确匹配，不支持通配符）
-# 空数组 = 拒绝所有跨域请求（fail-closed）
-allowed_origins = ["http://localhost:5173"]
+```yaml
+cors:
+  # 允许跨域的来源白名单（精确匹配，不支持通配符）
+  # 空数组 = 拒绝所有跨域请求（fail-closed）
+  allowed_origins:
+    - "http://localhost:5173"
 ```
 
 环境变量覆盖：
@@ -848,10 +849,10 @@ NetyAdmin 通过 `middleware.SecurityHeaders` 中间件设置一组安全响应�
 
 ### 配置项
 
-```toml
-[security_headers]
-# Content-Security-Policy 头内容（为空时不设置该头）
-csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+```yaml
+security_headers:
+  # Content-Security-Policy 头内容（为空时不设置该头）
+  csp: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
 ```
 
 环境变量覆盖：
@@ -918,11 +919,11 @@ SIGINT / SIGTERM
 
 ### 配置项
 
-```toml
-[server]
-# 优雅关闭超时（srv.Shutdown 等待在途请求的最大时长）。
-# 零值 = 默认 30s。环境变量：NETYADMIN_SERVER_SHUTDOWN_TIMEOUT
-shutdown_timeout = "30s"
+```yaml
+server:
+  # 优雅关闭超时（srv.Shutdown 等待在途请求的最大时长）。
+  # 零值 = 默认 30s。环境变量：NETYADMIN_SERVER_SHUTDOWN_TIMEOUT
+  shutdown_timeout: "30s"
 ```
 
 环境变量覆盖：
@@ -1031,15 +1032,15 @@ NetyAdmin 用 `http.TimeoutHandler` 包装 gin engine，当请求处理超过阈
 
 ### 配置项
 
-```toml
-[server]
-# 请求处理超时（http.TimeoutHandler 包装 engine）。
-# 应略小于 read_timeout / write_timeout，确保超时时由中间件返回 503 + JSON 错误体，
-# 而非连接层超时断开（客户端收到空响应 / 连接重置）。
-# 零值 = 默认 25s。环境变量：NETYADMIN_SERVER_HANDLER_TIMEOUT
-handler_timeout = "25s"
-read_timeout = 120
-write_timeout = 120
+```yaml
+server:
+  # 请求处理超时（http.TimeoutHandler 包装 engine）。
+  # 应略小于 read_timeout / write_timeout，确保超时时由中间件返回 503 + JSON 错误体，
+  # 而非连接层超时断开（客户端收到空响应 / 连接重置）。
+  # 零值 = 默认 25s。环境变量：NETYADMIN_SERVER_HANDLER_TIMEOUT
+  handler_timeout: "25s"
+  read_timeout: 120
+  write_timeout: 120
 ```
 
 环境变量覆盖：
@@ -1125,18 +1126,18 @@ NetyAdmin 自 Round 4 审计起，JWT 签名算法由对称 HS256 改为非对�
 
 ### 配置项
 
-```toml
-[jwt]
-# RS256 私钥（签发 token 用），二选一：文件路径或 PEM 内容
-private_key_file = "/etc/netyadmin/rsa_private.pem"
-# private_key_pem = "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
+```yaml
+jwt:
+  # RS256 私钥（签发 token 用），二选一：文件路径或 PEM 内容
+  private_key_file: "/etc/netyadmin/rsa_private.pem"
+  # private_key_pem: "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
 
-# RS256 公钥（验证 token 用），二选一：文件路径或 PEM 内容
-public_key_file = "/etc/netyadmin/rsa_public.pem"
-# public_key_pem = "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
+  # RS256 公钥（验证 token 用），二选一：文件路径或 PEM 内容
+  public_key_file: "/etc/netyadmin/rsa_public.pem"
+  # public_key_pem: "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
 
-# Access Token 有效期，必须 ≤ 30 分钟（默认 30m）
-access_token_ttl = "30m"
+  # Access Token 有效期，必须 ≤ 30 分钟（默认 30m）
+  access_token_ttl: "30m"
 
 # Refresh Token 有效期，默认 7 天（168h）
 refresh_token_ttl = "168h"
@@ -1185,10 +1186,10 @@ Round 4 将单一 `expiration=168h` 拆分为 `access_token_ttl` + `refresh_toke
 
 原 `cfg.JWT.Secret` 同时承担「JWT 签名」与「storage upload HMAC」双重职责，是密钥复用 hack。RS256 迁移后 JWT 不再需要 secret，storage HMAC 密钥独立为 `[security].upload_hmac_key`：
 
-```toml
-[security]
-# 存储上传 HMAC 密钥（原 [jwt].secret 复用职责独立化）
-upload_hmac_key = "<CHANGE_ME_IN_PRODUCTION>"
+```yaml
+security:
+  # 存储上传 HMAC 密钥（原 [jwt].secret 复用职责独立化）
+  upload_hmac_key: "<CHANGE_ME_IN_PRODUCTION>"
 ```
 
 - 启动期 `ValidateConfig` fail-closed 校验：生产模式下为空 / 占位符时 `log.Fatal` 拒绝启动。
@@ -1209,16 +1210,16 @@ NetyAdmin 默认不启用应用层 TLS（由 Nginx / CDN 终止 TLS 是行业惯
 
 ### 配置项
 
-```toml
-[tls]
-# 是否启用应用层 TLS（默认 false，由 Nginx 终止 TLS）
-enable = false
+```yaml
+tls:
+  # 是否启用应用层 TLS（默认 false，由 Nginx 终止 TLS）
+  enable: false
 
-# TLS 证书文件路径（enable = true 时必填）
-cert_file = "/etc/netyadmin/server.crt"
+  # TLS 证书文件路径（enable = true 时必填）
+  cert_file: "/etc/netyadmin/server.crt"
 
-# TLS 私钥文件路径（enable = true 时必填）
-key_file = "/etc/netyadmin/server.key"
+  # TLS 私钥文件路径（enable = true 时必填）
+  key_file: "/etc/netyadmin/server.key"
 ```
 
 ### 启用行为

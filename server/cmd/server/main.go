@@ -22,7 +22,7 @@ func main() {
 	defer recovery.GlobalRecovery()
 
 	// 2. 加载配置
-	cfg, err := config.Load("config.toml")
+	cfg, err := config.Load("config.yaml")
 	if err != nil {
 		log.Fatalf("加载配置失败: %v", err)
 	}

@@ -137,22 +137,23 @@ if m.redisCfg != nil && m.redisCfg.Enabled && m.redis != nil {
 
 ### 4.1 配置文件（config.toml）
 
-```toml
-[task]
-# 任务系统总开关
-enabled = true
+```yaml
+task:
+  # 任务系统总开关
+  enabled: true
 
-[task.jobs.article_publish]
-enabled = true
-type = "interval"
-spec = "1m"
-weight = 50 # 优先级权重
+  jobs:
+    article_publish:
+      enabled: true
+      type: interval
+      spec: "1m"
+      weight: 50 # 优先级权重
 
-[task.jobs.system_log_cleanup]
-enabled = true
-type = "cron"
-spec = "0 0 3 * * *"
-weight = 10 # 低优先级
+    system_log_cleanup:
+      enabled: true
+      type: cron
+      spec: "0 0 3 * * *"
+      weight: 10 # 低优先级
 ```
 
 ### 4.2 动态配置（sys_configs）
@@ -406,12 +407,14 @@ NetyAdmin 默认注册以下任务（在 `internal/job/init.go` 中通过 `AllJo
 
 可通过 `config.toml` 的 `[task.jobs.token_hash_cleanup]` 覆盖默认配置：
 
-```toml
-[task.jobs.token_hash_cleanup]
-enabled = true
-type    = "cron"
-spec    = "0 0 * * * *"   # 每小时整点
-weight  = 10
+```yaml
+task:
+  jobs:
+    token_hash_cleanup:
+      enabled: true
+      type: cron
+      spec: "0 0 * * * *"   # 每小时整点
+      weight: 10
 ```
 
 #### 注意事项

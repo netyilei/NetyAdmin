@@ -32,7 +32,7 @@ type tencentSmsDriver struct {
 }
 
 // NewTencentSmsDriver 构造腾讯云短信驱动。
-// cfg 是启动期从 config.toml 加载的静态配置；provider 可选，用于运行时热更。
+// cfg 是启动期从 config.yaml 加载的静态配置；provider 可选，用于运行时热更。
 func NewTencentSmsDriver(cfg SmsConfig, provider ConfigProvider) SmsDriver {
 	return &tencentSmsDriver{cfg: cfg, provider: provider}
 }

@@ -266,7 +266,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	// 配置可信代理：必须在注册路由前调用（gin 限制）。
 	// 空数组（默认）= 不信任任何代理，c.ClientIP() 直接回退到 RemoteAddr，
 	// 防止攻击者伪造 X-Forwarded-For / X-Real-IP 头绕过 IPAC 白名单/黑名单。
-	// 生产环境若部署在 Nginx/CDN 之后，需在 config.toml 配置真实代理 IP/CIDR。
+	// 生产环境若部署在 Nginx/CDN 之后，需在 config.yaml 配置真实代理 IP/CIDR。
 	if err := engine.SetTrustedProxies(cfg.Server.TrustedProxies); err != nil {
 		return nil, fmt.Errorf("设置可信代理失败: %w", err)
 	}

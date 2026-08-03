@@ -188,11 +188,11 @@ SELECT 1;
 
 ### 5.1 配置
 
-```toml
-# config.toml
-[migration]
-enabled = true
-# 迁移文件已通过 go:embed 编译进二进制，无需配置 dir。
+```yaml
+# config.yaml
+migration:
+  enabled: true
+  # 迁移文件已通过 go:embed 编译进二进制，无需配置 dir。
 ```
 
 ### 5.2 启动执行

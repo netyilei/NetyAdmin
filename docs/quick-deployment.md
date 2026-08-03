@@ -152,31 +152,31 @@ cd NetyAdmin/server
 复制配置文件模板：
 
 ```bash
-cp config.toml.example config.toml
+cp config.yaml.example config.yaml
 ```
 
-编辑 `config.toml`：
+编辑 `config.yaml`：
 
-```toml
-[server]
-port = 8010
-mode = "release"  # debug/release
+```yaml
+server:
+  port: 8010
+  mode: release  # debug/release
 
-[database]
-host = "localhost"
-port = 5432
-user = "netyadmin"
-password = "your_password"
-dbname = "netyadmin"
-sslmode = "disable"
+database:
+  host: localhost
+  port: 5432
+  user: "netyadmin"
+  password: "your_password"
+  dbname: "netyadmin"
+  sslmode: disable
 
-[redis]
-enabled = true
-host = "localhost"
-port = 6379
-password = ""
-db = 0
-prefix = "netyadmin"
+redis:
+  enabled: true
+  host: localhost
+  port: 6379
+  password: ""
+  db: 0
+  prefix: "netyadmin"
 
 [jwt]
 secret = "your-secret-key-change-this"
@@ -378,9 +378,9 @@ services:
   server:
     build: ./server
     environment:
-      - CONFIG_PATH=/app/config.toml
+      - CONFIG_PATH=/app/config.yaml
     volumes:
-      - ./server/config.toml:/app/config.toml
+      - ./server/config.yaml:/app/config.yaml
     ports:
       - "8010:8010"
     depends_on:
@@ -513,7 +513,7 @@ sudo ufw allow 5432
 
 ```bash
 # 禁用自动迁移，手动执行
-# 编辑 config.toml
+# 编辑 config.yaml
 [migration]
 enabled = false
 
@@ -543,10 +543,12 @@ pnpm install
 
 解决方案：
 
-```toml
-# server/config.toml
-[server]
-cors_origins = ["http://localhost:3000", "https://your-domain.com"]
+```yaml
+# server/config.yaml
+server:
+  cors_origins:
+    - "http://localhost:3000"
+    - "https://your-domain.com"
 ```
 
 ---
@@ -574,7 +576,7 @@ cors_origins = ["http://localhost:3000", "https://your-domain.com"]
 # 安装 Prometheus + Grafana
 # 配置服务端指标暴露
 
-# 编辑 config.toml
+# 编辑 config.yaml
 [metrics]
 enabled = true
 path = "/metrics"

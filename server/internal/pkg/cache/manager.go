@@ -178,7 +178,7 @@ func NewLazyCacheManager(cfg *config.RedisConfig, redisClient *redis.Client, che
 		checker = &DefaultSwitchChecker{}
 	}
 
-	// 1. 初始化 L1 (本地 BigCache) - 配置参数来自 config.toml
+	// 1. 初始化 L1 (本地 BigCache) - 配置参数来自 config.yaml
 	localTTL := 10 * time.Minute
 	if cfg.LocalTTLMin > 0 {
 		localTTL = time.Duration(cfg.LocalTTLMin) * time.Minute

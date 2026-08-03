@@ -391,22 +391,22 @@ if err := s.cacheFast.InvalidateByTags(ctx, cache.TagXxx); err != nil {
 
 ## 六、配置说明
 
-### 6.1 配置文件（config.toml）
+### 6.1 配置文件（config.yaml）
 
-```toml
-[redis]
-enabled = true
-host = "localhost"
-port = 6379
-password = ""
-db = 0
-prefix = "netyadmin"
+```yaml
+redis:
+  enabled: true
+  host: localhost
+  port: 6379
+  password: ""
+  db: 0
+  prefix: "netyadmin"
 
-# L1 缓存配置
-l1_enabled = true       # L1 开关：控制模式A是否启用 L1 加速
-local_max_size_mb = 256 # L1 最大内存占用（MB）
-local_max_entry_kb = 500 # L1 单条记录最大大小（KB）
-local_ttl_min = 10      # L1 兜底 TTL（分钟），仅当 l1Cache.Set 不带 WithExpiration 时生效
+  # L1 缓存配置
+  l1_enabled: true       # L1 开关：控制模式A是否启用 L1 加速
+  local_max_size_mb: 256 # L1 最大内存占用（MB）
+  local_max_entry_kb: 500 # L1 单条记录最大大小（KB）
+  local_ttl_min: 10      # L1 兜底 TTL（分钟），仅当 l1Cache.Set 不带 WithExpiration 时生效
 ```
 
 > **语义说明**：
