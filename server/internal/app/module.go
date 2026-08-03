@@ -72,7 +72,9 @@ type RouterDeps struct {
 	// 下游在子路由组上按需挂载（如 client 业务路由需 JWT 用户鉴权）。
 	AuthMiddleware *middleware.AuthMiddleware
 	// OpenPlatformAuth 是预构造的应用签名校验中间件（gin.HandlerFunc）。
-	// 通常下游无需自行挂载（authGroup 已挂），仅用于 EngineModule 等需独立挂载的场景。
+	// **仅 EngineModule 使用**（需在 engine 直挂路由时独立挂载签名校验）。
+	// ClientRouterModule 的 authGroup 已由基座挂载 OpenPlatformAuth——下游**不要**
+	// 在 RegisterClientAuth 内重复挂载，否则会触发双重签名校验 + 双重 IPAC 检查。
 	OpenPlatformAuth gin.HandlerFunc
 	// JWT 是 RS256 JWT 实例，供下游签发/解析自定义 token。
 	JWT *jwtPkg.JWT
@@ -82,7 +84,7 @@ type RouterDeps struct {
 
 // RegisterModule 将下游模块注入基座。
 //
-// 在 App.Run() 之前调用（路由注册必须在 engine 启动前）。
+// 在 App.Run() 之前调用（路由注册必须在 engine 启动前）。Run() 后调用会 panic。
 // m 实现哪些子接口（ClientRouterModule / AdminRouterModule / JobModule / EngineModule），
 // 基座就调用哪些注册方法——下游按需实现，不强制全实现。
 //
@@ -92,15 +94,22 @@ type RouterDeps struct {
 //	application.RegisterModule(fitnessModule)
 //	application.Run()
 //
-// RegisterModule 幂等：重复注册同一模块的相同路由会 panic（gin 路由冲突），
-// 下游应确保只调一次。
+// 重复注册同一模块的相同路由会 panic（gin 路由冲突），下游应确保只调一次。
 func (a *App) RegisterModule(m Module) {
 	if m == nil {
 		return
 	}
+	// 时机守卫：Run() 启动 HTTP 服务后 engine 已固化，再注册路由不会生效（gin 静默忽略）。
+	// 显式 panic 避免下游误用导致"路由注册了但不生效"的静默失败。
+	if a.started {
+		panic("app: RegisterModule 必须在 Run() 之前调用（engine 启动后路由不可变更）")
+	}
 	slog.Info("注册下游模块", "module", m.Name())
 
 	// 1. 客户端路由模块
+	//    注意：这里新建独立的 /client/v1 子组挂中间件，与基座 ClientRouter.Register
+	//    是两棵独立子树（基座自身模块 vs 下游模块），非复用同一组——避免下游模块
+	//    意外影响基座路由。中间件链与基座 Register 保持一致（OpenPlatformAuth）。
 	if cm, ok := m.(ClientRouterModule); ok {
 		clientV1 := a.engine.Group("/client/v1")
 		publicGroup := clientV1.Group("")
@@ -111,6 +120,7 @@ func (a *App) RegisterModule(m Module) {
 	}
 
 	// 2. 管理端路由模块
+	//    独立子树，中间件链（IPAC→JWT→Permission）与基座 admin Router.Register 保持一致。
 	if am, ok := m.(AdminRouterModule); ok {
 		adminV1 := a.engine.Group("/admin/v1")
 		permissionGroup := adminV1.Group("")

@@ -84,6 +84,7 @@ type App struct {
 	oauthBinding userServicePkg.OAuthBindingService
 
 	// Module 装配扩展点（供 RegisterModule 使用，下游通过 App.RegisterModule 注入业务模块）
+	started           bool                          // Run() 启动后置 true，RegisterModule 检测此标志拒绝启动后注册
 	authMW           *middleware.AuthMiddleware
 	authVerifier     middleware.AuthVerifier
 	ipacSvc          ipacService.IPACService
@@ -173,6 +174,7 @@ func (a *App) SecurityCache() cache.SecurityCache { return a.cacheSlow }
 func (a *App) OAuthBindingService() userServicePkg.OAuthBindingService { return a.oauthBinding }
 
 func (a *App) Run() error {
+	a.started = true // 标记已启动，RegisterModule 此后调用会 panic（路由不可变更）
 	addr := fmt.Sprintf(":%d", a.cfg.Server.Port)
 	// 超时值从配置读取，避免硬编码（config.yaml: read_timeout/write_timeout，单位秒）
 	readTimeout := time.Duration(a.cfg.Server.ReadTimeout) * time.Second
