@@ -615,7 +615,129 @@ s.userClient = userService.NewUserClientService(userBase)
 
 ---
 
-## 六、相关文档
+## 六、下游项目模块装配（Module 接口）
+
+基于 NetyAdmin 基座开发的下游项目（如 Fitness），通过实现 `Module` 接口将业务模块注入基座，**零基座代码改动**。
+
+### 6.1 何时使用 Module 接口
+
+| 场景 | 适用 |
+|------|------|
+| 下游需挂载 `/client/v1/{业务}/*` 路由（含 SSE 长连接） | ✅ 实现 `ClientRouterModule` |
+| 下游需挂载 `/admin/v1/{业务}/*` 路由 | ✅ 实现 `AdminRouterModule` |
+| 下游需注册定时任务 | ✅ 实现 `JobModule` |
+| 下游需挂内部回调端点（如 `/internal/callback/task`） | ✅ 实现 `EngineModule` |
+| 下游仅需基座自带能力，无业务路由/任务 | ❌ 不需要 Module（直接用 Bootstrap） |
+
+### 6.2 Module 接口定义
+
+详见 [Server 架构设计 §5.6](./server-architecture.md#56-下游模块装配扩展点module-接口)。核心：`Module` 基接口（`Name()`）+ 4 个可选子接口，下游按需实现任意组合。
+
+### 6.3 完整示例：Fitness 模块装配
+
+```go
+// internal/fitness/module.go（下游项目代码）
+
+package fitness
+
+import (
+    "github.com/gin-gonic/gin"
+    "NetyAdmin/internal/app"
+    "NetyAdmin/internal/pkg/task"
+)
+
+// FitnessModule 实现 app.Module 的全部 4 个子接口。
+type FitnessModule struct {
+    // fitness 自身的 handler / service 依赖...
+}
+
+func NewModule(/* fitness 依赖 */) *FitnessModule {
+    return &FitnessModule{/* ... */}
+}
+
+func (m *FitnessModule) Name() string { return "fitness" }
+
+// --- ClientRouterModule ---
+
+func (m *FitnessModule) RegisterClientAuth(authGroup *gin.RouterGroup, deps app.RouterDeps) {
+    // authGroup 已挂 OpenPlatformAuth（应用签名）。
+    // 如需 JWT 用户鉴权，在子组挂 UserJWTAuth：
+    fitnessAuthed := authGroup.Group("/fitness")
+    fitnessAuthed.Use(deps.AuthMiddleware.UserJWTAuth())
+    {
+        fitnessAuthed.GET("/sse/client", m.sseHandler.Connect)        // SSE 长连接
+        fitnessAuthed.POST("/body/adjust", m.bodyHandler.Adjust)      // 业务接口
+        fitnessAuthed.POST("/realname/verify", m.realnameHandler.Verify)
+    }
+}
+
+func (m *FitnessModule) RegisterClientPublic(publicGroup *gin.RouterGroup, deps app.RouterDeps) {
+    // 无公开端点 → 空实现
+}
+
+// --- AdminRouterModule ---
+
+func (m *FitnessModule) RegisterAdminPermission(permissionGroup *gin.RouterGroup, deps app.RouterDeps) {
+    // permissionGroup 已挂 IPAC→JWT→Permission 完整权限链。
+    fitnessAdmin := permissionGroup.Group("/fitness")
+    {
+        fitnessAdmin.GET("/members", m.adminHandler.ListMembers)
+        fitnessAdmin.POST("/members/:id/ban", m.adminHandler.BanMember)
+    }
+}
+
+// --- JobModule ---
+
+func (m *FitnessModule) RegisterJobs() []task.Task {
+    return []task.Task{
+        m.syncJob,      // 数据同步任务
+        m.reminderJob,  // 提醒推送任务
+        m.cleanupJob,   // 清理任务
+        m.statsJob,     // 统计任务
+    }
+}
+
+// --- EngineModule ---
+
+func (m *FitnessModule) RegisterEngine(engine *gin.Engine, deps app.RouterDeps) {
+    // 内部回调端点（无中间件链，自行处理鉴权）
+    engine.POST("/internal/callback/task", m.callbackHandler.Handle)
+}
+```
+
+### 6.4 下游 main.go 注入
+
+```go
+// cmd/server/main.go（下游项目的 main.go）
+
+func main() {
+    cfg, _ := config.Load("config.yaml")
+    config.ValidateConfig(cfg)
+    db, _ := app.InitDB(cfg)
+
+    application, err := app.Bootstrap(cfg, db)
+    if err != nil {
+        log.Fatalf("应用引导失败: %v", err)
+    }
+
+    // ← 下游模块注入（一行）
+    fitnessMod := fitness.NewModule(/* fitness 自身依赖 */)
+    application.RegisterModule(fitnessMod)
+
+    application.Run()
+}
+```
+
+### 6.5 注意事项
+
+- **RegisterModule 必须在 Run() 之前调用**：gin 路由注册须在 engine 启动前
+- **路由路径不冲突**：下游路由需使用自己的前缀（如 `/client/v1/fitness/*`），避免与基座路由冲突
+- **中间件已挂好**：authGroup/permissionGroup 拿到时已挂基座中间件，下游无需重复挂载
+- **幂等性**：重复注册同一模块会 panic（gin 路由冲突），确保只调一次
+
+---
+
+## 七、相关文档
 
 - [Server 架构设计与目录结构](server-architecture.md)
 - [状态码规范](status-codes.md)

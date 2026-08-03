@@ -581,6 +581,82 @@ clientRouter.RegisterTypedAuthModule("tech", techModule, techAccessor)
 
 详见 [用户模块详解 §6.2 多类型用户路由接入](./server-module-user.md#62-实现三方登录-以微信登录为例)。
 
+### 5.6 下游模块装配扩展点（Module 接口）
+
+下游项目基于 NetyAdmin 开发时，需要往基座装配 4 类内容：客户端业务路由、管理端业务路由、定时任务、内部回调端点。基座提供 **Module 接口**——下游实现接口，通过 `App.RegisterModule` 一次性注入，**零基座代码改动**。
+
+#### 核心接口
+
+```go
+// internal/app/module.go
+
+// Module 基接口（下游实现一个或多个子接口）
+type Module interface {
+    Name() string  // 模块名，如 "fitness"
+}
+
+// 4 个子接口（按需实现任意组合）：
+type ClientRouterModule interface {     // 客户端业务路由（/client/v1/*）
+    Module
+    RegisterClientAuth(authGroup *gin.RouterGroup, deps RouterDeps)    // authGroup 已挂 OpenPlatformAuth
+    RegisterClientPublic(publicGroup *gin.RouterGroup, deps RouterDeps) // publicGroup 无签名
+}
+
+type AdminRouterModule interface {      // 管理端业务路由（/admin/v1/*）
+    Module
+    RegisterAdminPermission(permissionGroup *gin.RouterGroup, deps RouterDeps) // 已挂完整权限链
+}
+
+type JobModule interface {              // 定时任务
+    Module
+    RegisterJobs() []task.Task
+}
+
+type EngineModule interface {           // engine 直挂路由（内部回调等）
+    Module
+    RegisterEngine(engine *gin.Engine, deps RouterDeps)
+}
+```
+
+#### RouterDeps 依赖聚合
+
+下游通过 `deps` 拿到全部基座依赖（避免 getter 蔓延）：
+
+| 字段 | 类型 | 用途 |
+|------|------|------|
+| `AuthMiddleware` | `*middleware.AuthMiddleware` | 挂载 UserJWTAuth / TypedUserJWTAuth |
+| `OpenPlatformAuth` | `gin.HandlerFunc` | 应用签名校验（如需在子组独立挂载） |
+| `JWT` | `*jwtPkg.JWT` | RS256 JWT 实例（签发/解析自定义 token） |
+| `Config` | `*config.Config` | 全局配置 |
+
+#### 使用方式
+
+```go
+// 下游项目 main.go
+func main() {
+    cfg, _ := config.Load("config.yaml")
+    db, _ := app.InitDB(cfg)
+    application, err := app.Bootstrap(cfg, db)
+
+    // 下游模块注入（一行搞定）
+    fitnessModule := fitness.NewModule(/* fitness 自身依赖 */)
+    application.RegisterModule(fitnessModule)
+
+    application.Run()
+}
+```
+
+#### 设计要点
+
+- **基座已挂中间件**：下游拿到的 authGroup 已挂 OpenPlatformAuth、permissionGroup 已挂 IPAC→JWT→Permission 完整权限链——下游只注册业务路由
+- **类型断言分发**：`RegisterModule` 自动检测模块实现了哪些子接口，只调用匹配的注册方法——下游按需实现，不强制全实现
+- **路由注册时机**：`RegisterModule` 必须在 `Run()` 之前调用（gin 路由注册须在 engine 启动前）
+- **向后兼容**：不注册任何 Module 时，基座行为完全不变
+
+#### 解决的问题
+
+此前下游项目需修改基座 `wire.go`（Bootstrap 签名扩展 + 末尾调 `Mount(deps)`），每次基座升级需重放补丁。Module 接口彻底消除该耦合——下游仅改自身 `main.go`，基座升级直接 merge。
+
 ---
 
 ## 六、测试规范

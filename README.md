@@ -41,7 +41,7 @@ NetyAdmin 是一个基于 **Go + Gin** 后端和 **Vue 3 + TypeScript** 前端�
 | 模块 | 功能 |
 |------|------|
 | **RBAC** | 管理员、角色、菜单、按钮、API 管理 |
-| **用户模块** | C端用户体系、多端登录、TokenStore 抽象（缓存/数据库）、账户锁定与自动解锁、安全加密、OAuth 第三方账号绑定基座（OAuthBindingService）、多类型用户 JWT 鉴权扩展（TypedUserJWTAuth + RegisterTypedAuthModule） |
+| **用户模块** | C端用户体系、多端登录（platform 维度顶号）、TokenStore 抽象（缓存/数据库）、账户锁定与自动解锁、安全加密、OAuth 第三方账号绑定基座（OAuthBindingService）、多类型用户 JWT 鉴权扩展（TypedUserJWTAuth + RegisterTypedAuthModule） |
 | **消息中心** | 统一发送入口（SMS/Email/站内信）、模板渲染、异步重试、STARTTLS 支持 |
 | **开放平台** | AppKey 认证、安全签名、可配置分布式限流（令牌桶）、Scope 权限、应用级存储绑定 |
 | **IP 访问控制** | 全局/应用级 IP 治理、CIDR 匹配、高性能内存过滤 |
@@ -51,6 +51,7 @@ NetyAdmin 是一个基于 **Go + Gin** 后端和 **Vue 3 + TypeScript** 前端�
 | **系统配置** | 动态字典、系统参数、任务调度 |
 | **统一消息总线** | PubSubBus、驱动化设计、Topic 注册表、分布式缓存同步 |
 | **验证码** | 图形验证码，支持多种类型和存储方案，场景化验证配置（登录/注册/找回密码） |
+| **下游扩展** | Module 接口（App.RegisterModule）——下游项目零基座代码改动装配业务路由/任务/回调（ClientRouter/AdminRouter/Job/Engine 4 个子接口） |
 
 ---
 
