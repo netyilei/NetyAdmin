@@ -41,7 +41,7 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 | Module | Features |
 |--------|----------|
 | **RBAC** | Admin, Role, Menu, Button, API management |
-| **User Module** | Client-side user system, multi-terminal login, TokenStore abstraction (cache/database), account lock & auto-unlock, secure encryption, OAuth third-party account binding base (OAuthBindingService), multi-type user JWT auth extension (TypedUserJWTAuth + RegisterTypedAuthModule) |
+| **User Module** | Client-side user system, multi-device login (platform-scoped session kick-in), TokenStore abstraction (cache/database), account lock & auto-unlock, secure encryption, OAuth third-party account binding base (OAuthBindingService), multi-type user JWT auth extension (TypedUserJWTAuth + RegisterTypedAuthModule) |
 | **Message Hub** | Unified sending entry (SMS/Email/Internal), template rendering, async retry, STARTTLS support |
 | **Open Platform** | AppKey authentication, secure signature, configurable distributed rate limiting (token bucket), Scope permissions, app-level storage binding |
 | **IP Access Control** | Global/App-level IP governance, CIDR matching, high-performance memory filtering |
@@ -51,6 +51,7 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 | **System Config** | Dynamic dictionaries, system parameters, task scheduling |
 | **Unified Event Bus** | PubSubBus, driver-based design, Topic registry, distributed cache sync |
 | **Captcha** | Graphic captcha, supporting multiple types and storage schemes, scene-based verification config (login/register/password reset) |
+| **Downstream Extension** | Module interface (App.RegisterModule) — downstream projects assemble business routes/jobs/callbacks with zero base code changes (ClientRouter/AdminRouter/Job/Engine 4 sub-interfaces) |
 
 ---
 
@@ -93,7 +94,7 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 
 | Document | Description |
 |----------|-------------|
-| [Secondary Development Guide](docs/development-guide.md) | Full new module walkthrough (Entity → Repository → DTO → Service → Handler → Router → Wire) |
+| [Secondary Development Guide](docs/development-guide.md) | Full new module walkthrough (Entity → Repository → DTO → Service → Handler → Router → Wire), downstream Module assembly (§6) |
 | [Server Architecture & Directory Structure](docs/server-architecture.md) | Backend architecture concepts, layered design, key standards |
 | [Admin-Web Architecture & Directory Structure](docs/admin-web-architecture.md) | Frontend architecture concepts, directory standards, development standards |
 | [Status Code Specification](docs/status-codes.md) | Error code encoding rules, full code table, addition process |
