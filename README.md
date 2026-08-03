@@ -171,6 +171,15 @@ pnpm dev
 
 > ⚠️ **安全提示**: 部署后请立即修改默认密码！
 
+### 默认开放平台应用
+
+克隆基座后默认应用可直接签名调用 client API（无需重置密钥）：
+
+- **AppKey**: `01JQDEFAULTAPP001`
+- **AppSecret**: `netyadmin-default-app-secret`
+
+> ⚠️ **安全提示**: 生产环境部署后请通过「开放平台 → 重置密钥」更换默认 Secret（与默认密码同理）。
+
 ---
 
 ## 🏗️ 项目结构

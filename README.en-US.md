@@ -171,6 +171,15 @@ pnpm dev
 
 > ⚠️ **Security Tip**: Please change the default password immediately after deployment!
 
+### Default Open Platform App
+
+The default app can sign and call client APIs right after cloning the base project (no secret reset needed):
+
+- **AppKey**: `01JQDEFAULTAPP001`
+- **AppSecret**: `netyadmin-default-app-secret`
+
+> ⚠️ **Security Tip**: After production deployment, rotate the default Secret via "Open Platform → Reset Secret" (same as the default password).
+
 ---
 
 ## 🏗️ Project Structure

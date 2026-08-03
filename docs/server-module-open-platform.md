@@ -142,6 +142,18 @@ type App struct {
 
 以下 API 已通过数据迁移注册至 `sys_open_apis`，默认应用 `01JQDEFAULTAPP001` 已绑定 `content_view` / `msg_read` / `user_base` / `user_profile` 等 Scope，可直接调用。
 
+> **默认应用凭据（开箱即用）**：克隆基座后默认应用 `01JQDEFAULTAPP001` 即可签名调用，
+> 无需重置密钥：
+>
+> | 项 | 值 |
+> |----|----|
+> | AppKey | `01JQDEFAULTAPP001` |
+> | AppSecret | `netyadmin-default-app-secret` |
+>
+> 该 Secret 为公开的默认值（与默认账号 `admin/admin123` 同理），**生产环境部署后必须通过
+> `PUT /admin/v1/open/apps/reset-secret` 重置**。若修改了 `[security].aes_key`，默认应用密文将无法
+> 解密，同样需要先 reset-secret（详见 §八 最佳实践 2）。
+
 ### 6.1 用户认证（公开）
 
 | Method | Path | 说明 |
@@ -287,8 +299,8 @@ curl -X PUT http://localhost:8010/admin/v1/open-platform/apps \
 
 ## 八、最佳实践
 
-1. **Secret 安全**：`AppSecret` 在数据库中必须 AES 加密存储，在 UI 界面默认不回显。
-2. **AESKey 轮换注意**：`[security].aes_key` 变更后，DB 中所有 `sys_apps.app_secret` 用旧 key 加密的密文将**无法解密**——需逐个调用 `PUT /admin/v1/open/apps/reset-secret` 重置。轮换前建议批量导出 app 列表，轮换后批量重置。生产环境轮换 AESKey 是高风险操作，建议在维护窗口进行。
+1. **Secret 安全**：`AppSecret` 在数据库中必须 AES 加密存储，在 UI 界面默认不回显。默认应用的种子 Secret 是公开默认值（`netyadmin-default-app-secret`），克隆基座后开箱即用；**生产环境部署后必须重置**，不得沿用默认值。
+2. **AESKey 轮换注意**：`[security].aes_key` 变更后，DB 中所有 `sys_apps.app_secret` 用旧 key 加密的密文将**无法解密**——需逐个调用 `PUT /admin/v1/open/apps/reset-secret` 重置。特别地，默认应用种子密文是用默认 aes_key（`netyadmin-aes-key-32-chars-long!`）加密的，一旦你改了 aes_key，默认应用也需 reset-secret 才能继续使用。轮换前建议批量导出 app 列表，轮换后批量重置。生产环境轮换 AESKey 是高风险操作，建议在维护窗口进行。
 3. **时钟同步**：客户端与服务器时间偏差不得超过 60s，否则请求失效。
 4. **日志清理**：开放平台日志增长较快，建议结合 `task_config` 设置 30 天自动清理。
 5. **IPAC 联动**：建议为合作伙伴应用开启白名单模式（`IPStrategy=2`），仅允许其固定服务器 IP 访问。

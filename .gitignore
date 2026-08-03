@@ -40,3 +40,6 @@ DESIGN.md
 _agentmemory_backup/
 # 本地测试密钥（RS256 JWT 签名，生产禁止提交）
 server/keys/
+
+# Build artifacts
+server/bin/
