@@ -156,8 +156,8 @@ func (s *configService) Create(ctx context.Context, req *storageDto.CreateConfig
 		return 0, errorx.New(errorx.CodeInvalidParams, "不支持的存储提供商")
 	}
 
-	if req.Endpoint == "" {
-		return 0, errorx.New(errorx.CodeInvalidParams, "服务端点(endpoint)不能为空")
+	if err := validateEndpointAndRegion(provider, req.Endpoint, req.Region); err != nil {
+		return 0, err
 	}
 
 	if req.MaxFileSize <= 0 {
@@ -261,6 +261,10 @@ func (s *configService) Update(ctx context.Context, req *storageDto.UpdateConfig
 	provider := storageEntity.StorageProvider(req.Provider)
 	if !s.isValidProvider(provider) {
 		return errorx.New(errorx.CodeInvalidParams, "不支持的存储提供商")
+	}
+
+	if err := validateEndpointAndRegion(provider, req.Endpoint, req.Region); err != nil {
+		return err
 	}
 
 	config.Name = req.Name
@@ -484,8 +488,9 @@ func (s *configService) GetPresignedUploadURL(ctx context.Context, configID uint
 		return "", "", err
 	}
 
-	// 统一调用 storage.BuildPublicURL（重构清单 B-OTHER-1）
-	fileURL := storage.BuildPublicURL(config.Domain, config.Endpoint, config.Bucket, key)
+	// 统一调用 storage.BuildPublicURL（重构清单 B-OTHER-1），
+	// 回退 URL 的桶寻址风格与驱动请求寻址同源，避免两侧不一致。
+	fileURL := storage.BuildPublicURL(config.Domain, config.Endpoint, config.Bucket, key, addressingStyleOf(config))
 
 	return url, fileURL, nil
 }
@@ -507,6 +512,36 @@ func (s *configService) isValidProvider(provider storageEntity.StorageProvider) 
 		}
 	}
 	return false
+}
+
+// validateEndpointAndRegion 校验 endpoint 形态与云厂商 region（Create/Update 共用入口校验）。
+//
+// endpoint 强制携带 http(s):// 协议前缀：驱动层虽兼容裸 host（历史遗留形态，
+// 按 http 处理），但新配置必须显式声明协议，避免 TLS 意图歧义；
+// 其余形态校验复用 pkg 层 ParseEndpoint，与驱动构造保持同一解析口径
+// （尾斜杠/空白容忍、内嵌路径拒绝），避免两层判定漂移。
+func validateEndpointAndRegion(provider storageEntity.StorageProvider, endpoint, region string) error {
+	if endpoint == "" {
+		return errorx.New(errorx.CodeInvalidParams, "服务端点(endpoint)不能为空")
+	}
+	if !strings.HasPrefix(endpoint, "https://") && !strings.HasPrefix(endpoint, "http://") {
+		return errorx.New(errorx.CodeInvalidParams, "服务端点(endpoint)必须以 http:// 或 https:// 开头")
+	}
+	if _, _, err := storage.ParseEndpoint(endpoint); err != nil {
+		return errorx.New(errorx.CodeInvalidParams, err.Error())
+	}
+	// 云厂商的 SigV4 签名依赖 region（Cloudflare R2 使用占位值 auto），
+	// 缺失只会在请求期失败，录入时提前拦截；自建形态（minio/custom）可省略。
+	if provider != storageEntity.StorageProviderMinio && provider != storageEntity.StorageProviderCustom && region == "" {
+		return errorx.New(errorx.CodeInvalidParams, "云存储必须填写地域(region)")
+	}
+	return nil
+}
+
+// addressingStyleOf 由 entity 存储配置导出桶寻址风格，
+// 保证 URL 生成的寻址风格与驱动请求寻址同源（config.go / record.go 共用）。
+func addressingStyleOf(c *storageEntity.Config) storage.AddressingStyle {
+	return storage.AddressingStyleFor(storage.Provider(c.Provider))
 }
 
 func (s *configService) toPkgConfig(c *storageEntity.Config) *storage.Config {

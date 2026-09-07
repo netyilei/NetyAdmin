@@ -21,12 +21,17 @@ type minioDriver struct {
 	bucket     string
 	domain     string
 	pathPrefix string
+	endpoint   string          // 原始 endpoint 配置（含协议），用于 URL 回退构造
+	style      AddressingStyle // 桶寻址风格，与 client 构造时的 BucketLookup 同源
 }
 
 // NewMinioDriver 创建 minio-go 驱动实例。
 //
-// Endpoint 应包含协议前缀（https:// 或 http://），minio-go 会据此判断是否启用 TLS。
-// 对于 MinIO / 自建 S3 兼容存储（Provider 为 minio/custom），使用 path-style 寻址。
+// Endpoint 推荐携带协议前缀（https:// 或 http://）；裸 host 为历史遗留形态，
+// 按 http 处理。minio-go 的 endpoint 参数只接受裸 host[:port]（其内部会自行
+// 拼接 scheme），含协议前缀会触发 "Endpoint url cannot have fully qualified
+// paths" 错误，因此这里先经 ParseEndpoint 统一剥离协议，协议信息通过
+// Secure 选项传入。
 func NewMinioDriver(cfg *Config) (Driver, error) {
 	if cfg.Endpoint == "" {
 		return nil, errors.New("endpoint 不能为空")
@@ -35,12 +40,17 @@ func NewMinioDriver(cfg *Config) (Driver, error) {
 		return nil, errors.New("bucket 不能为空")
 	}
 
-	// minio-go 的 New 接受含协议的 endpoint，自动解析 TLS 与 host。
-	client, err := minio.New(cfg.Endpoint, &minio.Options{
+	host, secure, err := ParseEndpoint(cfg.Endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	style := AddressingStyleFor(cfg.Provider)
+	client, err := minio.New(host, &minio.Options{
 		Creds:        credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
-		Secure:       isTLSEndpoint(cfg.Endpoint),
+		Secure:       secure,
 		Region:       cfg.Region,
-		BucketLookup: bucketLookupType(cfg.Provider),
+		BucketLookup: style.bucketLookup(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("创建 minio 客户端失败: %w", err)
@@ -51,20 +61,21 @@ func NewMinioDriver(cfg *Config) (Driver, error) {
 		bucket:     cfg.Bucket,
 		domain:     cfg.Domain,
 		pathPrefix: cfg.PathPrefix,
+		endpoint:   cfg.Endpoint,
+		style:      style,
 	}, nil
 }
 
-// isTLSEndpoint 根据 endpoint 的协议前缀判断是否启用 TLS。
-func isTLSEndpoint(endpoint string) bool {
-	return strings.HasPrefix(endpoint, "https://")
-}
-
-// bucketLookupType 根据供应商选择寻址方式。
-func bucketLookupType(p Provider) minio.BucketLookupType {
-	if p.IsPathStyle() {
+// bucketLookup 将寻址风格映射为 minio-go 的 BucketLookup 选项。
+//
+// 不使用 BucketLookupAuto：Auto 仅对 Amazon/Google/阿里云白名单走虚拟主机
+// 风格，腾讯 COS 等厂商会错误回落到 path-style（COS 只支持虚拟主机寻址）。
+// 显式指定 DNS/Path 使请求寻址与 URL 生成共享同一决策。
+func (s AddressingStyle) bucketLookup() minio.BucketLookupType {
+	if s == StylePath {
 		return minio.BucketLookupPath
 	}
-	return minio.BucketLookupAuto
+	return minio.BucketLookupDNS
 }
 
 // buildKey 拼接路径前缀（确保所有对象统一存放于配置的子目录下）。
@@ -77,16 +88,12 @@ func (d *minioDriver) buildKey(key string) string {
 
 // buildURL 构造对象的访问 URL。
 //
-// 委托给 storage.BuildPublicURL 的核心规则（domain 规范化 + endpoint 回退），
-// 保持 minioDriver 与 record.go / config.go 的 URL 生成逻辑一致（重构清单 B-OTHER-1）。
-// minioDriver 已在构造时拆解 Config，此处复用同一套规范化逻辑而非重新实现。
+// 全量委托 storage.BuildPublicURL（唯一真相源）：domain 分支与 endpoint 回退
+// 分支均按其规则执行，回退时按构造时确定的寻址风格拼桶地址，保证
+// "请求打到哪、URL 就指向哪"，不再出现请求 path-style 而 URL virtual-host
+// （或反之）的不一致。
 func (d *minioDriver) buildURL(key string) string {
-	key = strings.TrimPrefix(key, "/")
-	if d.domain != "" {
-		return joinDomainKey(normalizeDomain(d.domain), key)
-	}
-	// 回退到 client endpoint（已含协议）
-	return strings.TrimSuffix(d.client.EndpointURL().String(), "/") + "/" + d.bucket + "/" + key
+	return BuildPublicURL(d.domain, d.endpoint, d.bucket, key, d.style)
 }
 
 // Upload 上传对象（流式）。

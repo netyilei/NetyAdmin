@@ -247,7 +247,8 @@ func (s *recordService) GetUploadCredentials(ctx context.Context, req *Credentia
 	// 统一调用 storage.BuildPublicURL 构造访问 URL（重构清单 B-OTHER-1：
 	// 消除原 record.go 中手写 SplitN+TrimSuffix 的 domain 解析逻辑，
 	// 与 minio_driver / config.go 共用同一套规范化规则）。
-	finalURL := storage.BuildPublicURL(config.Domain, config.Endpoint, config.Bucket, key)
+	// 寻址风格按 provider 决定，与驱动请求寻址同源。
+	finalURL := storage.BuildPublicURL(config.Domain, config.Endpoint, config.Bucket, key, addressingStyleOf(config))
 
 	// 落 pending 上传记录：凭证签发即登记，等待上传成功通知（CompleteUpload）确认状态。
 	credExpiresAt := time.Now().Add(credentialTTL)

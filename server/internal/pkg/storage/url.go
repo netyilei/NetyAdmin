@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -15,13 +17,15 @@ import (
 //
 // 优先级：
 //  1. domain 非空 → 用 domain（规范化协议+只保留 host，再拼 key）
-//  2. domain 空 → 按 endpoint 拼桶名虚拟主机风格：https://{bucket}.{endpoint-host}/{key}
+//  2. domain 空 → 按 style 与 endpoint 实际协议拼桶地址：
+//     - StyleVirtualHost: {scheme}://{bucket}.{endpoint-host}/{key}
+//     - StylePath:        {scheme}://{endpoint-host}/{bucket}/{key}
 //
 // 兼容 domain 多种写法：
 //   - "https://cdn.example.com"          → https://cdn.example.com/{key}
 //   - "https://cdn.example.com/sub/path" → https://cdn.example.com/{key}（剥掉子路径，保持 host-only）
 //   - "cdn.example.com"                  → https://cdn.example.com/{key}（无协议时默认 https://）
-func BuildPublicURL(domain, endpoint, bucket, key string) string {
+func BuildPublicURL(domain, endpoint, bucket, key string, style AddressingStyle) string {
 	key = strings.TrimPrefix(key, "/")
 
 	// 1. 自定义域名优先
@@ -29,9 +33,21 @@ func BuildPublicURL(domain, endpoint, bucket, key string) string {
 		return joinDomainKey(normalizeDomain(domain), key)
 	}
 
-	// 2. 回退到 endpoint 虚拟主机风格
-	host := stripProtocol(endpoint)
-	return "https://" + bucket + "." + host + "/" + key
+	// 2. 回退到 endpoint。调用方传入的 endpoint 均已通过驱动构造时的
+	// ParseEndpoint 校验，此处错误仅作理论防御（按 http + 裸字符串降级拼接）。
+	host, secure, err := ParseEndpoint(endpoint)
+	if err != nil {
+		host, secure = strings.TrimSuffix(stripProtocol(endpoint), "/"), false
+	}
+	scheme := "http"
+	if secure {
+		scheme = "https"
+	}
+
+	if style == StylePath {
+		return scheme + "://" + host + "/" + bucket + "/" + key
+	}
+	return scheme + "://" + bucket + "." + host + "/" + key
 }
 
 // normalizeDomain 规范化 domain：
@@ -69,4 +85,42 @@ func stripProtocol(endpoint string) string {
 	endpoint = strings.TrimPrefix(endpoint, "https://")
 	endpoint = strings.TrimPrefix(endpoint, "http://")
 	return endpoint
+}
+
+// ParseEndpoint 将 endpoint 配置统一解析为裸地址 + 协议（全项目唯一解析点，
+// 驱动构造与 service 层入口校验共用，保证两层判定口径一致）。
+//
+// 接受三种形态：
+//   - "https://host[:port]" → (host, true)
+//   - "http://host[:port]"  → (host, false)
+//   - "host[:port]" 裸 host（历史遗留形态）→ (host, false)
+//
+// 容忍首尾空白与尾部斜杠；内嵌路径（如 https://host/sub）返回明确错误，
+// 而不是把含协议/带尾斜杠的字符串透传给 minio-go，由其报出模糊的
+// "Endpoint url cannot have fully qualified paths"。
+//
+// 裸 host 默认 http 是刻意保留的历史语义：存量本地 MinIO 配置以裸 host
+// 形态工作，默认 https 会在升级瞬间将其打死；新配置由服务层入口校验
+// 强制携带协议前缀。
+func ParseEndpoint(raw string) (host string, secure bool, err error) {
+	e := strings.TrimSpace(raw)
+
+	switch {
+	case strings.HasPrefix(e, "https://"):
+		secure = true
+		e = strings.TrimPrefix(e, "https://")
+	case strings.HasPrefix(e, "http://"):
+		e = strings.TrimPrefix(e, "http://")
+	}
+
+	e = strings.TrimSuffix(e, "/")
+
+	if e == "" {
+		return "", false, errors.New("endpoint 不能为空")
+	}
+	if strings.Contains(e, "/") {
+		return "", false, fmt.Errorf("endpoint 不支持携带路径: %s", raw)
+	}
+
+	return e, secure, nil
 }
