@@ -149,7 +149,9 @@ func TestTTLIndependence(t *testing.T) {
 	refreshExp := refreshClaims.ExpiresAt.Time
 
 	// access 过期时间应在 [now+accessTTL, now+accessTTL+600s] 范围内（含 jitter）
-	accessLower := now.Add(accessTTL)
+	// 下界容差 1s：JWT exp 为秒级精度（向下截断），签发时刻晚于 now 取样，
+	// exp 截断后最多比 now+TTL 低不足 1 秒，属精度边界而非 TTL 配置错误
+	accessLower := now.Add(accessTTL - time.Second)
 	accessUpper := now.Add(accessTTL + 600*time.Second)
 	assert.True(t, accessExp.After(accessLower) || accessExp.Equal(accessLower),
 		"access exp %s 应 >= %s", accessExp, accessLower)
@@ -157,7 +159,7 @@ func TestTTLIndependence(t *testing.T) {
 		"access exp %s 应 <= %s", accessExp, accessUpper)
 
 	// refresh 过期时间应在 [now+refreshTTL, now+refreshTTL+600s] 范围内
-	refreshLower := now.Add(refreshTTL)
+	refreshLower := now.Add(refreshTTL - time.Second)
 	refreshUpper := now.Add(refreshTTL + 600*time.Second)
 	assert.True(t, refreshExp.After(refreshLower) || refreshExp.Equal(refreshLower),
 		"refresh exp %s 应 >= %s", refreshExp, refreshLower)
