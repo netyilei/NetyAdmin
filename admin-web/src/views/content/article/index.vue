@@ -7,6 +7,7 @@ import {
   fetchUnpublishArticle
 } from '@/service/api/v1/content';
 import { useAppStore } from '@/store/modules/app';
+import { renderTagFromMap } from '@/hooks/common/dict';
 import { useTable, useTableOperate } from '@/hooks/common/table';
 import { formatDateTime } from '@/utils/format';
 import type { Content } from '@/typings/api/v1/content';
@@ -106,8 +107,10 @@ const {
       align: 'center',
       width: 100,
       render: row => {
-        const status = publishStatusRecord[row.publishStatus] || { label: row.publishStatus, type: 'default' as const };
-        return <NTag type={status.type}>{status.label}</NTag>;
+        return renderTagFromMap(
+          publishStatusRecord as Record<string, { type: NaiveUI.ThemeColor; label: string }>,
+          row.publishStatus
+        );
       }
     },
     {

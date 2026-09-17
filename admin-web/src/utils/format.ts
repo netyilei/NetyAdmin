@@ -32,3 +32,16 @@ export function formatMs(ms: number | null | undefined, fallback = '-'): string 
   if (ms === null || ms === undefined || Number.isNaN(ms)) return fallback;
   return `${ms.toFixed(2)}ms`;
 }
+
+/** 字节数 → 人类可读（B/KB/MB/GB，1 位小数）；空/非法返回 fallback */
+export function formatBytes(bytes: number | null | undefined, fallback = '-'): string {
+  if (bytes === null || bytes === undefined || Number.isNaN(bytes) || bytes < 0) return fallback;
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let val = bytes;
+  let i = 0;
+  while (val >= 1024 && i < units.length - 1) {
+    val /= 1024;
+    i += 1;
+  }
+  return `${val.toFixed(1)}${units[i]}`;
+}

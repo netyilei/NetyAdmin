@@ -5,6 +5,20 @@ import { useDictStore } from '@/store/modules/dict';
 import { $t } from '@/locales';
 
 /**
+ * 通用状态标签渲染：按 映射表{value → {type,label}} 渲染 NTag（含空值兜底）。
+ * 各页状态语义不同（数据留在页面），渲染结构统一在此——原先 task/upload-record/article
+ * 等 9+ 处同构 NTag 三元/查表内联。
+ */
+export function renderTagFromMap(
+  map: Record<string, { type: NaiveUI.ThemeColor; label: string }>,
+  value: string | number | null | undefined
+) {
+  const hit = map[String(value ?? '')];
+  if (!hit) return h('span', {}, String(value ?? '-'));
+  return h(NTag, { type: hit.type }, { default: () => hit.label });
+}
+
+/**
  * 字典 label 的 i18n 启发式翻译：label 含 '.' 视为 i18n key 走 $t，否则原样。
  * 全项目唯一实现（原先 hook 内部与 app-dict-select / app-dict-radio-group 各自内联）。
  */
@@ -33,10 +47,6 @@ export function useDict() {
     return h(NTag, { type: item.tagType as any }, { default: () => label });
   }
 
-  function getDictOptions(dictCode: string) {
-    return dictStore.dictMap.get(dictCode)?.map(i => ({ label: i.label, value: i.value })) || [];
-  }
-
   function renderBoolDictTag(dictCode: string, boolVal: boolean | null | undefined) {
     return renderDictTag(dictCode, boolToDictValue(boolVal));
   }
@@ -49,7 +59,6 @@ export function useDict() {
     loadDicts,
     getDictLabel,
     renderDictTag,
-    getDictOptions,
     renderBoolDictTag,
     getDictBoolLabel,
     isEnabledStatus,

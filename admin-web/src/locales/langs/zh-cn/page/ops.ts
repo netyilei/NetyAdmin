@@ -1,5 +1,7 @@
 const ops = {
   errorLog: {
+    stackInfo: '堆栈信息',
+    errorMessage: '错误信息',
     title: '错误日志',
     id: 'ID',
     level: '错误级别',
@@ -20,6 +22,7 @@ const ops = {
     statusPending: '待处理'
   },
   operationLog: {
+    detailTitle: '操作详情',
     title: '操作日志',
     id: 'ID',
     operator: '操作人',

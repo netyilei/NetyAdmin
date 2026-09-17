@@ -29,6 +29,7 @@ import {
 } from '@/service/api/v1/system-task';
 import { fetchGetTaskLogs } from '@/service/api/v1/log';
 import { useAppStore } from '@/store/modules/app';
+import { renderTagFromMap } from '@/hooks/common/dict';
 import { formatDateTime } from '@/utils/format';
 import type { Log } from '@/typings/api/v1/log';
 import type { SystemManage } from '@/typings/api/v1/system-manage';
@@ -80,12 +81,7 @@ const columns: DataTableColumns<SystemManage.TaskInfo> = [
         interval: { type: 'primary', label: $t('page.ops.task.typeInterval') },
         once: { type: 'warning', label: $t('page.ops.task.typeOnce') }
       };
-      const config = typeMap[row.type];
-      return (
-        <NTag type={config.type} size="small">
-          {config.label}
-        </NTag>
-      );
+      return renderTagFromMap(typeMap, row.type);
     }
   },
   {

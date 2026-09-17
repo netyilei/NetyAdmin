@@ -1,5 +1,7 @@
 const ops = {
   errorLog: {
+    stackInfo: 'Stack Info',
+    errorMessage: 'Error Message',
     title: 'Error Log',
     id: 'ID',
     level: 'Lvl',
@@ -20,6 +22,7 @@ const ops = {
     statusPending: 'Pending'
   },
   operationLog: {
+    detailTitle: 'Operation Detail',
     title: 'Operation Log',
     id: 'ID',
     operator: 'Operator',
@@ -30,7 +33,8 @@ const ops = {
     time: 'Time',
     actionCreate: 'Create',
     actionUpdate: 'Update',
-    actionDelete: 'Delete'
+    actionDelete: 'Delete',
+    actionBatchDelete: 'Batch Delete'
   },
   task: {
     title: 'Background Task Dashboard',

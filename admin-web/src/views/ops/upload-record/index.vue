@@ -6,9 +6,10 @@ import {
   fetchGetUploadRecordList
 } from '@/service/api/v1/storage';
 import { useAppStore } from '@/store/modules/app';
+import { renderTagFromMap } from '@/hooks/common/dict';
 import { useTable, useTableOperate } from '@/hooks/common/table';
 import { useAuth } from '@/hooks/business/auth';
-import { formatDateTime } from '@/utils/format';
+import { formatBytes, formatDateTime } from '@/utils/format';
 import type { Storage } from '@/typings/api/v1/storage';
 import { $t } from '@/locales';
 import UploadRecordSearch from './components/upload-record-search.vue';
@@ -28,14 +29,6 @@ const uploadStatusRecord: Record<Storage.UploadRecordStatus, { label: string; ty
   uploaded: { label: $t('page.manage.upload.statusUploaded'), type: 'success' },
   expired: { label: $t('page.manage.upload.statusExpired'), type: 'error' }
 };
-
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
-}
 
 const {
   columns,
@@ -98,7 +91,7 @@ const {
       title: $t('page.manage.upload.fileSize'),
       align: 'center',
       width: 100,
-      render: row => <span>{formatFileSize(row.fileSize)}</span>
+      render: row => <span>{formatBytes(row.fileSize)}</span>
     },
     {
       key: 'source',
@@ -106,9 +99,10 @@ const {
       align: 'center',
       width: 100,
       render: row => {
-        const item = uploadSourceRecord[row.source];
-        if (!item) return <span>{row.source}</span>;
-        return <NTag type={item.type}>{item.label}</NTag>;
+        return renderTagFromMap(
+          uploadSourceRecord as Record<string, { type: NaiveUI.ThemeColor; label: string }>,
+          row.source
+        );
       }
     },
     {
@@ -160,9 +154,10 @@ const {
       align: 'center',
       width: 100,
       render: row => {
-        const item = uploadStatusRecord[row.status as Storage.UploadRecordStatus];
-        if (!item) return <span>{row.status}</span>;
-        return <NTag type={item.type}>{item.label}</NTag>;
+        return renderTagFromMap(
+          uploadStatusRecord as Record<string, { type: NaiveUI.ThemeColor; label: string }>,
+          row.status
+        );
       }
     },
     {

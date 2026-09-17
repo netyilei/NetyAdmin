@@ -42,13 +42,13 @@ defineProps<{
       <NDescriptionsItem label="分组ID">{{ rowData?.groupId }}</NDescriptionsItem>
     </NDescriptions>
 
-    <NDivider title-placement="left">错误信息</NDivider>
+    <NDivider title-placement="left">{{ $t('page.ops.errorLog.errorMessage') }}</NDivider>
     <NAlert type="error" :bordered="false">
       {{ rowData?.message }}
     </NAlert>
 
     <template v-if="rowData?.stack">
-      <NDivider title-placement="left">堆栈信息</NDivider>
+      <NDivider title-placement="left">{{ $t('page.ops.errorLog.stackInfo') }}</NDivider>
       <NCode :code="rowData.stack" language="text" word-wrap />
     </template>
   </NModal>

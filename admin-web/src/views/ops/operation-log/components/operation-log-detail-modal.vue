@@ -23,7 +23,7 @@ const rowData = defineModel<any>('rowData', { default: null });
     </NDescriptions>
 
     <template v-if="rowData?.detail">
-      <NDivider title-placement="left">操作详情</NDivider>
+      <NDivider title-placement="left">{{ $t('page.ops.operationLog.detailTitle') }}</NDivider>
       <NCode :code="rowData.detail" language="text" word-wrap />
     </template>
   </NModal>
