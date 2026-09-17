@@ -154,7 +154,10 @@ func (r *openApiRepository) GetApisByScopeIDs(ctx context.Context, scopeIDs []ui
 		return nil, nil
 	}
 	var list []*open_platform.OpenApi
+	// 过滤禁用的 API 条目：管理端禁用某 API（如下线路由）后，
+	// 已授权 app 的调用必须同步被拒，而不是继续放行到其自然下线。
 	err := r.getDB(ctx).
+		Where("status = ?", open_platform.ApiStatusEnabled).
 		Where("id IN (?)", r.getDB(ctx).Model(&open_platform.ScopeApi{}).
 			Select("api_id").
 			Where("scope_id IN ?", scopeIDs)).

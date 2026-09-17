@@ -317,14 +317,21 @@ func (s *userClientService) RefreshToken(ctx context.Context, refreshToken strin
 		return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌无效")
 	}
 
+	// 原子抢占黑名单（SetNX 一步完成"检查+拉黑"）：原先 Exists 检查与轮换后的 Set
+	// 两步之间存在窗口——并发重放同一 refresh token 时双方都通过检查，可换出两对
+	// 新 token。SetNX 抢占失败 = 该 token 已被使用 → 拒绝（RFC 6749 §10.4 重用检测）；
+	// 抢占成功即已拉黑，后续任何失败路径保持已拉黑（fail-closed，用户重新登录即可）。
 	blacklistKey := cache.KeyAuthBlacklistRefreshToken(refreshToken)
-	exists, err := s.cacheSlow.Exists(ctx, blacklistKey)
-	if err != nil {
-		// fail-closed：缓存查询异常时拒绝刷新，避免失效令牌被重新签发
-		return nil, errorx.New(errorx.CodeUnauthorized, "会话校验异常，请重新登录")
-	}
-	if exists {
-		return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌已失效，请重新登录")
+	remainingTTL := time.Until(time.Unix(claims.ExpiresAt.Unix(), 0))
+	if remainingTTL > 0 {
+		claimed, err := s.cacheSlow.SetNX(ctx, blacklistKey, "1", remainingTTL)
+		if err != nil {
+			// fail-closed：缓存异常时拒绝刷新，避免失效令牌被重新签发
+			return nil, errorx.New(errorx.CodeUnauthorized, "会话校验异常，请重新登录")
+		}
+		if !claimed {
+			return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌已失效，请重新登录")
+		}
 	}
 
 	user, err := s.repo.GetByID(ctx, claims.UID)
@@ -351,6 +358,12 @@ func (s *userClientService) RefreshToken(ctx context.Context, refreshToken strin
 		if claims.PlatTokenVersion < ut.TokenVersion {
 			return nil, errorx.New(errorx.CodeUnauthorized, "该设备已有新登录，请重新登录")
 		}
+		// refresh hash 校验（fail-closed）：user_tokens 行由 Login 的 UpsertAndIncrement
+		// 写入非空 refresh_hash，空值只出现在 Logout 清空之后——两种情况都必须与
+		// 传入 token 精确匹配，防止登出后或跨会话的 refresh token 冒用。
+		if ut.RefreshHash != authPkg.HashToken(refreshToken) {
+			return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌已失效，请重新登录")
+		}
 	} else if !errors.Is(utErr, gorm.ErrRecordNotFound) {
 		// 非「行不存在」的 DB 错误 → fail-closed 拒绝刷新，避免故障窗口放过旧 token
 		slog.Error("GetByPlatform user_tokens failed", "userID", user.ID, "platform", claims.Platform, "err", utErr)
@@ -369,17 +382,8 @@ func (s *userClientService) RefreshToken(ctx context.Context, refreshToken strin
 		return nil, errorx.New(errorx.CodeInternalError, "刷新令牌失败")
 	}
 
-	// fail-closed：黑名单写入失败必须阻断刷新，否则旧 refresh token 仍可重放刷新（P1-1 修复）。
-	// 顺序：先 Set 黑名单（fail-closed），后 DeleteAndReplaceSession 写新 token，
-	// 与 admin_auth.go 保持一致——避免 Redis 抖动导致 Set 失败时新 token 已写入 tokenStore
-	// （孤儿数据）而旧 refresh token 未进黑名单仍可重放。
-	remainingTTL := time.Until(time.Unix(claims.ExpiresAt.Unix(), 0))
-	if remainingTTL > 0 {
-		if err := s.cacheSlow.Set(ctx, blacklistKey, "1", remainingTTL); err != nil {
-			slog.Error("blacklist refresh token failed, abort refresh to prevent replay", "err", err, "userID", user.ID)
-			return nil, errorx.New(errorx.CodeInternalError, "会话状态异常，请重新登录")
-		}
-	}
+	// 黑名单写入已前移至函数入口的 SetNX 原子抢占（并发重放防护），
+	// 此处无需再次 Set；抢占成功后本函数任何失败路径均保持 token 已拉黑（fail-closed）。
 
 	// 刷新令牌：更新 user_tokens 当前 platform 行的 access/refresh hash（不递增版本号，会话延续语义）。
 	// 不递增 token_version——版本号递增仅由 Login 负责（同 platform 顶号）；刷新是同一会话的延续。

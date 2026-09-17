@@ -430,9 +430,7 @@ func (s *appService) CreateScopeGroup(ctx context.Context, req *openDto.CreateSc
 	if err := s.repo.CreateScopeGroup(ctx, group); err != nil {
 		return fmt.Errorf("repo.CreateScopeGroup: %w", err)
 	}
-	if err := s.cacheFast.DeleteFast(ctx, cache.KeyAppAvailableScopes()); err != nil {
-		slog.Warn("delete cache failed", "key", cache.KeyAppAvailableScopes(), "err", err)
-	}
+	s.invalidateAppScopeCaches(ctx)
 	return nil
 }
 
@@ -447,10 +445,19 @@ func (s *appService) UpdateScopeGroup(ctx context.Context, req *openDto.UpdateSc
 	if err := s.repo.UpdateScopeGroup(ctx, group); err != nil {
 		return fmt.Errorf("repo.UpdateScopeGroup: %w", err)
 	}
-	if err := s.cacheFast.DeleteFast(ctx, cache.KeyAppAvailableScopes()); err != nil {
-		slog.Warn("delete cache failed", "key", cache.KeyAppAvailableScopes(), "err", err)
-	}
+	s.invalidateAppScopeCaches(ctx)
 	return nil
+}
+
+// invalidateAppScopeCaches 失效权限组相关的全部缓存。
+//
+// 按 TagApp 标签失效（而非只删 KeyAppAvailableScopes 单 key）：
+// KeyAppApis(appID) 也注册在 TagApp 下且原先 TTL=0，只删 available-scopes
+// 会导致已缓存的 app API 白名单残留被删/禁用权限组的授权。
+func (s *appService) invalidateAppScopeCaches(ctx context.Context) {
+	if err := s.cacheFast.InvalidateByTags(ctx, cache.TagApp); err != nil {
+		slog.Error("invalidate cache failed", "tag", cache.TagApp, "err", err)
+	}
 }
 
 // normalizeQuotaConfig 规范化 quota config，空值返回 "{}"
@@ -465,9 +472,7 @@ func (s *appService) DeleteScopeGroup(ctx context.Context, id uint64) error {
 	if err := s.repo.DeleteScopeGroup(ctx, id); err != nil {
 		return fmt.Errorf("repo.DeleteScopeGroup: %w", err)
 	}
-	if err := s.cacheFast.DeleteFast(ctx, cache.KeyAppAvailableScopes()); err != nil {
-		slog.Warn("delete cache failed", "key", cache.KeyAppAvailableScopes(), "err", err)
-	}
+	s.invalidateAppScopeCaches(ctx)
 	return nil
 }
 

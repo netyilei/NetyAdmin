@@ -122,8 +122,20 @@ func (m *mockCacheMgr) Fetch(_ context.Context, _ string, _ string, _ []string, 
 	return nil
 }
 func (m *mockCacheMgr) InvalidateByTags(_ context.Context, _ ...string) error { return nil }
-func (m *mockCacheMgr) SetNX(_ context.Context, _ string, _ interface{}, _ time.Duration) (bool, error) {
-	return false, nil
+func (m *mockCacheMgr) SetNX(_ context.Context, key string, value interface{}, _ time.Duration) (bool, error) {
+	// 与真实 SetNX 同语义：key 不存在时写入并返回 true，已存在返回 false。
+	// RefreshToken 黑名单原子抢占依赖此行为（并发重放/已使用 token 返回 false）。
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, exists := m.values[key]; exists {
+		return false, nil
+	}
+	if s, ok := value.(string); ok {
+		m.values[key] = s
+	} else {
+		m.values[key] = fmt.Sprintf("%v", value)
+	}
+	return true, nil
 }
 func (m *mockCacheMgr) IsCacheEnabled(_ string) bool { return true }
 

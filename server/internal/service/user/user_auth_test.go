@@ -117,8 +117,20 @@ func (m *mockUserCacheMgr) Fetch(_ context.Context, _ string, _ string, _ []stri
 	return nil
 }
 func (m *mockUserCacheMgr) InvalidateByTags(_ context.Context, _ ...string) error { return nil }
-func (m *mockUserCacheMgr) SetNX(_ context.Context, _ string, _ interface{}, _ time.Duration) (bool, error) {
-	return false, nil
+func (m *mockUserCacheMgr) SetNX(_ context.Context, key string, value interface{}, _ time.Duration) (bool, error) {
+	// 与真实 SetNX 同语义：key 不存在时写入并返回 true，已存在返回 false。
+	// RefreshToken 黑名单原子抢占依赖此行为（并发重放/已使用 token 返回 false）。
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, exists := m.values[key]; exists {
+		return false, nil
+	}
+	if s, ok := value.(string); ok {
+		m.values[key] = s
+	} else {
+		m.values[key] = fmt.Sprintf("%v", value)
+	}
+	return true, nil
 }
 func (m *mockUserCacheMgr) IsCacheEnabled(_ string) bool { return true }
 
@@ -235,8 +247,10 @@ func (r *mockUserRepo) FindOAuthBindingByUnionID(_ context.Context, _, _ string)
 func (r *mockUserRepo) FindOAuthBindingByUserProvider(_ context.Context, _, _ string) (*userEntity.UserOAuthBinding, error) {
 	return nil, nil
 }
-func (r *mockUserRepo) CreateOAuthBinding(_ context.Context, _ *userEntity.UserOAuthBinding) error { return nil }
-func (r *mockUserRepo) DeleteOAuthBinding(_ context.Context, _, _ string) error                    { return nil }
+func (r *mockUserRepo) CreateOAuthBinding(_ context.Context, _ *userEntity.UserOAuthBinding) error {
+	return nil
+}
+func (r *mockUserRepo) DeleteOAuthBinding(_ context.Context, _, _ string) error { return nil }
 func (r *mockUserRepo) ListOAuthBindings(_ context.Context, _ string) ([]userEntity.UserOAuthBinding, error) {
 	return nil, nil
 }
@@ -248,8 +262,8 @@ var _ userRepo.UserRepository = (*mockUserRepo)(nil)
 // 模拟 user_tokens 多端会话表行为：UpsertAndIncrement 递增版本号，GetByPlatform 返回当前行。
 // 用于 Login/RefreshToken/Logout 的端级顶号逻辑测试。
 type mockUserTokenRepo struct {
-	versions  map[string]uint64          // key: userID+":"+platform → token_version
-	accessHash map[string]string         // key: userID+":"+platform → access_hash
+	versions   map[string]uint64 // key: userID+":"+platform → token_version
+	accessHash map[string]string // key: userID+":"+platform → access_hash
 }
 
 func newMockUserTokenRepo() *mockUserTokenRepo {
@@ -312,9 +326,11 @@ var _ userRepo.UserTokenRepository = (*mockUserTokenRepo)(nil)
 // Begin 返回原 ctx + 空 Tx；Commit/Rollback 无副作用；WithTransaction 直接执行闭包。
 type noopTxManager struct{}
 
-func (noopTxManager) Begin(ctx context.Context) (context.Context, *database.Tx) { return ctx, &database.Tx{} }
-func (noopTxManager) Commit(*database.Tx) error                                 { return nil }
-func (noopTxManager) Rollback(*database.Tx)                                      {}
+func (noopTxManager) Begin(ctx context.Context) (context.Context, *database.Tx) {
+	return ctx, &database.Tx{}
+}
+func (noopTxManager) Commit(*database.Tx) error { return nil }
+func (noopTxManager) Rollback(*database.Tx)     {}
 func (noopTxManager) WithTransaction(ctx context.Context, fn func(context.Context) error) error {
 	return fn(ctx)
 }

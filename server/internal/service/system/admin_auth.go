@@ -145,14 +145,21 @@ func (s *adminService) RefreshToken(ctx context.Context, refreshToken string) (*
 		return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌无效")
 	}
 
-	// 检查 RefreshToken 是否在黑名单中（fail-closed：Exists 错误视为校验异常，拒绝刷新）
+	// 原子抢占黑名单（SetNX 一步完成"检查+拉黑"）：原先 Exists 检查与轮换后的 Set
+	// 两步之间存在窗口——并发重放同一 refresh token 时双方都通过检查，可换出两对
+	// 新 token。SetNX 抢占失败 = 该 token 已被使用 → 拒绝；抢占成功即已拉黑，
+	// 后续任何失败路径保持已拉黑（fail-closed，重新登录即可）。
 	blacklistKey := cache.KeyAuthBlacklistRefreshToken(refreshToken)
-	exists, err := s.cacheSlow.Exists(ctx, blacklistKey)
-	if err != nil {
-		return nil, errorx.New(errorx.CodeUnauthorized, "会话校验异常，请重新登录")
-	}
-	if exists {
-		return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌已失效，请重新登录")
+	remainingTTL := time.Until(time.Unix(claims.ExpiresAt.Unix(), 0))
+	if remainingTTL > 0 {
+		claimed, err := s.cacheSlow.SetNX(ctx, blacklistKey, "1", remainingTTL)
+		if err != nil {
+			// fail-closed：缓存异常时拒绝刷新，避免失效令牌被重新签发
+			return nil, errorx.New(errorx.CodeUnauthorized, "会话校验异常，请重新登录")
+		}
+		if !claimed {
+			return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌已失效，请重新登录")
+		}
 	}
 
 	admin, err := s.adminRepo.GetByID(ctx, claims.UserID)
@@ -186,16 +193,8 @@ func (s *adminService) RefreshToken(ctx context.Context, refreshToken string) (*
 		return nil, errorx.New(errorx.CodeInternalError, "生成刷新令牌失败")
 	}
 
-	// 将旧的 RefreshToken 标记为作废（加入黑名单，TTL 对齐其原始过期时间，避免黑名单提前失效或长期驻留）
-	// fail-closed：黑名单写入失败必须阻断刷新，否则旧 refresh token 仍可重放刷新（P1-1 修复）。
-	blacklistKey = cache.KeyAuthBlacklistRefreshToken(refreshToken)
-	remainingTTL := time.Until(time.Unix(claims.ExpiresAt.Unix(), 0))
-	if remainingTTL > 0 {
-		if err := s.cacheSlow.Set(ctx, blacklistKey, "1", remainingTTL); err != nil {
-			slog.Error("blacklist refresh token failed, abort refresh to prevent replay", "err", err, "adminID", admin.ID)
-			return nil, errorx.New(errorx.CodeInternalError, "会话状态异常，请重新登录")
-		}
-	}
+	// 黑名单写入已前移至函数入口的 SetNX 原子抢占（并发重放防护），
+	// 此处无需再次 Set；抢占成功后本函数任何失败路径均保持 token 已拉黑（fail-closed）。
 
 	// 刷新令牌：仅删除当前会话的旧 refresh hash，再写入新 access + refresh token hash。
 	// 不调用 DeleteAll——多设备登录场景下，刷新一个 token 不应踢掉该管理员其他设备的合法会话（P1-A 修复）。

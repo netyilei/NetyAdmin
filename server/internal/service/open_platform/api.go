@@ -3,6 +3,7 @@ package open_platform
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"NetyAdmin/internal/domain/entity/open_platform"
 	openDto "NetyAdmin/internal/interface/admin/dto/open_platform"
@@ -199,7 +200,9 @@ func (s *openApiService) GetApisByScopeIDs(ctx context.Context, scopeIDs []uint6
 func (s *openApiService) GetAppAllowedApis(ctx context.Context, appID string) ([]string, error) {
 	var apiKeys []string
 	key := cache.KeyAppApis(appID)
-	err := s.cacheFast.FetchFast(ctx, key, cache.TagApp, []string{cache.TagApp, cache.TagAppKey(appID)}, 0, &apiKeys, func() (interface{}, error) {
+	// TTL 5 分钟（原先为 0=永不过期）：作为任何缓存失效遗漏路径的兜底，
+	// 权限变更最多延迟 5 分钟生效，而不是永久残留。
+	err := s.cacheFast.FetchFast(ctx, key, cache.TagApp, []string{cache.TagApp, cache.TagAppKey(appID)}, 5*time.Minute, &apiKeys, func() (interface{}, error) {
 		scopes, err := s.appRepo.GetAppScopes(ctx, appID)
 		if err != nil {
 			return nil, err
@@ -215,6 +218,11 @@ func (s *openApiService) GetAppAllowedApis(ctx context.Context, appID string) ([
 		}
 		codeToID := make(map[string]uint64, len(groups))
 		for _, g := range groups {
+			// 跳过禁用的权限组：管理端 ListAvailableScopes 已过滤禁用组（不可再授权），
+			// 执行侧必须同样忽略——否则被禁用组的既有授权继续生效，权限撤销失效。
+			if g.Status != open_platform.AppStatusEnabled {
+				continue
+			}
 			codeToID[g.Code] = g.ID
 		}
 		for _, code := range scopes {
