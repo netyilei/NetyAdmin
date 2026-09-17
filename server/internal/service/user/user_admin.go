@@ -150,7 +150,15 @@ func (s *userAdminService) Create(ctx context.Context, req *userDto.CreateUserRe
 		Status:   status,
 	}
 
-	return s.repo.Create(ctx, user)
+	if err := s.repo.Create(ctx, user); err != nil {
+		// 并发创建竞态下 ExistsBy 前置检查可能双双通过，
+		// DB 部分唯一索引（0056）兜底，冲突转业务错误码
+		if isUniqueViolation(err) {
+			return errorx.New(errorx.CodeUserAlreadyExists, "用户名/邮箱/手机号已被占用")
+		}
+		return err
+	}
+	return nil
 }
 
 // Update 更新用户。先 GetByID 取旧值，再按 DTO 字段 patch，避免 Save 全字段更新覆盖零值（spec D4 BUG 修复）。
@@ -244,6 +252,10 @@ func (s *userAdminService) Update(ctx context.Context, id string, req *userDto.U
 		if err := s.repo.Update(txCtx, oldUser); err != nil {
 			slog.Error("user update: update user failed", "userID", id, "err", err)
 			s.tm.Rollback(tx)
+			// 并发改绑竞态下 ExistsBy 检查双双通过，唯一索引（0056）兜底转业务错误码
+			if isUniqueViolation(err) {
+				return errorx.New(errorx.CodeUserAlreadyExists, "邮箱或手机号已被占用")
+			}
 			return errorx.New(errorx.CodeInternalError, "用户更新失败")
 		}
 		if err := s.tm.Commit(tx); err != nil {
@@ -252,7 +264,14 @@ func (s *userAdminService) Update(ctx context.Context, id string, req *userDto.U
 		}
 		return nil
 	}
-	return s.repo.Update(ctx, oldUser)
+	if err := s.repo.Update(ctx, oldUser); err != nil {
+		// 并发改绑竞态下 ExistsBy 检查双双通过，唯一索引（0056）兜底转业务错误码
+		if isUniqueViolation(err) {
+			return errorx.New(errorx.CodeUserAlreadyExists, "邮箱或手机号已被占用")
+		}
+		return err
+	}
+	return nil
 }
 
 func (s *userAdminService) UpdateStatus(ctx context.Context, id string, status string) error {

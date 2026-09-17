@@ -135,6 +135,11 @@ func (s *userClientService) Register(ctx context.Context, req *clientDto.UserReg
 	}
 
 	if err := s.repo.Create(ctx, user); err != nil {
+		// 并发注册/绑定竞态下 ExistsBy 前置检查可能双双通过，
+		// DB 部分唯一索引（0056）是权威兜底，冲突转业务错误码
+		if isUniqueViolation(err) {
+			return "", errorx.New(errorx.CodeUserAlreadyExists, "用户名/邮箱/手机号已被占用")
+		}
 		return "", errorx.New(errorx.CodeInternalError, "创建用户失败")
 	}
 
@@ -491,7 +496,15 @@ func (s *userClientService) UpdateProfile(ctx context.Context, userID string, re
 		"email":    user.Email,
 		"phone":    user.Phone,
 	}
-	return s.repo.UpdateFields(ctx, userID, fields)
+	if err := s.repo.UpdateFields(ctx, userID, fields); err != nil {
+		// 并发改绑同一邮箱/手机竞态下 ExistsBy 检查双双通过，
+		// DB 部分唯一索引（0056）兜底，冲突转业务错误码
+		if isUniqueViolation(err) {
+			return errorx.New(errorx.CodeUserAlreadyExists, "邮箱或手机号已被占用")
+		}
+		return fmt.Errorf("repo.UpdateFields: %w", err)
+	}
+	return nil
 }
 
 func (s *userClientService) ChangePassword(ctx context.Context, userID string, req *clientDto.UserChangePasswordReq) error {
