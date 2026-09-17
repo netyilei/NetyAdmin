@@ -150,8 +150,12 @@ func (a userClaimsAccessor) LookupAccount(ctx context.Context, claims *jwtPkg.Us
 			if claims.PlatTokenVersion < ut.TokenVersion {
 				return &auth.AccountCheckResult{Status: entity.StatusDisabled}, nil
 			}
-			// hash 比对（Logout 后清空 → 不匹配 → 拒绝）。空 hash 视为未设置，跳过（首次登录前状态）。
-			if ut.AccessHash != "" && ut.AccessHash != auth.HashToken(rawToken) {
+			// hash 比对（fail-closed）：行存在即必须精确匹配。
+			// user_tokens 行由 Login 创建并立即写入非空 hash，空 hash 只会出现在
+			// Logout 清空之后——此时必须拒绝而非视为"未设置"跳过
+			// （跳过会使登出后的 access token 残留有效至 TTL，违背文档契约
+			// "logout 失效当前 Token"）。
+			if ut.AccessHash != auth.HashToken(rawToken) {
 				return &auth.AccountCheckResult{Status: entity.StatusDisabled}, nil
 			}
 		} else if utErr != nil && !errors.Is(utErr, gorm.ErrRecordNotFound) {

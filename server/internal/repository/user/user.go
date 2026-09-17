@@ -205,8 +205,14 @@ func (r *userRepository) SearchForAutocomplete(ctx context.Context, keyword stri
 	return users, nil
 }
 
+// Update 全字段更新用户（Omit token_version）。
+//
+// token_version 是会话失效的版本号，只能经 IncrementTokenVersion 原子递增，
+// 禁止随 Save 回写：调用方传入的实体通常是事务外 GetByID 读出的旧快照，
+// 若 Save 携带 token_version 会把同事务内 Increment 的结果覆盖回旧值，
+// 导致改密/禁用后旧 JWT 永不失效（GORM Save 对主键非零实体是全字段 UPDATE）。
 func (r *userRepository) Update(ctx context.Context, user *userEntity.User) error {
-	return r.getDB(ctx).Save(user).Error
+	return r.getDB(ctx).Omit("token_version").Save(user).Error
 }
 
 func (r *userRepository) Delete(ctx context.Context, id string) error {

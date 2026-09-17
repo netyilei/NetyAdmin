@@ -159,8 +159,12 @@ func (r *adminRepository) List(ctx context.Context, query *AdminRepoQuery) ([]sy
 	return admins, total, nil
 }
 
+// Update 全字段更新管理员（Omit token_version）。
+//
+// token_version 只能经 IncrementTokenVersion 原子递增，禁止随 Save 回写
+// 旧快照值（否则同事务内 Increment 的结果被覆盖，改密/禁用后旧 JWT 永不失效）。
 func (r *adminRepository) Update(ctx context.Context, admin *systemEntity.Admin) error {
-	return r.getDB(ctx).Save(admin).Error
+	return r.getDB(ctx).Omit("token_version").Save(admin).Error
 }
 
 func (r *adminRepository) UpdateLastLoginAt(ctx context.Context, id uint, lastLoginAt string) error {

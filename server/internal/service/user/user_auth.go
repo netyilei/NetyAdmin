@@ -192,11 +192,16 @@ func (s *userClientService) Login(ctx context.Context, req *clientDto.UserLoginR
 		} else if verifyConfig.VerifyType == "sms" && user.Phone != "" {
 			target = user.Phone
 		}
-		if target != "" {
-			ok, _ := s.verifySvc.VerifyAndClearCode(ctx, SceneLogin, target, req.Code)
-			if !ok {
-				return nil, errorx.New(errorx.CodeCaptchaInvalid, "验证码错误或已过期")
-			}
+		if target == "" {
+			// fail-closed：开启登录验证但用户未绑定对应渠道时拒绝登录，
+			// 不能静默跳过校验（否则仅凭密码即可绕过第二因子）。
+			// 用户应先绑定邮箱/手机或管理员关闭该验证配置。
+			return nil, errorx.New(errorx.CodeCaptchaRequired,
+				"登录已开启验证，当前账号未绑定对应验证渠道（邮箱/手机），请先绑定后再登录")
+		}
+		ok, _ := s.verifySvc.VerifyAndClearCode(ctx, SceneLogin, target, req.Code)
+		if !ok {
+			return nil, errorx.New(errorx.CodeCaptchaInvalid, "验证码错误或已过期")
 		}
 	}
 
@@ -471,7 +476,18 @@ func (s *userClientService) UpdateProfile(ctx context.Context, userID string, re
 		user.Phone = req.Phone
 	}
 
-	return s.repo.Update(ctx, user)
+	// 列级更新（仅资料五列），不用 Save 全字段：
+	// 本函数从 GetByID 到落库之间穿插验证码与多次 DB 查询（窗口百毫秒级），
+	// 全字段 Save 会用旧快照覆盖并发 admin 操作（禁用/改密）刚写入的
+	// status/token_version，导致被禁用账号复活（审计 H2）。
+	fields := map[string]interface{}{
+		"nickname": user.Nickname,
+		"avatar":   user.Avatar,
+		"gender":   user.Gender,
+		"email":    user.Email,
+		"phone":    user.Phone,
+	}
+	return s.repo.UpdateFields(ctx, userID, fields)
 }
 
 func (s *userClientService) ChangePassword(ctx context.Context, userID string, req *clientDto.UserChangePasswordReq) error {
