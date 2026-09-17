@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/mojocn/base64Captcha"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -134,13 +135,14 @@ func (m *mockUserCacheMgr) SetNX(_ context.Context, key string, value interface{
 	return true, nil
 }
 
-// GetAndDelete 与真实 GETDEL 同语义：原子取出并删除，key 不存在返回错误
+// GetAndDelete 与真实 GETDEL 同语义：原子取出并删除，key 不存在返回 redis.Nil
+// （真实实现本地降级路径已统一映射 redis.Nil，mock 保持同契约）
 func (m *mockUserCacheMgr) GetAndDelete(_ context.Context, key string, v interface{}) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	val, ok := m.values[key]
 	if !ok {
-		return errors.New("not found")
+		return redis.Nil
 	}
 	delete(m.values, key)
 	if s, ok := v.(*string); ok {
