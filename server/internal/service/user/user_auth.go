@@ -23,6 +23,7 @@ import (
 	userVO "NetyAdmin/internal/domain/vo/user"
 	authPkg "NetyAdmin/internal/pkg/auth"
 	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
 	passwordPkg "NetyAdmin/internal/pkg/password"
@@ -109,7 +110,10 @@ func (s *userClientService) Register(ctx context.Context, req *clientDto.UserReg
 			return "", errorx.New(errorx.CodeCaptchaRequired, "验证码必填")
 		}
 		ok, err := s.verifySvc.VerifyAndClearCode(ctx, SceneRegister, target, req.Code)
-		if err != nil || !ok {
+		if err != nil {
+			return "", err // 服务故障（fail-closed），非验证码错误
+		}
+		if !ok {
 			return "", errorx.New(errorx.CodeCaptchaInvalid, "验证码错误或已过期")
 		}
 	}
@@ -139,7 +143,7 @@ func (s *userClientService) Register(ctx context.Context, req *clientDto.UserReg
 	if err := s.repo.Create(ctx, user); err != nil {
 		// 并发注册/绑定竞态下 ExistsBy 前置检查可能双双通过，
 		// DB 部分唯一索引（0056）是权威兜底，冲突转业务错误码
-		if isUniqueViolation(err) {
+		if database.IsUniqueViolation(err) {
 			return "", errorx.New(errorx.CodeUserAlreadyExists, "用户名/邮箱/手机号已被占用")
 		}
 		return "", errorx.New(errorx.CodeInternalError, "创建用户失败")
@@ -206,7 +210,10 @@ func (s *userClientService) Login(ctx context.Context, req *clientDto.UserLoginR
 			return nil, errorx.New(errorx.CodeCaptchaRequired,
 				"登录已开启验证，当前账号未绑定对应验证渠道（邮箱/手机），请先绑定后再登录")
 		}
-		ok, _ := s.verifySvc.VerifyAndClearCode(ctx, SceneLogin, target, req.Code)
+		ok, err := s.verifySvc.VerifyAndClearCode(ctx, SceneLogin, target, req.Code)
+		if err != nil {
+			return nil, err // 服务故障（fail-closed），非验证码错误
+		}
 		if !ok {
 			return nil, errorx.New(errorx.CodeCaptchaInvalid, "验证码错误或已过期")
 		}
@@ -461,7 +468,10 @@ func (s *userClientService) UpdateProfile(ctx context.Context, userID string, re
 			return errorx.New(errorx.CodeCaptchaRequired, "邮箱变更需提供验证码")
 		}
 		ok, err := s.verifySvc.VerifyAndClearCode(ctx, SceneChangeEmail, req.Email, req.EmailCode)
-		if err != nil || !ok {
+		if err != nil {
+			return err // 服务故障（fail-closed），非验证码错误
+		}
+		if !ok {
 			return errorx.New(errorx.CodeCaptchaInvalid, "邮箱验证码错误或已过期")
 		}
 		exists, _ := s.repo.ExistsByEmail(ctx, req.Email, userID)
@@ -477,7 +487,10 @@ func (s *userClientService) UpdateProfile(ctx context.Context, userID string, re
 			return errorx.New(errorx.CodeCaptchaRequired, "手机变更需提供验证码")
 		}
 		ok, err := s.verifySvc.VerifyAndClearCode(ctx, SceneChangePhone, req.Phone, req.PhoneCode)
-		if err != nil || !ok {
+		if err != nil {
+			return err // 服务故障（fail-closed），非验证码错误
+		}
+		if !ok {
 			return errorx.New(errorx.CodeCaptchaInvalid, "手机验证码错误或已过期")
 		}
 		exists, _ := s.repo.ExistsByPhone(ctx, req.Phone, userID)
@@ -501,7 +514,7 @@ func (s *userClientService) UpdateProfile(ctx context.Context, userID string, re
 	if err := s.repo.UpdateFields(ctx, userID, fields); err != nil {
 		// 并发改绑同一邮箱/手机竞态下 ExistsBy 检查双双通过，
 		// DB 部分唯一索引（0056）兜底，冲突转业务错误码
-		if isUniqueViolation(err) {
+		if database.IsUniqueViolation(err) {
 			return errorx.New(errorx.CodeUserAlreadyExists, "邮箱或手机号已被占用")
 		}
 		return fmt.Errorf("repo.UpdateFields: %w", err)
@@ -606,7 +619,10 @@ func (s *userClientService) ResetPassword(ctx context.Context, req *clientDto.Us
 			return errorx.New(errorx.CodeCaptchaRequired, "验证码必填")
 		}
 		ok, err := s.verifySvc.VerifyAndClearCode(ctx, SceneResetPassword, req.Target, req.Code)
-		if err != nil || !ok {
+		if err != nil {
+			return err // 服务故障（fail-closed），非验证码错误
+		}
+		if !ok {
 			return errorx.New(errorx.CodeCaptchaInvalid, "验证码错误或已过期")
 		}
 	}

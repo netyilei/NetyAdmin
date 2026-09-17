@@ -34,6 +34,7 @@ import (
 	"NetyAdmin/internal/domain/entity"
 	userEntity "NetyAdmin/internal/domain/entity/user"
 	clientDto "NetyAdmin/internal/interface/client/dto/v1"
+	authPkg "NetyAdmin/internal/pkg/auth"
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/database"
@@ -277,14 +278,16 @@ var _ userRepo.UserRepository = (*mockUserRepo)(nil)
 // 模拟 user_tokens 多端会话表行为：UpsertAndIncrement 递增版本号，GetByPlatform 返回当前行。
 // 用于 Login/RefreshToken/Logout 的端级顶号逻辑测试。
 type mockUserTokenRepo struct {
-	versions   map[string]uint64 // key: userID+":"+platform → token_version
-	accessHash map[string]string // key: userID+":"+platform → access_hash
+	versions    map[string]uint64 // key: userID+":"+platform → token_version
+	accessHash  map[string]string // key: userID+":"+platform → access_hash
+	refreshHash map[string]string // key: userID+":"+platform → refresh_hash
 }
 
 func newMockUserTokenRepo() *mockUserTokenRepo {
 	return &mockUserTokenRepo{
-		versions:   make(map[string]uint64),
-		accessHash: make(map[string]string),
+		versions:    make(map[string]uint64),
+		accessHash:  make(map[string]string),
+		refreshHash: make(map[string]string),
 	}
 }
 
@@ -298,6 +301,9 @@ func (m *mockUserTokenRepo) UpsertAndIncrement(_ context.Context, t *userEntity.
 	v := m.versions[k]
 	if t.AccessHash != "" {
 		m.accessHash[k] = t.AccessHash
+	}
+	if t.RefreshHash != "" {
+		m.refreshHash[k] = t.RefreshHash
 	}
 	return v, nil
 }
@@ -313,6 +319,7 @@ func (m *mockUserTokenRepo) GetByPlatform(_ context.Context, userID, platform st
 		Platform:     platform,
 		TokenVersion: v,
 		AccessHash:   m.accessHash[k],
+		RefreshHash:  m.refreshHash[k],
 	}, nil
 }
 
@@ -321,15 +328,20 @@ func (m *mockUserTokenRepo) UpdateAccessHash(_ context.Context, userID, platform
 	return nil
 }
 
-func (m *mockUserTokenRepo) UpdateHashes(_ context.Context, userID, platform, accessHash, _ string, _, _ time.Time) error {
+func (m *mockUserTokenRepo) UpdateHashes(_ context.Context, userID, platform, accessHash, refreshHash string, _, _ time.Time) error {
 	if accessHash != "" {
 		m.accessHash[m.key(userID, platform)] = accessHash
+	}
+	if refreshHash != "" {
+		m.refreshHash[m.key(userID, platform)] = refreshHash
 	}
 	return nil
 }
 
 func (m *mockUserTokenRepo) ClearHashes(_ context.Context, userID, platform string) error {
-	m.accessHash[m.key(userID, platform)] = ""
+	k := m.key(userID, platform)
+	m.accessHash[k] = ""
+	m.refreshHash[k] = ""
 	return nil
 }
 
@@ -661,6 +673,65 @@ func TestUserRefreshToken_Success(t *testing.T) {
 	// RefreshToken 现走 user_tokens（UpdateHashes），不再调 admin tokenStore 的 Create/Delete
 	assert.Equal(t, 0, store.deleteCalls, "RefreshToken 不应再调 tokenStore.Delete（改走 user_tokens）")
 	assert.Equal(t, 0, store.createCalls, "RefreshToken 不应再调 tokenStore.Create（改走 user_tokens）")
+}
+
+// TestUserRefreshToken_WithTokenRowRefreshHashVerified 覆盖 refresh_hash 校验的正常路径：
+// user_tokens 行存在（Login 后状态）且 refresh_hash 与传入 token 匹配 → 刷新成功。
+func TestUserRefreshToken_WithTokenRowRefreshHashVerified(t *testing.T) {
+	_ = hashedUserPassword(t)
+	svc, repo, _, _, _, j := newTestUserClientService(t)
+	user := enabledUser("01HTESTUSERREFRESH004", "refresh-hash-ok")
+	repo.UserByID = user
+
+	// 模拟 Login 后的 user_tokens 行：ptv=1，refresh_hash 为该 refresh token 的哈希
+	claims := j.NewUserClaims(user.ID, "web", jwt.DefaultUserType, jwt.RefreshToken, user.TokenVersion, 1)
+	refresh, err := j.GenerateToken(claims)
+	require.NoError(t, err)
+
+	tokenRepo := svc.userTokenRepo.(*mockUserTokenRepo)
+	_, err = tokenRepo.UpsertAndIncrement(context.Background(), &userEntity.UserToken{
+		UserID:      user.ID,
+		Platform:    "web",
+		AccessHash:  "placeholder",
+		RefreshHash: authPkg.HashToken(refresh),
+	})
+	require.NoError(t, err)
+
+	vo, err := svc.RefreshToken(context.Background(), refresh)
+	require.NoError(t, err)
+	assert.NotEmpty(t, vo.AccessToken)
+	// 刷新后 refresh_hash 应已更新为新 refresh token 的哈希
+	newRow, err := tokenRepo.GetByPlatform(context.Background(), user.ID, "web")
+	require.NoError(t, err)
+	assert.Equal(t, authPkg.HashToken(vo.RefreshToken), newRow.RefreshHash, "刷新后应写入新 refresh hash")
+}
+
+// TestUserRefreshToken_RefreshHashMismatchRejected 覆盖 refresh_hash 校验的拒绝路径：
+// 行存在但 hash 不匹配（登出清空/跨会话冒用）→ 拒绝刷新。
+func TestUserRefreshToken_RefreshHashMismatchRejected(t *testing.T) {
+	_ = hashedUserPassword(t)
+	svc, repo, _, _, _, j := newTestUserClientService(t)
+	user := enabledUser("01HTESTUSERREFRESH005", "refresh-hash-bad")
+	repo.UserByID = user
+
+	claims := j.NewUserClaims(user.ID, "web", jwt.DefaultUserType, jwt.RefreshToken, user.TokenVersion, 1)
+	refresh, err := j.GenerateToken(claims)
+	require.NoError(t, err)
+
+	tokenRepo := svc.userTokenRepo.(*mockUserTokenRepo)
+	_, err = tokenRepo.UpsertAndIncrement(context.Background(), &userEntity.UserToken{
+		UserID:      user.ID,
+		Platform:    "web",
+		AccessHash:  "placeholder",
+		RefreshHash: "mismatched-hash", // 非 refresh 的哈希（模拟 Logout 清空后再伪造/跨会话）
+	})
+	require.NoError(t, err)
+
+	_, err = svc.RefreshToken(context.Background(), refresh)
+	require.Error(t, err)
+	var bizErr *errorx.BizError
+	require.True(t, errors.As(err, &bizErr))
+	assert.Equal(t, errorx.CodeUnauthorized, bizErr.Code)
 }
 
 func TestUserRefreshToken_InvalidTokenRejected(t *testing.T) {

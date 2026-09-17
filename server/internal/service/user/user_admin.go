@@ -20,6 +20,7 @@ import (
 
 	"NetyAdmin/internal/domain/entity"
 	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/errorx"
 	passwordPkg "NetyAdmin/internal/pkg/password"
 	"NetyAdmin/internal/pkg/utils"
@@ -153,7 +154,7 @@ func (s *userAdminService) Create(ctx context.Context, req *userDto.CreateUserRe
 	if err := s.repo.Create(ctx, user); err != nil {
 		// 并发创建竞态下 ExistsBy 前置检查可能双双通过，
 		// DB 部分唯一索引（0056）兜底，冲突转业务错误码
-		if isUniqueViolation(err) {
+		if database.IsUniqueViolation(err) {
 			return errorx.New(errorx.CodeUserAlreadyExists, "用户名/邮箱/手机号已被占用")
 		}
 		return err
@@ -253,7 +254,7 @@ func (s *userAdminService) Update(ctx context.Context, id string, req *userDto.U
 			slog.Error("user update: update user failed", "userID", id, "err", err)
 			s.tm.Rollback(tx)
 			// 并发改绑竞态下 ExistsBy 检查双双通过，唯一索引（0056）兜底转业务错误码
-			if isUniqueViolation(err) {
+			if database.IsUniqueViolation(err) {
 				return errorx.New(errorx.CodeUserAlreadyExists, "邮箱或手机号已被占用")
 			}
 			return errorx.New(errorx.CodeInternalError, "用户更新失败")
@@ -266,7 +267,7 @@ func (s *userAdminService) Update(ctx context.Context, id string, req *userDto.U
 	}
 	if err := s.repo.Update(ctx, oldUser); err != nil {
 		// 并发改绑竞态下 ExistsBy 检查双双通过，唯一索引（0056）兜底转业务错误码
-		if isUniqueViolation(err) {
+		if database.IsUniqueViolation(err) {
 			return errorx.New(errorx.CodeUserAlreadyExists, "邮箱或手机号已被占用")
 		}
 		return err

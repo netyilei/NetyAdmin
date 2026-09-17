@@ -26,8 +26,10 @@ const credentialTTL = 30 * time.Minute
 // CredentialsRequest 是 service 层的上传凭证入参契约，与 admin/client DTO 解耦。
 // admin/client handler 在调用 service 前需自行将各自 DTO 转换为本结构体。
 type CredentialsRequest struct {
-	ConfigID     uint
-	FileName     string
+	ConfigID uint
+	FileName string
+	// ContentType 已废弃（保留兼容）：服务端一律按文件名扩展名推断 MIME，
+	// 不再采信客户端值（预签名 PUT 不绑定 Content-Type，透传值仅落库展示）
 	ContentType  string
 	FileSize     int64
 	BusinessType string

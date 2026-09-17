@@ -8,10 +8,13 @@ import (
 	msgSvc "NetyAdmin/internal/service/message"
 	"context"
 	"crypto/rand"
+	"errors"
 	"log/slog"
 	"math/big"
 	"strconv"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 
 	"github.com/mojocn/base64Captcha"
 )
@@ -235,10 +238,17 @@ func (s *verificationService) VerifyAndClearCode(ctx context.Context, scene, tar
 		return false, nil
 	}
 
-	// 原子消费：取出即删除
+	// 原子消费：取出即删除。
+	// 区分"不存在"（redis.Nil：未发送/已消费/已过期 → 验证失败）
+	// 与"故障"（其他错误 → fail-closed 返回错误，不能伪装成验证码错误，
+	// 与 SendCode 的故障语义保持一致）
 	var storedCode string
 	if err := s.cacheSlow.GetAndDelete(ctx, cache.KeyVerificationCode(scene, target), &storedCode); err != nil {
-		return false, nil // 验证码不存在或已被消费
+		if errors.Is(err, redis.Nil) {
+			return false, nil // 验证码不存在或已被消费
+		}
+		slog.Error("verify code: cache getdel failed", "scene", scene, "target", target, "err", err)
+		return false, errorx.New(errorx.CodeInternalError, "验证服务暂不可用，请稍后重试")
 	}
 
 	if storedCode != code {

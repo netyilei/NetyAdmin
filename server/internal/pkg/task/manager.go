@@ -707,6 +707,16 @@ func (m *Manager) getTaskMetadata(t Task) TaskMetadata {
 
 // runIntervalTask 运行间隔任务
 func (m *Manager) runIntervalTask(ctx context.Context, t Task, meta TaskMetadata, stopChan chan struct{}) {
+	// 自然退出（spec 无效/引擎停机/stopChan）时清理注册表条目：
+	// 否则残留条目会让 StartTask 误判"正在运行中"而永久拒绝重启。
+	// 仅删除属于自己的 stopChan——Stop→Start 重启后 map 中已是新任务的条目，不能误删。
+	defer func() {
+		m.mu.Lock()
+		if cur, ok := m.intervals[t.Name()]; ok && cur == stopChan {
+			delete(m.intervals, t.Name())
+		}
+		m.mu.Unlock()
+	}()
 	defer m.wg.Done()
 
 	d, err := time.ParseDuration(meta.Spec)

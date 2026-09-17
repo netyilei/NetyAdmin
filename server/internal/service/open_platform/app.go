@@ -489,13 +489,23 @@ func (s *appService) LinkIPRules(ctx context.Context, appID string, ruleIDs []ui
 	// CheckIP 会整体跳过应用级规则（规则静默不生效，"以为封了实际没封"）。
 	// 同事务自动开启开关，消除配置歧义。
 	if len(ruleIDs) > 0 {
-		if app, err := s.repo.GetByID(txCtx, appID); err == nil && app != nil && !app.IPFilterEnabled {
+		app, err := s.repo.GetByID(txCtx, appID)
+		switch {
+		case err == nil && app != nil && !app.IPFilterEnabled:
 			if err := s.repo.SetIPFilterEnabled(txCtx, appID, true); err != nil {
 				slog.Error("app link ip rules: auto enable ip filter failed", "appID", appID, "err", err)
 				s.tm.Rollback(tx)
 				return errorx.New(errorx.CodeInternalError, "应用 IP 规则关联失败")
 			}
 			slog.Info("app link ip rules: ip_filter_enabled auto turned on", "appID", appID)
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			// app 不存在：关联写入层兜底（LinkRulesToApp 的 app 外键）或后续提交失败暴露
+		case err != nil:
+			// DB 错误 fail-closed：静默跳过会让规则挂载成功但开关未开——
+			// 恰是本联动要消除的"以为封了实际没封"场景在错误路径复发
+			slog.Error("app link ip rules: get app failed", "appID", appID, "err", err)
+			s.tm.Rollback(tx)
+			return errorx.New(errorx.CodeInternalError, "应用 IP 规则关联失败")
 		}
 	}
 	if err := s.tm.Commit(tx); err != nil {

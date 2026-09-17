@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
 	userEntity "NetyAdmin/internal/domain/entity/user"
@@ -160,7 +159,7 @@ func (s *oauthBindingService) Bind(ctx context.Context, userID, provider, openid
 			UnionID:  unionid,
 		}
 		if err := s.repo.CreateOAuthBinding(txCtx, binding); err != nil {
-			if isUniqueViolation(err) {
+			if database.IsUniqueViolation(err) {
 				return errorx.New(errorx.CodeOAuthAlreadyBound, "该第三方账号已绑定其他用户")
 			}
 			slog.Error("OAuthBindingService.Bind: create failed", "provider", provider, "error", err)
@@ -250,14 +249,4 @@ func toDTO(b *userEntity.UserOAuthBinding) *OAuthBindingDTO {
 		OpenID:   b.OpenID,
 		UnionID:  b.UnionID,
 	}
-}
-
-// isUniqueViolation checks whether err is a PostgreSQL unique constraint violation.
-// Uses pgconn.PgError type assertion with code "23505" for reliable detection.
-func isUniqueViolation(err error) bool {
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		return pgErr.Code == "23505"
-	}
-	return false
 }

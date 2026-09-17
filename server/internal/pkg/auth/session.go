@@ -145,7 +145,9 @@ func StoreSessionPair(
 //   - 旧 access token hash 不删除：当前 RefreshToken 入参仅含旧 refresh token，
 //     无法定位旧 access hash；旧 access 由其自然过期或下次 Logout 时清理。
 //   - fail-closed 语义：Delete 失败时返回 error，整个 RefreshToken 流程失败，
-//     调用方应返回错误响应，用户保留旧 refresh token 可重试。
+//     调用方应返回错误响应。注意：调用方（admin/user RefreshToken）已在函数入口
+//     用 SetNX 将旧 refresh token 拉黑，此处失败重试同一 token 会被黑名单拒绝，
+//     用户需重新登录（fail-closed 取舍，防旧 token 重放优先于重试体验）。
 func DeleteAndReplaceSession(
 	ctx context.Context,
 	tokenStore UserServiceTokenStore,

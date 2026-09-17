@@ -307,10 +307,12 @@ func (m *LazyCacheManager) GetAndDelete(ctx context.Context, key string, v inter
 		return m.unmarshal(data, v)
 	}
 
-	// 本地降级：Get 原始值 → Delete（两步，仅单进程场景，竞态窗口可忽略）
+	// 本地降级：Get 原始值 → Delete（两步，仅单进程场景，竞态窗口可忽略）。
+	// 缺失与其他错误统一映射为 redis.Nil——降级模式下无法区分，
+	// 调用方在 Redis 模式（生产形态）下才能精确区分"不存在"与"故障"。
 	data, err := m.getRaw(ctx, fullKey)
 	if err != nil {
-		return err
+		return redis.Nil
 	}
 	if err := m.l2().Delete(ctx, fullKey); err != nil {
 		return err
