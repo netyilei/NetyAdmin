@@ -1,6 +1,7 @@
 package job
 
 import (
+	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/task"
 	contentRepo "NetyAdmin/internal/repository/content"
@@ -25,9 +26,10 @@ func AllJobs(
 	userRepo userRepo.UserRepository,
 	watcher configsync.ConfigWatcher,
 	ipacSvc ipacService.IPACService,
+	cacheFast cache.ConfigCache,
 ) []task.Task {
 	return []task.Task{
-		NewArticlePublishJob(articleRepo), // 文章定时发布任务 (业务级)
+		NewArticlePublishJob(articleRepo, cacheFast),                                                     // 文章定时发布任务 (业务级)
 		NewSystemLogCleanupJob(taskLogRepo, opsLogRepo, errLogRepo, msgRepository, openLogRepo, watcher), // 日志清理任务 (运维级)
 		NewUploadRecordCleanupJob(uploadRecordRepo),                                                      // 上传记录过期清理任务 (运维级)
 		NewTokenHashCleanupJob(userTokenRepo, userRepo),                                                  // user_tokens + admin_tokens 过期清理任务 (运维级)

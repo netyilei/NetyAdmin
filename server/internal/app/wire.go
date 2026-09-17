@@ -247,6 +247,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		repos.user,
 		configWatcher,
 		services.ipac,
+		lazyCacheMgr,
 	)...)
 	taskManager.Register(services.msgSendJob)
 

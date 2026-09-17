@@ -347,13 +347,29 @@ func (m *Manager) StartTask(ctx context.Context, name string) error {
 	}
 
 	// 检查是否已经在运行
-	m.mu.RLock()
-	state, stateExists := m.states[name]
-	if stateExists && state.IsRunning && meta.Type == TypeInterval {
-		m.mu.RUnlock()
-		return fmt.Errorf("任务 [%s] 正在运行中", name)
+	// 注意：不能用 states[name].IsRunning 做间隔任务防重入——该标志在 execute 内
+	// 每次执行开始/结束翻转，间隔任务在两次 tick 之间几乎恒为 false，守卫形同虚设；
+	// 且检查与注册分锁存在窗口，并发 StartTask 双跑并覆盖旧 stopChan（goroutine 泄漏）。
+	// 正确信号是 intervals[name] 的存在性：检查与注册必须在同一把写锁内原子完成。
+	if meta.Type == TypeInterval {
+		m.mu.Lock()
+		if _, exists := m.intervals[name]; exists {
+			m.mu.Unlock()
+			return fmt.Errorf("任务 [%s] 正在运行中", name)
+		}
+		// 从引擎级 baseCtx 派生异步 ctx，保留 request_id 用于追踪
+		asyncCtx := m.asyncCtx(ctx)
+		m.wg.Add(1)
+		stopChan := make(chan struct{})
+		m.intervals[name] = stopChan
+		m.mu.Unlock()
+		// 异步执行间隔任务（GoSafe 包裹 recover + Sentry 上报，防止 panic 导致任务静默退出）
+		// runIntervalTask 内部 defer m.wg.Done() 在 panic 时仍会触发
+		recovery.GoSafe("task:interval", func() {
+			m.runIntervalTask(asyncCtx, t, meta, stopChan)
+		})
+		return nil
 	}
-	m.mu.RUnlock()
 
 	// 从引擎级 baseCtx 派生异步 ctx，保留 request_id 用于追踪
 	asyncCtx := m.asyncCtx(ctx)
@@ -363,17 +379,6 @@ func (m *Manager) StartTask(ctx context.Context, name string) error {
 		// 异步执行单次任务（GoSafe 包裹 recover + Sentry 上报，防止 panic 影响调度引擎）
 		recovery.GoSafe("task:once", func() {
 			m.execute(asyncCtx, t)
-		})
-	case TypeInterval:
-		m.wg.Add(1)
-		stopChan := make(chan struct{})
-		m.mu.Lock()
-		m.intervals[name] = stopChan
-		m.mu.Unlock()
-		// 异步执行间隔任务（GoSafe 包裹 recover + Sentry 上报，防止 panic 导致任务静默退出）
-		// runIntervalTask 内部 defer m.wg.Done() 在 panic 时仍会触发
-		recovery.GoSafe("task:interval", func() {
-			m.runIntervalTask(asyncCtx, t, meta, stopChan)
 		})
 	case TypeCron:
 		m.registerCronTask(asyncCtx, t, meta)

@@ -656,10 +656,19 @@ func (m *LazyCacheManager) GetFast(ctx context.Context, key string, tags []strin
 // 错误传播策略（与 SetFast 一致）：
 //   - L2 删除失败返回 error（L2 是 source of truth，删除失败意味着缓存仍存在旧数据）
 //   - L1 删除失败仅 Warn（L1 是优化层，故障时由 TTL 兜底自愈）
+//
+// 删除顺序必须先 L2 后 L1：若先删 L1，窗口期内读者的 L1 miss 会从 L2 读到旧值
+// 并回填 L1，随后 L2 删除完成，旧值便独自驻留 L1 直至 localTTL（约 10 分钟）。
+// 先删 L2 再删 L1，窗口期内读者最多命中一次 L1 旧值，且 L1 删除后不再残留。
 func (m *LazyCacheManager) DeleteFast(ctx context.Context, key string) error {
 	fullKey := m.buildKey(key)
 	if !m.l1Enabled {
 		return m.l2().Delete(ctx, fullKey)
+	}
+
+	// L2 删除（失败返回 error，L2 是 source of truth）
+	if err := m.l2().Delete(ctx, fullKey); err != nil {
+		return err
 	}
 
 	// L1 删除（失败仅 Warn，L1 是优化层）
@@ -669,9 +678,7 @@ func (m *LazyCacheManager) DeleteFast(ctx context.Context, key string) error {
 				"key", key, "err", err)
 		}
 	}
-
-	// L2 删除（失败返回 error，L2 是 source of truth）
-	return m.l2().Delete(ctx, fullKey)
+	return nil
 }
 
 func (m *LazyCacheManager) IsCacheEnabled(moduleName string) bool {
