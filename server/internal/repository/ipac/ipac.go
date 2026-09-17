@@ -8,6 +8,7 @@ import (
 	"NetyAdmin/internal/domain/entity"
 	"NetyAdmin/internal/domain/entity/ipac"
 	"NetyAdmin/internal/pkg/database"
+	"NetyAdmin/internal/pkg/like"
 	"NetyAdmin/internal/pkg/pagination"
 )
 
@@ -94,7 +95,7 @@ func (r *ipacRepository) List(ctx context.Context, query *IPACQuery) ([]*ipac.IP
 	}
 
 	if query.IPAddr != "" {
-		db = db.Where("ip_addr LIKE ?", "%"+query.IPAddr+"%")
+		db = db.Where("ip_addr LIKE ?", like.LikeContains(query.IPAddr))
 	}
 
 	if query.Type > 0 {

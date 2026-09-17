@@ -8,6 +8,7 @@ import (
 	"NetyAdmin/internal/domain/entity"
 	systemEntity "NetyAdmin/internal/domain/entity/system"
 	"NetyAdmin/internal/pkg/database"
+	"NetyAdmin/internal/pkg/like"
 	"NetyAdmin/internal/pkg/pagination"
 )
 
@@ -125,13 +126,13 @@ func (r *apiRepository) List(ctx context.Context, query *APIRepoQuery) ([]*syste
 	db := r.getDB(ctx).Model(&systemEntity.API{}).Preload("Menu")
 
 	if query.Name != "" {
-		db = db.Where("name LIKE ?", "%"+query.Name+"%")
+		db = db.Where("name LIKE ?", like.LikeContains(query.Name))
 	}
 	if query.Method != "" {
 		db = db.Where("method = ?", query.Method)
 	}
 	if query.Path != "" {
-		db = db.Where("path LIKE ?", "%"+query.Path+"%")
+		db = db.Where("path LIKE ?", like.LikeContains(query.Path))
 	}
 	if query.MenuID != nil {
 		db = db.Where("menu_id = ?", *query.MenuID)

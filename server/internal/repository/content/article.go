@@ -9,6 +9,7 @@ import (
 	"NetyAdmin/internal/domain/entity"
 	content "NetyAdmin/internal/domain/entity/content"
 	"NetyAdmin/internal/pkg/database"
+	"NetyAdmin/internal/pkg/like"
 	"NetyAdmin/internal/pkg/pagination"
 )
 
@@ -112,10 +113,10 @@ func (r *contentArticleRepository) List(ctx context.Context, query *ContentArtic
 		db = db.Where("category_id = ?", query.CategoryID)
 	}
 	if query.Title != "" {
-		db = db.Where("title LIKE ?", "%"+query.Title+"%")
+		db = db.Where("title LIKE ?", like.LikeContains(query.Title))
 	}
 	if query.Author != "" {
-		db = db.Where("author LIKE ?", "%"+query.Author+"%")
+		db = db.Where("author LIKE ?", like.LikeContains(query.Author))
 	}
 	if query.PublishStatus != "" {
 		db = db.Where("publish_status = ?", query.PublishStatus)
@@ -229,7 +230,7 @@ func (r *contentArticleRepository) ListPublished(ctx context.Context, query *Con
 		db = db.Where("category_id IN ?", query.CategoryIDs)
 	}
 	if query.Keyword != "" {
-		like := "%" + query.Keyword + "%"
+		like := like.LikeContains(query.Keyword)
 		db = db.Where("title LIKE ? OR summary LIKE ? OR keywords LIKE ?", like, like, like)
 	}
 

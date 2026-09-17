@@ -79,9 +79,12 @@ func (s *articleService) Create(ctx context.Context, adminID uint, req *contentD
 	var scheduledAt *time.Time
 	if req.ScheduledAt != nil {
 		t, err := time.Parse(time.RFC3339, *req.ScheduledAt)
-		if err == nil {
-			scheduledAt = &t
+		if err != nil {
+			// 静默吞错会让文章以 scheduled 状态入库但 scheduled_at=NULL，
+			// 定时发布条件永不命中，文章永久卡在定时状态
+			return nil, errorx.New(errorx.CodeInvalidParams, "定时发布时间格式错误（需 RFC3339）")
 		}
+		scheduledAt = &t
 	}
 
 	article := &contentEntity.ContentArticle{
@@ -187,13 +190,24 @@ func (s *articleService) Update(ctx context.Context, adminID uint, id uint, req 
 		article.AllowComment = *req.AllowComment
 	}
 	if req.PublishStatus != "" {
-		article.PublishStatus = contentEntity.PublishStatus(req.PublishStatus)
+		newStatus := contentEntity.PublishStatus(req.PublishStatus)
+		// 状态机补写：draft/scheduled → published 的跃迁必须补 published_at，
+		// 否则该字段为 NULL，而 C 端列表按 published_at DESC 排序（PG 默认 NULLS FIRST）
+		// 会让未走正常发布流程的文章反常置顶
+		if newStatus == contentEntity.PublishStatusPublished &&
+			article.PublishStatus != contentEntity.PublishStatusPublished &&
+			article.PublishedAt == nil {
+			now := time.Now()
+			article.PublishedAt = &now
+		}
+		article.PublishStatus = newStatus
 	}
 	if req.ScheduledAt != nil {
 		t, err := time.Parse(time.RFC3339, *req.ScheduledAt)
-		if err == nil {
-			article.ScheduledAt = &t
+		if err != nil {
+			return nil, errorx.New(errorx.CodeInvalidParams, "定时发布时间格式错误（需 RFC3339）")
 		}
+		article.ScheduledAt = &t
 	}
 	article.UpdatedBy = adminID
 

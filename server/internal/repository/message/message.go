@@ -9,6 +9,7 @@ import (
 	"NetyAdmin/internal/domain/entity"
 	msgEntity "NetyAdmin/internal/domain/entity/message"
 	"NetyAdmin/internal/pkg/database"
+	"NetyAdmin/internal/pkg/like"
 	"NetyAdmin/internal/pkg/pagination"
 )
 
@@ -119,10 +120,10 @@ func (r *msgRepository) ListTemplates(ctx context.Context, query *MsgRepoQuery) 
 		db = db.Where("channel = ?", query.Channel)
 	}
 	if query.Code != "" {
-		db = db.Where("code LIKE ?", "%"+query.Code+"%")
+		db = db.Where("code LIKE ?", like.LikeContains(query.Code))
 	}
 	if query.Name != "" {
-		db = db.Where("name LIKE ?", "%"+query.Name+"%")
+		db = db.Where("name LIKE ?", like.LikeContains(query.Name))
 	}
 	if query.Status != nil {
 		db = db.Where("status = ?", *query.Status)
@@ -298,7 +299,7 @@ func (r *msgRepository) ListRecords(ctx context.Context, query *MsgRepoQuery) ([
 		db = db.Where("channel = ?", query.Channel)
 	}
 	if query.Receiver != "" {
-		db = db.Where("receiver LIKE ?", "%"+query.Receiver+"%")
+		db = db.Where("receiver LIKE ?", like.LikeContains(query.Receiver))
 	}
 	if query.Status != nil {
 		db = db.Where("status = ?", *query.Status)

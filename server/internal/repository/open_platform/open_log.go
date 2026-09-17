@@ -10,6 +10,7 @@ import (
 	"NetyAdmin/internal/domain/entity"
 	"NetyAdmin/internal/domain/entity/open_platform"
 	"NetyAdmin/internal/pkg/database"
+	"NetyAdmin/internal/pkg/like"
 	"NetyAdmin/internal/pkg/pagination"
 )
 
@@ -92,7 +93,7 @@ func (r *openLogRepository) List(ctx context.Context, query *OpenLogRepoQuery) (
 		db = db.Where("app_key = ?", query.AppKey)
 	}
 	if query.ApiPath != "" {
-		db = db.Where("api_path LIKE ?", "%"+query.ApiPath+"%")
+		db = db.Where("api_path LIKE ?", like.LikeContains(query.ApiPath))
 	}
 	if query.StatusCode != nil {
 		db = db.Where("status_code = ?", *query.StatusCode)

@@ -9,6 +9,7 @@ import (
 	"NetyAdmin/internal/domain/entity"
 	content "NetyAdmin/internal/domain/entity/content"
 	"NetyAdmin/internal/pkg/database"
+	"NetyAdmin/internal/pkg/like"
 	"NetyAdmin/internal/pkg/pagination"
 )
 
@@ -96,7 +97,7 @@ func (r *contentBannerItemRepository) List(ctx context.Context, query *ContentBa
 		db = db.Where("group_id = ?", query.GroupID)
 	}
 	if query.Title != "" {
-		db = db.Where("title LIKE ?", "%"+query.Title+"%")
+		db = db.Where("title LIKE ?", like.LikeContains(query.Title))
 	}
 	if query.Status != "" {
 		db = db.Where("status = ?", query.Status)

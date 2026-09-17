@@ -7,6 +7,7 @@ import (
 	"NetyAdmin/internal/domain/entity"
 	logEntity "NetyAdmin/internal/domain/entity/log"
 	"NetyAdmin/internal/pkg/database"
+	"NetyAdmin/internal/pkg/like"
 	"NetyAdmin/internal/pkg/pagination"
 
 	"gorm.io/gorm"
@@ -59,7 +60,7 @@ func (r *OperationRepository) List(ctx context.Context, req *OperationQuery) ([]
 	}
 
 	if req.Action != "" {
-		query = query.Where("action LIKE ?", "%"+req.Action+"%")
+		query = query.Where("action LIKE ?", like.LikeContains(req.Action))
 	}
 
 	if req.StartDate != "" {

@@ -135,9 +135,28 @@ func (s *categoryService) Update(ctx context.Context, adminID uint, id uint, req
 		category.Icon = req.Icon
 	}
 	if req.ParentID != category.ParentID {
-		// 防止循环引用
+		// 自引用校验：禁止将 parent 设为自身
 		if req.ParentID == id {
 			return nil, errorx.New(errorx.CodeBadRequest, "父级分类不能是自己")
+		}
+		// 循环引用校验：沿 parent 链向上查找，回到当前 id 即拒绝
+		// （与 system/menu.go 的防环逻辑一致；BuildTree 有 visited 保护不会栈溢出，
+		// 但环上节点会从树中消失）
+		if req.ParentID != 0 {
+			currentParentID := req.ParentID
+			for i := 0; i < 100; i++ { // 最大深度 100，防恶意构造超长链
+				if currentParentID == 0 {
+					break
+				}
+				if currentParentID == id {
+					return nil, errorx.New(errorx.CodeBadRequest, "父级分类形成循环引用")
+				}
+				parent, err := s.repo.GetByID(ctx, currentParentID)
+				if err != nil {
+					break // 父级不存在，由外键语义兜底
+				}
+				currentParentID = parent.ParentID
+			}
 		}
 		category.ParentID = req.ParentID
 	}

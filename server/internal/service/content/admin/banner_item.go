@@ -87,15 +87,18 @@ func (s *bannerItemService) Create(ctx context.Context, adminID uint, req *conte
 	var startTime, endTime *time.Time
 	if req.StartTime != nil {
 		t, err := time.Parse(time.RFC3339, *req.StartTime)
-		if err == nil {
-			startTime = &t
+		if err != nil {
+			// 静默吞错会让配置的展示窗口被忽略（Banner 永久展示）
+			return nil, errorx.New(errorx.CodeInvalidParams, "展示开始时间格式错误（需 RFC3339）")
 		}
+		startTime = &t
 	}
 	if req.EndTime != nil {
 		t, err := time.Parse(time.RFC3339, *req.EndTime)
-		if err == nil {
-			endTime = &t
+		if err != nil {
+			return nil, errorx.New(errorx.CodeInvalidParams, "展示结束时间格式错误（需 RFC3339）")
 		}
+		endTime = &t
 	}
 
 	status := "1"
@@ -169,15 +172,17 @@ func (s *bannerItemService) Update(ctx context.Context, adminID uint, id uint, r
 	item.Sort = req.Sort
 	if req.StartTime != nil {
 		t, err := time.Parse(time.RFC3339, *req.StartTime)
-		if err == nil {
-			item.StartTime = &t
+		if err != nil {
+			return nil, errorx.New(errorx.CodeInvalidParams, "展示开始时间格式错误（需 RFC3339）")
 		}
+		item.StartTime = &t
 	}
 	if req.EndTime != nil {
 		t, err := time.Parse(time.RFC3339, *req.EndTime)
-		if err == nil {
-			item.EndTime = &t
+		if err != nil {
+			return nil, errorx.New(errorx.CodeInvalidParams, "展示结束时间格式错误（需 RFC3339）")
 		}
+		item.EndTime = &t
 	}
 	if req.Status != "" {
 		item.Status = req.Status

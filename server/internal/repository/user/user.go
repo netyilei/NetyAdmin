@@ -8,6 +8,7 @@ import (
 	"NetyAdmin/internal/domain/entity"
 	userEntity "NetyAdmin/internal/domain/entity/user"
 	"NetyAdmin/internal/pkg/database"
+	"NetyAdmin/internal/pkg/like"
 	"NetyAdmin/internal/pkg/pagination"
 )
 
@@ -162,19 +163,19 @@ func (r *userRepository) List(ctx context.Context, query *UserRepoQuery) ([]user
 	db := r.getDB(ctx).Model(&userEntity.User{})
 
 	if query.Username != "" {
-		db = db.Where("username LIKE ?", "%"+query.Username+"%")
+		db = db.Where("username LIKE ?", like.LikeContains(query.Username))
 	}
 	if query.Nickname != "" {
-		db = db.Where("nickname LIKE ?", "%"+query.Nickname+"%")
+		db = db.Where("nickname LIKE ?", like.LikeContains(query.Nickname))
 	}
 	if query.Gender != nil && *query.Gender != "" {
 		db = db.Where("gender = ?", *query.Gender)
 	}
 	if query.Phone != "" {
-		db = db.Where("phone LIKE ?", "%"+query.Phone+"%")
+		db = db.Where("phone LIKE ?", like.LikeContains(query.Phone))
 	}
 	if query.Email != "" {
-		db = db.Where("email LIKE ?", "%"+query.Email+"%")
+		db = db.Where("email LIKE ?", like.LikeContains(query.Email))
 	}
 	if query.Status != nil && *query.Status != "" {
 		db = db.Where("status = ?", *query.Status)
@@ -196,7 +197,7 @@ func (r *userRepository) List(ctx context.Context, query *UserRepoQuery) ([]user
 func (r *userRepository) SearchForAutocomplete(ctx context.Context, keyword string, limit int) ([]userEntity.User, error) {
 	var users []userEntity.User
 	db := r.getDB(ctx).Model(&userEntity.User{}).
-		Where("username LIKE ? OR email LIKE ? OR phone LIKE ?", "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%").
+		Where("username LIKE ? OR email LIKE ? OR phone LIKE ?", like.LikeContains(keyword), like.LikeContains(keyword), like.LikeContains(keyword)).
 		Limit(limit).
 		Order("id DESC")
 	if err := db.Find(&users).Error; err != nil {

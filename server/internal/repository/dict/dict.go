@@ -8,6 +8,7 @@ import (
 	"NetyAdmin/internal/domain/entity"
 	dictEntity "NetyAdmin/internal/domain/entity/dict"
 	"NetyAdmin/internal/pkg/database"
+	"NetyAdmin/internal/pkg/like"
 	"NetyAdmin/internal/pkg/pagination"
 )
 
@@ -83,10 +84,10 @@ func (r *dictRepository) ListType(ctx context.Context, name, code, status string
 	var total int64
 	query := r.getDB(ctx).Model(&dictEntity.DictType{})
 	if name != "" {
-		query = query.Where("name LIKE ?", "%"+name+"%")
+		query = query.Where("name LIKE ?", like.LikeContains(name))
 	}
 	if code != "" {
-		query = query.Where("code LIKE ?", "%"+code+"%")
+		query = query.Where("code LIKE ?", like.LikeContains(code))
 	}
 	if status != "" {
 		query = query.Where("status = ?", status)
@@ -144,7 +145,7 @@ func (r *dictRepository) ListDataFull(ctx context.Context, dictCode, label, stat
 		query = query.Where("dict_code = ?", dictCode)
 	}
 	if label != "" {
-		query = query.Where("label LIKE ?", "%"+label+"%")
+		query = query.Where("label LIKE ?", like.LikeContains(label))
 	}
 	if status != "" {
 		query = query.Where("status = ?", status)

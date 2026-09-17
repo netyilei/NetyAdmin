@@ -8,6 +8,7 @@ import (
 	"NetyAdmin/internal/domain/entity"
 	"NetyAdmin/internal/domain/entity/open_platform"
 	"NetyAdmin/internal/pkg/database"
+	"NetyAdmin/internal/pkg/like"
 	"NetyAdmin/internal/pkg/pagination"
 )
 
@@ -93,10 +94,10 @@ func (r *openApiRepository) List(ctx context.Context, query *OpenApiRepoQuery) (
 		db = db.Where("method = ?", query.Method)
 	}
 	if query.Path != "" {
-		db = db.Where("path LIKE ?", "%"+query.Path+"%")
+		db = db.Where("path LIKE ?", like.LikeContains(query.Path))
 	}
 	if query.Name != "" {
-		db = db.Where("name LIKE ?", "%"+query.Name+"%")
+		db = db.Where("name LIKE ?", like.LikeContains(query.Name))
 	}
 	if query.Group != "" {
 		db = db.Where("group_name = ?", query.Group)

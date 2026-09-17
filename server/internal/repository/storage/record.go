@@ -9,6 +9,7 @@ import (
 	"NetyAdmin/internal/domain/entity"
 	storageEntity "NetyAdmin/internal/domain/entity/storage"
 	"NetyAdmin/internal/pkg/database"
+	"NetyAdmin/internal/pkg/like"
 	"NetyAdmin/internal/pkg/pagination"
 )
 
@@ -18,8 +19,8 @@ type RecordRepository interface {
 	Delete(ctx context.Context, id uint) error
 	DeleteMultiple(ctx context.Context, ids []uint) error
 	GetByID(ctx context.Context, id uint) (*storageEntity.Record, error)
-		// LockRecordByID 行锁读取指定 record（SELECT FOR UPDATE），用于上传完成确认流程的 TOCTOU 防护。
-		// 调用方需在事务上下文中调用，以保证行锁与后续状态翻转同事务。
+	// LockRecordByID 行锁读取指定 record（SELECT FOR UPDATE），用于上传完成确认流程的 TOCTOU 防护。
+	// 调用方需在事务上下文中调用，以保证行锁与后续状态翻转同事务。
 	LockRecordByID(ctx context.Context, id uint) (*storageEntity.Record, error)
 	// FlipStatusToUploaded 将 record 状态翻转为 uploaded（仅当当前为 pending）。
 	// WHERE 条件含 status=pending 保证幂等：返回 updated=true 表示本次实际翻转发生。
@@ -160,7 +161,7 @@ func (r *recordRepository) List(ctx context.Context, query *RecordQuery) ([]*sto
 	db := r.getDB(ctx).Model(&storageEntity.Record{}).Preload("StorageConfig")
 
 	if query.FileName != "" {
-		db = db.Where("file_name LIKE ?", "%"+query.FileName+"%")
+		db = db.Where("file_name LIKE ?", like.LikeContains(query.FileName))
 	}
 	if query.Source != "" {
 		db = db.Where("source = ?", query.Source)
