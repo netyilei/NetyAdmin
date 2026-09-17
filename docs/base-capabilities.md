@@ -25,6 +25,10 @@
 | 缓存 | `pkg/cache`：FetchFast（L1+L2）/ SetNX（原子占位）/ **GetAndDelete**（GETDEL 原子消费）/ InvalidateByTags（跨节点失效） | 一次性凭证消费、防重放、tag 失效均有现成原语 |
 | 验证码原子消费 | `service/user` 的 `VerifyAndClearCode` | GETDEL + 5 次错误上限 + 故障 fail-closed，直接用 |
 | 登录锁定 | `pkg/auth.HandlePasswordWrong` / `ClearLoginRetry` | 计数、锁定、Redis 故障 fail-closed 语义齐备 |
+| refresh 轮换抢占/登出拉黑 | `pkg/auth.ClaimRefreshRotation`（fail-closed）/ `BlacklistRefresh`（best-effort） | admin/user 两端共享，勿再内联 SetNX/Set 黑名单块 |
+| 用户唯一性预检 | `userBase.checkUserUnique`（service/user） | Register 与 admin Create 共享；DB 唯一索引兜底 |
+| 布尔配置解析 | `pkg/utils.IsTruthy(s)` | "true"/"1" 唯一定义（configsync 内部变体因循环依赖保留） |
+| int 配置读取 | `pkg/utils.GetIntWithDefault` / 无 watcher 版 | 勿再手写 Atoi+默认值 |
 
 **注意**：实体字段标 `json:"-"` 的（如 SecretKey/hash）**不能**直接放进 JSON 序列化的缓存层——用显式 entry 结构（参考 `repository/user/user_token_cached.go`、`service/storage/config.go` 的先例）。
 
@@ -45,6 +49,8 @@
 | 上传三步流 | `utils/upload.uploadFileWithCredentials` | 凭证→直传→CompleteUpload 已封装，勿手写（富文本编辑器内嵌上传同用此封装） |
 | 表格 CRUD 样板 | `hooks/common/table.useTable` + `hooks/common/operation.useOperation` | 分页/弹窗操作统一 |
 | 深拷贝 | `@na/utils` 的 `jsonClone` | 勿写 `JSON.parse(JSON.stringify(...))` |
+| 状态标签渲染 | `hooks/common/dict.renderTagFromMap(map, value)` | 各页只维护映射表，渲染结构统一（勿再内联 NTag 三元/查表） |
+| 字节数格式化 | `utils/format.formatBytes` | B/KB/MB/GB |
 | 表单校验正则 | `constants/reg` + `hooks/common/form` | 手机号/邮箱等已集中 |
 | 请求层 | `utils/service`（统一响应/错误/token 注入） | 禁止裸 fetch/axios |
 
@@ -57,3 +63,6 @@
 5. 任何"endpoint 剥协议/拼存储 URL" → `pkg/storage` 已闭环（含寻址风格决策）
 6. 任何"防重入/一次性消费" → `SetNX` / `GetAndDelete` 缓存原语
 7. 错误返回时抄写 errorx 默认文案 → `errorx.New(code)` 即可
+8. refresh 黑名单/轮换抢占逻辑 → `pkg/auth.ClaimRefreshRotation` / `BlacklistRefresh`
+9. 布尔配置判断 `"true"||"1"` → `utils.IsTruthy`
+10. 状态列 NTag 渲染 → `renderTagFromMap`（前端）/勿自建渲染结构
