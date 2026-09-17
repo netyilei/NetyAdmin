@@ -65,6 +65,45 @@ func (r *cachedUserTokenRepository) invalidateUser(ctx context.Context, userID s
 	}
 }
 
+// userTokenCacheEntry 缓存层的显式序列化结构。
+//
+// 不能直接缓存 user.UserToken：其 AccessHash/RefreshHash 标注 json:"-"
+// （避免经 API 响应泄露哈希），而缓存层恰好用 JSON 序列化——直接存会把
+// 哈希丢成空串，缓存命中的行再也过不了中间件的 fail-closed 哈希校验
+// （历史教训：旧校验"空值跳过"正是为绕过此数据丢失而存在的 fail-open）。
+type userTokenCacheEntry struct {
+	ID               uint       `json:"id"`
+	UserID           string     `json:"userId"`
+	Platform         string     `json:"platform"`
+	TokenVersion     uint64     `json:"tokenVersion"`
+	AccessHash       string     `json:"accessHash"`
+	RefreshHash      string     `json:"refreshHash"`
+	AccessExpiresAt  *time.Time `json:"accessExpiresAt"`
+	RefreshExpiresAt *time.Time `json:"refreshExpiresAt"`
+	CreatedAt        time.Time  `json:"createdAt"`
+	UpdatedAt        time.Time  `json:"updatedAt"`
+}
+
+func newUserTokenCacheEntry(t *user.UserToken) userTokenCacheEntry {
+	return userTokenCacheEntry{
+		ID: t.ID, UserID: t.UserID, Platform: t.Platform,
+		TokenVersion: t.TokenVersion,
+		AccessHash:   t.AccessHash, RefreshHash: t.RefreshHash,
+		AccessExpiresAt: t.AccessExpiresAt, RefreshExpiresAt: t.RefreshExpiresAt,
+		CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
+	}
+}
+
+func (e userTokenCacheEntry) toUserToken() *user.UserToken {
+	return &user.UserToken{
+		ID: e.ID, UserID: e.UserID, Platform: e.Platform,
+		TokenVersion: e.TokenVersion,
+		AccessHash:   e.AccessHash, RefreshHash: e.RefreshHash,
+		AccessExpiresAt: e.AccessExpiresAt, RefreshExpiresAt: e.RefreshExpiresAt,
+		CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt,
+	}
+}
+
 func (r *cachedUserTokenRepository) UpsertAndIncrement(ctx context.Context, t *user.UserToken) (uint64, error) {
 	v, err := r.inner.UpsertAndIncrement(ctx, t)
 	if err != nil {
@@ -78,10 +117,10 @@ func (r *cachedUserTokenRepository) UpsertAndIncrement(ctx context.Context, t *u
 
 func (r *cachedUserTokenRepository) GetByPlatform(ctx context.Context, userID, platform string) (*user.UserToken, error) {
 	key := cache.KeyUserToken(userID, platform)
-	// 缓存命中：直接返回缓存的 UserToken 行（含 token_version + access_hash）
-	var cached user.UserToken
+	// 缓存命中：返回缓存的 UserToken 行（含 token_version + 两个 hash，经专用 entry 序列化）
+	var cached userTokenCacheEntry
 	if err := r.cacheSlow.Get(ctx, key, &cached); err == nil {
-		return &cached, nil
+		return cached.toUserToken(), nil
 	}
 	// 缓存未命中：回源 DB，并回填缓存（双重 tag：user 级 + platform 级，便于精准失效）
 	got, err := r.inner.GetByPlatform(ctx, userID, platform)
@@ -93,7 +132,7 @@ func (r *cachedUserTokenRepository) GetByPlatform(ctx context.Context, userID, p
 		cache.TagUserTokenByUser(userID),
 		cache.TagUserTokenByPlatform(userID, platform),
 	}
-	if err := r.cacheSlow.Set(ctx, key, got, r.ttl, tags...); err != nil {
+	if err := r.cacheSlow.Set(ctx, key, newUserTokenCacheEntry(got), r.ttl, tags...); err != nil {
 		// 回填失败不阻断鉴权（仅失去加速，下次回源）
 		slog.Warn("set user_tokens cache failed", "key", key, "err", err)
 	}
