@@ -69,6 +69,7 @@ NetyAdmin 是一个基于 **Go + Gin** 后端和 **Vue 3 + TypeScript** 前端�
 
 | 文档 | 说明 |
 |------|------|
+| [基座能力清单](docs/base-capabilities.md) | **前后端通用能力/工具的唯一入口索引**——写任何通用功能前必查，避免重复造轮子 |
 | [Server 架构设计与目录结构](docs/server-architecture.md) | 后端架构理念、分层设计、目录结构、关键规范 |
 | [Admin-Web 架构设计与目录结构](docs/admin-web-architecture.md) | 前端架构理念、目录规范、开发规范 |
 
