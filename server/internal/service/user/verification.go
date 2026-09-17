@@ -143,8 +143,13 @@ func (s *verificationService) SendCode(ctx context.Context, scene, target, captc
 	}
 
 	// 1. 频率限制 (60秒内只能发送一次)
+	// fail-closed：限流键查询异常（如 Redis 故障）时拒绝发送而非放行，
+	// 避免故障窗口内验证码轰炸
 	limitKey := cache.KeyVerifyCodeLimit(scene, target)
-	exists, _ := s.cacheSlow.Exists(ctx, limitKey)
+	exists, err := s.cacheSlow.Exists(ctx, limitKey)
+	if err != nil {
+		return errorx.New(errorx.CodeInternalError, "发送服务暂不可用，请稍后重试")
+	}
 	if exists {
 		return errorx.New(errorx.CodeCaptchaSendTooFrequent, "验证码发送过于频繁，请稍后再试")
 	}
@@ -215,15 +220,42 @@ func (s *verificationService) VerifyCode(ctx context.Context, scene, target, cod
 	return true, nil
 }
 
+// VerifyAndClearCode 原子校验并消费验证码（一次性语义）。
+//
+// 用 GETDEL 原子"取出+比对"替代原 Verify→Delete 两步：两步之间并发请求
+// 可用同一验证码各通过一次。错误尝试仍保留 VerifyCode 的计数语义
+// （5 次上限），校验失败时回写验证码以维持多次尝试窗口。
 func (s *verificationService) VerifyAndClearCode(ctx context.Context, scene, target, code string) (bool, error) {
-	ok, err := s.VerifyCode(ctx, scene, target, code)
-	if ok {
-		cacheKey := cache.KeyVerificationCode(scene, target)
-		if dErr := s.cacheSlow.Delete(ctx, cacheKey); dErr != nil {
-			slog.Warn("delete verification code cache failed", "key", cacheKey, "err", dErr)
-		}
+	// 尝试次数检查：超过 5 次验证码作废
+	attemptKey := cache.KeyVerifyCodeAttempt(scene, target)
+	var attemptStr string
+	_ = s.cacheSlow.Get(ctx, attemptKey, &attemptStr)
+	if n, err := strconv.Atoi(attemptStr); err == nil && n >= 5 {
+		_ = s.cacheSlow.Delete(ctx, cache.KeyVerificationCode(scene, target))
+		return false, nil
 	}
-	return ok, err
+
+	// 原子消费：取出即删除
+	var storedCode string
+	if err := s.cacheSlow.GetAndDelete(ctx, cache.KeyVerificationCode(scene, target), &storedCode); err != nil {
+		return false, nil // 验证码不存在或已被消费
+	}
+
+	if storedCode != code {
+		// 错误尝试：计数 +1 并回写验证码（GETDEL 已删），维持 5 次尝试窗口。
+		// 回写 TTL 取原有效期上限，最坏情况是该次错误尝试顺延过期时间。
+		n, _ := strconv.Atoi(attemptStr)
+		n++
+		if err := s.cacheSlow.Set(ctx, attemptKey, strconv.Itoa(n), 10*time.Minute); err != nil {
+			slog.Warn("set attempt count cache failed", "key", attemptKey, "err", err)
+		}
+		if err := s.cacheSlow.Set(ctx, cache.KeyVerificationCode(scene, target), storedCode, 10*time.Minute); err != nil {
+			slog.Warn("restore verification code after wrong attempt failed", "scene", scene, "target", target, "err", err)
+		}
+		return false, nil
+	}
+
+	return true, nil
 }
 
 func (s *verificationService) generateCode(length int) (string, error) {

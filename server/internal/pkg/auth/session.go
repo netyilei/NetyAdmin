@@ -80,7 +80,8 @@ func HandlePasswordWrong(
 		if err := cacheMgr.Delete(ctx, retryKey); err != nil {
 			slog.Warn("login lock: delete retryKey failed", "retryKey", retryKey, "err", err)
 		}
-		return true, fmt.Sprintf("密码错误次数过多，账户已被锁定 %v", cfg.LockDuration)
+		// Redis 故障期间锁定实际未写入，不能提示"已锁定"误导用户；统一按服务降级话术
+		return true, "登录服务暂不可用，请稍后重试"
 	}
 
 	// Incr 返回值即为累计失败次数，达到阈值则锁定

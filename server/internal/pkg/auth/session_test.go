@@ -226,8 +226,9 @@ func TestHandlePasswordWrong_IncrFailsFailClosed(t *testing.T) {
 
 	locked, msg := authPkg.HandlePasswordWrong(context.Background(), mgr, lockKey, retryKey, cfg)
 
-	assert.True(t, locked, "Incr 失败应 fail-closed 锁定")
-	assert.Contains(t, msg, "已被锁定")
+	assert.True(t, locked, "Incr 失败应 fail-closed 拒绝")
+	// Redis 故障时锁定实际未写入，不能误导用户"已锁定"，应返回服务降级话术
+	assert.Contains(t, msg, "登录服务暂不可用")
 
 	// lockKey 应被设置
 	val, ok := mgr.lockValue(lockKey)

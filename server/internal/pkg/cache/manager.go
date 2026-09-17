@@ -94,6 +94,10 @@ type SecurityCache interface {
 	// 用于 Nonce 防重放等需要原子占位的场景
 	SetNX(ctx context.Context, key string, value interface{}, ttl time.Duration) (bool, error)
 
+	// GetAndDelete 原子读取并删除（Redis GETDEL；本地降级模式为 Get+Delete 两步）
+	// 用于一次性凭证（如验证码）的原子消费，消除"校验→删除"两步间的并发复用窗口
+	GetAndDelete(ctx context.Context, key string, v interface{}) error
+
 	// Incr 原子自增计数器，并在首次设置时配置 TTL
 	// 仅在 Redis（L2）上操作，BigCache（L1）不支持 INCR
 	// Redis 不可用时返回 error（fail-closed，不允许跳过原子计数）
@@ -285,6 +289,33 @@ func (m *LazyCacheManager) SetNX(ctx context.Context, key string, value interfac
 	}
 	time.AfterFunc(ttl, func() { m.localNX.Delete(fullKey) })
 	return true, nil
+}
+
+// GetAndDelete 原子读取并删除（模式B，绝不碰 L1）。
+//
+// Redis 模式用 GETDEL 单命令原子完成；本地降级模式退化为 Get+Delete 两步
+// （仅单进程场景，竞态窗口可忽略）。key 不存在时返回错误（redis.Nil 语义），
+// 调用方据此判定"凭证不存在/已消费"。
+func (m *LazyCacheManager) GetAndDelete(ctx context.Context, key string, v interface{}) error {
+	fullKey := m.buildKey(key)
+
+	if m.redisClient != nil {
+		data, err := m.redisClient.GetDel(ctx, fullKey).Bytes()
+		if err != nil {
+			return err
+		}
+		return m.unmarshal(data, v)
+	}
+
+	// 本地降级：Get 原始值 → Delete（两步，仅单进程场景，竞态窗口可忽略）
+	data, err := m.getRaw(ctx, fullKey)
+	if err != nil {
+		return err
+	}
+	if err := m.l2().Delete(ctx, fullKey); err != nil {
+		return err
+	}
+	return m.unmarshal(data, v)
 }
 
 // l2 返回非 Fast 系列方法应操作的缓存层：

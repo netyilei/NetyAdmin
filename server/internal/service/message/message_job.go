@@ -87,14 +87,21 @@ func (j *MsgSendJob) Execute(ctx context.Context, payload json.RawMessage) error
 	}
 
 	if rec.Channel == "internal" {
-		// TM 单事务原子完成「更新投递记录状态 + 创建内部信箱消息」，任一步失败整体回滚（fail-closed）。
+		// TM 单事务原子完成「条件更新投递记录状态 + 创建内部信箱消息」，任一步失败整体回滚（fail-closed）。
 		// 消除「假成功」反模式：避免状态已置 Success 但信箱未投递。
+		// FinalizeRecord 条件更新（仅 pending → 终态）：并发重复投递时后来者
+		// RowsAffected=0，回滚并放弃——不会重复写信箱消息。
 		txCtx, tx := j.tm.Begin(ctx)
 		rec.Status = msgEntity.MsgStatusSuccess
-		if err := j.repo.UpdateRecord(txCtx, rec); err != nil {
-			slog.Error("message job execute: update record failed", "recordID", rec.ID, "err", err)
+		rows, err := j.repo.FinalizeRecord(txCtx, rec)
+		if err != nil {
+			slog.Error("message job execute: finalize record failed", "recordID", rec.ID, "err", err)
 			j.tm.Rollback(tx)
 			return errorx.New(errorx.CodeInternalError, "消息投递失败")
+		}
+		if rows == 0 {
+			j.tm.Rollback(tx)
+			return nil
 		}
 		msgType := 2
 		if rec.Receiver == "all" {
@@ -119,14 +126,16 @@ func (j *MsgSendJob) Execute(ctx context.Context, payload json.RawMessage) error
 	if !j.isChannelEnabled(rec.Channel) {
 		rec.Status = msgEntity.MsgStatusFailed
 		rec.ErrorMsg = rec.Channel + " service is disabled"
-		return j.repo.UpdateRecord(ctx, rec)
+		_, err := j.repo.FinalizeRecord(ctx, rec)
+		return err
 	}
 
 	driver, ok := j.drivers[rec.Channel]
 	if !ok {
 		rec.Status = msgEntity.MsgStatusFailed
 		rec.ErrorMsg = "no driver found for channel: " + rec.Channel
-		return j.repo.UpdateRecord(ctx, rec)
+		_, err := j.repo.FinalizeRecord(ctx, rec)
+		return err
 	}
 
 	sendCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -142,5 +151,7 @@ func (j *MsgSendJob) Execute(ctx context.Context, payload json.RawMessage) error
 		rec.ErrorMsg = ""
 	}
 
-	return j.repo.UpdateRecord(ctx, rec)
+	// 条件写入终态：若已被并发消费者处理（RowsAffected=0）则放弃写入，不覆盖其结果
+	_, err = j.repo.FinalizeRecord(ctx, rec)
+	return err
 }

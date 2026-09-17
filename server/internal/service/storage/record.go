@@ -231,12 +231,11 @@ func (s *recordService) GetUploadCredentials(ctx context.Context, req *Credentia
 
 	key := storage.GenerateObjectKeyWithBusiness(req.FileName, config.PathPrefix, req.BusinessType, req.BusinessID)
 
-	contentType := req.ContentType
-	if contentType == "" {
-		// 上传凭证签发时还没有文件内容，按文件名扩展名推断 MIME
-		// （按文件名扩展名推断 MIME 类型，替代原空参 DetectMimeType 调用）
-		contentType = storage.MimeTypeByExt(req.FileName)
-	}
+	// MIME 统一按文件名扩展名服务端推断，不透传客户端值：
+	// 预签名 PUT 不绑定 Content-Type（客户端实际可发送任意类型），
+	// 透传值仅作落库展示，服务端推断可避免 text/html 等危险类型被"合法"登记
+	// （存储型 XSS 纵深防御；桶/CDN 侧仍建议配置 Content-Disposition）。
+	contentType := storage.MimeTypeByExt(req.FileName)
 
 	expires := 15 * time.Minute
 	presignedURL, err := driver.GetPresignedUploadURL(ctx, key, contentType, expires)

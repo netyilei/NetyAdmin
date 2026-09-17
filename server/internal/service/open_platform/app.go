@@ -477,7 +477,7 @@ func (s *appService) DeleteScopeGroup(ctx context.Context, id uint64) error {
 }
 
 func (s *appService) LinkIPRules(ctx context.Context, appID string, ruleIDs []uint) error {
-	// TM 单事务原子完成「清空旧关联 + 写入新关联」，任一步失败整体回滚（fail-closed）。
+	// TM 单事务原子完成「清空旧关联 + 写入新关联（+ 必要时开启总开关）」，任一步失败整体回滚（fail-closed）。
 	// repo.LinkRulesToApp 内部已移除自管事务，由 service 层负责 TM 包裹以满足 RULES.md §二事务管理红线。
 	txCtx, tx := s.tm.Begin(ctx)
 	if err := s.ipacRepo.LinkRulesToApp(txCtx, appID, ruleIDs); err != nil {
@@ -485,10 +485,25 @@ func (s *appService) LinkIPRules(ctx context.Context, appID string, ruleIDs []ui
 		s.tm.Rollback(tx)
 		return errorx.New(errorx.CodeInternalError, "应用 IP 规则关联失败")
 	}
+	// 开关联动：挂载了规则但 app 的 ip_filter_enabled 总开关未开启时，
+	// CheckIP 会整体跳过应用级规则（规则静默不生效，"以为封了实际没封"）。
+	// 同事务自动开启开关，消除配置歧义。
+	if len(ruleIDs) > 0 {
+		if app, err := s.repo.GetByID(txCtx, appID); err == nil && app != nil && !app.IPFilterEnabled {
+			if err := s.repo.SetIPFilterEnabled(txCtx, appID, true); err != nil {
+				slog.Error("app link ip rules: auto enable ip filter failed", "appID", appID, "err", err)
+				s.tm.Rollback(tx)
+				return errorx.New(errorx.CodeInternalError, "应用 IP 规则关联失败")
+			}
+			slog.Info("app link ip rules: ip_filter_enabled auto turned on", "appID", appID)
+		}
+	}
 	if err := s.tm.Commit(tx); err != nil {
 		slog.Error("app link ip rules: commit failed", "appID", appID, "err", err)
 		return errorx.New(errorx.CodeInternalError, "应用 IP 规则关联失败")
 	}
+	// app 行（总开关）可能已变更，失效 app 维度缓存
+	s.invalidateAppScopeCaches(ctx)
 	if err := s.ipacSvc.NotifyAndReload(ctx); err != nil {
 		return fmt.Errorf("notify ipac reload after link ip rules: %w", err)
 	}

@@ -24,6 +24,8 @@ type AppRepository interface {
 	GetByID(ctx context.Context, id string) (*open_platform.App, error)
 	GetByKey(ctx context.Context, appKey string) (*open_platform.App, error)
 	List(ctx context.Context, query *AppRepoQuery) ([]*open_platform.App, int64, error)
+	// SetIPFilterEnabled 单列更新 app 的 IP 过滤总开关（LinkIPRules 联动开启用）
+	SetIPFilterEnabled(ctx context.Context, appID string, enabled bool) error
 
 	// Scopes
 	GetAppScopes(ctx context.Context, appID string) ([]string, error)
@@ -120,6 +122,13 @@ func (r *appRepository) GetByID(ctx context.Context, id string) (*open_platform.
 		return nil, err
 	}
 	return &app, nil
+}
+
+// SetIPFilterEnabled 单列更新 IP 过滤总开关（不触发 Save 全字段，避免覆盖并发修改）
+func (r *appRepository) SetIPFilterEnabled(ctx context.Context, appID string, enabled bool) error {
+	return r.getDB(ctx).Model(&open_platform.App{}).
+		Where("id = ?", appID).
+		UpdateColumn("ip_filter_enabled", enabled).Error
 }
 
 func (r *appRepository) GetByKey(ctx context.Context, appKey string) (*open_platform.App, error) {

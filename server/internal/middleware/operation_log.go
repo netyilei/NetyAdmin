@@ -16,6 +16,10 @@ import (
 	logService "NetyAdmin/internal/service/log"
 )
 
+// maxNonJSONBodyLogBytes 非 JSON 请求体入库截断上限（该分支无法按键脱敏，
+// 截断既防敏感明文全量落库，也防超大 body 撑爆日志表）。
+const maxNonJSONBodyLogBytes = 2 * 1024
+
 func OperationLogger(logBus logService.LogBusService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		method := c.Request.Method
@@ -99,7 +103,13 @@ func OperationLogger(logBus logService.LogBusService) gin.HandlerFunc {
 					detail = string(sanitized)
 				}
 			} else {
-				detail = string(requestBody)
+				// 非 JSON 请求体无法按键脱敏：截断后入库，防止敏感明文全量落库
+				// 与超大 body 撑爆日志表（正常客户端均发 JSON，此分支多为异常请求）
+				if len(requestBody) > maxNonJSONBodyLogBytes {
+					detail = string(requestBody[:maxNonJSONBodyLogBytes]) + "...(truncated)"
+				} else {
+					detail = string(requestBody)
+				}
 			}
 		}
 

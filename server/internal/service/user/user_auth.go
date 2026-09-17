@@ -68,18 +68,8 @@ func (s *userClientService) Register(ctx context.Context, req *clientDto.UserReg
 		return "", errorx.New(errorx.CodeInvalidParams, "手机号或邮箱必填其一")
 	}
 
-	verifyConfig, _ := s.verifySvc.GetVerifyConfig(ctx, SceneRegister)
-	if verifyConfig != nil && verifyConfig.Enabled {
-		if req.Code == "" {
-			return "", errorx.New(errorx.CodeCaptchaRequired, "验证码必填")
-		}
-		ok, err := s.verifySvc.VerifyAndClearCode(ctx, SceneRegister, target, req.Code)
-		if err != nil || !ok {
-			return "", errorx.New(errorx.CodeCaptchaInvalid, "验证码错误或已过期")
-		}
-	}
-
-	// 1. 检查唯一性
+	// 1. 检查唯一性（前置到验证码消费之前：验证码是一次性凭证，
+	// 先消费后查重会在"用户名重复"等失败路径上白白烧掉验证码，用户需重新发码）
 	// Repo 错误仅 Warn 不阻断：DB 真正不可用时后续 Create 会失败兜底，
 	// DB 间歇故障时唯一性约束（DB 层 UNIQUE index）仍能在 Create 阶段拦截重复。
 	// 不再静默吞错 `_ = ...`：失败需可观测，便于排查 DB 间歇故障。
@@ -112,18 +102,30 @@ func (s *userClientService) Register(ctx context.Context, req *clientDto.UserReg
 		}
 	}
 
-	// 2. 校验密码强度
+	// 2. 验证码校验（唯一性通过后才消费一次性凭证）
+	verifyConfig, _ := s.verifySvc.GetVerifyConfig(ctx, SceneRegister)
+	if verifyConfig != nil && verifyConfig.Enabled {
+		if req.Code == "" {
+			return "", errorx.New(errorx.CodeCaptchaRequired, "验证码必填")
+		}
+		ok, err := s.verifySvc.VerifyAndClearCode(ctx, SceneRegister, target, req.Code)
+		if err != nil || !ok {
+			return "", errorx.New(errorx.CodeCaptchaInvalid, "验证码错误或已过期")
+		}
+	}
+
+	// 3. 校验密码强度
 	if err := s.validatePasswordStrength(ctx, req.Password); err != nil {
 		return "", err
 	}
 
-	// 3. 密码加密
+	// 4. 密码加密
 	hashedPassword, err := passwordPkg.Hash(req.Password)
 	if err != nil {
 		return "", errorx.New(errorx.CodeInternalError, "密码加密失败")
 	}
 
-	// 4. 创建实体
+	// 5. 创建实体
 	user := &userEntity.User{
 		ID:       utils.NewULID(),
 		Username: req.Username,

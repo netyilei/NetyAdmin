@@ -2,8 +2,8 @@ package v1
 
 // UserLoginReq 用户登录请求
 type UserLoginReq struct {
-	Username    string `json:"userName" binding:"required"`
-	Password    string `json:"password" binding:"required"`
+	Username string `json:"userName" binding:"required"`
+	Password string `json:"password" binding:"required"`
 	// Platform 登录平台标识，必填。用于多端会话隔离：
 	//   - 同 platform 再次登录 → 顶掉该 platform 的旧会话（顶号）
 	//   - 不同 platform → 各自独立会话，互不影响（多端并存）

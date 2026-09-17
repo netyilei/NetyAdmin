@@ -25,6 +25,9 @@ type MsgRepository interface {
 	// Record
 	CreateRecord(ctx context.Context, rec *msgEntity.MsgRecord) error
 	UpdateRecord(ctx context.Context, rec *msgEntity.MsgRecord) error
+	// FinalizeRecord 条件更新：仅当记录仍为 pending 时写入终态（防并发双发/双写），
+	// 返回影响行数（0 = 已被其他消费者处理）
+	FinalizeRecord(ctx context.Context, rec *msgEntity.MsgRecord) (int64, error)
 	GetRecordByID(ctx context.Context, id uint64) (*msgEntity.MsgRecord, error)
 	ListRecords(ctx context.Context, query *MsgRepoQuery) ([]*msgEntity.MsgRecord, int64, error)
 	DeleteRecordsBefore(ctx context.Context, before time.Time) error
@@ -273,6 +276,23 @@ func (r *msgRepository) CreateRecord(ctx context.Context, rec *msgEntity.MsgReco
 
 func (r *msgRepository) UpdateRecord(ctx context.Context, rec *msgEntity.MsgRecord) error {
 	return r.getDB(ctx).Save(rec).Error
+}
+
+// FinalizeRecord 条件更新投递记录：仅当 status 仍为 pending 时写入终态。
+//
+// 读-判-写（GetRecordByID → check pending → UpdateRecord）非原子，
+// 若未来出现同一 recordID 的重复投递，两个消费者都会通过 pending 检查
+// 并各自发送；条件更新保证只有第一个写入者胜出，后来者 RowsAffected=0
+// 直接放弃（此时发送已发生，属 at-least-once 上限，不再写终态覆盖）。
+func (r *msgRepository) FinalizeRecord(ctx context.Context, rec *msgEntity.MsgRecord) (int64, error) {
+	res := r.getDB(ctx).Model(&msgEntity.MsgRecord{}).
+		Where("id = ? AND status = ?", rec.ID, msgEntity.MsgStatusPending).
+		Updates(map[string]interface{}{
+			"status":      rec.Status,
+			"error_msg":   rec.ErrorMsg,
+			"retry_count": rec.RetryCount,
+		})
+	return res.RowsAffected, res.Error
 }
 
 func (r *msgRepository) GetRecordByID(ctx context.Context, id uint64) (*msgEntity.MsgRecord, error) {
