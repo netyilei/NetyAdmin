@@ -94,31 +94,9 @@ func (s *userAdminService) SearchForAutocomplete(ctx context.Context, keyword st
 
 // Create 创建用户。entity 构造下沉到 service 层（spec D4：禁止 entity 入参）。
 func (s *userAdminService) Create(ctx context.Context, req *userDto.CreateUserReq) error {
-	// 1. 检查唯一性
-	exists, existsErr := s.repo.ExistsByUsername(ctx, req.Username)
-	if existsErr != nil {
-		slog.Warn("ExistsByUsername query failed (rely on DB unique constraint as fallback)", "username", req.Username, "error", existsErr)
-	}
-	if exists {
-		return errorx.New(errorx.CodeUserAlreadyExists)
-	}
-	if req.Phone != "" {
-		exists, existsErr = s.repo.ExistsByPhone(ctx, req.Phone)
-		if existsErr != nil {
-			slog.Warn("ExistsByPhone query failed", "phone", req.Phone, "error", existsErr)
-		}
-		if exists {
-			return errorx.New(errorx.CodeUserAlreadyExists, "手机号已存在")
-		}
-	}
-	if req.Email != "" {
-		exists, existsErr = s.repo.ExistsByEmail(ctx, req.Email)
-		if existsErr != nil {
-			slog.Warn("ExistsByEmail query failed", "email", req.Email, "error", existsErr)
-		}
-		if exists {
-			return errorx.New(errorx.CodeUserAlreadyExists, "邮箱已存在")
-		}
+	// 1. 检查唯一性（共享实现见 userBase.checkUserUnique）
+	if err := s.checkUserUnique(ctx, req.Username, req.Phone, req.Email); err != nil {
+		return err
 	}
 
 	// 2. 密码加密

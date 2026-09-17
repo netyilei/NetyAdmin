@@ -15,6 +15,7 @@ import (
 	"NetyAdmin/internal/pkg/pagination"
 	"NetyAdmin/internal/pkg/requestid"
 	"NetyAdmin/internal/pkg/task"
+	"NetyAdmin/internal/pkg/utils"
 	systemRepo "NetyAdmin/internal/repository/system"
 	taskRepo "NetyAdmin/internal/repository/task"
 )
@@ -93,7 +94,7 @@ func (s *taskService) ListTasks(ctx context.Context) ([]map[string]interface{}, 
 		// 检查数据库中是否有覆盖配置
 		enabled := meta.Enabled
 		if val, ok := dbConfigs["task:"+meta.Name+":enabled"]; ok {
-			enabled = (val == "true" || val == "1")
+			enabled = utils.IsTruthy(val)
 		}
 
 		spec := meta.Spec

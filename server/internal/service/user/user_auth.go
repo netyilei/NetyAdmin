@@ -69,38 +69,8 @@ func (s *userClientService) Register(ctx context.Context, req *clientDto.UserReg
 		return "", errorx.New(errorx.CodeInvalidParams, "手机号或邮箱必填其一")
 	}
 
-	// 1. 检查唯一性（前置到验证码消费之前：验证码是一次性凭证，
-	// 先消费后查重会在"用户名重复"等失败路径上白白烧掉验证码，用户需重新发码）
-	// Repo 错误仅 Warn 不阻断：DB 真正不可用时后续 Create 会失败兜底，
-	// DB 间歇故障时唯一性约束（DB 层 UNIQUE index）仍能在 Create 阶段拦截重复。
-	// 不再静默吞错 `_ = ...`：失败需可观测，便于排查 DB 间歇故障。
-	exists, existsErr := s.repo.ExistsByUsername(ctx, req.Username)
-	if existsErr != nil {
-		slog.Warn("ExistsByUsername query failed (rely on DB unique constraint as fallback)",
-			"username", req.Username, "error", existsErr)
-	}
-	if exists {
-		return "", errorx.New(errorx.CodeUserAlreadyExists)
-	}
-	if req.Phone != "" {
-		exists, existsErr = s.repo.ExistsByPhone(ctx, req.Phone)
-		if existsErr != nil {
-			slog.Warn("ExistsByPhone query failed (rely on DB unique constraint as fallback)",
-				"phone", req.Phone, "error", existsErr)
-		}
-		if exists {
-			return "", errorx.New(errorx.CodeUserAlreadyExists, "手机号已存在")
-		}
-	}
-	if req.Email != "" {
-		exists, existsErr = s.repo.ExistsByEmail(ctx, req.Email)
-		if existsErr != nil {
-			slog.Warn("ExistsByEmail query failed (rely on DB unique constraint as fallback)",
-				"email", req.Email, "error", existsErr)
-		}
-		if exists {
-			return "", errorx.New(errorx.CodeUserAlreadyExists, "邮箱已存在")
-		}
+	if err := s.checkUserUnique(ctx, req.Username, req.Phone, req.Email); err != nil {
+		return "", err
 	}
 
 	// 2. 验证码校验（唯一性通过后才消费一次性凭证）
@@ -155,7 +125,7 @@ func (s *userClientService) Register(ctx context.Context, req *clientDto.UserReg
 func (s *userClientService) Login(ctx context.Context, req *clientDto.UserLoginReq, ip string) (*userVO.UserLoginVO, error) {
 	// 1. 图形验证码校验 (captcha_config → user_login_enabled)
 	captchaVal, _ := s.configWatcher.GetConfig("captcha_config", "user_login_enabled")
-	captchaEnabled := captchaVal == "true" || captchaVal == "1"
+	captchaEnabled := utils.IsTruthy(captchaVal)
 	if captchaEnabled {
 		if req.CaptchaKey == "" || req.CaptchaCode == "" {
 			return nil, errorx.New(errorx.CodeCaptchaRequired)
@@ -331,21 +301,14 @@ func (s *userClientService) RefreshToken(ctx context.Context, refreshToken strin
 		return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌无效")
 	}
 
-	// 原子抢占黑名单（SetNX 一步完成"检查+拉黑"）：原先 Exists 检查与轮换后的 Set
-	// 两步之间存在窗口——并发重放同一 refresh token 时双方都通过检查，可换出两对
-	// 新 token。SetNX 抢占失败 = 该 token 已被使用 → 拒绝（RFC 6749 §10.4 重用检测）；
-	// 抢占成功即已拉黑，后续任何失败路径保持已拉黑（fail-closed，用户重新登录即可）。
-	blacklistKey := cache.KeyAuthBlacklistRefreshToken(refreshToken)
-	remainingTTL := time.Until(time.Unix(claims.ExpiresAt.Unix(), 0))
-	if remainingTTL > 0 {
-		claimed, err := s.cacheSlow.SetNX(ctx, blacklistKey, "1", remainingTTL)
-		if err != nil {
-			// fail-closed：缓存异常时拒绝刷新，避免失效令牌被重新签发
-			return nil, errorx.New(errorx.CodeUnauthorized, "会话校验异常，请重新登录")
-		}
-		if !claimed {
-			return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌已失效，请重新登录")
-		}
+	// 原子抢占轮换黑名单（共享实现见 pkg/auth.ClaimRefreshRotation）
+	claimed, err := authPkg.ClaimRefreshRotation(ctx, s.cacheSlow, refreshToken, claims.ExpiresAt.Time)
+	if err != nil {
+		// fail-closed：缓存异常时拒绝刷新，避免失效令牌被重新签发
+		return nil, errorx.New(errorx.CodeUnauthorized, "会话校验异常，请重新登录")
+	}
+	if !claimed {
+		return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌已失效，请重新登录")
 	}
 
 	user, err := s.repo.GetByID(ctx, claims.UID)
@@ -396,8 +359,8 @@ func (s *userClientService) RefreshToken(ctx context.Context, refreshToken strin
 		return nil, errorx.New(errorx.CodeInternalError, "刷新令牌失败")
 	}
 
-	// 黑名单写入已前移至函数入口的 SetNX 原子抢占（并发重放防护），
-	// 此处无需再次 Set；抢占成功后本函数任何失败路径均保持 token 已拉黑（fail-closed）。
+	// 黑名单写入已前移至入口的 ClaimRefreshRotation；本函数任何失败路径
+	// 均保持 token 已拉黑（fail-closed）。
 
 	// 刷新令牌：更新 user_tokens 当前 platform 行的 access/refresh hash（不递增版本号，会话延续语义）。
 	// 不递增 token_version——版本号递增仅由 Login 负责（同 platform 顶号）；刷新是同一会话的延续。
@@ -592,18 +555,11 @@ func (s *userClientService) Logout(ctx context.Context, userID string, accessTok
 	// 解析 refresh token 拿到 ExpiresAt（校验签名，仅取过期时间用于 TTL）；
 	// ParseToken 失败（无效 token）则不写黑名单——反正无效 token 也用不了
 	if refreshToken != "" {
-		// Logout 黑名单写入失败不阻断：Logout 已删除 access token hash，
-		// refresh blacklist 是纵深防御层；若 Logout 也 fail-closed 会导致用户无法退出。
-		// RefreshToken 则必须 fail-closed：避免旧 refresh token 重放刷新。
+		// 黑名单 best-effort（共享实现见 pkg/auth.BlacklistRefresh）：
+		// Logout 已删除 access hash，黑名单是纵深防御层，失败不阻断退出
 		claims := &jwt.UserClaims{}
 		if err := s.jwt.ParseToken(refreshToken, claims); err == nil {
-			remainingTTL := time.Until(time.Unix(claims.ExpiresAt.Unix(), 0))
-			if remainingTTL > 0 {
-				blacklistKey := cache.KeyAuthBlacklistRefreshToken(refreshToken)
-				if err := s.cacheSlow.Set(ctx, blacklistKey, "1", remainingTTL); err != nil {
-					slog.Error("logout: set refresh blacklist failed", "userID", userID, "err", err)
-				}
-			}
+			authPkg.BlacklistRefresh(ctx, s.cacheSlow, refreshToken, claims.ExpiresAt.Time)
 		} else {
 			slog.Warn("logout: parse refresh token failed, skip blacklist",
 				"userID", userID, "err", err)

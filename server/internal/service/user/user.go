@@ -108,3 +108,38 @@ func getConfig(watcher configsync.ConfigWatcher, group, key string) string {
 	val, _ := watcher.GetConfig(group, key)
 	return val
 }
+
+// checkUserUnique 用户名/手机/邮箱唯一性预检（Register 与 admin Create 共享，原先两份 ~30 行同构）。
+// Repo 错误仅 Warn 不阻断：DB 层唯一索引（0018 users email/phone + username）
+// 会在 Create 阶段兜底拦截并发竞态，service 层捕获 23505 转业务码。
+func (b *userBase) checkUserUnique(ctx context.Context, username, phone, email string) error {
+	exists, err := b.repo.ExistsByUsername(ctx, username)
+	if err != nil {
+		slog.Warn("ExistsByUsername query failed (rely on DB unique constraint as fallback)",
+			"username", username, "error", err)
+	}
+	if exists {
+		return errorx.New(errorx.CodeUserAlreadyExists)
+	}
+	if phone != "" {
+		exists, err = b.repo.ExistsByPhone(ctx, phone)
+		if err != nil {
+			slog.Warn("ExistsByPhone query failed (rely on DB unique constraint as fallback)",
+				"phone", phone, "error", err)
+		}
+		if exists {
+			return errorx.New(errorx.CodeUserAlreadyExists, "手机号已存在")
+		}
+	}
+	if email != "" {
+		exists, err = b.repo.ExistsByEmail(ctx, email)
+		if err != nil {
+			slog.Warn("ExistsByEmail query failed (rely on DB unique constraint as fallback)",
+				"email", email, "error", err)
+		}
+		if exists {
+			return errorx.New(errorx.CodeUserAlreadyExists, "邮箱已存在")
+		}
+	}
+	return nil
+}

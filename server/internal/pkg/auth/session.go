@@ -10,6 +10,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+
+	"NetyAdmin/internal/pkg/cache"
 	"time"
 
 	userEntity "NetyAdmin/internal/domain/entity/user"
@@ -33,6 +35,8 @@ type CacheManager interface {
 	Set(ctx context.Context, key string, value interface{}, ttl time.Duration, tags ...string) error
 	Delete(ctx context.Context, key string) error
 	Exists(ctx context.Context, key string) (bool, error)
+	// SetNX 仅在 Key 不存在时写入（原子操作）。用于一次性凭证/防重放抢占。
+	SetNX(ctx context.Context, key string, value interface{}, ttl time.Duration) (bool, error)
 	// Incr 原子自增计数器并设置 TTL（仅在第一次自增时设置 TTL）。
 	// 返回自增后的当前值。底层应基于 Redis INCR + EXPIRE 实现，
 	// Redis 不可用时返回 error（fail-closed，不允许跳过原子计数）。
@@ -164,4 +168,35 @@ func DeleteAndReplaceSession(
 	}
 	// 写新 access + refresh hash 对
 	return StoreSessionPair(ctx, tokenStore, userIDKey, newAccess, newRefresh, accessExp, refreshExp)
+}
+
+// ClaimRefreshRotation 原子抢占 refresh 轮换黑名单（SetNX 一步完成"检查+拉黑"）。
+//
+// admin/user 两端 RefreshToken 的共享实现（原先各持一份 16 行同构块）：
+// Exists 检查与轮换后 Set 两步之间存在窗口，并发重放同一 token 可双签发。
+// 抢占失败 = token 已被使用 → 调用方应拒绝（RFC 6749 §10.4 重用检测）；
+// 抢占成功即完成拉黑，后续任何失败保持已拉黑（fail-closed，用户重新登录）。
+// err 非nil 为缓存故障，调用方应 fail-closed 拒绝。
+func ClaimRefreshRotation(ctx context.Context, cacheMgr CacheManager, refreshToken string, expiresAt time.Time) (bool, error) {
+	remainingTTL := time.Until(time.Unix(expiresAt.Unix(), 0))
+	if remainingTTL <= 0 {
+		return true, nil // 已过期的 token 无需拉黑（签名校验会拒绝）
+	}
+	return cacheMgr.SetNX(ctx, cache.KeyAuthBlacklistRefreshToken(refreshToken), "1", remainingTTL)
+}
+
+// BlacklistRefresh 将 refresh token 加入黑名单（TTL 对齐剩余有效期）。
+//
+// best-effort 语义：写入失败仅记日志、不返回错误——Logout 的黑名单是纵深
+// 防御层（access hash 已清理），fail-closed 会导致用户无法退出；轮换路径的
+// fail-closed 由 ClaimRefreshRotation 承担。expiresAt 由调用方从各自 claims
+// 类型中取出（admin/user 两端 Logout 的共享实现，原先 18 行同构×2）。
+func BlacklistRefresh(ctx context.Context, cacheMgr CacheManager, refreshToken string, expiresAt time.Time) {
+	remainingTTL := time.Until(time.Unix(expiresAt.Unix(), 0))
+	if remainingTTL <= 0 {
+		return
+	}
+	if err := cacheMgr.Set(ctx, cache.KeyAuthBlacklistRefreshToken(refreshToken), "1", remainingTTL); err != nil {
+		slog.Error("blacklist refresh token failed (best-effort)", "err", err)
+	}
 }

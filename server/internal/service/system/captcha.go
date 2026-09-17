@@ -7,6 +7,7 @@ import (
 	"NetyAdmin/internal/pkg/captcha"
 	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/utils"
 )
 
 // CaptchaService 验证码服务
@@ -58,7 +59,7 @@ func (s *captchaService) Generate(ctx context.Context, scene string) (id, b64s s
 
 func (s *captchaService) Verify(ctx context.Context, scene, captchaId, captchaValue string) error {
 	enabledKey := scene + "_enabled"
-	if val, exists := s.watcher.GetConfig("captcha_config", enabledKey); exists && (val == "true" || val == "1") {
+	if val, exists := s.watcher.GetConfig("captcha_config", enabledKey); exists && utils.IsTruthy(val) {
 		if captchaId == "" || captchaValue == "" {
 			return errorx.New(errorx.CodeCaptchaRequired)
 		}

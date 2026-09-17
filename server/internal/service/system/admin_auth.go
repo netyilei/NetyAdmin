@@ -116,18 +116,11 @@ func (s *adminService) Logout(ctx context.Context, adminID uint, accessToken, re
 	// 解析 refresh token 拿到 ExpiresAt（校验签名，仅取过期时间用于 TTL）；
 	// ParseToken 失败（无效 token）则不写黑名单——反正无效 token 也用不了
 	if refreshToken != "" {
-		// Logout 黑名单写入失败不阻断：Logout 已删除 access token hash，
-		// refresh blacklist 是纵深防御层；若 Logout 也 fail-closed 会导致用户无法退出。
-		// RefreshToken 则必须 fail-closed：避免旧 refresh token 重放刷新。
+		// 黑名单 best-effort（共享实现见 pkg/auth.BlacklistRefresh）：
+		// Logout 已删除 access hash，黑名单是纵深防御层，失败不阻断退出
 		claims := &jwt.AdminClaims{}
 		if err := s.jwt.ParseToken(refreshToken, claims); err == nil {
-			remainingTTL := time.Until(time.Unix(claims.ExpiresAt.Unix(), 0))
-			if remainingTTL > 0 {
-				blacklistKey := cache.KeyAuthBlacklistRefreshToken(refreshToken)
-				if err := s.cacheSlow.Set(ctx, blacklistKey, "1", remainingTTL); err != nil {
-					slog.Error("logout: set refresh blacklist failed", "adminID", adminID, "err", err)
-				}
-			}
+			authPkg.BlacklistRefresh(ctx, s.cacheSlow, refreshToken, claims.ExpiresAt.Time)
 		} else {
 			slog.Warn("logout: parse refresh token failed, skip blacklist",
 				"adminID", adminID, "err", err)
@@ -145,21 +138,14 @@ func (s *adminService) RefreshToken(ctx context.Context, refreshToken string) (*
 		return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌无效")
 	}
 
-	// 原子抢占黑名单（SetNX 一步完成"检查+拉黑"）：原先 Exists 检查与轮换后的 Set
-	// 两步之间存在窗口——并发重放同一 refresh token 时双方都通过检查，可换出两对
-	// 新 token。SetNX 抢占失败 = 该 token 已被使用 → 拒绝；抢占成功即已拉黑，
-	// 后续任何失败路径保持已拉黑（fail-closed，重新登录即可）。
-	blacklistKey := cache.KeyAuthBlacklistRefreshToken(refreshToken)
-	remainingTTL := time.Until(time.Unix(claims.ExpiresAt.Unix(), 0))
-	if remainingTTL > 0 {
-		claimed, err := s.cacheSlow.SetNX(ctx, blacklistKey, "1", remainingTTL)
-		if err != nil {
-			// fail-closed：缓存异常时拒绝刷新，避免失效令牌被重新签发
-			return nil, errorx.New(errorx.CodeUnauthorized, "会话校验异常，请重新登录")
-		}
-		if !claimed {
-			return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌已失效，请重新登录")
-		}
+	// 原子抢占轮换黑名单（共享实现见 pkg/auth.ClaimRefreshRotation）
+	claimed, err := authPkg.ClaimRefreshRotation(ctx, s.cacheSlow, refreshToken, claims.ExpiresAt.Time)
+	if err != nil {
+		// fail-closed：缓存异常时拒绝刷新，避免失效令牌被重新签发
+		return nil, errorx.New(errorx.CodeUnauthorized, "会话校验异常，请重新登录")
+	}
+	if !claimed {
+		return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌已失效，请重新登录")
 	}
 
 	admin, err := s.adminRepo.GetByID(ctx, claims.UserID)
@@ -193,8 +179,8 @@ func (s *adminService) RefreshToken(ctx context.Context, refreshToken string) (*
 		return nil, errorx.New(errorx.CodeInternalError, "生成刷新令牌失败")
 	}
 
-	// 黑名单写入已前移至函数入口的 SetNX 原子抢占（并发重放防护），
-	// 此处无需再次 Set；抢占成功后本函数任何失败路径均保持 token 已拉黑（fail-closed）。
+	// 黑名单写入已前移至入口的 ClaimRefreshRotation；本函数任何失败路径
+	// 均保持 token 已拉黑（fail-closed）。
 
 	// 刷新令牌：仅删除当前会话的旧 refresh hash，再写入新 access + refresh token hash。
 	// 不调用 DeleteAll——多设备登录场景下，刷新一个 token 不应踢掉该管理员其他设备的合法会话（P1-A 修复）。

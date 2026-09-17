@@ -3,6 +3,7 @@ package auth_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -78,6 +79,16 @@ func (m *mockCacheManager) Exists(_ context.Context, key string) (bool, error) {
 
 // Incr 模拟 Redis 的 INCR + EXPIRE：原子自增并在首次设置时记录 TTL。
 // 通过 mutex 保证并发安全，多 goroutine 同时调用不会丢失计数。
+func (m *mockCacheManager) SetNX(_ context.Context, key string, value interface{}, _ time.Duration) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, exists := m.values[key]; exists {
+		return false, nil
+	}
+	m.values[key] = fmt.Sprintf("%v", value)
+	return true, nil
+}
+
 func (m *mockCacheManager) Incr(_ context.Context, key string, ttl time.Duration) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

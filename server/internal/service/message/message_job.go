@@ -13,6 +13,7 @@ import (
 	"NetyAdmin/internal/pkg/errorx"
 	msgPkg "NetyAdmin/internal/pkg/message"
 	"NetyAdmin/internal/pkg/task"
+	"NetyAdmin/internal/pkg/utils"
 	msgRepo "NetyAdmin/internal/repository/message"
 )
 
@@ -68,7 +69,7 @@ func (j *MsgSendJob) isChannelEnabled(channel string) bool {
 	if !exists {
 		return false
 	}
-	return val == "true" || val == "1"
+	return utils.IsTruthy(val)
 }
 
 func (j *MsgSendJob) Execute(ctx context.Context, payload json.RawMessage) error {

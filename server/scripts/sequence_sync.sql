@@ -1,3 +1,7 @@
+-- NOTE: 幂等全表序列重置已由 migrations/0057 内置（DO 块自动发现含 id 序列的表）。
+-- 本脚本仅在 pg_dump 绑定信息丢失（pg_get_serial_sequence 返回 NULL）的恢复场景使用。
+-- 常规部署/升级请依赖 0057，不要运行本脚本。
+
 BEGIN;
 
 -- 同步序列：防止导入 dump 数据后主键序列落后导致的冲突

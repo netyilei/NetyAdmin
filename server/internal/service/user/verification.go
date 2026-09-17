@@ -91,7 +91,7 @@ func (s *verificationService) GetVerifyConfig(ctx context.Context, scene string)
 	}
 
 	enabledVal, _ := s.watcher.GetConfig("user_config", enabledKey)
-	config.Enabled = enabledVal == "true" || enabledVal == "1"
+	config.Enabled = utils.IsTruthy(enabledVal)
 
 	typeVal, _ := s.watcher.GetConfig("user_config", typeKey)
 	if typeVal == "" {
@@ -110,7 +110,7 @@ func (s *verificationService) GetSceneCaptchaConfig(ctx context.Context, scene s
 
 	// 图形验证码开关
 	val, _ := s.watcher.GetConfig("captcha_config", captchaKey)
-	captchaEnabled := val == "true" || val == "1"
+	captchaEnabled := utils.IsTruthy(val)
 
 	// 消息验证开关 + 类型（复用现有 GetVerifyConfig 逻辑）
 	verifyConfig, _ := s.GetVerifyConfig(ctx, scene)
@@ -132,7 +132,7 @@ func (s *verificationService) SendCode(ctx context.Context, scene, target, captc
 	captchaEnabledKey := sceneCaptchaKey(scene)
 	if captchaEnabledKey != "" {
 		captchaVal, _ := s.watcher.GetConfig("captcha_config", captchaEnabledKey)
-		captchaEnabled := captchaVal == "true" || captchaVal == "1"
+		captchaEnabled := utils.IsTruthy(captchaVal)
 		if captchaEnabled {
 			if captchaKey == "" || captchaCode == "" {
 				return errorx.New(errorx.CodeCaptchaRequired, "请输入图形验证码")
