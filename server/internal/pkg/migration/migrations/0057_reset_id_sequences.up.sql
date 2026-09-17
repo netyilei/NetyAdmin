@@ -6,6 +6,8 @@
 -- primary key (SQLSTATE 23505) and the create endpoint returns 500 —
 -- observed live for content categories and articles.
 --
+-- Note: sequences AHEAD of MAX(id) (manual setval / restored dump) are also
+-- rewound to MAX(id); id reuse is impossible because existing rows own those ids.
 -- Idempotent: aligns every sequence to COALESCE(MAX(id),1); no-op when
 -- already in sync. Covers both fresh installs and existing deployments.
 

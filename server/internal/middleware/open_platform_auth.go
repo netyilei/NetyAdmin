@@ -307,7 +307,8 @@ func sanitizeBody(body string) string {
 		// 非 JSON 体，直接返回（避免明文密码等被记录，但无法结构化脱敏）
 		return body
 	}
-	sanitized := mask.ScrubValue(parsed, redactedPlaceholder, maxScrubDepth)
+	// 深度 64：原实现无深度限制，取实践等价的上限保护（防恶意超深嵌套拖垮日志路径）
+	sanitized := mask.ScrubValue(parsed, redactedPlaceholder, 64)
 	out, err := json.Marshal(sanitized)
 	if err != nil {
 		return "[unparseable body]"

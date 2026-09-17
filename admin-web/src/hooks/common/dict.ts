@@ -11,11 +11,12 @@ import { $t } from '@/locales';
  */
 export function renderTagFromMap(
   map: Record<string, { type: NaiveUI.ThemeColor; label: string }>,
-  value: string | number | null | undefined
+  value: string | number | null | undefined,
+  size?: 'small' | 'medium' | 'large'
 ) {
   const hit = map[String(value ?? '')];
   if (!hit) return h('span', {}, String(value ?? '-'));
-  return h(NTag, { type: hit.type }, { default: () => hit.label });
+  return h(NTag, { type: hit.type, size }, { default: () => hit.label });
 }
 
 /**

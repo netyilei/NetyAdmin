@@ -81,7 +81,7 @@ const columns: DataTableColumns<SystemManage.TaskInfo> = [
         interval: { type: 'primary', label: $t('page.ops.task.typeInterval') },
         once: { type: 'warning', label: $t('page.ops.task.typeOnce') }
       };
-      return renderTagFromMap(typeMap, row.type);
+      return renderTagFromMap(typeMap, row.type, 'small');
     }
   },
   {

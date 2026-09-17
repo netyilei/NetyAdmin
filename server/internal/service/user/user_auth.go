@@ -559,7 +559,7 @@ func (s *userClientService) Logout(ctx context.Context, userID string, accessTok
 		// Logout 已删除 access hash，黑名单是纵深防御层，失败不阻断退出
 		claims := &jwt.UserClaims{}
 		if err := s.jwt.ParseToken(refreshToken, claims); err == nil {
-			authPkg.BlacklistRefresh(ctx, s.cacheSlow, refreshToken, claims.ExpiresAt.Time)
+			authPkg.BlacklistRefresh(ctx, s.cacheSlow, refreshToken, claims.ExpiresAt.Time, "userID", userID)
 		} else {
 			slog.Warn("logout: parse refresh token failed, skip blacklist",
 				"userID", userID, "err", err)

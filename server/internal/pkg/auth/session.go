@@ -191,12 +191,13 @@ func ClaimRefreshRotation(ctx context.Context, cacheMgr CacheManager, refreshTok
 // 防御层（access hash 已清理），fail-closed 会导致用户无法退出；轮换路径的
 // fail-closed 由 ClaimRefreshRotation 承担。expiresAt 由调用方从各自 claims
 // 类型中取出（admin/user 两端 Logout 的共享实现，原先 18 行同构×2）。
-func BlacklistRefresh(ctx context.Context, cacheMgr CacheManager, refreshToken string, expiresAt time.Time) {
+func BlacklistRefresh(ctx context.Context, cacheMgr CacheManager, refreshToken string, expiresAt time.Time, actor ...any) {
 	remainingTTL := time.Until(time.Unix(expiresAt.Unix(), 0))
 	if remainingTTL <= 0 {
 		return
 	}
 	if err := cacheMgr.Set(ctx, cache.KeyAuthBlacklistRefreshToken(refreshToken), "1", remainingTTL); err != nil {
-		slog.Error("blacklist refresh token failed (best-effort)", "err", err)
+		args := append([]any{"err", err}, actor...)
+		slog.Error("blacklist refresh token failed (best-effort)", args...)
 	}
 }

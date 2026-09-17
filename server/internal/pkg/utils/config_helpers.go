@@ -2,7 +2,6 @@ package utils
 
 import (
 	"strconv"
-	"strings"
 
 	"NetyAdmin/internal/pkg/configsync"
 )
@@ -41,9 +40,9 @@ func ParseIntWithDefault(s string, defaultVal int) int {
 	return n
 }
 
-// IsTruthy 判定字符串配置的布尔真值（"true" 或 "1"，大小写不敏感）。
-// 全项目布尔配置解析的唯一定义（原先 7 处内联 `== "true" || == "1"`）。
+// IsTruthy 判定字符串配置的布尔真值（"true" 或 "1"，大小写敏感——
+// 与被收敛的 7 处原内联语义严格等价；configsync 内部变体因 import 环保留且大小写不敏感）。
+// 全项目布尔配置解析的唯一定义。
 func IsTruthy(val string) bool {
-	v := strings.ToLower(val)
-	return v == "true" || v == "1"
+	return val == "true" || val == "1"
 }

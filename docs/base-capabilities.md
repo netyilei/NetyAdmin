@@ -45,7 +45,7 @@
 | 延迟格式化 | `utils/format.formatNsToMs / formatMs` | 纳秒/毫秒两单位明确命名 |
 | 分类树扁平化 | `utils/category.buildCategoryOptions(tree, withExtra?)` | 下拉选项（全角空格缩进） |
 | 超管判定 | `utils/common.isSuperByCode(code \| codes[])` | 唯一实现，勿再内联 env 比较 |
-| 字典 label i18n | `hooks/common/dict.translateDictLabel` + `useDict()`（getDictLabel/getDictOptions/renderDictTag/renderBoolDictTag） | 含 i18n 启发式的唯一实现 |
+| 字典 label i18n | `hooks/common/dict.translateDictLabel` + `useDict()`（getDictLabel/renderDictTag/renderBoolDictTag） | 含 i18n 启发式的唯一实现 |
 | 上传三步流 | `utils/upload.uploadFileWithCredentials` | 凭证→直传→CompleteUpload 已封装，勿手写（富文本编辑器内嵌上传同用此封装） |
 | 表格 CRUD 样板 | `hooks/common/table.useTable` + `hooks/common/operation.useOperation` | 分页/弹窗操作统一 |
 | 深拷贝 | `@na/utils` 的 `jsonClone` | 勿写 `JSON.parse(JSON.stringify(...))` |
