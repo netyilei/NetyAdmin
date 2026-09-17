@@ -57,7 +57,6 @@ const content = {
     statusDraft: '草稿',
     statusPublished: '已发布',
     statusUnpublished: '未发布',
-    statusScheduled: '定时发布',
     form: {
       title: '请输入标题',
       categoryId: '请选择分类',

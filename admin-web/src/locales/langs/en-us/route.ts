@@ -18,7 +18,6 @@ const route = {
   content_banner: 'Banner',
   settings: 'System Config',
   manage_system_setting: 'Basic Setting',
-  basic_setting: 'Basic Setting',
   'settings_storage-config': 'Storage Config',
   'settings_message-template': 'Msg Template',
   user: 'User',
