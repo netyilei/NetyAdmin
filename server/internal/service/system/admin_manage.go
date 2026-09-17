@@ -237,7 +237,7 @@ func (s *adminService) Update(ctx context.Context, req *systemDto.UpdateAdminReq
 		if err := s.adminRepo.Update(txCtx, admin); err != nil {
 			slog.Error("admin update: save admin failed", "adminID", req.ID, "err", err)
 			s.tm.Rollback(tx)
-			// 并发改绑邮箱竞态下 ExistsBy 检查双双通过，唯一索引（0056）兜底转业务错误码
+			// 并发改绑邮箱竞态下 ExistsBy 检查双双通过，唯一索引（0056 admin_user.email）兜底转业务错误码
 			if database.IsUniqueViolation(err) {
 				return errorx.New(errorx.CodeAlreadyExists, "邮箱已被占用")
 			}
@@ -262,7 +262,7 @@ func (s *adminService) Update(ctx context.Context, req *systemDto.UpdateAdminReq
 		if err := s.adminRepo.Update(txCtx, admin); err != nil {
 			slog.Error("admin update: save admin failed", "adminID", req.ID, "err", err)
 			s.tm.Rollback(tx)
-			// 并发改绑邮箱竞态下 ExistsBy 检查双双通过，唯一索引（0056）兜底转业务错误码
+			// 并发改绑邮箱竞态下 ExistsBy 检查双双通过，唯一索引（0056 admin_user.email）兜底转业务错误码
 			if database.IsUniqueViolation(err) {
 				return errorx.New(errorx.CodeAlreadyExists, "邮箱已被占用")
 			}

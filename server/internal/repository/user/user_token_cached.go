@@ -28,6 +28,15 @@ import (
 // Invalidation contract: every write path (UpsertAndIncrement / UpdateHashes /
 // ClearHashes / DeleteExpired) invalidates the affected entries. TTL is the safety net
 // for PubSub cross-node invalidation lag (typically <100ms, TTL bounds worst case).
+//
+// Known TTL-bounded races (accepted, documented for maintainers):
+//   - Read-revive: a concurrent Get may load the OLD row, miss the write's
+//     invalidation, and back-fill the stale value — stale for up to the 30s TTL
+//     (e.g. a logged-out token could pass hash check for ≤30s). Writes win on
+//     the DB path; the middleware's version checks bound the impact.
+//   - Rolling deploy: cache entries written by pre-entry-struct code lack the
+//     hash fields, deserialize as empty strings, and fail the fail-closed hash
+//     check until they expire (≤30s) — self-healing, no action needed.
 type cachedUserTokenRepository struct {
 	inner     UserTokenRepository
 	cacheSlow cache.SecurityCache

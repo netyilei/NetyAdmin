@@ -52,8 +52,6 @@ type VerificationService interface {
 	// SendCode 发送验证码 (自动判断是手机还是邮箱)
 	// captchaKey 和 captchaCode 用于二次验证，防止接口被恶意轰炸
 	SendCode(ctx context.Context, scene, target, captchaKey, captchaCode string) error
-	// VerifyCode 校验验证码 (不清理，用于多步流程)
-	VerifyCode(ctx context.Context, scene, target, code string) (bool, error)
 	// VerifyAndClearCode 校验并清理验证码 (用于最终提交)
 	VerifyAndClearCode(ctx context.Context, scene, target, code string) (bool, error)
 }
@@ -186,41 +184,6 @@ func (s *verificationService) SendCode(ctx context.Context, scene, target, captc
 	} else {
 		return s.msgSvc.SendTemplate(ctx, "VERIFY_CODE_SMS", target, params)
 	}
-}
-
-func (s *verificationService) VerifyCode(ctx context.Context, scene, target, code string) (bool, error) {
-	if code == "" {
-		return false, nil
-	}
-
-	// 尝试次数检查：超过 5 次自动失效验证码
-	attemptKey := cache.KeyVerifyCodeAttempt(scene, target)
-	var attemptStr string
-	_ = s.cacheSlow.Get(ctx, attemptKey, &attemptStr)
-	if n, err := strconv.Atoi(attemptStr); err == nil && n >= 5 {
-		if dErr := s.cacheSlow.Delete(ctx, cache.KeyVerificationCode(scene, target)); dErr != nil {
-			slog.Warn("delete verification code cache failed", "scene", scene, "target", target, "err", dErr)
-		}
-		return false, nil
-	}
-
-	cacheKey := cache.KeyVerificationCode(scene, target)
-	var storedCode string
-	err := s.cacheSlow.Get(ctx, cacheKey, &storedCode)
-	if err != nil {
-		return false, nil // 验证码不存在或已过期
-	}
-
-	if storedCode != code {
-		n, _ := strconv.Atoi(attemptStr)
-		n++
-		if err := s.cacheSlow.Set(ctx, attemptKey, strconv.Itoa(n), 10*time.Minute); err != nil {
-			slog.Warn("set attempt count cache failed", "key", attemptKey, "err", err)
-		}
-		return false, nil
-	}
-
-	return true, nil
 }
 
 // VerifyAndClearCode 原子校验并消费验证码（一次性语义）。

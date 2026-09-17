@@ -499,7 +499,10 @@ func (s *appService) LinkIPRules(ctx context.Context, appID string, ruleIDs []ui
 			}
 			slog.Info("app link ip rules: ip_filter_enabled auto turned on", "appID", appID)
 		case errors.Is(err, gorm.ErrRecordNotFound):
-			// app 不存在：关联写入层兜底（LinkRulesToApp 的 app 外键）或后续提交失败暴露
+			// app 不存在：表无外键约束，放行会让规则挂到 ghost app 上静默提交，直接报错回滚
+			slog.Warn("app link ip rules: app not found", "appID", appID)
+			s.tm.Rollback(tx)
+			return errorx.New(errorx.CodeNotFound, "应用不存在")
 		case err != nil:
 			// DB 错误 fail-closed：静默跳过会让规则挂载成功但开关未开——
 			// 恰是本联动要消除的"以为封了实际没封"场景在错误路径复发

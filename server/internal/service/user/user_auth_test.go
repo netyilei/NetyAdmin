@@ -387,10 +387,6 @@ func (s *mockVerifySvc) SendCode(_ context.Context, _, _, _, _ string) error {
 	return nil
 }
 
-func (s *mockVerifySvc) VerifyCode(_ context.Context, _, _, _ string) (bool, error) {
-	return s.verifyResult, s.verifyErr
-}
-
 func (s *mockVerifySvc) VerifyAndClearCode(_ context.Context, _, _, _ string) (bool, error) {
 	return s.verifyResult, s.verifyErr
 }

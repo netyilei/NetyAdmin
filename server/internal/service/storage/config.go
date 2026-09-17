@@ -102,39 +102,88 @@ func (s *configService) List(ctx context.Context, req *storageDto.ConfigQuery) (
 	return configs, total, nil
 }
 
+// storageConfigCacheEntry / storageConfigListCacheEntry 缓存层显式携带加密 SecretKey。
+//
+// storageEntity.Config 的 SecretKey 标注 json:"-"（避免经 API 响应泄露），
+// 而缓存层用 JSON 序列化——直接缓存实体会把密钥丢成空串（user_tokens
+// 缓存同款教训），缓存命中方拿到的 SecretKey 恒为空。当前消费方尚未
+// 使用缓存命中的密钥构造凭证，属未引爆的地雷；此处显式携带以绝后患。
+type storageConfigCacheEntry struct {
+	Config             storageEntity.Config `json:"config"`
+	EncryptedSecretKey string               `json:"encryptedSecretKey"`
+}
+
+func (e storageConfigCacheEntry) restore() *storageEntity.Config {
+	e.Config.SecretKey = e.EncryptedSecretKey
+	return &e.Config
+}
+
+type storageConfigListCacheEntry struct {
+	Configs             []*storageEntity.Config `json:"configs"`
+	EncryptedSecretKeys []string                `json:"encryptedSecretKeys"`
+}
+
+func (e storageConfigListCacheEntry) restore() []*storageEntity.Config {
+	for i, c := range e.Configs {
+		if i < len(e.EncryptedSecretKeys) {
+			c.SecretKey = e.EncryptedSecretKeys[i]
+		}
+	}
+	return e.Configs
+}
+
 func (s *configService) GetByID(ctx context.Context, id uint) (*storageEntity.Config, error) {
 	key := cache.KeyStorageConfigByID(id)
-	var config storageEntity.Config
-	err := s.cache.FetchFast(ctx, key, "storage", []string{cache.TagStorageConfig}, cache.TTL_Default, &config, func() (interface{}, error) {
-		return s.configRepo.GetByID(ctx, id)
+	var entry storageConfigCacheEntry
+	err := s.cache.FetchFast(ctx, key, "storage", []string{cache.TagStorageConfig}, cache.TTL_Default, &entry, func() (interface{}, error) {
+		config, err := s.configRepo.GetByID(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		return storageConfigCacheEntry{Config: *config, EncryptedSecretKey: config.SecretKey}, nil
 	})
 	if err != nil {
 		return nil, err
 	}
+	config := entry.restore()
 	config.SecretKey = s.decryptSecretKey(config.SecretKey)
-	return &config, nil
+	return config, nil
 }
 
 func (s *configService) GetDefault(ctx context.Context) (*storageEntity.Config, error) {
-	var config storageEntity.Config
-	err := s.cache.FetchFast(ctx, cache.KeyStorageConfigDefault(), "storage", []string{cache.TagStorageConfig}, cache.TTL_Default, &config, func() (interface{}, error) {
-		return s.configRepo.GetDefault(ctx)
+	var entry storageConfigCacheEntry
+	err := s.cache.FetchFast(ctx, cache.KeyStorageConfigDefault(), "storage", []string{cache.TagStorageConfig}, cache.TTL_Default, &entry, func() (interface{}, error) {
+		config, err := s.configRepo.GetDefault(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return storageConfigCacheEntry{Config: *config, EncryptedSecretKey: config.SecretKey}, nil
 	})
 	if err != nil {
 		return nil, err
 	}
+	config := entry.restore()
 	config.SecretKey = s.decryptSecretKey(config.SecretKey)
-	return &config, nil
+	return config, nil
 }
 
 func (s *configService) GetAllEnabled(ctx context.Context) ([]*storageEntity.Config, error) {
-	var configs []*storageEntity.Config
-	err := s.cache.FetchFast(ctx, cache.KeyStorageConfigAllEnabled(), "storage", []string{cache.TagStorageConfig}, cache.TTL_Default, &configs, func() (interface{}, error) {
-		return s.configRepo.GetAllEnabled(ctx)
+	var entry storageConfigListCacheEntry
+	err := s.cache.FetchFast(ctx, cache.KeyStorageConfigAllEnabled(), "storage", []string{cache.TagStorageConfig}, cache.TTL_Default, &entry, func() (interface{}, error) {
+		configs, err := s.configRepo.GetAllEnabled(ctx)
+		if err != nil {
+			return nil, err
+		}
+		keys := make([]string, len(configs))
+		for i, c := range configs {
+			keys[i] = c.SecretKey
+		}
+		return storageConfigListCacheEntry{Configs: configs, EncryptedSecretKeys: keys}, nil
 	})
 	if err != nil {
 		return nil, err
 	}
+	configs := entry.restore()
 	for _, c := range configs {
 		c.SecretKey = s.decryptSecretKey(c.SecretKey)
 	}

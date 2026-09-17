@@ -153,7 +153,7 @@ func (s *userAdminService) Create(ctx context.Context, req *userDto.CreateUserRe
 
 	if err := s.repo.Create(ctx, user); err != nil {
 		// 并发创建竞态下 ExistsBy 前置检查可能双双通过，
-		// DB 部分唯一索引（0056）兜底，冲突转业务错误码
+		// DB 部分唯一索引（0018 users email/phone）兜底，冲突转业务错误码
 		if database.IsUniqueViolation(err) {
 			return errorx.New(errorx.CodeUserAlreadyExists, "用户名/邮箱/手机号已被占用")
 		}
@@ -253,7 +253,7 @@ func (s *userAdminService) Update(ctx context.Context, id string, req *userDto.U
 		if err := s.repo.Update(txCtx, oldUser); err != nil {
 			slog.Error("user update: update user failed", "userID", id, "err", err)
 			s.tm.Rollback(tx)
-			// 并发改绑竞态下 ExistsBy 检查双双通过，唯一索引（0056）兜底转业务错误码
+			// 并发改绑竞态下 ExistsBy 检查双双通过，唯一索引（0018）兜底转业务错误码
 			if database.IsUniqueViolation(err) {
 				return errorx.New(errorx.CodeUserAlreadyExists, "邮箱或手机号已被占用")
 			}
@@ -266,7 +266,7 @@ func (s *userAdminService) Update(ctx context.Context, id string, req *userDto.U
 		return nil
 	}
 	if err := s.repo.Update(ctx, oldUser); err != nil {
-		// 并发改绑竞态下 ExistsBy 检查双双通过，唯一索引（0056）兜底转业务错误码
+		// 并发改绑竞态下 ExistsBy 检查双双通过，唯一索引（0018）兜底转业务错误码
 		if database.IsUniqueViolation(err) {
 			return errorx.New(errorx.CodeUserAlreadyExists, "邮箱或手机号已被占用")
 		}
