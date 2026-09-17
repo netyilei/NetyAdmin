@@ -13,6 +13,7 @@ import (
 	contentDto "NetyAdmin/internal/interface/admin/dto/content"
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/utils"
 	contentRepo "NetyAdmin/internal/repository/content"
 )
 
@@ -86,7 +87,7 @@ func (s *bannerItemService) Create(ctx context.Context, adminID uint, req *conte
 
 	var startTime, endTime *time.Time
 	if req.StartTime != nil {
-		t, err := time.Parse(time.RFC3339, *req.StartTime)
+		t, err := utils.ParseRFC3339(*req.StartTime)
 		if err != nil {
 			// 静默吞错会让配置的展示窗口被忽略（Banner 永久展示）
 			return nil, errorx.New(errorx.CodeInvalidParams, "展示开始时间格式错误（需 RFC3339）")
@@ -94,7 +95,7 @@ func (s *bannerItemService) Create(ctx context.Context, adminID uint, req *conte
 		startTime = &t
 	}
 	if req.EndTime != nil {
-		t, err := time.Parse(time.RFC3339, *req.EndTime)
+		t, err := utils.ParseRFC3339(*req.EndTime)
 		if err != nil {
 			return nil, errorx.New(errorx.CodeInvalidParams, "展示结束时间格式错误（需 RFC3339）")
 		}
@@ -171,14 +172,14 @@ func (s *bannerItemService) Update(ctx context.Context, adminID uint, id uint, r
 	item.CustomParams = req.CustomParams
 	item.Sort = req.Sort
 	if req.StartTime != nil {
-		t, err := time.Parse(time.RFC3339, *req.StartTime)
+		t, err := utils.ParseRFC3339(*req.StartTime)
 		if err != nil {
 			return nil, errorx.New(errorx.CodeInvalidParams, "展示开始时间格式错误（需 RFC3339）")
 		}
 		item.StartTime = &t
 	}
 	if req.EndTime != nil {
-		t, err := time.Parse(time.RFC3339, *req.EndTime)
+		t, err := utils.ParseRFC3339(*req.EndTime)
 		if err != nil {
 			return nil, errorx.New(errorx.CodeInvalidParams, "展示结束时间格式错误（需 RFC3339）")
 		}

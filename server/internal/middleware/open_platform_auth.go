@@ -5,13 +5,11 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -20,11 +18,14 @@ import (
 	"github.com/gin-gonic/gin"
 
 	openDto "NetyAdmin/internal/interface/admin/dto/open_platform"
+
 	"NetyAdmin/internal/pkg/auth"
 	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/mask"
 	"NetyAdmin/internal/pkg/recovery"
 	"NetyAdmin/internal/pkg/requestid"
 	"NetyAdmin/internal/pkg/response"
+	utilsPkg "NetyAdmin/internal/pkg/utils"
 	ipacSvcPkg "NetyAdmin/internal/service/ipac"
 	openSvcPkg "NetyAdmin/internal/service/open_platform"
 )
@@ -166,7 +167,7 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 		stringToSign := constructStringToSign(c, timestampStr, nonce, requestBody)
 
 		// 7. 计算 HMAC-SHA256 签名
-		expectedSignature := computeHmacSha256(appSecret, stringToSign)
+		expectedSignature := utilsPkg.HMACSHA256Base64(appSecret, stringToSign)
 
 		// 使用 hmac.Equal 进行恒定时间比较，防止时序攻击推导签名
 		// 注意：直接比较字符串（!=）会因为短路比较泄露字节差异信息
@@ -269,16 +270,12 @@ func constructStringToSign(c *gin.Context, timestamp, nonce string, requestBody 
 	return fmt.Sprintf("%s\n%s\n%s\n%s\n%s", method, path, timestamp, nonce, payload)
 }
 
-func computeHmacSha256(secret, data string) string {
-	h := hmac.New(sha256.New, []byte(secret))
-	h.Write([]byte(data))
-	return base64.StdEncoding.EncodeToString(h.Sum(nil))
-}
-
-// sensitiveKeyPattern 匹配需要脱敏的敏感字段名（不区分大小写）
-var sensitiveKeyPattern = regexp.MustCompile(`(?i)(password|passwd|pwd|app_?secret|secret|signature|token|access_?token|refresh_?token|api_?key|private_?key|credit_?card|cvv|ssn)`)
-
 // sanitizeHeaderValue 对 HTTP 头部 JSON 字符串中的敏感字段值进行脱敏
+const (
+	redactedPlaceholder = "***REDACTED***"
+	maxScrubDepth       = 10
+)
+
 func sanitizeHeaderValue(headerJSON string) string {
 	if headerJSON == "" {
 		return ""
@@ -288,8 +285,8 @@ func sanitizeHeaderValue(headerJSON string) string {
 		return "[unparseable header]"
 	}
 	for k := range headers {
-		if sensitiveKeyPattern.MatchString(k) {
-			headers[k] = []string{"***REDACTED***"}
+		if mask.IsSensitiveSubstr(k) {
+			headers[k] = []string{redactedPlaceholder}
 		}
 	}
 	out, err := json.Marshal(headers)
@@ -310,33 +307,10 @@ func sanitizeBody(body string) string {
 		// 非 JSON 体，直接返回（避免明文密码等被记录，但无法结构化脱敏）
 		return body
 	}
-	sanitized := sanitizeValue(parsed)
+	sanitized := mask.ScrubValue(parsed, redactedPlaceholder, maxScrubDepth)
 	out, err := json.Marshal(sanitized)
 	if err != nil {
 		return "[unparseable body]"
 	}
 	return string(out)
-}
-
-func sanitizeValue(v interface{}) interface{} {
-	switch val := v.(type) {
-	case map[string]interface{}:
-		result := make(map[string]interface{}, len(val))
-		for k, vv := range val {
-			if sensitiveKeyPattern.MatchString(k) {
-				result[k] = "***REDACTED***"
-			} else {
-				result[k] = sanitizeValue(vv)
-			}
-		}
-		return result
-	case []interface{}:
-		result := make([]interface{}, len(val))
-		for i, vv := range val {
-			result[i] = sanitizeValue(vv)
-		}
-		return result
-	default:
-		return v
-	}
 }

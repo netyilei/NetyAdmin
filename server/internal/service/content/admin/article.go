@@ -15,6 +15,7 @@ import (
 	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/pagination"
+	"NetyAdmin/internal/pkg/utils"
 	contentRepo "NetyAdmin/internal/repository/content"
 )
 
@@ -78,7 +79,7 @@ func (s *articleService) Create(ctx context.Context, adminID uint, req *contentD
 
 	var scheduledAt *time.Time
 	if req.ScheduledAt != nil {
-		t, err := time.Parse(time.RFC3339, *req.ScheduledAt)
+		t, err := utils.ParseRFC3339(*req.ScheduledAt)
 		if err != nil {
 			// 静默吞错会让文章以 scheduled 状态入库但 scheduled_at=NULL，
 			// 定时发布条件永不命中，文章永久卡在定时状态
@@ -203,7 +204,7 @@ func (s *articleService) Update(ctx context.Context, adminID uint, id uint, req 
 		article.PublishStatus = newStatus
 	}
 	if req.ScheduledAt != nil {
-		t, err := time.Parse(time.RFC3339, *req.ScheduledAt)
+		t, err := utils.ParseRFC3339(*req.ScheduledAt)
 		if err != nil {
 			return nil, errorx.New(errorx.CodeInvalidParams, "定时发布时间格式错误（需 RFC3339）")
 		}
@@ -258,12 +259,12 @@ func (s *articleService) List(ctx context.Context, query *contentDto.ContentArti
 	}
 
 	if query.StartTime != "" {
-		if t, err := time.Parse(time.RFC3339, query.StartTime); err == nil {
+		if t, err := utils.ParseRFC3339(query.StartTime); err == nil {
 			repoQuery.StartTime = &t
 		}
 	}
 	if query.EndTime != "" {
-		if t, err := time.Parse(time.RFC3339, query.EndTime); err == nil {
+		if t, err := utils.ParseRFC3339(query.EndTime); err == nil {
 			repoQuery.EndTime = &t
 		}
 	}

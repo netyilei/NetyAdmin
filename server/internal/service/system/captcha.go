@@ -60,10 +60,10 @@ func (s *captchaService) Verify(ctx context.Context, scene, captchaId, captchaVa
 	enabledKey := scene + "_enabled"
 	if val, exists := s.watcher.GetConfig("captcha_config", enabledKey); exists && (val == "true" || val == "1") {
 		if captchaId == "" || captchaValue == "" {
-			return errorx.New(errorx.CodeCaptchaRequired, "验证码必填")
+			return errorx.New(errorx.CodeCaptchaRequired)
 		}
 		if !s.captchaMgr.Verify(captchaId, captchaValue, true) {
-			return errorx.New(errorx.CodeCaptchaInvalid, "验证码错误")
+			return errorx.New(errorx.CodeCaptchaInvalid)
 		}
 	}
 	return nil

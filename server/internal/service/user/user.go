@@ -82,7 +82,7 @@ func (b *userBase) validatePasswordStrength(ctx context.Context, password string
 	}
 	if err := passwordPkg.ValidateStrength(password, cfg); err != nil {
 		// 不暴露内部校验细节，统一返回友好提示（spec B11）
-		return errorx.New(errorx.CodePasswordTooWeak, "密码强度不足")
+		return errorx.New(errorx.CodePasswordTooWeak)
 	}
 	return nil
 }

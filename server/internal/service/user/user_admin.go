@@ -100,7 +100,7 @@ func (s *userAdminService) Create(ctx context.Context, req *userDto.CreateUserRe
 		slog.Warn("ExistsByUsername query failed (rely on DB unique constraint as fallback)", "username", req.Username, "error", existsErr)
 	}
 	if exists {
-		return errorx.New(errorx.CodeUserAlreadyExists, "用户名已存在")
+		return errorx.New(errorx.CodeUserAlreadyExists)
 	}
 	if req.Phone != "" {
 		exists, existsErr = s.repo.ExistsByPhone(ctx, req.Phone)
@@ -168,7 +168,7 @@ func (s *userAdminService) Update(ctx context.Context, id string, req *userDto.U
 	oldUser, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errorx.New(errorx.CodeUserNotFound, "用户不存在")
+			return errorx.New(errorx.CodeUserNotFound)
 		}
 		slog.Error("repo.GetByID failed", "userID", id, "err", err)
 		return fmt.Errorf("repo.GetByID: %w", err)

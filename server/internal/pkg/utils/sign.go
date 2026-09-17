@@ -3,6 +3,7 @@ package utils
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"strconv"
@@ -28,4 +29,13 @@ func SignUploadRecord(key string, recordID uint, objectKey, source, sourceID str
 func VerifyUploadRecord(key string, recordID uint, objectKey, source, sourceID string, expiresAtUnix int64, secret string) bool {
 	expect := SignUploadRecord(key, recordID, objectKey, source, sourceID, expiresAtUnix)
 	return hmac.Equal([]byte(expect), []byte(secret))
+}
+
+// HMACSHA256Base64 HMAC-SHA256 后 Base64 编码输出。
+// 与 HMACSHA256Hex 仅编码差异（开放平台签名走 Base64，上传凭证走 Hex），
+// 统一收在 utils 避免调用方各自内联 hmac 实现。
+func HMACSHA256Base64(key, data string) string {
+	h := hmac.New(sha256.New, []byte(key))
+	h.Write([]byte(data))
+	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }

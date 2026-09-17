@@ -73,7 +73,7 @@ func NewAdminService(adminRepo systemRepo.AdminRepository, roleRepo systemRepo.R
 func validateAdminPasswordStrength(pwd string) error {
 	if err := password.ValidateStrength(pwd, password.DefaultAdminStrengthConfig); err != nil {
 		slog.Warn("admin password strength validation failed", "err", err)
-		return errorx.New(errorx.CodePasswordTooWeak, "密码强度不足")
+		return errorx.New(errorx.CodePasswordTooWeak)
 	}
 	return nil
 }

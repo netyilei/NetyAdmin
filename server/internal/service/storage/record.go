@@ -320,7 +320,7 @@ func (s *recordService) CompleteUpload(ctx context.Context, recordID uint, secre
 	record, err := s.recordRepo.GetByID(ctx, recordID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errorx.New(errorx.CodeUploadRecordNotFound, "上传记录不存在")
+			return nil, errorx.New(errorx.CodeUploadRecordNotFound)
 		}
 		slog.Error("recordRepo.GetByID failed", "recordID", recordID, "err", err)
 		return nil, fmt.Errorf("recordRepo.GetByID: %w", err)
@@ -328,7 +328,7 @@ func (s *recordService) CompleteUpload(ctx context.Context, recordID uint, secre
 
 	// 1. secret 为空说明凭证签发异常（如签名写入失败）
 	if record.Secret == "" {
-		return nil, errorx.New(errorx.CodeUploadSignatureInvalid, "上传凭证校验失败")
+		return nil, errorx.New(errorx.CodeUploadSignatureInvalid)
 	}
 
 	// 2/3. 验签：HMAC(recordID|objectKey|source|sourceID|expiresAt)
@@ -337,20 +337,20 @@ func (s *recordService) CompleteUpload(ctx context.Context, recordID uint, secre
 		expiresAtUnix = record.ExpiresAt.Unix()
 	}
 	if !utils.VerifyUploadRecord(s.hmacKey, record.ID, record.FilePath, string(record.Source), record.SourceID, expiresAtUnix, secret) {
-		return nil, errorx.New(errorx.CodeUploadSignatureInvalid, "上传凭证校验失败")
+		return nil, errorx.New(errorx.CodeUploadSignatureInvalid)
 	}
 
 	// 校验客户端上报的 objectKey 与凭证绑定的 key 一致（防止用 A 凭证给 B 文件登记）
 	if objectKey != "" && objectKey != record.FilePath {
-		return nil, errorx.New(errorx.CodeUploadRecordMismatch, "上传记录与请求不匹配")
+		return nil, errorx.New(errorx.CodeUploadRecordMismatch)
 	}
 
 	// 4. 状态机校验
 	switch record.Status {
 	case storageEntity.RecordStatusUploaded:
-		return nil, errorx.New(errorx.CodeUploadRecordCompleted, "该上传记录已完成，不可重复提交")
+		return nil, errorx.New(errorx.CodeUploadRecordCompleted)
 	case storageEntity.RecordStatusExpired:
-		return nil, errorx.New(errorx.CodeUploadRecordExpired, "上传凭证已过期")
+		return nil, errorx.New(errorx.CodeUploadRecordExpired)
 	case storageEntity.RecordStatusPending:
 		// 正常路径
 	default:
@@ -359,7 +359,7 @@ func (s *recordService) CompleteUpload(ctx context.Context, recordID uint, secre
 
 	// 5. 超期校验
 	if record.ExpiresAt != nil && time.Now().After(*record.ExpiresAt) {
-		return nil, errorx.New(errorx.CodeUploadRecordExpired, "上传凭证已过期")
+		return nil, errorx.New(errorx.CodeUploadRecordExpired)
 	}
 
 	// 6. 行锁读取 + 条件翻转（并发安全）
@@ -370,7 +370,7 @@ func (s *recordService) CompleteUpload(ctx context.Context, recordID uint, secre
 		s.tm.Rollback(tx)
 		// 行锁读取的 not-found（理论上 GetByID 已挡）转业务错误，避免原始 gorm 错误外泄
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errorx.New(errorx.CodeUploadRecordNotFound, "上传记录不存在")
+			return nil, errorx.New(errorx.CodeUploadRecordNotFound)
 		}
 		return nil, errorx.New(errorx.CodeInternalError, "上传完成处理失败")
 	}
@@ -379,9 +379,9 @@ func (s *recordService) CompleteUpload(ctx context.Context, recordID uint, secre
 		// 行锁下状态已非 pending（并发竞争或状态已变）：按当前状态返回友好错误
 		switch locked.Status {
 		case storageEntity.RecordStatusUploaded:
-			return nil, errorx.New(errorx.CodeUploadRecordCompleted, "该上传记录已完成，不可重复提交")
+			return nil, errorx.New(errorx.CodeUploadRecordCompleted)
 		case storageEntity.RecordStatusExpired:
-			return nil, errorx.New(errorx.CodeUploadRecordExpired, "上传凭证已过期")
+			return nil, errorx.New(errorx.CodeUploadRecordExpired)
 		default:
 			return nil, errorx.New(errorx.CodeUploadRecordMismatch, "上传记录状态异常")
 		}
@@ -401,13 +401,13 @@ func (s *recordService) CompleteUpload(ctx context.Context, recordID uint, secre
 		// 但保留兜底逻辑以应对边界情况
 		fresh, ferr := s.recordRepo.GetByID(ctx, recordID)
 		if ferr != nil {
-			return nil, errorx.New(errorx.CodeUploadRecordCompleted, "该上传记录已完成，不可重复提交")
+			return nil, errorx.New(errorx.CodeUploadRecordCompleted)
 		}
 		switch fresh.Status {
 		case storageEntity.RecordStatusUploaded:
-			return nil, errorx.New(errorx.CodeUploadRecordCompleted, "该上传记录已完成，不可重复提交")
+			return nil, errorx.New(errorx.CodeUploadRecordCompleted)
 		case storageEntity.RecordStatusExpired:
-			return nil, errorx.New(errorx.CodeUploadRecordExpired, "上传凭证已过期")
+			return nil, errorx.New(errorx.CodeUploadRecordExpired)
 		default:
 			return nil, errorx.New(errorx.CodeUploadRecordMismatch, "上传记录状态异常")
 		}

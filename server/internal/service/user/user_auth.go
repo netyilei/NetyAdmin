@@ -80,7 +80,7 @@ func (s *userClientService) Register(ctx context.Context, req *clientDto.UserReg
 			"username", req.Username, "error", existsErr)
 	}
 	if exists {
-		return "", errorx.New(errorx.CodeUserAlreadyExists, "用户名已存在")
+		return "", errorx.New(errorx.CodeUserAlreadyExists)
 	}
 	if req.Phone != "" {
 		exists, existsErr = s.repo.ExistsByPhone(ctx, req.Phone)
@@ -107,7 +107,7 @@ func (s *userClientService) Register(ctx context.Context, req *clientDto.UserReg
 	verifyConfig, _ := s.verifySvc.GetVerifyConfig(ctx, SceneRegister)
 	if verifyConfig != nil && verifyConfig.Enabled {
 		if req.Code == "" {
-			return "", errorx.New(errorx.CodeCaptchaRequired, "验证码必填")
+			return "", errorx.New(errorx.CodeCaptchaRequired)
 		}
 		ok, err := s.verifySvc.VerifyAndClearCode(ctx, SceneRegister, target, req.Code)
 		if err != nil {
@@ -158,10 +158,10 @@ func (s *userClientService) Login(ctx context.Context, req *clientDto.UserLoginR
 	captchaEnabled := captchaVal == "true" || captchaVal == "1"
 	if captchaEnabled {
 		if req.CaptchaKey == "" || req.CaptchaCode == "" {
-			return nil, errorx.New(errorx.CodeCaptchaRequired, "验证码必填")
+			return nil, errorx.New(errorx.CodeCaptchaRequired)
 		}
 		if !s.captchaStore.Verify(req.CaptchaKey, req.CaptchaCode, true) {
-			return nil, errorx.New(errorx.CodeCaptchaInvalid, "验证码错误")
+			return nil, errorx.New(errorx.CodeCaptchaInvalid)
 		}
 	}
 
@@ -195,7 +195,7 @@ func (s *userClientService) Login(ctx context.Context, req *clientDto.UserLoginR
 	verifyConfig, _ := s.verifySvc.GetVerifyConfig(ctx, SceneLogin)
 	if verifyConfig != nil && verifyConfig.Enabled {
 		if req.Code == "" {
-			return nil, errorx.New(errorx.CodeCaptchaRequired, "验证码必填")
+			return nil, errorx.New(errorx.CodeCaptchaRequired)
 		}
 		target := ""
 		if verifyConfig.VerifyType == "email" && user.Email != "" {
@@ -351,7 +351,7 @@ func (s *userClientService) RefreshToken(ctx context.Context, refreshToken strin
 	user, err := s.repo.GetByID(ctx, claims.UID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errorx.New(errorx.CodeUserNotFound, "用户不存在")
+			return nil, errorx.New(errorx.CodeUserNotFound)
 		}
 		slog.Error("repo.GetByID failed", "userID", claims.UID, "err", err)
 		return nil, fmt.Errorf("repo.GetByID: %w", err)
@@ -423,7 +423,7 @@ func (s *userClientService) GetInfo(ctx context.Context, userID string) (*userVO
 	user, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errorx.New(errorx.CodeUserNotFound, "用户不存在")
+			return nil, errorx.New(errorx.CodeUserNotFound)
 		}
 		slog.Error("repo.GetByID failed", "userID", userID, "err", err)
 		return nil, fmt.Errorf("repo.GetByID: %w", err)
@@ -446,7 +446,7 @@ func (s *userClientService) UpdateProfile(ctx context.Context, userID string, re
 	user, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errorx.New(errorx.CodeUserNotFound, "用户不存在")
+			return errorx.New(errorx.CodeUserNotFound)
 		}
 		slog.Error("repo.GetByID failed", "userID", userID, "err", err)
 		return fmt.Errorf("repo.GetByID: %w", err)
@@ -526,7 +526,7 @@ func (s *userClientService) ChangePassword(ctx context.Context, userID string, r
 	user, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errorx.New(errorx.CodeUserNotFound, "用户不存在")
+			return errorx.New(errorx.CodeUserNotFound)
 		}
 		slog.Error("repo.GetByID failed", "userID", userID, "err", err)
 		return fmt.Errorf("repo.GetByID: %w", err)
@@ -616,7 +616,7 @@ func (s *userClientService) ResetPassword(ctx context.Context, req *clientDto.Us
 	verifyConfig, _ := s.verifySvc.GetVerifyConfig(ctx, SceneResetPassword)
 	if verifyConfig != nil && verifyConfig.Enabled {
 		if req.Code == "" {
-			return errorx.New(errorx.CodeCaptchaRequired, "验证码必填")
+			return errorx.New(errorx.CodeCaptchaRequired)
 		}
 		ok, err := s.verifySvc.VerifyAndClearCode(ctx, SceneResetPassword, req.Target, req.Code)
 		if err != nil {
@@ -637,7 +637,7 @@ func (s *userClientService) ResetPassword(ctx context.Context, req *clientDto.Us
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errorx.New(errorx.CodeUserNotFound, "用户不存在")
+			return errorx.New(errorx.CodeUserNotFound)
 		}
 		slog.Error("repo.GetByEmail/GetByPhone failed", "target", req.Target, "err", err)
 		return fmt.Errorf("repo.GetByEmail/GetByPhone: %w", err)
@@ -719,7 +719,7 @@ func (s *userClientService) ResolveSendCodeTarget(ctx context.Context, scene, us
 		user, err := s.repo.GetByUsername(ctx, username)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, "", errorx.New(errorx.CodeUserNotFound, "用户不存在")
+				return nil, "", errorx.New(errorx.CodeUserNotFound)
 			}
 			slog.Error("repo.GetByUsername failed", "username", username, "err", err)
 			return nil, "", fmt.Errorf("repo.GetByUsername: %w", err)

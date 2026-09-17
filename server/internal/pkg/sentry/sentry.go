@@ -4,14 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/getsentry/sentry-go"
 
 	"NetyAdmin/internal/config"
+	"NetyAdmin/internal/pkg/mask"
 )
 
 // Init 初始化 Sentry SDK。
@@ -191,11 +190,9 @@ const maxScrubDepth = 10
 //
 // 采用 unanchored 子串匹配，故 user_password、app_secret、access_token、authTokenV2
 // 等变体均能命中；case-insensitive 由调用方 strings.ToLower(key) 保证。
-var sensitiveKeyPattern = regexp.MustCompile(`password|secret|token|appsecret|app_key|access_key|refresh_token`)
-
-// isSensitiveKey 判断字段名是否敏感（case-insensitive 子串匹配）。
+// isSensitiveKey 判断字段名是否敏感（委托 mask 包单一事实源）。
 func isSensitiveKey(key string) bool {
-	return sensitiveKeyPattern.MatchString(strings.ToLower(key))
+	return mask.IsSensitiveSubstr(key)
 }
 
 // scrubEvent 对 Sentry 事件做 PII 脱敏，返回脱敏后的事件（原地修改）。
@@ -225,7 +222,7 @@ func scrubEvent(event *sentry.Event) *sentry.Event {
 	}
 	// Contexts：递归脱敏每个 context 的 map[string]any
 	for _, ctx := range event.Contexts {
-		scrubMap(ctx, 0)
+		scrubMap(ctx)
 	}
 	// Request.Data：JSON 字符串解析后递归脱敏
 	if event.Request != nil && event.Request.Data != "" {
@@ -234,37 +231,15 @@ func scrubEvent(event *sentry.Event) *sentry.Event {
 	return event
 }
 
-// scrubMap 递归 scrub map[string]any，命中敏感 key 的值替换为 [REDACTED]，
-// 其余值递归处理。depth 超过 maxScrubDepth 时停止递归（保留原值，防循环引用）。
-func scrubMap(m map[string]any, depth int) {
-	if depth > maxScrubDepth {
-		return
-	}
+// scrubMap 递归 scrub map（委托 mask.ScrubValue，占位符与深度沿用本包约定）。
+func scrubMap(m map[string]any) {
 	for k, v := range m {
 		if isSensitiveKey(k) {
 			m[k] = redactedPlaceholder
 			continue
 		}
-		m[k] = scrubValue(v, depth+1)
-	}
-}
-
-// scrubValue 递归 scrub 任意值，处理 map[string]any 与 []any。
-func scrubValue(v any, depth int) any {
-	if depth > maxScrubDepth {
-		return v
-	}
-	switch val := v.(type) {
-	case map[string]any:
-		scrubMap(val, depth)
-		return val
-	case []any:
-		for i, item := range val {
-			val[i] = scrubValue(item, depth+1)
-		}
-		return val
-	default:
-		return v
+		// ScrubValue 函数式返回处理后的值（嵌套容器内部已脱敏），写回即完成原地语义
+		m[k] = mask.ScrubValue(v, redactedPlaceholder, maxScrubDepth)
 	}
 }
 
@@ -275,7 +250,7 @@ func scrubJSONString(data string) string {
 	if err := json.Unmarshal([]byte(data), &parsed); err != nil {
 		return data
 	}
-	scrubbed := scrubValue(parsed, 0)
+	scrubbed := mask.ScrubValue(parsed, redactedPlaceholder, maxScrubDepth)
 	out, err := json.Marshal(scrubbed)
 	if err != nil {
 		return data

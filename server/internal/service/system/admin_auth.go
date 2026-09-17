@@ -165,7 +165,7 @@ func (s *adminService) RefreshToken(ctx context.Context, refreshToken string) (*
 	admin, err := s.adminRepo.GetByID(ctx, claims.UserID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errorx.New(errorx.CodeUserNotFound, "用户不存在")
+			return nil, errorx.New(errorx.CodeUserNotFound)
 		}
 		slog.Error("adminRepo.GetByID failed", "adminID", claims.UserID, "err", err)
 		return nil, fmt.Errorf("adminRepo.GetByID: %w", err)
