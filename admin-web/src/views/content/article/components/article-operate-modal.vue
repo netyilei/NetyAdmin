@@ -10,6 +10,8 @@ import {
 } from '@/service/api/v1/content';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { useOperation } from '@/hooks/common/operation';
+import { formatDateTime } from '@/utils/format';
+import { buildCategoryOptions } from '@/utils/category';
 import { uploadFileWithCredentials } from '@/utils/upload';
 import type { Content } from '@/typings/api/v1/content';
 import { $t } from '@/locales';
@@ -108,31 +110,7 @@ const coverUploading = ref(false);
 async function loadCategories() {
   const { data, error } = await fetchGetCategoryTree();
   if (!error && data) {
-    const flattenCategories = (
-      categories: Content.CategoryTree[],
-      level = 0
-    ): { label: string; value: number; contentType: Content.ContentType; storageConfigId: number | null }[] => {
-      const result: {
-        label: string;
-        value: number;
-        contentType: Content.ContentType;
-        storageConfigId: number | null;
-      }[] = [];
-      for (const cat of categories) {
-        const prefix = '　'.repeat(level);
-        result.push({
-          label: prefix + cat.name,
-          value: cat.id,
-          contentType: cat.contentType,
-          storageConfigId: cat.storageConfigId
-        });
-        if (cat.children && cat.children.length > 0) {
-          result.push(...flattenCategories(cat.children, level + 1));
-        }
-      }
-      return result;
-    };
-    categoryOptions.value = flattenCategories(data);
+    categoryOptions.value = buildCategoryOptions(data, true) as typeof categoryOptions.value;
   }
 }
 
@@ -197,7 +175,7 @@ async function handleInitModel() {
 
       // Fix scheduledAt format for NDatePicker (needs timestamp)
       if (model.value.scheduledAt) {
-        model.value.scheduledAt = dayjs(model.value.scheduledAt).format('YYYY-MM-DD HH:mm:ss') as any;
+        model.value.scheduledAt = formatDateTime(model.value.scheduledAt) as any;
       }
 
       // 3. Wait for DOM and then show editor

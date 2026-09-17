@@ -19,7 +19,6 @@ import {
   NTimelineItem
 } from 'naive-ui';
 import type { DataTableColumns } from 'naive-ui';
-import dayjs from 'dayjs';
 import {
   fetchGetTaskList,
   fetchReloadTask,
@@ -30,6 +29,7 @@ import {
 } from '@/service/api/v1/system-task';
 import { fetchGetTaskLogs } from '@/service/api/v1/log';
 import { useAppStore } from '@/store/modules/app';
+import { formatDateTime } from '@/utils/format';
 import type { Log } from '@/typings/api/v1/log';
 import type { SystemManage } from '@/typings/api/v1/system-manage';
 import { $t } from '@/locales';
@@ -140,7 +140,7 @@ const columns: DataTableColumns<SystemManage.TaskInfo> = [
             <NNaiveTag type={statusType} size="tiny" bordered={false}>
               {row.lastStatus === 'success' ? $t('page.ops.task.success') : $t('page.ops.task.failed')}
             </NNaiveTag>
-            <span class="text-12px">{dayjs(row.lastRunTime).format('YYYY-MM-DD HH:mm:ss')}</span>
+            <span class="text-12px">{formatDateTime(row.lastRunTime)}</span>
           </div>
           <div class="text-11px text-gray-400">
             {$t('page.ops.task.duration')}: {row.lastDuration?.toFixed(3)}s | {$t('page.ops.task.executionCount')}:{' '}
@@ -340,7 +340,7 @@ onUnmounted(() => {
               :key="log.id"
               :type="log.status === 'success' ? 'success' : 'error'"
               :content="log.message || '无详情'"
-              :time="dayjs(log.startTime).format('YYYY-MM-DD HH:mm:ss')"
+              :time="formatDateTime(log.startTime)"
             >
               <template #header>
                 <div class="w-full flex items-center justify-between pr-4">

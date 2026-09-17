@@ -1,12 +1,25 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
-import { NButton, NCard, NDatePicker, NDescriptions, NDescriptionsItem, NGi, NGrid, NRadioButton, NRadioGroup, NSelect, NSpace } from 'naive-ui';
+import {
+  NButton,
+  NCard,
+  NDatePicker,
+  NDescriptions,
+  NDescriptionsItem,
+  NGi,
+  NGrid,
+  NRadioButton,
+  NRadioGroup,
+  NSelect,
+  NSpace
+} from 'naive-ui';
 import dayjs from 'dayjs';
-import { useAppStore } from '@/store/modules/app';
-import { useEcharts } from '@/hooks/common/echarts';
-import { $t } from '@/locales';
 import { fetchGetOpenLogStatistics } from '@/service/api/v1/log';
 import { fetchAppList } from '@/service/api/v1/open-app';
+import { useAppStore } from '@/store/modules/app';
+import { useEcharts } from '@/hooks/common/echarts';
+import { formatDate, formatMs } from '@/utils/format';
+import { $t } from '@/locales';
 import type { Log } from '@/typings/api/v1/log';
 
 defineOptions({
@@ -205,8 +218,8 @@ const { domRef: statusDistDomRef, updateOptions: updateStatusDistOptions } = use
 function getFormattedTimeRange() {
   const [start, end] = dateRange.value;
   return {
-    startTime: dayjs(start).format('YYYY-MM-DD'),
-    endTime: dayjs(end).format('YYYY-MM-DD')
+    startTime: formatDate(start),
+    endTime: formatDate(end)
   };
 }
 
@@ -320,10 +333,6 @@ function updateLocale() {
   });
 }
 
-function formatLatency(ms: number): string {
-  return `${ms.toFixed(2)}ms`;
-}
-
 function formatNumber(num: number): string {
   if (num >= 10000) {
     return `${(num / 10000).toFixed(1)}万`;
@@ -392,9 +401,27 @@ onMounted(() => {
             <div class="flex items-center gap-12px">
               <div class="flex-center rd-8px bg-[#5da8ff] p-10px text-white">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M3 13H8V21H3V13Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  <path d="M10 9H14V21H10V9Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  <path d="M17 3H21V21H17V3Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path
+                    d="M3 13H8V21H3V13Z"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M10 9H14V21H10V9Z"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M17 3H21V21H17V3Z"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
                 </svg>
               </div>
               <div class="flex flex-col">
@@ -409,8 +436,20 @@ onMounted(() => {
             <div class="flex items-center gap-12px">
               <div class="flex-center rd-8px bg-[#26deca] p-10px text-white">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M22 11.08V12C21.9988 14.1564 21.3005 16.2547 20.0093 17.9818C18.7182 19.709 16.9033 20.9725 14.8354 21.5839C12.7674 22.1953 10.5573 22.1219 8.53447 21.3746C6.51168 20.6273 4.78465 19.2461 3.61096 17.4371C2.43727 15.628 1.87979 13.4881 2.02168 11.3363C2.16356 9.18455 2.99721 7.13631 4.39828 5.49706C5.79935 3.85781 7.69279 2.71537 9.79619 2.24013C11.8996 1.7649 14.1003 1.98232 16.07 2.85999" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  <path d="M22 4L12 14.01L9 11.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path
+                    d="M22 11.08V12C21.9988 14.1564 21.3005 16.2547 20.0093 17.9818C18.7182 19.709 16.9033 20.9725 14.8354 21.5839C12.7674 22.1953 10.5573 22.1219 8.53447 21.3746C6.51168 20.6273 4.78465 19.2461 3.61096 17.4371C2.43727 15.628 1.87979 13.4881 2.02168 11.3363C2.16356 9.18455 2.99721 7.13631 4.39828 5.49706C5.79935 3.85781 7.69279 2.71537 9.79619 2.24013C11.8996 1.7649 14.1003 1.98232 16.07 2.85999"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M22 4L12 14.01L9 11.01"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
                 </svg>
               </div>
               <div class="flex flex-col">
@@ -425,9 +464,27 @@ onMounted(() => {
             <div class="flex items-center gap-12px">
               <div class="flex-center rd-8px bg-[#f68057] p-10px text-white">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  <path d="M15 9L9 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  <path d="M9 9L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path
+                    d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M15 9L9 15"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M9 9L15 15"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
                 </svg>
               </div>
               <div class="flex flex-col">
@@ -442,13 +499,25 @@ onMounted(() => {
             <div class="flex items-center gap-12px">
               <div class="flex-center rd-8px bg-[#fedc69] p-10px text-white">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  <path d="M12 6V12L16 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path
+                    d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M12 6V12L16 14"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
                 </svg>
               </div>
               <div class="flex flex-col">
                 <span class="text-12px text-[#999]">{{ $t('page.openPlatform.statistics.avgLatency') }}</span>
-                <span class="text-20px font-bold">{{ overview ? formatLatency(overview.avgLatency) : '-' }}</span>
+                <span class="text-20px font-bold">{{ overview ? formatMs(overview.avgLatency) : '-' }}</span>
               </div>
             </div>
           </NCard>
@@ -463,12 +532,22 @@ onMounted(() => {
       <!-- 应用调用排行 & API 调用排行 -->
       <NGrid :x-gap="16" :y-gap="16" responsive="screen" item-responsive>
         <NGi span="24 s:24 m:12">
-          <NCard :bordered="false" class="card-wrapper" :title="$t('page.openPlatform.statistics.appRanking')" size="small">
+          <NCard
+            :bordered="false"
+            class="card-wrapper"
+            :title="$t('page.openPlatform.statistics.appRanking')"
+            size="small"
+          >
             <div ref="topAppsDomRef" class="h-360px overflow-hidden"></div>
           </NCard>
         </NGi>
         <NGi span="24 s:24 m:12">
-          <NCard :bordered="false" class="card-wrapper" :title="$t('page.openPlatform.statistics.apiRanking')" size="small">
+          <NCard
+            :bordered="false"
+            class="card-wrapper"
+            :title="$t('page.openPlatform.statistics.apiRanking')"
+            size="small"
+          >
             <div ref="topApisDomRef" class="h-360px overflow-hidden"></div>
           </NCard>
         </NGi>
@@ -477,27 +556,37 @@ onMounted(() => {
       <!-- 状态码分布 & 延迟统计 -->
       <NGrid :x-gap="16" :y-gap="16" responsive="screen" item-responsive>
         <NGi span="24 s:24 m:12">
-          <NCard :bordered="false" class="card-wrapper" :title="$t('page.openPlatform.statistics.statusDistribution')" size="small">
+          <NCard
+            :bordered="false"
+            class="card-wrapper"
+            :title="$t('page.openPlatform.statistics.statusDistribution')"
+            size="small"
+          >
             <div ref="statusDistDomRef" class="h-360px overflow-hidden"></div>
           </NCard>
         </NGi>
         <NGi span="24 s:24 m:12">
-          <NCard :bordered="false" class="card-wrapper" :title="$t('page.openPlatform.statistics.latencyStats')" size="small">
+          <NCard
+            :bordered="false"
+            class="card-wrapper"
+            :title="$t('page.openPlatform.statistics.latencyStats')"
+            size="small"
+          >
             <NDescriptions :column="1" bordered size="small" class="pt-16px">
               <NDescriptionsItem :label="$t('page.openPlatform.statistics.avgLatency')">
-                {{ latencyStats ? formatLatency(latencyStats.avgLatency) : '-' }}
+                {{ latencyStats ? formatMs(latencyStats.avgLatency) : '-' }}
               </NDescriptionsItem>
               <NDescriptionsItem :label="$t('page.openPlatform.statistics.p50')">
-                {{ latencyStats ? formatLatency(latencyStats.p50) : '-' }}
+                {{ latencyStats ? formatMs(latencyStats.p50) : '-' }}
               </NDescriptionsItem>
               <NDescriptionsItem :label="$t('page.openPlatform.statistics.p95')">
-                {{ latencyStats ? formatLatency(latencyStats.p95) : '-' }}
+                {{ latencyStats ? formatMs(latencyStats.p95) : '-' }}
               </NDescriptionsItem>
               <NDescriptionsItem :label="$t('page.openPlatform.statistics.p99')">
-                {{ latencyStats ? formatLatency(latencyStats.p99) : '-' }}
+                {{ latencyStats ? formatMs(latencyStats.p99) : '-' }}
               </NDescriptionsItem>
               <NDescriptionsItem :label="$t('page.openPlatform.statistics.maxLatency')">
-                {{ latencyStats ? formatLatency(latencyStats.maxLatency) : '-' }}
+                {{ latencyStats ? formatMs(latencyStats.maxLatency) : '-' }}
               </NDescriptionsItem>
             </NDescriptions>
           </NCard>

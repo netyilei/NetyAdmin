@@ -1,10 +1,10 @@
 <script setup lang="tsx">
 import { NButton, NPopconfirm, NSpace, NTag } from 'naive-ui';
-import dayjs from 'dayjs';
 import { deleteApp, fetchAppList, resetAppSecret } from '@/service/api/v1/open-app';
 import { useAppStore } from '@/store/modules/app';
 import { useTable, useTableOperate } from '@/hooks/common/table';
 import { useDict } from '@/hooks/common/dict';
+import { formatDateTime } from '@/utils/format';
 import { $t } from '@/locales';
 import AppSearch from './components/app-search.vue';
 import AppOperateModal from './components/app-operate-modal.vue';
@@ -119,7 +119,7 @@ const {
       title: $t('page.openPlatform.app.time'),
       align: 'center',
       width: 160,
-      render: (row: any) => (row.createdAt ? dayjs(row.createdAt).format('YYYY-MM-DD HH:mm:ss') : '-')
+      render: (row: any) => (row.createdAt ? formatDateTime(row.createdAt) : '-')
     } as any,
     {
       key: 'operate',

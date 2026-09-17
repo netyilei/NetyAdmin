@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import type { SelectOption } from 'naive-ui';
 import { useDictStore } from '@/store/modules/dict';
+import { translateDictLabel } from '@/hooks/common/dict';
 import { $t } from '@/locales';
 
 defineOptions({ name: 'AppDictSelect' });
@@ -37,7 +38,7 @@ const options = computed<SelectOption[]>(() => {
   const data = dictStore.dictMap.get(props.dictCode);
   return (
     data?.map(item => ({
-      label: item.label.includes('.') ? $t(item.label as any) : item.label,
+      label: translateDictLabel(item.label),
       value: item.value,
       tagType: item.tagType
     })) || []

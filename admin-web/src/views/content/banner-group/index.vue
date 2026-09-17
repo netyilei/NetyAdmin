@@ -1,11 +1,11 @@
 <script setup lang="tsx">
 import { useRouter } from 'vue-router';
 import { NButton, NPopconfirm } from 'naive-ui';
-import dayjs from 'dayjs';
 import { fetchDeleteBannerGroup, fetchGetBannerGroupList } from '@/service/api/v1/content';
 import { useAppStore } from '@/store/modules/app';
 import { useDict } from '@/hooks/common/dict';
 import { useTable, useTableOperate } from '@/hooks/common/table';
+import { formatDateTime } from '@/utils/format';
 import { $t } from '@/locales';
 import BannerGroupOperateModal from './components/banner-group-operate-modal.vue';
 import BannerGroupSearch from './components/banner-group-search.vue';
@@ -113,7 +113,7 @@ const {
       title: $t('common.createdAt'),
       align: 'center',
       width: 170,
-      render: row => (row.createdAt ? dayjs(row.createdAt).format('YYYY-MM-DD HH:mm:ss') : '-')
+      render: row => (row.createdAt ? formatDateTime(row.createdAt) : '-')
     },
     {
       key: 'operate',

@@ -1,6 +1,5 @@
 <script setup lang="tsx">
 import { NButton, NImage, NPopconfirm, NTag } from 'naive-ui';
-import dayjs from 'dayjs';
 import {
   fetchBatchDeleteUploadRecord,
   fetchDeleteUploadRecord,
@@ -9,6 +8,7 @@ import {
 import { useAppStore } from '@/store/modules/app';
 import { useTable, useTableOperate } from '@/hooks/common/table';
 import { useAuth } from '@/hooks/business/auth';
+import { formatDateTime } from '@/utils/format';
 import type { Storage } from '@/typings/api/v1/storage';
 import { $t } from '@/locales';
 import UploadRecordSearch from './components/upload-record-search.vue';
@@ -152,7 +152,7 @@ const {
       title: $t('page.manage.upload.uploadedAt'),
       align: 'center',
       width: 170,
-      render: row => (row.uploadedAt ? dayjs(row.uploadedAt).format('YYYY-MM-DD HH:mm:ss') : '-')
+      render: row => (row.uploadedAt ? formatDateTime(row.uploadedAt) : '-')
     },
     {
       key: 'status',

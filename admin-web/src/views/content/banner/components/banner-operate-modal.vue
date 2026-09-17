@@ -11,6 +11,7 @@ import {
 } from '@/service/api/v1/content';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { useOperation } from '@/hooks/common/operation';
+import { formatDateTime } from '@/utils/format';
 import { uploadFileWithCredentials } from '@/utils/upload';
 import type { Content } from '@/typings/api/v1/content';
 import { $t } from '@/locales';
@@ -147,8 +148,8 @@ async function handleInitModel() {
         content: data.content,
         customParams: data.customParams,
         sort: data.sort,
-        startTime: data.startTime ? dayjs(data.startTime).format('YYYY-MM-DD HH:mm:ss') : null,
-        endTime: data.endTime ? dayjs(data.endTime).format('YYYY-MM-DD HH:mm:ss') : null,
+        startTime: data.startTime ? formatDateTime(data.startTime) : null,
+        endTime: data.endTime ? formatDateTime(data.endTime) : null,
         status: data.status
       });
     }

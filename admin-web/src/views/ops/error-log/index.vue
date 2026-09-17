@@ -1,7 +1,6 @@
 <script setup lang="tsx">
 import { ref } from 'vue';
 import { NButton, NPopconfirm, NTag } from 'naive-ui';
-import dayjs from 'dayjs';
 import {
   fetchBatchDeleteErrorLog,
   fetchDeleteErrorLog,
@@ -11,6 +10,7 @@ import {
 import { useAppStore } from '@/store/modules/app';
 import { useTable, useTableOperate } from '@/hooks/common/table';
 import { useAuth } from '@/hooks/business/auth';
+import { formatDateTime } from '@/utils/format';
 import { $t } from '@/locales';
 import ErrorLogSearch from './components/error-log-search.vue';
 import ErrorLogDetailModal from './components/error-log-detail-modal.vue';
@@ -124,14 +124,14 @@ const {
       title: $t('page.ops.errorLog.time'),
       align: 'center',
       width: 170,
-      render: row => (row.createdAt ? dayjs(row.createdAt).format('YYYY-MM-DD HH:mm:ss') : '-')
+      render: row => (row.createdAt ? formatDateTime(row.createdAt) : '-')
     },
     {
       key: 'lastOccurredAt',
       title: $t('page.ops.errorLog.lastOccurredAt'),
       align: 'center',
       width: 170,
-      render: row => (row.lastOccurredAt ? dayjs(row.lastOccurredAt).format('YYYY-MM-DD HH:mm:ss') : '-')
+      render: row => (row.lastOccurredAt ? formatDateTime(row.lastOccurredAt) : '-')
     },
     {
       key: 'operate',

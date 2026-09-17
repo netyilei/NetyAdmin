@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/store/modules/auth';
+import { isSuperByCode } from '@/utils/common';
 
 export function useAuth() {
   const authStore = useAuthStore();
@@ -11,7 +12,7 @@ export function useAuth() {
     const { roles, buttons } = authStore.userInfo;
 
     // super admin has all permissions
-    if (roles.includes(import.meta.env.VITE_STATIC_SUPER_ROLE)) {
+    if (isSuperByCode(roles)) {
       return true;
     }
 

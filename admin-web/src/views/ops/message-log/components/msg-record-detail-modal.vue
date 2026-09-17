@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { watch } from 'vue';
-import dayjs from 'dayjs';
 import { useDict } from '@/hooks/common/dict';
+import { formatDateTime } from '@/utils/format';
 import type { MessageHub } from '@/typings/api/v1/message-hub';
 import { $t } from '@/locales';
 
@@ -56,7 +56,7 @@ watch(
         {{ rowData?.retryCount }}
       </NDescriptionsItem>
       <NDescriptionsItem :label="$t('page.messageHub.record.time')">
-        {{ rowData?.createdAt ? dayjs(rowData.createdAt).format('YYYY-MM-DD HH:mm:ss') : '-' }}
+        {{ rowData?.createdAt ? formatDateTime(rowData.createdAt) : '-' }}
       </NDescriptionsItem>
       <NDescriptionsItem v-if="rowData?.title" :label="$t('page.messageHub.template.msgTitle')">
         {{ rowData?.title }}

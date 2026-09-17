@@ -1,6 +1,5 @@
 <script setup lang="tsx">
 import { NAvatar, NButton, NPopconfirm, NSpace, NSwitch, NTag } from 'naive-ui';
-import dayjs from 'dayjs';
 import { ENABLE_STATUS, isEnabledStatus } from '@/constants/business';
 import {
   fetchDeleteUser,
@@ -11,6 +10,7 @@ import {
 import { useAppStore } from '@/store/modules/app';
 import { useTable, useTableOperate } from '@/hooks/common/table';
 import { useDict } from '@/hooks/common/dict';
+import { formatDateTime } from '@/utils/format';
 import { $t } from '@/locales';
 import UserSearch from './components/user-search.vue';
 import UserOperateModal from './components/user-operate-modal.vue';
@@ -130,7 +130,7 @@ const {
       title: $t('common.createdAt'),
       align: 'center',
       width: 160,
-      render: (row: any) => (row.createdAt ? dayjs(row.createdAt).format('YYYY-MM-DD HH:mm:ss') : '-')
+      render: (row: any) => (row.createdAt ? formatDateTime(row.createdAt) : '-')
     } as any,
     {
       key: 'operate',

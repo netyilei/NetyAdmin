@@ -1,10 +1,10 @@
 <script setup lang="tsx">
 import { NButton, NPopconfirm, NSpace, NTag } from 'naive-ui';
-import dayjs from 'dayjs';
 import { batchDeleteIPAC, deleteIPAC, fetchIPACList } from '@/service/api/v1/system-ipac';
 import { useAppStore } from '@/store/modules/app';
 import { useTable, useTableOperate } from '@/hooks/common/table';
 import { useDict } from '@/hooks/common/dict';
+import { formatDateTime } from '@/utils/format';
 import { $t } from '@/locales';
 import IPACSearch from './components/ipac-search.vue';
 import IPACOperateModal from './components/ipac-operate-modal.vue';
@@ -68,8 +68,7 @@ const {
       title: $t('page.openPlatform.ipac.expiredAt'),
       align: 'center',
       width: 160,
-      render: (row: any) =>
-        row.expiredAt ? dayjs(row.expiredAt).format('YYYY-MM-DD HH:mm:ss') : $t('page.openPlatform.ipac.permanent')
+      render: (row: any) => (row.expiredAt ? formatDateTime(row.expiredAt) : $t('page.openPlatform.ipac.permanent'))
     } as any,
     {
       key: 'status',
@@ -83,7 +82,7 @@ const {
       title: $t('page.openPlatform.ipac.time'),
       align: 'center',
       width: 160,
-      render: (row: any) => (row.createdAt ? dayjs(row.createdAt).format('YYYY-MM-DD HH:mm:ss') : '-')
+      render: (row: any) => (row.createdAt ? formatDateTime(row.createdAt) : '-')
     } as any,
     {
       key: 'operate',

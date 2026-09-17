@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { fetchGetCategoryTree } from '@/service/api/v1/content';
+import { buildCategoryOptions } from '@/utils/category';
 import type { Content } from '@/typings/api/v1/content';
 import { $t } from '@/locales';
 
@@ -22,18 +23,7 @@ const categoryOptions = ref<{ label: string; value: number }[]>([]);
 async function loadCategories() {
   const { data, error } = await fetchGetCategoryTree();
   if (!error && data) {
-    const flattenCategories = (categories: Content.CategoryTree[], level = 0): { label: string; value: number }[] => {
-      const result: { label: string; value: number }[] = [];
-      for (const cat of categories) {
-        const prefix = '　'.repeat(level);
-        result.push({ label: prefix + cat.name, value: cat.id });
-        if (cat.children && cat.children.length > 0) {
-          result.push(...flattenCategories(cat.children, level + 1));
-        }
-      }
-      return result;
-    };
-    categoryOptions.value = flattenCategories(data);
+    categoryOptions.value = buildCategoryOptions(data);
   }
 }
 

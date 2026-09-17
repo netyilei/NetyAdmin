@@ -4,6 +4,14 @@ import { boolToDictValue, dictValueToBool, isDisabledStatus, isEnabledStatus } f
 import { useDictStore } from '@/store/modules/dict';
 import { $t } from '@/locales';
 
+/**
+ * 字典 label 的 i18n 启发式翻译：label 含 '.' 视为 i18n key 走 $t，否则原样。
+ * 全项目唯一实现（原先 hook 内部与 app-dict-select / app-dict-radio-group 各自内联）。
+ */
+export function translateDictLabel(label: string): string {
+  return label.includes('.') ? $t(label) : label;
+}
+
 export function useDict() {
   const dictStore = useDictStore();
 
@@ -14,15 +22,14 @@ export function useDict() {
   function getDictLabel(dictCode: string, value: string | number) {
     const data = dictStore.dictMap.get(dictCode);
     const item = data?.find(i => String(i.value) === String(value));
-    const label = item?.label || String(value);
-    return label.includes('.') ? $t(label) : label;
+    return translateDictLabel(item?.label || String(value));
   }
 
   function renderDictTag(dictCode: string, value: string | number) {
     const data = dictStore.dictMap.get(dictCode);
     const item = data?.find(i => String(i.value) === String(value));
     if (!item) return h('span', {}, value);
-    const label = item.label.includes('.') ? $t(item.label) : item.label;
+    const label = translateDictLabel(item.label);
     return h(NTag, { type: item.tagType as any }, { default: () => label });
   }
 

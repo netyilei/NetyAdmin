@@ -1,11 +1,12 @@
 <script setup lang="tsx">
 import { NButton, NCard, NDataTable, NPopconfirm, NTag } from 'naive-ui';
-import dayjs from 'dayjs';
+import { jsonClone } from '@na/utils';
 import { Icon } from '@iconify/vue';
 import { fetchDeleteCategory, fetchGetCategoryTree } from '@/service/api/v1/content';
 import { useAppStore } from '@/store/modules/app';
 import { useTable, useTableOperate } from '@/hooks/common/table';
 import { useDict } from '@/hooks/common/dict';
+import { formatDateTime } from '@/utils/format';
 import type { Content } from '@/typings/api/v1/content';
 import { $t } from '@/locales';
 import TableHeaderOperation from '@/components/advanced/table-header-operation.vue';
@@ -98,7 +99,7 @@ const { columns, columnChecks, data, getData, loading, searchParams, resetSearch
         title: $t('page.content.category.createdAt'),
         align: 'center',
         width: 170,
-        render: (row: any) => dayjs(row.createdAt).format('YYYY-MM-DD HH:mm:ss')
+        render: (row: any) => formatDateTime(row.createdAt)
       },
       {
         key: 'operate',
@@ -147,7 +148,7 @@ function handleEditTree(id: number) {
   operateType.value = 'edit';
   const node = findNodeById(data.value as any[], id);
   if (node) {
-    editingData.value = JSON.parse(JSON.stringify(node));
+    editingData.value = jsonClone(node) as unknown as typeof editingData.value;
     drawerVisible.value = true;
   }
 }

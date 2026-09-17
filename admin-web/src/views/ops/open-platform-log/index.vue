@@ -1,10 +1,10 @@
 <script setup lang="tsx">
 import { ref } from 'vue';
 import { NButton, NSpace, NTag } from 'naive-ui';
-import dayjs from 'dayjs';
 import { fetchGetOpenLogList } from '@/service/api/v1/log';
 import { useAppStore } from '@/store/modules/app';
 import { useTable } from '@/hooks/common/table';
+import { formatDateTime, formatNsToMs } from '@/utils/format';
 import type { Log } from '@/typings/api/v1/log';
 import { $t } from '@/locales';
 import OpenPlatformLogDetailModal from './components/open-platform-log-detail-modal.vue';
@@ -72,7 +72,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
       align: 'center',
       width: 100,
       render: (row: Log.OpenLog) => {
-        const ms = (row.latency / 1000000).toFixed(2);
+        const ms = formatNsToMs(row.latency);
         return <span>{ms}ms</span>;
       }
     } as any,
@@ -87,7 +87,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
       title: '调用时间',
       align: 'center',
       width: 170,
-      render: (row: Log.OpenLog) => <span>{dayjs(row.createdAt).format('YYYY-MM-DD HH:mm:ss')}</span>
+      render: (row: Log.OpenLog) => <span>{formatDateTime(row.createdAt)}</span>
     } as any,
     {
       key: 'operate',

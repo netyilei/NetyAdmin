@@ -57,7 +57,9 @@ export function toggleHtmlClass(className: string) {
   };
 }
 
-// 判断role是否是超管
-export function isSuperByCode(code: string) {
-  return code === import.meta.env.VITE_STATIC_SUPER_ROLE;
+// 判断是否超管角色（支持单个 code 或角色数组——数组语义：包含任一超管 code）
+// 全项目超管判定的唯一实现（原先 hooks/business/auth 与 store/modules/auth 各自内联比较）
+export function isSuperByCode(code: string | string[]): boolean {
+  const superRole = import.meta.env.VITE_STATIC_SUPER_ROLE;
+  return Array.isArray(code) ? code.includes(superRole) : code === superRole;
 }

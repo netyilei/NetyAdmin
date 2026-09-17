@@ -5,6 +5,7 @@ import { useLoading } from '@na/hooks';
 import { clearUserContext, setUserContext } from '@/plugins/sentry';
 import { fetchGetUserInfo, fetchLogin } from '@/service/api/v1/auth';
 import { useRouterPush } from '@/hooks/common/router';
+import { isSuperByCode } from '@/utils/common';
 import { localStg } from '@/utils/storage';
 import type { Auth } from '@/typings/api/v1/auth';
 import { SetupStoreId } from '@/enum';
@@ -31,9 +32,9 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
 
   /** is super role in static route */
   const isStaticSuper = computed(() => {
-    const { VITE_AUTH_ROUTE_MODE, VITE_STATIC_SUPER_ROLE } = import.meta.env;
+    const { VITE_AUTH_ROUTE_MODE } = import.meta.env;
 
-    return VITE_AUTH_ROUTE_MODE === 'static' && userInfo.roles.includes(VITE_STATIC_SUPER_ROLE);
+    return VITE_AUTH_ROUTE_MODE === 'static' && isSuperByCode(userInfo.roles);
   });
 
   /** Is login */

@@ -2,7 +2,7 @@
 import { computed, onMounted, watch } from 'vue';
 import { DICT_BOOLEAN } from '@/constants/business';
 import { useDictStore } from '@/store/modules/dict';
-import { $t } from '@/locales';
+import { translateDictLabel } from '@/hooks/common/dict';
 
 defineOptions({ name: 'AppDictRadioGroup' });
 
@@ -54,7 +54,7 @@ function handleUpdateValue(val: string | number | null) {
 }
 
 function formatLabel(label: string) {
-  return label.includes('.') ? $t(label) : label;
+  return translateDictLabel(label);
 }
 
 onMounted(loadOptions);

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatNsToMs } from '@/utils/format';
 import type { Log } from '@/typings/api/v1/log';
 import { $t } from '@/locales';
 
@@ -7,10 +8,6 @@ defineOptions({ name: 'OpenPlatformLogDetailModal' });
 const visible = defineModel<boolean>('visible', { default: false });
 
 const rowData = defineModel<Log.OpenLog | null>('rowData', { default: null });
-
-function formatLatency(ns: number) {
-  return `${(ns / 1000000).toFixed(2)}ms`;
-}
 
 function formatJson(str: string) {
   if (!str) return '-';
@@ -52,7 +49,7 @@ function formatJson(str: string) {
           {{ rowData?.statusCode }}
         </NTag>
       </NDescriptionsItem>
-      <NDescriptionsItem label="耗时">{{ formatLatency(rowData?.latency || 0) }}</NDescriptionsItem>
+      <NDescriptionsItem label="耗时">{{ formatNsToMs(rowData?.latency || 0) }}</NDescriptionsItem>
       <NDescriptionsItem label="来源IP">{{ rowData?.clientIp }}</NDescriptionsItem>
       <NDescriptionsItem label="调用时间">{{ rowData?.createdAt }}</NDescriptionsItem>
     </NDescriptions>

@@ -1,11 +1,11 @@
 <script setup lang="tsx">
 import { NButton, NSpace } from 'naive-ui';
-import dayjs from 'dayjs';
 import { fetchRecordList, retryRecord } from '@/service/api/v1/message-hub';
 import { useAppStore } from '@/store/modules/app';
 import { useTable, useTableOperate } from '@/hooks/common/table';
 import { useAuth } from '@/hooks/business/auth';
 import { useDict } from '@/hooks/common/dict';
+import { formatDateTime } from '@/utils/format';
 import { $t } from '@/locales';
 import MsgRecordSearch from './components/msg-record-search.vue';
 import MsgRecordDetailModal from './components/msg-record-detail-modal.vue';
@@ -72,7 +72,7 @@ const {
       title: $t('page.messageHub.record.time'),
       align: 'center',
       width: 160,
-      render: (row: any) => (row.createdAt ? dayjs(row.createdAt).format('YYYY-MM-DD HH:mm:ss') : '-')
+      render: (row: any) => (row.createdAt ? formatDateTime(row.createdAt) : '-')
     } as any,
     {
       key: 'operate',
