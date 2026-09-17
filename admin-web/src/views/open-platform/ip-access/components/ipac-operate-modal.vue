@@ -66,9 +66,16 @@ const rules: Record<string, App.Global.FormRule[]> = {
 async function handleSubmit() {
   await validate();
 
+  // NDatePicker formatted-value 是本地时间字符串（无时区标记），后端历史缺陷会按 UTC 解析，
+  // 导致过期时间偏移 8 小时。统一转为带时区的 ISO 字符串提交（后端优先按 RFC3339 解析）。
+  const payload: Model = { ...model };
+  if (payload.expiredAt) {
+    payload.expiredAt = new Date(payload.expiredAt).toISOString();
+  }
+
   await useOperation(props.operateType, loading, {
-    add: () => addIPAC(model),
-    edit: () => updateIPAC(model as SystemIPAC.UpdateIPACReq),
+    add: () => addIPAC(payload),
+    edit: () => updateIPAC(payload as SystemIPAC.UpdateIPACReq),
     onSuccess: () => {
       closeModal();
       emit('submitted');

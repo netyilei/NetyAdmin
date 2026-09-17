@@ -172,6 +172,8 @@ func (s *ipacService) ReloadCache(ctx context.Context) error {
 	for _, r := range rules {
 		ipNet := parseIPNet(r.IPAddr)
 		if ipNet == nil {
+			// 存量脏数据防御：格式非法的规则无法生效，必须留痕而非静默跳过
+			slog.Warn("ipac: rule has invalid ip/cidr format, skipped", "ruleID", r.ID, "ipAddr", r.IPAddr)
 			continue
 		}
 
@@ -342,6 +344,11 @@ func (s *ipacService) reloadCacheAndBroadcast(ctx context.Context) {
 }
 
 func (s *ipacService) Create(ctx context.Context, req *ipacDto.CreateIPACReq, operatorID uint) error {
+	// IP/CIDR 格式前置校验：非法值入库后 ReloadCache 解析失败会被静默跳过，
+	// 规则永不生效且管理员无从知晓——在录入时即拦截
+	if parseIPNet(req.IPAddr) == nil {
+		return errorx.New(errorx.CodeInvalidParams, "IP 格式错误（需为单 IP 或 CIDR 网段）")
+	}
 	item := &ipac.IPAccessControl{
 		AppID:  req.AppID,
 		IPAddr: req.IPAddr,
@@ -352,7 +359,7 @@ func (s *ipacService) Create(ctx context.Context, req *ipacDto.CreateIPACReq, op
 	item.CreatedBy = operatorID
 
 	if req.ExpiredAt != nil && *req.ExpiredAt != "" {
-		t, err := time.Parse(time.DateTime, *req.ExpiredAt)
+		t, err := parseExpiredAt(*req.ExpiredAt)
 		if err != nil {
 			return errorx.New(errorx.CodeInvalidParams, "过期时间格式错误")
 		}
@@ -383,7 +390,7 @@ func (s *ipacService) Update(ctx context.Context, req *ipacDto.UpdateIPACReq, op
 	old.UpdatedBy = operatorID
 
 	if req.ExpiredAt != nil && *req.ExpiredAt != "" {
-		t, err := time.Parse(time.DateTime, *req.ExpiredAt)
+		t, err := parseExpiredAt(*req.ExpiredAt)
 		if err != nil {
 			return errorx.New(errorx.CodeInvalidParams, "过期时间格式错误")
 		}
@@ -394,6 +401,19 @@ func (s *ipacService) Update(ctx context.Context, req *ipacDto.UpdateIPACReq, op
 		return err
 	}
 	return s.NotifyAndReload(ctx)
+}
+
+// parseExpiredAt 解析 IPAC 过期时间字符串。
+//
+// 推荐格式 RFC3339（带时区偏移；管理端前端提交 ISO 字符串）；
+// 兼容回退 "2006-01-02 15:04:05" 裸格式（历史前端形态，无时区标记），
+// 按服务器本地时区解释——原先误按 UTC 解析，东八区管理员设置的过期时间
+// 实际晚 8 小时才生效（封禁多挂 8 小时）。
+func parseExpiredAt(s string) (time.Time, error) {
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, nil
+	}
+	return time.ParseInLocation(time.DateTime, s, time.Local)
 }
 
 func (s *ipacService) Delete(ctx context.Context, id uint) error {
