@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
 	"NetyAdmin/internal/domain/entity"
@@ -116,10 +117,22 @@ func (s *adminService) Create(ctx context.Context, req *systemDto.CreateAdminReq
 	}
 
 	if err := s.adminRepo.Create(ctx, admin); err != nil {
+		// 并发创建竞态下 ExistsBy 前置检查可能双双通过，
+		// admin_user(email) 部分唯一索引（0056）兜底，冲突转业务错误码
+		if isUniqueViolation(err) {
+			return 0, errorx.New(errorx.CodeAlreadyExists, "用户名或邮箱已被占用")
+		}
 		return 0, err
 	}
 
 	return admin.ID, nil
+}
+
+// isUniqueViolation 判断是否为 PostgreSQL 唯一约束冲突（SQLSTATE 23505），
+// 与 service/user 包的 oauth_binding 同款实现（跨包无法复用，保持判定方式一致）。
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
 func (s *adminService) Update(ctx context.Context, req *systemDto.UpdateAdminReq, operatorID uint, operatorIsSuper bool) error {
@@ -231,6 +244,10 @@ func (s *adminService) Update(ctx context.Context, req *systemDto.UpdateAdminReq
 		if err := s.adminRepo.Update(txCtx, admin); err != nil {
 			slog.Error("admin update: save admin failed", "adminID", req.ID, "err", err)
 			s.tm.Rollback(tx)
+			// 并发改绑邮箱竞态下 ExistsBy 检查双双通过，唯一索引（0056）兜底转业务错误码
+			if isUniqueViolation(err) {
+				return errorx.New(errorx.CodeAlreadyExists, "邮箱已被占用")
+			}
 			return errorx.New(errorx.CodeInternalError, "管理员更新失败")
 		}
 		// 若角色变更，在同一事务内更新 many2many 关联
@@ -252,6 +269,10 @@ func (s *adminService) Update(ctx context.Context, req *systemDto.UpdateAdminReq
 		if err := s.adminRepo.Update(txCtx, admin); err != nil {
 			slog.Error("admin update: save admin failed", "adminID", req.ID, "err", err)
 			s.tm.Rollback(tx)
+			// 并发改绑邮箱竞态下 ExistsBy 检查双双通过，唯一索引（0056）兜底转业务错误码
+			if isUniqueViolation(err) {
+				return errorx.New(errorx.CodeAlreadyExists, "邮箱已被占用")
+			}
 			return errorx.New(errorx.CodeInternalError, "管理员更新失败")
 		}
 		if len(newRoleIDs) > 0 {

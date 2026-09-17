@@ -230,8 +230,9 @@ func (r *contentArticleRepository) ListPublished(ctx context.Context, query *Con
 		db = db.Where("category_id IN ?", query.CategoryIDs)
 	}
 	if query.Keyword != "" {
-		like := like.LikeContains(query.Keyword)
-		db = db.Where("title LIKE ? OR summary LIKE ? OR keywords LIKE ?", like, like, like)
+		// 命名避开 like 包名遮蔽
+		pattern := like.LikeContains(query.Keyword)
+		db = db.Where("title LIKE ? OR summary LIKE ? OR keywords LIKE ?", pattern, pattern, pattern)
 	}
 
 	var total int64
