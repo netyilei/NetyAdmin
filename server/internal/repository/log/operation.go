@@ -63,17 +63,7 @@ func (r *OperationRepository) List(ctx context.Context, req *OperationQuery) ([]
 		query = query.Where("action LIKE ?", like.LikeContains(req.Action))
 	}
 
-	if req.StartDate != "" {
-		if startTime, err := time.Parse("2006-01-02", req.StartDate); err == nil {
-			query = query.Where("created_at >= ?", startTime)
-		}
-	}
-
-	if req.EndDate != "" {
-		if endTime, err := time.Parse("2006-01-02", req.EndDate); err == nil {
-			query = query.Where("created_at <= ?", endTime.Add(24*time.Hour))
-		}
-	}
+	query = applyTimeRange(query, req.StartDate, req.EndDate)
 
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -97,4 +87,21 @@ func (r *OperationRepository) DeleteBatch(ctx context.Context, ids []uint) error
 func (r *OperationRepository) DeleteBefore(ctx context.Context, before time.Time) error {
 	_, err := database.DeleteBatchBefore(ctx, r.getDB(ctx), "admin_operation_log", before, 1000)
 	return err
+}
+
+// applyTimeRange 日志时间范围过滤（同包 operation/error 共用，YYYY-MM-DD 含当日）。
+// 非法格式静默忽略（与历史行为一致，不因查询参数报错）；
+// endDate 上界取次日 0 点实现"含当日"（timestamptz 语义下与本地/UTC 解析一致性同 operation 历史）。
+func applyTimeRange(db *gorm.DB, startDate, endDate string) *gorm.DB {
+	if startDate != "" {
+		if t, err := time.Parse("2006-01-02", startDate); err == nil {
+			db = db.Where("created_at >= ?", t)
+		}
+	}
+	if endDate != "" {
+		if t, err := time.Parse("2006-01-02", endDate); err == nil {
+			db = db.Where("created_at <= ?", t.Add(24*time.Hour))
+		}
+	}
+	return db
 }

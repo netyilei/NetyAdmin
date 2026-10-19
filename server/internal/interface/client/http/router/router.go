@@ -117,6 +117,9 @@ func (r *ClientRouter) Register(engine *gin.Engine) {
 		// Authed endpoints under /client/v1/{userType} — JWT with matching type required
 		typedAuthed := clientV1.Group(tm.userType)
 		typedAuthed.Use(r.authMW.TypedUserJWTAuth(tm.accessor))
+		if r.apiRateLimit != nil {
+			typedAuthed.Use(r.apiRateLimit)
+		}
 		tm.module.RegisterAuth(typedAuthed)
 	}
 }

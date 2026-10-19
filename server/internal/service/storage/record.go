@@ -418,13 +418,18 @@ func (s *recordService) CompleteUpload(ctx context.Context, recordID uint, secre
 		}
 	}
 
-	// 直传完成事件（best-effort）：发布失败不影响上传结果，仅记录日志。
-	// 事件源是已验签翻转成功的 CompleteUpload，天然可信；下游经 PubSubBus
-	// 订阅 TopicStorageUploaded 做缩略图/审核等后处理（无订阅者时为 no-op）。
-	s.publishUploaded(ctx, record, fileURL)
-
 	// 重新读取返回完整记录（含更新后的字段与 StorageConfig）
 	result, err := s.recordRepo.GetByID(ctx, recordID)
+	if err != nil {
+		result = record
+	}
+
+	// 直传完成事件（best-effort）：发布失败不影响上传结果，仅记录日志。
+	// 事件源是已验签翻转成功的 CompleteUpload，天然可信；payload 必须用翻转后
+	// 重读的 result（事务前旧 record 的 FileSize/MimeType 是 pending 初值）；
+	// 下游经 PubSubBus 订阅 TopicStorageUploaded 做缩略图/审核等后处理。
+	s.publishUploaded(ctx, result, fileURL)
+
 	if err != nil {
 		return s.toVO(record), nil
 	}

@@ -74,13 +74,8 @@ func (r *ErrorRepository) List(ctx context.Context, level string, resolved *bool
 		query = query.Where("resolved = ?", *resolved)
 	}
 
-	// 时间范围（YYYY-MM-DD，含当日；空 = 不过滤）。避免大表无时间条件全表扫描
-	if startDate != "" {
-		query = query.Where("created_at >= ?", startDate+" 00:00:00")
-	}
-	if endDate != "" {
-		query = query.Where("created_at < ?", endDate+" 23:59:59.999999")
-	}
+	// 时间范围（共用 applyTimeRange，非法格式忽略）
+	query = applyTimeRange(query, startDate, endDate)
 
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err

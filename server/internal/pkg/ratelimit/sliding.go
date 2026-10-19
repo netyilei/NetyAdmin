@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -50,8 +51,10 @@ func (l *SlidingWindow) Allow(ctx context.Context, key string, window time.Durat
 		slog.Warn("sliding_window: ZCard failed, fail-open", "key", key, "err", err)
 		return true
 	}
-	// 3. 无论放行与否都记录本次请求（被拒计数可抑制高频重试）
-	member := fmt.Sprintf("%d", now)
+	// 3. 无论放行与否都记录本次请求（被拒计数可抑制高频重试）。
+	// member 必须全局唯一：同纳秒并发请求若用纯时间戳字符串会被 ZSET 去重导致少计超放
+	// （login_ratelimiter 用 ULID 同理）；Score 仍为纳秒时间戳供窗口清理
+	member := fmt.Sprintf("%d-%s", now, uuid.NewString())
 	if err := l.client.ZAdd(ctx, fullKey, redis.Z{Score: float64(now), Member: member}).Err(); err != nil {
 		slog.Warn("sliding_window: ZAdd failed, fail-open", "key", key, "err", err)
 		return true
