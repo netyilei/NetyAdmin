@@ -207,3 +207,19 @@ login_ratelimit:
   # 开发环境建议放宽（如 max=100），避免联测时多用户登录触发限流；生产环境收紧至 10
   window: "1m"  # 滑动窗口时长
   max: 100      # 窗口内单个 IP 允许的最大登录尝试次数（模板默认 100 便于开发联测，生产建议改 10）
+
+# 通用业务 API 限流（admin/client 认证路由组）。rules 为空 = 不启用；
+# Redis 故障时 fail-open 放行（与 login_ratelimit 一致）。
+# 维度 dimension: ip / user_id / claim（claim 需指定 context 字段名，如 platform）
+api_ratelimit:
+  rules: []
+  # rules:
+  #   - name: admin-write-burst      # 示例：管理端按用户限流
+  #     dimension: user_id
+  #     window: 1m
+  #     max: 300
+  #   - name: client-ip-burst        # 示例：客户端按 IP 限流写接口
+  #     dimension: ip
+  #     window: 1m
+  #     max: 120
+  #     paths: ["/client/v1/content"]

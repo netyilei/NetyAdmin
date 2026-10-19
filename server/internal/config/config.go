@@ -30,6 +30,7 @@ type Config struct {
 	CORS            CORSConfig            `yaml:"cors"`
 	SecurityHeaders SecurityHeadersConfig `yaml:"security_headers"`
 	LoginRateLimit  LoginRateLimitConfig  `yaml:"login_ratelimit"`
+	APIRateLimit    APIRateLimitConfig    `yaml:"api_ratelimit"`
 }
 
 // Duration 是 time.Duration 的包装类型，实现 encoding.TextUnmarshaler 接口，
@@ -91,6 +92,35 @@ type LoginRateLimitConfig struct {
 	// Max 窗口内单个 IP 允许的最大登录尝试次数。零值 = 默认 10。
 	// 环境变量：NETYADMIN_LOGIN_RATELIMIT_MAX
 	Max int `yaml:"max" env:"NETYADMIN_LOGIN_RATELIMIT_MAX"`
+}
+
+// APIRateLimitConfig 通用业务 API 限流配置（admin/client 认证路由组）。
+//
+// 规则为空数组或 Redis 未启用时中间件不注册（零行为变化）；
+// Redis 故障时 fail-open 放行（与 login_ratelimit 一致）。
+type APIRateLimitConfig struct {
+	// Rules 限流规则列表，按声明顺序逐条评估，命中任一超限即拒绝
+	Rules []APIRateLimitRule `yaml:"rules"`
+}
+
+// APIRateLimitRule 单条限流规则。
+type APIRateLimitRule struct {
+	// Name 规则名（用于日志定位）
+	Name string `yaml:"name"`
+	// Dimension 计数维度：ip / user_id / claim
+	//   ip      — gin ClientIP（TrustedProxies 已收敛为空，不可伪造）
+	//   user_id — adminID（admin 端，uint）/ userID（client 端，string），未认证阶段回退 ip
+	//   claim   — gin context 中的字符串值（字段名由 Claim 指定，如多租户注入的
+	//             tenantId，或内置的 platform），取不到回退 ip
+	Dimension string `yaml:"dimension"`
+	// Claim dimension=claim 时的 context 字段名
+	Claim string `yaml:"claim"`
+	// Window 滑动窗口时长（如 "1m"）
+	Window Duration `yaml:"window"`
+	// Max 窗口内最大请求数
+	Max int64 `yaml:"max"`
+	// Paths 路径前缀匹配（空 = 规则作用于所挂路由组全部路径）
+	Paths []string `yaml:"paths"`
 }
 
 // SentryConfig Sentry 错误追踪配置（后端 Go）

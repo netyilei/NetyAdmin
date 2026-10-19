@@ -25,6 +25,7 @@ import (
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
 	"NetyAdmin/internal/pkg/pubsub"
+	"NetyAdmin/internal/pkg/ratelimit"
 	pkgredis "NetyAdmin/internal/pkg/redis"
 	"NetyAdmin/internal/pkg/response"
 	pkgSentry "NetyAdmin/internal/pkg/sentry"
@@ -248,8 +249,14 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		configWatcher,
 		services.ipac,
 		lazyCacheMgr,
+		eventBus,
 	)...)
 	taskManager.Register(services.msgSendJob)
+
+	apiRateLimitMW := middleware.NewAPIRateLimit(
+		ratelimit.NewSlidingWindow(redisClient, cfg.Redis.Prefix+":api_rl"),
+		cfg.APIRateLimit.Rules,
+	)
 
 	cr := clientRouter.NewClientRouter(
 		handlers.client.echo,
@@ -305,6 +312,12 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	engine.GET("/health", dbHealthChecker.Handler())
 
 	// 路由注册
+	// 通用业务 API 限流（api_ratelimit）：配置了规则且 Redis 可用时注入两端认证路由组；
+	// 规则为空/无 Redis = 不注册，行为与历史版本一致
+	if apiRateLimitMW != nil {
+		r.SetAPIRateLimit(apiRateLimitMW)
+		cr.SetAPIRateLimit(apiRateLimitMW)
+	}
 	r.Register(engine)
 	cr.Register(engine)
 	gin.DefaultWriter = os.Stdout

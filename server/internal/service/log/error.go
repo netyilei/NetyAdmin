@@ -19,7 +19,7 @@ type ErrorService interface {
 	Log(ctx context.Context, level, message, requestID, path, method, ip, userAgent string, adminID uint) error
 	LogPanic(ctx context.Context, err interface{}, requestID, path, method, ip, userAgent string, adminID uint)
 	LogError(ctx context.Context, err error, requestID, path, method, ip, userAgent string, adminID uint)
-	List(ctx context.Context, level string, resolved *bool, page, pageSize int) ([]logEntity.Error, int64, error)
+	List(ctx context.Context, level string, resolved *bool, startDate, endDate string, page, pageSize int) ([]logEntity.Error, int64, error)
 	Resolve(ctx context.Context, id, resolvedBy uint) error
 	Delete(ctx context.Context, id uint) error
 	DeleteBatch(ctx context.Context, ids []uint) error
@@ -108,8 +108,8 @@ func (s *errorService) getStack(skip int) string {
 	return stack
 }
 
-func (s *errorService) List(ctx context.Context, level string, resolved *bool, page, pageSize int) ([]logEntity.Error, int64, error) {
-	return s.logRepo.List(ctx, level, resolved, page, pageSize)
+func (s *errorService) List(ctx context.Context, level string, resolved *bool, startDate, endDate string, page, pageSize int) ([]logEntity.Error, int64, error) {
+	return s.logRepo.List(ctx, level, resolved, startDate, endDate, page, pageSize)
 }
 
 func (s *errorService) Resolve(ctx context.Context, id, resolvedBy uint) error {
