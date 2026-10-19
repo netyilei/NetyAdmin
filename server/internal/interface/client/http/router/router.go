@@ -18,9 +18,13 @@ type ClientRouter struct {
 	logSvc       openSvcPkg.OpenLogService
 	ipacSvc      ipacSvcPkg.IPACService
 	authMW       *middleware.AuthMiddleware
+	apiRateLimit gin.HandlerFunc // 通用业务限流（可选，nil = 未启用）
 	routers      []v1.ClientModuleRouter
 	typedRouters []typedModuleRouter
 }
+
+// SetAPIRateLimit 注入通用限流中间件（可选能力，wire 在配置了 rules 且 Redis 可用时注入）。
+func (r *ClientRouter) SetAPIRateLimit(mw gin.HandlerFunc) { r.apiRateLimit = mw }
 
 // typedModuleRouter associates a ClientModuleRouter with a specific userType
 // and its corresponding ClaimsAccessor for JWT authentication.
@@ -95,6 +99,9 @@ func (r *ClientRouter) Register(engine *gin.Engine) {
 	// 2. 需要开放平台签名验证的接口
 	authGroup := clientV1.Group("")
 	authGroup.Use(middleware.OpenPlatformAuth(r.appSvc, r.apiSvc, r.logSvc, r.ipacSvc))
+	if r.apiRateLimit != nil {
+		authGroup.Use(r.apiRateLimit)
+	}
 	for _, module := range r.routers {
 		module.RegisterAuth(authGroup)
 	}

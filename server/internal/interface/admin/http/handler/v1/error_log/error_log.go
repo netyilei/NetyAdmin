@@ -17,10 +17,12 @@ func NewErrorLogHandler(svc logService.ErrorService) *ErrorLogHandler {
 }
 
 type ErrorLogQueryReq struct {
-	Current  int    `form:"current"`
-	Size     int    `form:"size"`
-	Level    string `form:"level"`
-	Resolved string `form:"resolved"`
+	Current   int    `form:"current"`
+	Size      int    `form:"size"`
+	Level     string `form:"level"`
+	Resolved  string `form:"resolved"`
+	StartDate string `form:"startDate"` // 可选，YYYY-MM-DD，含当日
+	EndDate   string `form:"endDate"`   // 可选，YYYY-MM-DD，含当日
 }
 
 func (r *ErrorLogQueryReq) Normalize() {
@@ -65,7 +67,7 @@ func (h *ErrorLogHandler) List(c *gin.Context) {
 		resolved = &val
 	}
 
-	logs, total, err := h.svc.List(c.Request.Context(), req.Level, resolved, req.Current, req.Size)
+	logs, total, err := h.svc.List(c.Request.Context(), req.Level, resolved, req.StartDate, req.EndDate, req.Current, req.Size)
 	if err != nil {
 		response.Fail(c, err)
 		return

@@ -28,7 +28,13 @@ type Router struct {
 	authVerifier middleware.AuthVerifier
 	authMW       *middleware.AuthMiddleware
 	ipacSvc      ipacService.IPACService
+	apiRateLimit gin.HandlerFunc // 通用业务限流（可选，nil = 未启用）
 	routers      []v1.ModuleRouter
+}
+
+// SetAPIRateLimit 注入通用限流中间件（可选能力，wire 在配置了 rules 且 Redis 可用时注入）。
+func (r *Router) SetAPIRateLimit(mw gin.HandlerFunc) {
+	r.apiRateLimit = mw
 }
 
 func NewRouter(
@@ -108,6 +114,9 @@ func (r *Router) registerV1(engine *gin.Engine) {
 	authGroup := adminV1.Group("")
 	authGroup.Use(middleware.IPACAuth(r.ipacSvc))
 	authGroup.Use(r.authMW.JWTAuth())
+	if r.apiRateLimit != nil {
+		authGroup.Use(r.apiRateLimit)
+	}
 	for _, module := range r.routers {
 		module.RegisterAuth(authGroup)
 	}
@@ -117,6 +126,9 @@ func (r *Router) registerV1(engine *gin.Engine) {
 	permissionGroup := adminV1.Group("")
 	permissionGroup.Use(middleware.IPACAuth(r.ipacSvc))
 	permissionGroup.Use(r.authMW.JWTAuth())
+	if r.apiRateLimit != nil {
+		permissionGroup.Use(r.apiRateLimit)
+	}
 	permissionGroup.Use(middleware.PermissionAuth(r.authVerifier))
 	for _, module := range r.routers {
 		module.RegisterPermission(permissionGroup)
