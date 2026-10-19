@@ -44,10 +44,12 @@ NetyAdmin 是一个基于 **Go + Gin** 后端和 **Vue 3 + TypeScript** 前端�
 | **用户模块** | C端用户体系、多端登录（platform 维度顶号）、TokenStore 抽象（缓存/数据库）、账户锁定与自动解锁、安全加密、OAuth 第三方账号绑定基座（OAuthBindingService）、多类型用户 JWT 鉴权扩展（TypedUserJWTAuth + RegisterTypedAuthModule） |
 | **消息中心** | 统一发送入口（SMS/Email/站内信）、模板渲染、异步重试、STARTTLS 支持 |
 | **开放平台** | AppKey 认证、安全签名、可配置分布式限流（令牌桶）、Scope 权限、应用级存储绑定 |
-| **IP 访问控制** | 全局/应用级 IP 治理、CIDR 匹配、高性能内存过滤 |
+| **IP 访问控制** | 全局/应用级 IP 治理、CIDR 匹配、高性能内存过滤、过期规则自动解载 |
+| **直传完成事件** | CompleteUpload 验签后发布 storage.uploaded / storage.expired（PubSub），下游订阅做缩略图/审核等后处理 |
+| **通用 API 限流** | admin/client 认证路由组限流（api_ratelimit）：ip/user_id/claim 三维度、ZSET 滑动窗口（Lua 原子）、空配置不启用、Redis 故障 fail-open |
 | **内容管理** | 分类、文章、Banner，支持富文本、定时发布、C端公开API |
 | **存储管理** | 多存储源配置、上传凭证、上传记录、应用级存储隔离、Client端上传接口 |
-| **日志审计** | 操作日志、错误日志、开放平台日志、任务日志，LogBus 统一缓冲，敏感字段脱敏 |
+| **日志审计** | 操作日志、错误日志、开放平台日志、任务日志，LogBus 统一缓冲，敏感字段脱敏；保留期治理（默认 30 天，分批删除 + 时间索引） |
 | **系统配置** | 动态字典、系统参数、任务调度 |
 | **统一消息总线** | PubSubBus、驱动化设计、Topic 注册表、分布式缓存同步 |
 | **验证码** | 图形验证码，支持多种类型和存储方案，场景化验证配置（登录/注册/找回密码） |

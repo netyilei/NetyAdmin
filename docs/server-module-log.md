@@ -17,7 +17,9 @@
 - **开放平台日志**：记录开放 API 调用流水
 - **任务日志**：记录任务执行结果
 	- **敏感脱敏**：自动脱敏密码、Token等敏感字段
-	- **批量清理**：支持按保留策略自动清理
+	- **批量清理**：支持按保留策略自动清理（`database.DeleteBatchBefore` 分批删除，每批 1000 行循环至删尽，避免保留期首次生效时的长事务）
+- **时间索引**：admin_error_log / sys_task_logs / msg_records 均有 created_at 索引（迁移 0058），清理与时间范围查询不再全表扫描
+- **查询时间范围**：错误日志列表接口支持可选 `startDate`/`endDate`（YYYY-MM-DD 含当日，非法格式忽略），与操作日志同语义（`applyTimeRange` 共享实现）
 	- **状态追踪**：错误日志支持标记解决状态
 	- **log/slog 结构化日志**：系统日志已从标准库 `log` 迁移至 `log/slog`，使用 `slog.Info` / `slog.Error` 替代 `log.Printf` / `log.Println`
 

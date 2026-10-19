@@ -265,7 +265,7 @@ Authorization: Bearer <accessToken>
 
 | 方法 | 路径 | 认证级别 | 说明 |
 |------|------|----------|------|
-| GET | `/admin/v1/error-logs` | 权限 | 获取错误日志列表 |
+| GET | `/admin/v1/error-logs` | 权限 | 获取错误日志列表（可选 startDate/endDate，YYYY-MM-DD 含当日） |
 | PUT | `/admin/v1/error-logs/:id/resolve` | 权限 | 标记错误日志已解决 |
 | DELETE | `/admin/v1/error-logs/:id` | 权限 | 删除错误日志 |
 | POST | `/admin/v1/error-logs/batch-delete` | 权限 | 批量删除错误日志 |

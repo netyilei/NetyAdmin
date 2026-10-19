@@ -651,7 +651,7 @@ func main() {
 
 #### 设计要点
 
-- **基座已挂中间件**：下游拿到的 authGroup 已挂 OpenPlatformAuth、permissionGroup 已挂 IPAC→JWT→Permission 完整权限链——下游只注册业务路由
+- **基座已挂中间件**：下游拿到的 authGroup 已挂 OpenPlatformAuth、permissionGroup 已挂 IPAC→JWT→Permission 完整权限链——下游只注册业务路由；admin/client 全部认证组（含 typed 用户组）可选挂 api_ratelimit（`[api_ratelimit].rules` 非空且 Redis 可用时注入，配置见 config.example.yaml）
 - **类型断言分发**：`RegisterModule` 自动检测模块实现了哪些子接口，只调用匹配的注册方法——下游按需实现，不强制全实现
 - **路由注册时机**：`RegisterModule` 必须在 `Run()` 之前调用（gin 路由注册须在 engine 启动前）
 - **向后兼容**：不注册任何 Module 时，基座行为完全不变

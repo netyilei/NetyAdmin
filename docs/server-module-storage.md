@@ -161,6 +161,27 @@ storageMgr := storagePkg.NewManager(storagePkg.NewMinioDriverFactory())
 
 ```
 [凭证签发] pending → 前端持签名直传 → [上传通知] uploaded
+
+#### 直传完成事件（服务端感知闭环）
+
+CompleteUpload 验签成功、状态翻转提交后，经 PubSubBus 发布事件（best-effort，发布失败不影响上传结果）：
+
+| Topic | 触发时机 | Payload |
+|-------|---------|---------|
+| `storage.uploaded` | 直传完成确认（HMAC 验签通过） | recordId / storageConfigId / objectKey / fileName / fileSize / mimeType / source / sourceId / businessType / businessId / fileUrl |
+| `storage.expired` | 清理任务标记超期 pending（每 30 分钟聚合） | count / markedAt |
+
+事件源是**已验签的服务端端点**，下游可直接信任。订阅示例（wire 装配层，参考 `safeSubscribe` 既有模式）：
+
+```go
+safeSubscribe(eventBus, pubsub.TopicStorageUploaded, func(ctx context.Context, msg []byte) {
+    var ev StorageUploadedEvent
+    _ = json.Unmarshal(msg, &ev)
+    // 缩略图 / 内容审核 / 业务记录确认 …
+})
+```
+
+无订阅者时发布为 no-op；不要以客户端自报绕过验签链实现同类需求。
                                         ↓（超期未通知）
                                      expired（定时任务标记）
 ```
