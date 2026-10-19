@@ -127,7 +127,8 @@ func (r *openLogRepository) DeleteBatch(ctx context.Context, ids []uint64) error
 
 func (r *openLogRepository) Clear(ctx context.Context, days int) error {
 	cutoff := time.Now().AddDate(0, 0, -days)
-	return r.getDB(ctx).Where("created_at < ?", cutoff).Delete(&open_platform.OpenPlatformLog{}).Error
+	_, err := database.DeleteBatchBefore(ctx, r.getDB(ctx), "sys_open_platform_logs", cutoff, 1000)
+	return err
 }
 
 // buildWhereClause builds WHERE clause with parameterized args from StatisticsRepoQuery.

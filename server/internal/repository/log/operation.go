@@ -95,5 +95,6 @@ func (r *OperationRepository) DeleteBatch(ctx context.Context, ids []uint) error
 }
 
 func (r *OperationRepository) DeleteBefore(ctx context.Context, before time.Time) error {
-	return r.getDB(ctx).Unscoped().Where("created_at < ?", before).Delete(&logEntity.Operation{}).Error
+	_, err := database.DeleteBatchBefore(ctx, r.getDB(ctx), "admin_operation_log", before, 1000)
+	return err
 }

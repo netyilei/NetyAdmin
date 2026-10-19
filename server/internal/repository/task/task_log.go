@@ -83,5 +83,6 @@ func (r *taskLogRepository) GetLatest(ctx context.Context, name string) (*taskEn
 }
 
 func (r *taskLogRepository) DeleteBefore(ctx context.Context, before time.Time) error {
-	return r.getDB(ctx).Unscoped().Where("created_at < ?", before).Delete(&taskEntity.TaskLog{}).Error
+	_, err := database.DeleteBatchBefore(ctx, r.getDB(ctx), "sys_task_logs", before, 1000)
+	return err
 }

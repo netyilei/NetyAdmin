@@ -266,7 +266,8 @@ func (r *msgRepository) CreateInternal(ctx context.Context, msg *msgEntity.MsgIn
 }
 
 func (r *msgRepository) DeleteRecordsBefore(ctx context.Context, before time.Time) error {
-	return r.getDB(ctx).Where("created_at < ?", before).Delete(&msgEntity.MsgRecord{}).Error
+	_, err := database.DeleteBatchBefore(ctx, r.getDB(ctx), "msg_records", before, 1000)
+	return err
 }
 
 // Record implementations

@@ -53,7 +53,7 @@ func (r *ErrorRepository) BatchUpsertByHash(ctx context.Context, logs []*logEnti
 	}).Create(&logs).Error
 }
 
-func (r *ErrorRepository) List(ctx context.Context, level string, resolved *bool, page, pageSize int) ([]logEntity.Error, int64, error) {
+func (r *ErrorRepository) List(ctx context.Context, level string, resolved *bool, startDate, endDate string, page, pageSize int) ([]logEntity.Error, int64, error) {
 	if page <= 0 {
 		page = 1
 	}
@@ -72,6 +72,14 @@ func (r *ErrorRepository) List(ctx context.Context, level string, resolved *bool
 
 	if resolved != nil {
 		query = query.Where("resolved = ?", *resolved)
+	}
+
+	// 时间范围（YYYY-MM-DD，含当日；空 = 不过滤）。避免大表无时间条件全表扫描
+	if startDate != "" {
+		query = query.Where("created_at >= ?", startDate+" 00:00:00")
+	}
+	if endDate != "" {
+		query = query.Where("created_at < ?", endDate+" 23:59:59.999999")
 	}
 
 	if err := query.Count(&total).Error; err != nil {
@@ -101,5 +109,6 @@ func (r *ErrorRepository) DeleteBatch(ctx context.Context, ids []uint) error {
 }
 
 func (r *ErrorRepository) DeleteBefore(ctx context.Context, before time.Time) error {
-	return r.getDB(ctx).Unscoped().Where("created_at < ?", before).Delete(&logEntity.Error{}).Error
+	_, err := database.DeleteBatchBefore(ctx, r.getDB(ctx), "admin_error_log", before, 1000)
+	return err
 }
