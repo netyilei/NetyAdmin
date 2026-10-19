@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"NetyAdmin/internal/pkg/pubsub"
 	"NetyAdmin/internal/pkg/task"
 	storageRepo "NetyAdmin/internal/repository/storage"
 )
@@ -15,10 +16,11 @@ import (
 // 避免用户签发凭证后不真实上传导致 pending 记录无限堆积。
 type UploadRecordCleanupJob struct {
 	recordRepo storageRepo.RecordRepository
+	eventBus   pubsub.EventBus
 }
 
-func NewUploadRecordCleanupJob(recordRepo storageRepo.RecordRepository) *UploadRecordCleanupJob {
-	return &UploadRecordCleanupJob{recordRepo: recordRepo}
+func NewUploadRecordCleanupJob(recordRepo storageRepo.RecordRepository, eventBus pubsub.EventBus) *UploadRecordCleanupJob {
+	return &UploadRecordCleanupJob{recordRepo: recordRepo, eventBus: eventBus}
 }
 
 func (j *UploadRecordCleanupJob) Name() string {
@@ -37,6 +39,15 @@ func (j *UploadRecordCleanupJob) Run(ctx context.Context) error {
 	}
 	if affected > 0 {
 		slog.Info("已标记过期上传记录为 expired", "count", affected)
+		// 聚合事件（best-effort）：通知下游有凭证超期作废（疑似上传未完成），
+		// payload 仅含数量；需要逐条明细的下游可后续扩展 repo 返回 ID 列表
+		if j.eventBus != nil {
+			if payload, mErr := json.Marshal(map[string]interface{}{"count": affected, "markedAt": time.Now().Format(time.RFC3339)}); mErr == nil {
+				if pErr := j.eventBus.Publish(ctx, pubsub.TopicStorageExpired, string(payload)); pErr != nil {
+					slog.Warn("storage expired event: publish failed (best-effort)", "err", pErr)
+				}
+			}
+		}
 	}
 	return nil
 }

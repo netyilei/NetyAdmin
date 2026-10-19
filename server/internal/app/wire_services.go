@@ -185,7 +185,7 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr *cach
 	s.errorLog = logService.NewErrorService(repos.errorLog, configWatcher, lazyCacheMgr, logBus)
 	s.captcha = systemService.NewCaptchaService(captchaMgr, configWatcher)
 	s.storageConfig = storageService.NewConfigService(repos.storageConfig, repos.uploadRecord, storageMgr, lazyCacheMgr, eventBus, cfg.Security.AESKey, tm)
-	s.uploadRecord = storageService.NewRecordService(repos.uploadRecord, s.storageConfig, storageMgr, s.app, cfg.Security.UploadHMACKey, tm)
+	s.uploadRecord = storageService.NewRecordService(repos.uploadRecord, s.storageConfig, storageMgr, s.app, cfg.Security.UploadHMACKey, tm, eventBus)
 	// Admin content services
 	s.contentCategoryAdmin = contentAdminService.NewCategoryService(repos.contentCategory, repos.contentArticle, s.storageConfig, lazyCacheMgr, configWatcher, tm)
 	s.contentArticleAdmin = contentAdminService.NewArticleService(repos.contentArticle, repos.contentCategory, lazyCacheMgr, configWatcher)

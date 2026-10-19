@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -14,6 +15,7 @@ import (
 	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/pagination"
+	"NetyAdmin/internal/pkg/pubsub"
 	"NetyAdmin/internal/pkg/storage"
 	"NetyAdmin/internal/pkg/utils"
 	storageRepo "NetyAdmin/internal/repository/storage"
@@ -99,6 +101,7 @@ type recordService struct {
 	appSvc     openSvcPkg.AppService
 	tm         database.TxManager
 	hmacKey    string // 凭证签名密钥（复用 [jwt] secret）
+	eventBus   pubsub.EventBus
 }
 
 func NewRecordService(
@@ -108,6 +111,7 @@ func NewRecordService(
 	appSvc openSvcPkg.AppService,
 	hmacKey string,
 	tm database.TxManager,
+	eventBus pubsub.EventBus,
 ) RecordService {
 	return &recordService{
 		recordRepo: recordRepo,
@@ -116,6 +120,7 @@ func NewRecordService(
 		appSvc:     appSvc,
 		tm:         tm,
 		hmacKey:    hmacKey,
+		eventBus:   eventBus,
 	}
 }
 
@@ -413,12 +418,39 @@ func (s *recordService) CompleteUpload(ctx context.Context, recordID uint, secre
 		}
 	}
 
+	// 直传完成事件（best-effort）：发布失败不影响上传结果，仅记录日志。
+	// 事件源是已验签翻转成功的 CompleteUpload，天然可信；下游经 PubSubBus
+	// 订阅 TopicStorageUploaded 做缩略图/审核等后处理（无订阅者时为 no-op）。
+	s.publishUploaded(ctx, record, fileURL)
+
 	// 重新读取返回完整记录（含更新后的字段与 StorageConfig）
 	result, err := s.recordRepo.GetByID(ctx, recordID)
 	if err != nil {
 		return s.toVO(record), nil
 	}
 	return s.toVO(result), nil
+}
+
+// publishUploaded 发布 storage.uploaded 事件（payload 为 JSON，字段与 Record 实体对齐的子集）。
+func (s *recordService) publishUploaded(ctx context.Context, record *storageEntity.Record, fileURL string) {
+	if s.eventBus == nil {
+		return
+	}
+	payload, err := json.Marshal(map[string]interface{}{
+		"recordId": record.ID, "storageConfigId": record.StorageConfigID,
+		"objectKey": record.FilePath, "fileName": record.FileName,
+		"fileSize": record.FileSize, "mimeType": record.MimeType,
+		"source": record.Source, "sourceId": record.SourceID,
+		"businessType": record.BusinessType, "businessId": record.BusinessID,
+		"fileUrl": fileURL,
+	})
+	if err != nil {
+		slog.Warn("storage upload event: marshal failed", "recordID", record.ID, "err", err)
+		return
+	}
+	if err := s.eventBus.Publish(ctx, pubsub.TopicStorageUploaded, string(payload)); err != nil {
+		slog.Warn("storage upload event: publish failed (best-effort)", "recordID", record.ID, "err", err)
+	}
 }
 
 func (s *recordService) toVO(r *storageEntity.Record) *storageVO.RecordVO {

@@ -7,4 +7,6 @@ const (
 	TopicStorageSync       = "storage_sync"
 	TopicCacheInvalidation = "cache_invalidation" // 配置类 Fast 数据跨节点清 L1
 	TopicIPACReload        = "ipac_reload"
+	TopicStorageUploaded   = "storage.uploaded" // 直传完成（CompleteUpload 验签翻转成功后发布）
+	TopicStorageExpired    = "storage.expired"  // 直传凭证超期作废（cleanup 聚合）
 )
