@@ -19,7 +19,8 @@
 | 分页规整 | `pkg/pagination.NormalizePagination` | 0/负/超大 size 统一处理（上限 100） |
 | 错误码与默认文案 | `pkg/errorx`（`New(code)` 即用默认文案；`NewWithErr(code, err)` 保留错误链） | 调用点**不要**重复抄默认文案；新码在 `codeMessages` 表登记 |
 | 安全恢复 goroutine | `pkg/recovery.GoSafe` | 所有自起 goroutine 必须包裹（panic recover + Sentry） |
-| 请求 ID | `pkg/requestid` | 日志/Sentry 关联 |
+| 请求 ID（全链路 trace） | `pkg/requestid` + `pkg/slogutil.LoggerFromContext(ctx)` | **全链路贯穿已实现**：入口中间件生成/继承 X-Request-ID → ctx 传播 → 四张日志表（操作/错误/任务/开放平台）`request_id` 列 → Sentry `SetTag("request_id")` → 任务引擎 Dispatch 携带、Worker 恢复。排障时以 request_id 为唯一关联键双向查。业务 slog 请用 `LoggerFromContext(ctx)`（自动附带 request_id；关键路径已接入，service 层渐进迁移中） |
+| 日志保留期治理 | `internal/job/system_log_cleanup.go` + sys_configs `retention_days` | **开箱即生效**：每天 02:00 清理操作/错误/任务/消息记录/开放平台五类日志，保留期种子默认 30 天（0038，ops_config/error_config/task_config/msg_record_config/open_platform_config 五组可调）。upload_record 仅标记 expired 不删除（业务语义保留） |
 | endpoint 解析与 URL 构造 | `pkg/storage.ParseEndpoint` / `BuildPublicURL(domain, endpoint, bucket, key, style)` | 含协议剥离、path/virtual-host 寻址风格（`AddressingStyleFor(provider)` 为唯一决策点） |
 | MIME 推断 | `pkg/storage.MimeTypeByExt(fileName)` | 上传凭证的 contentType 一律服务端推断 |
 | 缓存 | `pkg/cache`：FetchFast（L1+L2）/ SetNX（原子占位）/ **GetAndDelete**（GETDEL 原子消费）/ InvalidateByTags（跨节点失效） | 一次性凭证消费、防重放、tag 失效均有现成原语 |
@@ -66,3 +67,5 @@
 8. refresh 黑名单/轮换抢占逻辑 → `pkg/auth.ClaimRefreshRotation` / `BlacklistRefresh`
 9. 布尔配置判断 `"true"||"1"` → `utils.IsTruthy`
 10. 状态列 NTag 渲染 → `renderTagFromMap`（前端）/勿自建渲染结构
+11. 自建 trace_id 体系 / 日志与 Sentry 关联 → request_id 已全链路贯穿（见上表），直接复用
+12. 日志表膨胀治理/清理任务 → system_log_cleanup 已内置且默认 30 天保留，仅需调 sys_configs
