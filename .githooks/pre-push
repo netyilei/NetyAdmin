@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# 推送前置门：机械问题在此拦截，不再依赖人工审查轮次。
+# 任何一步失败即中止 push（git pre-push 语义）。
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+echo "===== pre-push gate ====="
+
+echo "[1/5] server: gofmt"
+UNFMT="$(cd server && gofmt -l internal cmd 2>/dev/null || true)"
+if [ -n "$UNFMT" ]; then echo "FAIL gofmt 需格式化: $UNFMT"; exit 1; fi
+
+echo "[2/5] server: go build"
+(cd server && go build ./...)
+
+echo "[3/5] server: go vet"
+(cd server && go vet ./internal/... ./cmd/...)
+
+echo "[4/5] server: go test（PG/Redis 可达时自动含运行时测试，不可达自动跳过）"
+(cd server && go test ./internal/... ./cmd/...)
+
+echo "[5/5] admin-web: typecheck + lockfile 一致性"
+# git hook 是受限 PATH，node/pnpm 需显式注入（pnpm 经 corepack 按 packageManager 版本执行）
+NODE_DIR="/d/develop/FlyEnv/FlyEnv-Data/env/node"
+case ":$PATH:" in *":$NODE_DIR:"*) ;; *) export PATH="$NODE_DIR:$PATH";; esac
+(cd admin-web && corepack pnpm typecheck >/dev/null && CI=true corepack pnpm install --frozen-lockfile --prefer-offline >/dev/null)
+
+echo "===== ALL GREEN ====="

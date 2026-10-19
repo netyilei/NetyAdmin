@@ -1,9 +1,8 @@
-//go:build runtime
-
 package ratelimit
 
 import (
 	"context"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -11,11 +10,16 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// TestSlidingWindowRuntime 真实 Redis 五场景（build tag runtime 隔离，CI 不跑）：
-// go test ./internal/pkg/ratelimit/ -tags runtime -run Runtime -v
+// TestSlidingWindowRuntime 真实 Redis 五场景。
+// 服务不可达时自动 Skip（CI 无 Redis 即静默跳过，本地开发默认 localhost:6379），
+// 地址可用环境变量 NETYADMIN_TEST_REDIS_ADDR 覆盖。
 func TestSlidingWindowRuntime(t *testing.T) {
 	ctx := context.Background()
-	client := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
+	addr := os.Getenv("NETYADMIN_TEST_REDIS_ADDR")
+	if addr == "" {
+		addr = "localhost:6379"
+	}
+	client := redis.NewClient(&redis.Options{Addr: addr})
 	defer client.Close()
 	if err := client.Ping(ctx).Err(); err != nil {
 		t.Skipf("redis 不可达: %v", err)
