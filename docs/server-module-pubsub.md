@@ -524,4 +524,4 @@ InvalidateL1ByTags      (L1 持有        │
 | 多机集群 | redis | 启用 | 触发（no-op 告警） | **推荐**：断连兜底（L1 staleness 由 TTL 兜底） |
 | 多机集群 | redis | 关闭 | 触发（no-op） | L1 关闭时 `reloadL1All` 无 L1 可清，无副作用 |
 
-> **多机部署必须用 redis driver**：memory driver 仅在进程内传播消息，断连/重连概念不适用，多节点部署时缓存/IPAC/配置失效不会跨节点同步。
+> **多机部署必须用 redis driver**：memory driver 仅在进程内传播消息，多节点部署时缓存/IPAC/配置失效不会跨节点同步。`multi_node=true` 且误配 `memory` 时，启动期 `config.Load` 会自动切换为 `redis` 并打印告警。

@@ -160,6 +160,7 @@ sms:
 #   driver: redis    # 集群模式：基于 Redis Pub/Sub，支持多节点广播
 #   driver: memory   # 单机模式：基于内存 channel，无需 Redis
 # 不设置则根据 Redis.Enabled 自动选择（Redis 启用 -> redis，否则 -> memory）
+# 注意：multi_node=true 且显式 driver=memory 时，启动期会自动切换为 redis（memory 无法跨节点同步）
 
 pubsub:
   # 事件总线分发工作池配置（Task 23）。

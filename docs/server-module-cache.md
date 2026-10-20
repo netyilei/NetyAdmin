@@ -194,6 +194,8 @@ func (m *cacheManager) Fetch(ctx, key, moduleName, tags, ttl, v, loader) error {
      缺失会导致跨节点行为分裂。Redis 不可达时，相关能力按 fail-closed 拒绝。
   2. `enabled=false` 且 `l1_enabled=false` → **自动启用 L1**（与规则 1 独立判定，可叠加：
      多节点且双关时 L1、L2 都会自动启用）。L1 作为单机唯一缓存层，避免"无缓存介质"组合。
+  3. `[server].multi_node=true` 且 `[bus].driver="memory"` → **自动切换为 `redis`**：
+     memory 总线的消息不出本进程，跨节点缓存失效、IPAC reload、配置热更全部失效。
 - 归一化只发生在配置加载边界（`Load` / 防御性重入 `ValidateConfig`），运行期不再改变语义；
   启动日志会打印实际模式（`l1_l2` / `l2_only` / `l1_only`）。
 - **单机（无 Redis）**：显式 `enabled=false` 即可（L1 默认开启），是受支持的部署形态。
@@ -423,7 +425,7 @@ if err := s.cacheFast.InvalidateByTags(ctx, cache.TagXxx); err != nil {
 
 - [ ] `[server].multi_node = true`
 - [ ] Redis 配置正确，`enabled = true`（建议显式；`multi_node=true` 时会被自动启用）
-- [ ] `[bus].driver = "redis"`（否则缓存失效/IPAC/配置无法跨节点同步）
+- [ ] `[bus].driver = "redis"`（`multi_node=true` 时若误配 memory 会自动切换并告警）
 - [ ] 所有机器使用同一个 Redis 实例/集群
 - [ ] `prefix` 配置一致（避免频道隔离导致广播失效）
 - [ ] 防火墙放行 Redis 端口（默认 6379）
@@ -455,7 +457,7 @@ redis:
 > - **`enabled`（L2）与 `l1_enabled`（L1）至少启用一个**：`config.Load` 自动归一化——`multi_node=true` 时自动启用 L2；L1/L2 双关时自动启用 L1（两条规则可叠加，启动日志会标明实际模式）。
 > - `l1_enabled` 控制 L1 是否参与（Fast 方法优先 L1，并回填 L1）；关闭后 Fast 系列自动委托 Fetch 走 L2，**不是**"完全禁用缓存"。
 > - Redis 关闭（`enabled=false`）时 L1 是唯一缓存层：`l2()` 自动回退到 L1，本地计数（`Incr`）也切换为进程内实现；此形态仅限单机。
-> - `local_ttl_min` 是 BigCache 的 LifeWindow（条目最长驻留时间）；Fast 系列另带业务 TTL（`store.WithExpiration`），二者取先到者。若业务缓存的 TTL=0（如 `app.CacheTTL=0`），L1 仍受 `local_ttl_min` 约束，但 L2 不会自动过期，依赖失效广播。
+> - `local_ttl_min` 是 BigCache 的 LifeWindow（条目最长驻留时间）；Fast 系列另带业务 TTL（`store.WithExpiration`），二者取先到者。业务缓存的 TTL 由各自模块决定；开放平台 `App.CacheTTL<=0` 时回落默认 5 分钟，避免失效广播遗漏导致 L2 永久陈旧。
 > - 跨节点失效仅清 L1：发起节点已清 L2（共享），其他节点收到广播后只清本地 L1；广播失败时由 L1 TTL 兜底。
 
 ### 6.2 动态配置（sys_configs）

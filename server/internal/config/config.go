@@ -321,6 +321,8 @@ func Load(path string) (*Config, error) {
 // normalize 归一化缓存与多节点部署约束：
 //   - multi_node=true 时自动启用 L2（Redis）：多节点的 Nonce 防重放、分布式限流、
 //     缓存失效广播、配置/IPAC 热同步都依赖 Redis，缺失会导致跨节点行为分裂；
+//   - multi_node=true 且显式指定 bus=memory 时自动切换为 redis：memory 总线的
+//     广播不出本进程，跨节点缓存失效/IPAC/配置同步全部失效；
 //   - L1 与 L2 同时关闭时自动启用 L1（两条规则独立判定，可叠加）：
 //     L1 作为单机唯一缓存层，避免"无缓存介质"组合。
 //
@@ -336,6 +338,10 @@ func (c *Config) normalize() {
 	if bothOff {
 		log.Printf("[config] redis.enabled 与 l1_enabled 均为 false：已自动启用 L1（本地缓存）")
 		c.Redis.L1Enabled = true
+	}
+	if c.Server.MultiNode && c.Bus.Driver == "memory" {
+		log.Printf("[config] multi_node=true 且 bus.driver=memory：已自动切换为 redis（memory 总线无法跨节点同步缓存失效/IPAC/配置）")
+		c.Bus.Driver = "redis"
 	}
 }
 
