@@ -12,12 +12,18 @@ import (
 // testEntry 是容量控制测试用的最小 LogEntry 实现。
 type testEntry struct {
 	size int
+	lt   logEntity.LogType
 }
 
-func (e testEntry) GetLogType() logEntity.LogType { return logEntity.LogTypeOpen }
-func (e testEntry) GetCreatedAt() time.Time       { return time.Now() }
-func (e testEntry) GetRequestID() string          { return "" }
-func (e testEntry) GetSizeBytes() int             { return e.size }
+func (e testEntry) GetLogType() logEntity.LogType {
+	if e.lt == "" {
+		return logEntity.LogTypeOpen
+	}
+	return e.lt
+}
+func (e testEntry) GetCreatedAt() time.Time { return time.Now() }
+func (e testEntry) GetRequestID() string    { return "" }
+func (e testEntry) GetSizeBytes() int       { return e.size }
 
 func newTestLogBus(maxEntries int, maxBytes int64) *logBusService {
 	return &logBusService{
@@ -66,4 +72,35 @@ func TestLogBusEntryCapacity(t *testing.T) {
 
 	b.evictOldest(logEntity.PriorityP2)
 	assert.True(t, b.tryAppend(testEntry{size: 10}))
+}
+
+// TestLogBusEvictsOnlyTargetPriority 验证驱逐是精确优先级：
+// 驱逐 P2 时绝不触碰 P0（错误日志），P0 只能在同步写路径处理。
+func TestLogBusEvictsOnlyTargetPriority(t *testing.T) {
+	b := &logBusService{
+		configs: map[logEntity.LogType]BucketConfig{
+			logEntity.LogTypeError: {Priority: logEntity.PriorityP0, SizeThreshold: 100},
+			logEntity.LogTypeOpen:  {Priority: logEntity.PriorityP2, SizeThreshold: 100},
+		},
+		buffers: map[logEntity.LogType][]logEntity.LogEntry{
+			logEntity.LogTypeError: {},
+			logEntity.LogTypeOpen:  {},
+		},
+		globalMaxEntries: 1000,
+		globalMaxBytes:   1 << 20,
+	}
+
+	assert.True(t, b.tryAppend(testEntry{size: 10, lt: logEntity.LogTypeError}))
+	assert.True(t, b.tryAppend(testEntry{size: 20, lt: logEntity.LogTypeOpen}))
+
+	// 驱逐 P2：只移除开放平台日志，错误日志保留
+	b.evictOldest(logEntity.PriorityP2)
+	assert.Equal(t, 1, len(b.buffers[logEntity.LogTypeError]), "P0 不得被 P2 驱逐")
+	assert.Equal(t, 0, len(b.buffers[logEntity.LogTypeOpen]))
+	assert.Equal(t, int64(10), b.totalBytes)
+
+	// 再驱逐 P1：无 P1 条目，P0 仍保留
+	b.evictOldest(logEntity.PriorityP1)
+	assert.Equal(t, 1, len(b.buffers[logEntity.LogTypeError]))
+	assert.Equal(t, int64(10), b.totalBytes)
 }

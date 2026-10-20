@@ -235,9 +235,11 @@ func (b *logBusService) hasCapacity(size int) bool {
 	return true
 }
 
-func (b *logBusService) evictOldest(minPriority logEntity.LogPriority) {
+// evictOldest 按"精确优先级"驱逐最旧条目（由调用方按 P2→P1 顺序调用）。
+// P0（错误日志）绝不通过此路径驱逐：缓冲满时 P0 走同步写，保证不丢。
+func (b *logBusService) evictOldest(target logEntity.LogPriority) {
 	for lt, cfg := range b.configs {
-		if cfg.Priority > minPriority {
+		if cfg.Priority != target {
 			continue
 		}
 		buf := b.buffers[lt]
