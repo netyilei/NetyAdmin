@@ -13,7 +13,7 @@
 - **应用隔离**：通过 `AppKey/AppSecret` 实现应用级的物理隔离与配置。
 - **签名验证**：基于 HMAC-SHA256 的强加密签名算法，防止请求被篡改。
 - **权限管控**：细粒度的 `Scope` (权限范围) 校验，控制应用可调用的 API 集合。
-- **分布式限流**：自适应的令牌桶算法，支持 Redis Lua 实现的跨节点精准计数。
+- **分布式限流**：固定窗口计数（`pkg/ratelimit`），Redis 启用时跨节点精准（Lua 原子、单次 RTT）；Redis 关闭时自动降级为进程内计数（仅限单机部署）。
 - **防重放机制**：集成 `Nonce` 与时钟容差校验，确保请求不可重用。
 - **存储绑定**：每个应用可绑定独立的存储配置，未绑定时自动回退到全局默认存储源。
 
@@ -73,7 +73,6 @@ Payload (GET 为排序后的参数, POST 为 Body 的 SHA256)
 **签名计算**：`Base64(HmacSHA256(AppSecret, StringToSign))`
 
 ### 3.2 权限范围 (Scope)
-
 API 开发者在注册路由时可标记所属 Scope。应用必须被授予该 Scope 才能访问：
 
 - `user_base`: 基础注册登录。
@@ -83,6 +82,24 @@ API 开发者在注册路由时可标记所属 Scope。应用必须被授予该 
 - `content_view`: 内容查看（分类、文章、Banner）。
 - `storage_upload`: 文件上传（获取凭证、创建记录）。
 
+### 3.3 规则缓存与热更新
+
+开放平台的校验数据分三类，热更新路径不同：
+
+| 数据 | 存储位置 | Admin 更新后的生效方式 |
+|------|----------|------------------------|
+| App 信息（状态/IP 开关/限流开关/quota/存储绑定） | L1 (BigCache) + L2 (Redis)，Tag `open:app` + `app_key:{key}` | `InvalidateByTags` 清本节点 L1+L2，PubSub 广播其他节点清 L1（窗口期通常 <100ms） |
+| Scopes / 可访问 API 白名单 | L1 + L2（白名单 TTL 5 分钟兜底） | 同上；scope/API 关联变更同时失效 `open:app` |
+| IP 黑白名单 | 进程内 CIDR trie 快照 | `NotifyAndReload` 本地重载后广播 `ipac_reload`，各节点重载 |
+| 默认限流 rate/capacity | `configWatcher` 进程内 map | 系统配置保存后广播 `config_sync`，各节点 `ForceReload` |
+
+要点：
+
+- **L1 命中即返回**：App 信息 / Scopes / API 白名单在 L1 命中时不会访问 Redis（`GetFast`/`FetchFast`）。
+- **热更新依赖事件总线**：多节点必须 `[bus].driver = "redis"`；`bus=memory` 时广播不出本进程。
+- **失效广播失败**：其他节点的 L1 会陈旧至 `local_ttl_min`（默认 10 分钟）；`App.CacheTTL=0` 时 L2 不会自动过期，因此建议在管理端为应用配置合理缓存 TTL。
+- **Redis 关闭（单机）**：App/Scopes/API 仍由 L1 服务；Nonce 与限流切换为进程内实现；多节点部署被启动校验禁止。
+
 ---
 
 ## 四、数据模型
@@ -91,20 +108,22 @@ API 开发者在注册路由时可标记所属 Scope。应用必须被授予该 
 
 ```go
 type App struct {
-    ID              string `gorm:"primaryKey;size:26"` // ULID
-    AppKey          string `gorm:"size:26;uniqueIndex"`
-    AppSecret       string `gorm:"size:255"`           // AES 加密存储
-    Name            string `gorm:"size:100"`
-    Status          int    `gorm:"default:1"`          // 1:启用, 0:禁用
-    IPStrategy      int    `gorm:"default:1"`          // 1:黑名单, 2:白名单
-    IPFilterEnabled bool   `gorm:"default:false"`      // 是否启用 IP 过滤
-    QuotaConfig     string `gorm:"type:jsonb"`         // 限流配置 {"rate":10, "capacity":20}
-    Remark          string `gorm:"size:255"`
-    StorageID       uint   `gorm:"default:0"`          // 绑定的存储配置ID，0表示使用全局默认
+    ID               string `gorm:"primaryKey;size:26"` // ULID
+    AppKey           string `gorm:"size:26;uniqueIndex"`
+    AppSecret        string `gorm:"size:255"`           // AES 加密存储
+    Name             string `gorm:"size:100"`
+    Status           int    `gorm:"default:1"`          // 1:启用, 0:禁用
+    IPStrategy       int    `gorm:"default:1"`          // 1:黑名单, 2:白名单
+    IPFilterEnabled  bool   `gorm:"default:false"`      // 是否启用 IP 过滤
+    RateLimitEnabled bool   `gorm:"default:true"`       // 是否启用限流
+    QuotaConfig      string `gorm:"type:jsonb"`         // 限流配置 {"rate":100,"capacity":200}
+    CacheTTL         int    `gorm:"default:0"`          // App 信息缓存 TTL（秒），0=不过期（依赖失效广播）
+    Remark           string `gorm:"size:255"`
+    StorageID        uint   `gorm:"default:0"`          // 绑定的存储配置ID，0表示使用全局默认
 }
 ```
 
-> **限流配置说明**：`QuotaConfig` 为 JSONB 格式，包含 `rate`（每秒填充令牌数）和 `capacity`（桶容量/最大突发量）两个字段。当 `QuotaConfig` 为空时，使用默认值 `rate=10, capacity=20`。
+> **限流配置说明**：`QuotaConfig` 为 JSONB 格式，包含 `rate`（每秒补充的请求数）和 `capacity`（窗口内最大请求数）两个字段。未配置时使用系统配置 `open_platform_config.default_rate`（默认 100）与 `default_capacity`（默认 200）。
 
 > **存储绑定机制**：当 `StorageID > 0` 时，该应用的所有上传操作使用指定的存储配置；当 `StorageID = 0` 时，自动回退到全局默认存储配置。
 
@@ -122,7 +141,7 @@ type App struct {
 
 > **存储绑定**：创建和修改应用时，可通过 `storageId` 字段指定绑定的存储配置。`storageId = 0` 表示使用全局默认存储。
 
-> **限流配置**：创建和修改应用时，可通过 `quotaConfig` 字段指定限流参数，格式为 JSON 字符串，例如 `{"rate":10, "capacity":20}`。`rate` 为每秒填充令牌数，`capacity` 为桶容量（最大突发量）。若不传或传空字符串，则使用默认值 `rate=10, capacity=20`。
+> **限流配置**：创建和修改应用时，可通过 `quotaConfig` 字段指定限流参数，格式为 JSON 字符串，例如 `{"rate":100, "capacity":200}`。`rate` 为每秒补充的请求数，`capacity` 为窗口内最大请求数。若不传或传空字符串，则使用系统配置 `open_platform_config.default_rate`（默认 100）/ `default_capacity`（默认 200）。
 
 **创建/修改应用请求体示例**：
 
@@ -257,7 +276,7 @@ function computeSignature(secret, method, path, timestamp, nonce, payload) {
 
 ### 7.3 配置应用限流参数
 
-开放平台使用令牌桶算法进行分布式限流。每个应用可独立配置 `rate`（每秒填充令牌数）和 `capacity`（桶容量/最大突发量）。
+开放平台使用**固定窗口计数**进行分布式限流（`pkg/ratelimit.Limiter`，底层 `ulule/limiter`）。每个应用可独立配置 `rate`（每秒补充的请求数）和 `capacity`（窗口内最大请求数）：窗口周期 = `capacity / rate` 秒（最小 1 秒），窗口内最多 `capacity` 次请求。
 
 **通过 Admin API 配置**：
 
@@ -290,10 +309,12 @@ curl -X PUT http://localhost:8010/admin/v1/open-platform/apps \
 
 **限流行为说明**：
 
-- 当 `QuotaConfig` 为空或未配置时，使用默认值 `rate=10, capacity=20`
-- `rate` 控制每秒向桶中放入的令牌数，值越大允许的稳态请求速率越高
-- `capacity` 控制桶的最大容量，值越大允许的瞬时突发量越高
-- 限流由 `cache/manager.go` 的 `RateLimit` 方法执行，Redis 可用时使用 Lua 脚本实现分布式精准计数，Redis 不可用时降级为本地令牌桶
+- 当 `QuotaConfig` 为空或未配置时，使用系统配置 `open_platform_config.default_rate`（默认 100）/ `default_capacity`（默认 200）
+- `rate` 控制每秒补充的请求数，值越大允许的稳态请求速率越高
+- `capacity` 控制窗口内最大请求数，值越大允许的瞬时突发量越高
+- 限流由 `service/open_platform.AppService.AllowRequest` → `pkg/ratelimit.Limiter.Allow` 执行：
+  Redis 启用时通过 EVALSHA（INCRBY + PEXPIRE 原子脚本）跨节点精准计数，**单次 Redis 往返**；
+  Redis 关闭时自动降级为进程内内存计数（仅单机；多节点部署会在启动期被配置校验拒绝）
 
 ---
 
