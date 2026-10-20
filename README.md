@@ -11,7 +11,7 @@ NetyAdmin 是一个基于 **Go + Gin** 后端和 **Vue 3 + TypeScript** 前端�
 ### 🚀 现代化技术栈
 
 - **前端**: Vue 3, TypeScript, Vite, Naive UI, UnoCSS, Pinia, Vue Router, vue-i18n
-- **后端**: Go 1.26+, Gin, GORM (PostgreSQL), Redis (可选；单机可关闭，多节点必须), JWT
+- **后端**: Go 1.26+, Gin, GORM (PostgreSQL), Redis (可选；单机可关闭，多节点自动启用), JWT
 
 ### 🏗️ 清晰的架构设计
 
@@ -145,7 +145,7 @@ NetyAdmin 是一个基于 **Go + Gin** 后端和 **Vue 3 + TypeScript** 前端�
 - **Go** >= 1.26
 - **Node.js** >= 20.19
 - **PostgreSQL** >= 14
-- **Redis** >= 6.0（可选：单机可关闭并使用 L1 本地缓存；多节点部署必须启用）
+- **Redis** >= 6.0（可选：单机可关闭并使用 L1 本地缓存；多节点自动启用，建议显式配置）
 
 ### 一键启动
 

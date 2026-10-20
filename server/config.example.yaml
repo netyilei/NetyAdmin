@@ -35,7 +35,7 @@ database:
   max_open: 50
 
 redis:
-  enabled: true       # L2 共享缓存开关；与 l1_enabled 至少启用一个（启动强校验）
+  enabled: true       # L2 共享缓存开关；与 l1_enabled 双关时自动启用 L1（见下方说明）
   prefix: "netyadmin" # 统一的 Key 前缀 (多项目共用 Redis 时用于隔离)
   host: localhost
   port: 6379
@@ -55,10 +55,14 @@ redis:
   # 多机部署：配置变更通过 PubSub (TopicCacheInvalidation)
   #   自动跨节点失效 L1，窗口期通常 <100ms，对配置类可接受。
   #
-  # 启用约束：enabled(L2) 与 l1_enabled(L1) 至少启用一个，否则拒绝启动。
+  # 启用规则（启动期自动归一化，config.Load 执行）：
+  #   - multi_node=true 且 enabled=false → 自动启用 L2（Redis），并打印告警；
+  #     多节点的 Nonce/限流/缓存失效广播/配置热更都依赖 Redis。
+  #   - 非多节点且 enabled=false、l1_enabled=false → 自动启用 L1（本地缓存）；
+  #     两条规则独立判定：多节点且双关时 L1、L2 都会自动启用。
   #   - 单机无 Redis（enabled=false）：L1 是唯一缓存层，开放平台限流/Nonce/登录失败
-  #     计数自动切换为进程内实现；此时禁止多节点部署。
-  #   - 多节点：必须 enabled=true（[server].multi_node=true 时启动强校验）。
+  #     计数自动切换为进程内实现。
+  #   - 多节点：建议显式 enabled=true；即使遗漏也会被自动启用（Redis 不可达时 fail-closed）。
   #
   # 内存管理：BigCache 有 local_max_size_mb 硬上限，超限自动驱逐旧条目（LRU-like），
   #   不会 OOM。local_ttl_min 兜底过期。仅排查 L1 问题时才关闭（降级纯 L2）。

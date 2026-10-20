@@ -312,7 +312,31 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("应用环境变量覆盖失败: %w", err)
 	}
 
+	// 缓存/多节点约束归一化（必须在创建 Redis 客户端之前生效）
+	cfg.normalize()
+
 	return &cfg, nil
+}
+
+// normalize 归一化缓存与多节点部署约束：
+//   - multi_node=true 时自动启用 L2（Redis）：多节点的 Nonce 防重放、分布式限流、
+//     缓存失效广播、配置/IPAC 热同步都依赖 Redis，缺失会导致跨节点行为分裂；
+//   - L1 与 L2 同时关闭时自动启用 L1（两条规则独立判定，可叠加）：
+//     L1 作为单机唯一缓存层，避免"无缓存介质"组合。
+//
+// 归一化只在配置加载边界执行一次（幂等），运行期不再改配置语义。
+func (c *Config) normalize() {
+	// 基于原始配置快照判定"双关"，避免被 multi_node 规则改写后漏判 L1
+	bothOff := !c.Redis.Enabled && !c.Redis.L1Enabled
+
+	if c.Server.MultiNode && !c.Redis.Enabled {
+		log.Printf("[config] multi_node=true 且 redis.enabled=false：已自动启用 L2（Redis）。请确保 Redis 可达，否则开放平台/验证码等依赖 Redis 的能力将 fail-closed")
+		c.Redis.Enabled = true
+	}
+	if bothOff {
+		log.Printf("[config] redis.enabled 与 l1_enabled 均为 false：已自动启用 L1（本地缓存）")
+		c.Redis.L1Enabled = true
+	}
 }
 
 // applyEnvOverrides 通过 reflect 遍历 Config 结构体，对带 `env:"NETYADMIN_XXX"` 标签的叶子字段
@@ -441,16 +465,9 @@ func ValidateConfig(cfg *Config) {
 		log.Fatal("配置校验失败: cfg 为 nil")
 	}
 
-	// 架构不变量（debug 模式同样生效）：
-	//   - L1（本地 BigCache）与 L2（Redis）至少启用一个，否则缓存层没有有效介质；
-	//   - 多节点部署必须启用 Redis：Nonce 防重放、开放平台限流、缓存失效广播、
-	//     IPAC/配置热同步都依赖 Redis，缺失会导致跨节点行为分裂。
-	if !cfg.Redis.Enabled && !cfg.Redis.L1Enabled {
-		log.Fatal("配置校验失败: [redis].enabled (L2) 与 [redis].l1_enabled (L1) 至少启用一个")
-	}
-	if cfg.Server.MultiNode && !cfg.Redis.Enabled {
-		log.Fatal("配置校验失败: [server].multi_node=true 时必须启用 Redis（[redis].enabled=true）：多节点依赖 Redis 提供 Nonce 防重放、分布式限流、缓存失效广播与配置/IPAC 热同步")
-	}
+	// 防御性归一化：正常启动路径已在 Load 中完成；此处覆盖手工构造 Config 的调用方。
+	// 规则：multi_node 自动启用 L2；L1/L2 双关自动启用 L1（详见 normalize）。
+	cfg.normalize()
 
 	if cfg.Server.Mode == "debug" {
 		return

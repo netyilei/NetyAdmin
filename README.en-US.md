@@ -11,7 +11,7 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 ### 🚀 Modern Tech Stack
 
 - **Frontend**: Vue 3, TypeScript, Vite, Naive UI, UnoCSS, Pinia, Vue Router, vue-i18n
-- **Backend**: Go 1.26+, Gin, GORM (PostgreSQL), Redis (optional: can be disabled on a single node; required for multi-node), JWT
+- **Backend**: Go 1.26+, Gin, GORM (PostgreSQL), Redis (optional: can be disabled on a single node; auto-enabled for multi-node), JWT
 
 ### 🏗️ Clear Architecture Design
 
@@ -142,7 +142,7 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 - **Go** >= 1.26
 - **Node.js** >= 20.19
 - **PostgreSQL** >= 14
-- **Redis** >= 6.0 (optional: may be disabled on a single node, where L1 local cache takes over; required for multi-node deployments)
+- **Redis** >= 6.0 (optional: may be disabled on a single node, where L1 local cache takes over; auto-enabled for multi-node deployments, explicit config recommended)
 
 ### One-click Start
 

@@ -185,16 +185,20 @@ func (m *cacheManager) Fetch(ctx, key, moduleName, tags, ttl, v, loader) error {
 
 ## 四、L1/L2 二级缓存架构
 
-### 4.0 启用约束：L1 与 L2 至少启用一个
+### 4.0 启用规则：自动归一化（至少一个缓存层）
 
 - `[redis].enabled` 控制 **L2**（Redis 共享缓存）；`[redis].l1_enabled` 控制 **L1**（BigCache 本地缓存）。
-- 启动期 `config.ValidateConfig` 强制校验：两者不能同时关闭，否则进程直接拒绝启动
-  （`[redis].enabled=false` 且 `[redis].l1_enabled=false` 为非法配置）。
-- **单机（无 Redis）**：L1 作为唯一缓存层，是受支持的部署形态。此时开放平台限流、
-  Nonce 防重放、登录失败计数自动切换为进程内实现（详见 4.4），但**禁止多节点部署**。
-- **多节点**：必须启用 Redis。`[server].multi_node=true` 时启动期强校验
-  `[redis].enabled=true`——Nonce 防重放、分布式限流、缓存失效广播、IPAC/配置热同步
-  都依赖 Redis，缺失会导致跨节点行为分裂。
+- **`config.Load` 在启动期自动归一化（幂等，先于 Redis 客户端创建）**：
+  1. `[server].multi_node=true` 且 `[redis].enabled=false` → **自动启用 L2（Redis）** 并打印告警。
+     多节点的 Nonce 防重放、分布式限流、缓存失效广播、配置/IPAC 热同步都依赖 Redis，
+     缺失会导致跨节点行为分裂。Redis 不可达时，相关能力按 fail-closed 拒绝。
+  2. `enabled=false` 且 `l1_enabled=false` → **自动启用 L1**（与规则 1 独立判定，可叠加：
+     多节点且双关时 L1、L2 都会自动启用）。L1 作为单机唯一缓存层，避免"无缓存介质"组合。
+- 归一化只发生在配置加载边界（`Load` / 防御性重入 `ValidateConfig`），运行期不再改变语义；
+  启动日志会打印实际模式（`l1_l2` / `l2_only` / `l1_only`）。
+- **单机（无 Redis）**：显式 `enabled=false` 即可（L1 默认开启），是受支持的部署形态。
+  此时开放平台限流、Nonce 防重放、登录失败计数自动切换为进程内实现（详见 4.4）。
+- **多节点**：建议显式 `enabled=true`；即使遗漏也会被自动启用，但请确保 Redis 真实可用。
 
 ### 4.1 单机模式（无 Redis）
 
@@ -268,9 +272,9 @@ func (m *cacheManager) Fetch(ctx, key, moduleName, tags, ttl, v, loader) error {
 |------|----------|-----------|------------|--------|
 | **L1+L2**（默认） | Fast：L1 → L2 → DB；非 Fast：L2 → DB | L2 为准；失效清本地 L1+L2 并广播 | 全部依赖 Redis，跨节点精确 | 支持 |
 | **仅 L2**（`l1_enabled=false`） | Fast 自动委托 Fetch，仅走 L2 | 仅 L2 | 正常 | 支持 |
-| **仅 L1**（`redis.enabled=false`） | 所有方法走本地 BigCache（无 L2 时 `l2()` 回退到 L1） | 仅本地，无跨节点广播 | Nonce/开放平台限流/登录失败计数均走进程内实现 | **禁止**（启动校验） |
+| **仅 L1**（`redis.enabled=false`，仅单机） | 所有方法走本地 BigCache（无 L2 时 `l2()` 回退到 L1） | 仅本地，无跨节点广播 | Nonce/开放平台限流/登录失败计数均走进程内实现 | 不适用：`multi_node=true` 会自动启用 L2 |
 | **Redis 运行时故障** | Fast：L1 命中可用；L1 miss 回源 DB；非 Fast 读失败 | 缓存失效失败：**不广播**并返回 error，由调用方告警 + TTL 兜底 | Nonce/限流/refresh 轮换 **fail-closed 拒绝**；tokenStore 读缓存失败回落 DB | 退化为单机行为，必须告警 |
-| **bus=memory** | 正常（单机） | 无跨节点失效广播 | 同单机 | 禁止；`multi_node=true` + Redis 时启动校验拦截 |
+| **bus=memory** | 正常（单机） | 无跨节点失效广播 | 同单机 | 不适用：`multi_node=true` 时 L2 会自动启用，但 bus 仍为 memory 会 WARN |
 
 关键约定：
 
@@ -278,8 +282,8 @@ func (m *cacheManager) Fetch(ctx, key, moduleName, tags, ttl, v, loader) error {
    回写失败只记录日志，不阻断业务。
 2. **安全类缓存**（SecurityCache：验证码、登录锁、refresh 黑名单/轮换、Nonce、开放平台限流）
    按 fail-closed 语义拒绝，绝不因缓存故障降级安全校验。
-3. **仅 L1 模式的本地计数**：`Incr` 在 Redis 关闭时使用进程内原子计数器（多节点部署已被
-   启动校验禁止，因此不存在跨节点失真）；登录失败计数、开放平台限流均保持原有语义。
+3. **仅 L1 模式的本地计数**：`Incr` 在 Redis 关闭时使用进程内原子计数器（`multi_node=true`
+   会自动启用 L2，因此该分支只存在于单机部署，不存在跨节点失真）；登录失败计数、开放平台限流均保持原有语义。
 4. **`api_ratelimit` 通用中间件依赖 Redis**：Redis 关闭时规则不注册（单机也不生效），
    需要单机限流请使用开放平台应用限流（自带内存降级）。
 5. **登录端点限流**（`login_ratelimit`）在 Redis 关闭时为 noop（fail-open）。
@@ -413,12 +417,12 @@ if err := s.cacheFast.InvalidateByTags(ctx, cache.TagXxx); err != nil {
 | 单机开发 | 可选 | **启用** | 开发环境，快速启动 |
 | 单机生产（无 Redis） | 关闭 | **必须启用** | 小型项目；限流/Nonce/登录计数走进程内实现 |
 | 单机生产（有 Redis） | 启用 | 启用 | 小型项目，数据持久化 |
-| 多机集群 | **必须** | 启用 | 中大型项目，高可用 |
+| 多机集群 | **自动启用**（建议显式配置） | 启用 | 中大型项目，高可用 |
 
 **多机部署 checklist**：
 
 - [ ] `[server].multi_node = true`
-- [ ] Redis 配置正确，`enabled = true`（启动期强校验，缺失直接拒绝启动）
+- [ ] Redis 配置正确，`enabled = true`（建议显式；`multi_node=true` 时会被自动启用）
 - [ ] `[bus].driver = "redis"`（否则缓存失效/IPAC/配置无法跨节点同步）
 - [ ] 所有机器使用同一个 Redis 实例/集群
 - [ ] `prefix` 配置一致（避免频道隔离导致广播失效）
@@ -448,7 +452,7 @@ redis:
 
 > **语义说明**：
 >
-> - **`enabled`（L2）与 `l1_enabled`（L1）至少启用一个**：两者同时关闭时启动期 `ValidateConfig` 直接拒绝启动。
+> - **`enabled`（L2）与 `l1_enabled`（L1）至少启用一个**：`config.Load` 自动归一化——`multi_node=true` 时自动启用 L2；L1/L2 双关时自动启用 L1（两条规则可叠加，启动日志会标明实际模式）。
 > - `l1_enabled` 控制 L1 是否参与（Fast 方法优先 L1，并回填 L1）；关闭后 Fast 系列自动委托 Fetch 走 L2，**不是**"完全禁用缓存"。
 > - Redis 关闭（`enabled=false`）时 L1 是唯一缓存层：`l2()` 自动回退到 L1，本地计数（`Incr`）也切换为进程内实现；此形态仅限单机。
 > - `local_ttl_min` 是 BigCache 的 LifeWindow（条目最长驻留时间）；Fast 系列另带业务 TTL（`store.WithExpiration`），二者取先到者。若业务缓存的 TTL=0（如 `app.CacheTTL=0`），L1 仍受 `local_ttl_min` 约束，但 L2 不会自动过期，依赖失效广播。

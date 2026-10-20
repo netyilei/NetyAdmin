@@ -98,7 +98,8 @@ API 开发者在注册路由时可标记所属 Scope。应用必须被授予该 
 - **L1 命中即返回**：App 信息 / Scopes / API 白名单在 L1 命中时不会访问 Redis（`GetFast`/`FetchFast`）。
 - **热更新依赖事件总线**：多节点必须 `[bus].driver = "redis"`；`bus=memory` 时广播不出本进程。
 - **失效广播失败**：其他节点的 L1 会陈旧至 `local_ttl_min`（默认 10 分钟）；`App.CacheTTL=0` 时 L2 不会自动过期，因此建议在管理端为应用配置合理缓存 TTL。
-- **Redis 关闭（单机）**：App/Scopes/API 仍由 L1 服务；Nonce 与限流切换为进程内实现；多节点部署被启动校验禁止。
+- **Redis 关闭（单机）**：App/Scopes/API 仍由 L1 服务；Nonce 与限流切换为进程内实现。
+  `multi_node=true` 时会自动启用 L2（Redis），不存在"多机却用本地计数"的配置组合。
 
 ---
 
