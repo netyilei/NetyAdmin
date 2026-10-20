@@ -297,7 +297,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	engine.Use(middleware.ErrorLogger(services.errorLog))
 	// 请求处理超时不再用 gin 中间件实现：原 middleware.Timeout 仅向 ctx 注入 deadline，
 	// 无法主动拦截响应。改用 http.TimeoutHandler 在 app.go 中包装整个 engine，
-	// 超时时由 stdlib 主动写入 503 + JSON 错误体（code:100006 / msg:"请求超时"）。
+	// 超时时由 stdlib 主动写入 503 + JSON 错误体（code:100011 / msg:"请求超时"）。
 	// 配置项：[server].handler_timeout（默认 25s，应略小于 read_timeout/write_timeout）。
 	engine.Use(middleware.Logger())
 	engine.Use(middleware.OperationLogger(services.logBus))

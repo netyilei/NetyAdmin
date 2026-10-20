@@ -10,7 +10,7 @@
 
 | 组件 | 版本要求 | 说明 |
 |------|----------|------|
-| Go | >= 1.21 | 后端运行环境 |
+| Go | >= 1.26 | 后端运行环境（与 server/go.mod 一致） |
 | PostgreSQL | >= 14 | 主数据库 |
 | Redis | >= 6.0 | 可选，用于缓存和任务队列 |
 
@@ -18,8 +18,8 @@
 
 | 组件 | 版本要求 | 说明 |
 |------|----------|------|
-| Node.js | >= 18 | 前端运行环境 |
-| pnpm | >= 8 | 包管理器 |
+| Node.js | >= 20.19 | 前端运行环境（与 admin-web/package.json engines 一致） |
+| pnpm | >= 10.5 | 包管理器 |
 
 ### 1.3 系统要求
 
@@ -35,8 +35,8 @@
 
 ```bash
 # Linux/macOS
-wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
-sudo tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
+wget https://go.dev/dl/go1.26.0.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.26.0.linux-amd64.tar.gz
 
 # 配置环境变量
 echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
@@ -85,11 +85,12 @@ brew services start redis
 # 使用 nvm 安装 Node.js
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
 source ~/.bashrc
-nvm install 18
-nvm use 18
+nvm install 20
+nvm use 20
 
-# 安装 pnpm
-npm install -g pnpm
+# 安装 pnpm（建议 corepack，按 package.json 的 packageManager 版本）
+corepack enable
+corepack prepare pnpm@latest --activate
 
 # 验证安装
 node -v
@@ -152,15 +153,16 @@ cd NetyAdmin/server
 复制配置文件模板：
 
 ```bash
-cp config.yaml.example config.yaml
+cp config.example.yaml config.yaml
 ```
 
-编辑 `config.yaml`：
+编辑 `config.yaml`（YAML 格式，完整项见 [server-architecture.md 12-Factor 配置](./server-architecture.md#12-factor-配置)）：
 
 ```yaml
 server:
   port: 8010
-  mode: release  # debug/release
+  mode: release  # debug/release；release 模式启动期强校验敏感配置
+  trusted_proxies: []  # 部署在 Nginx/CDN 后填写真实代理 IP/CIDR
 
 database:
   host: localhost
@@ -178,16 +180,19 @@ redis:
   db: 0
   prefix: "netyadmin"
 
-[jwt]
-secret = "your-secret-key-change-this"
-expire_hours = 24
+jwt:
+  # RS256 非对称密钥（二选一：文件路径或 PEM 内容）
+  private_key_file: "./keys/jwt_private.pem"
+  public_key_file: "./keys/jwt_public.pem"
+  access_token_ttl: "30m"     # 必须 ≤ 30 分钟
+  refresh_token_ttl: "168h"
 
-[migration]
-enabled = true
+security:
+  aes_key: "<32字节随机密钥>"
+  upload_hmac_key: "<32字节随机HMAC密钥>"
 
-[log]
-level = "info"
-path = "./logs"
+migration:
+  enabled: true   # 启动期自动执行 SQL 迁移（SQL 文件已 embed 进二进制）
 ```
 
 ### 4.3 安装依赖
@@ -262,17 +267,11 @@ pnpm install
 
 ### 5.3 配置环境变量
 
-创建 `.env.production`：
+编辑 `.env.prod`（`pnpm build` 以 prod 模式构建时读取）：
 
 ```env
 # API 基础地址
-VITE_API_BASE_URL=http://your-server-ip:8010
-
-# 应用标题
-VITE_APP_TITLE=NetyAdmin
-
-# 是否开启 Mock
-VITE_MOCK=false
+VITE_SERVICE_BASE_URL=http://your-server-ip:8010
 ```
 
 ### 5.4 构建
@@ -409,7 +408,7 @@ docker-compose up -d
 
 ```dockerfile
 # server/Dockerfile
-FROM golang:1.21-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 COPY go.mod go.sum ./
@@ -422,8 +421,8 @@ FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 
+# 迁移 SQL 已通过 embed 打进二进制，无需单独拷贝 migrations 目录
 COPY --from=builder /app/server .
-COPY --from=builder /app/migrations ./migrations
 
 EXPOSE 8010
 
@@ -434,7 +433,7 @@ CMD ["./server"]
 
 ```dockerfile
 # admin-web/Dockerfile
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
@@ -460,11 +459,10 @@ CMD ["nginx", "-g", "daemon off;"]
 ### 7.1 服务端验证
 
 ```bash
-# 检查服务状态
-curl http://localhost:8010/admin/v1/health
+# 健康检查端点（在路由注册之前独立挂载，不经过业务码流程）
+curl http://localhost:8010/health
 
-# 预期响应
-{"code":"100000","msg":"","data":{"status":"ok"}}
+# 返回 HTTP 200 即健康（hellofresh/health-go 格式，含 db/redis 探活结果）
 ```
 
 ### 7.2 前端验证
@@ -511,15 +509,13 @@ sudo ufw allow 5432
 
 解决方案：
 
-```bash
-# 禁用自动迁移，手动执行
-# 编辑 config.yaml
-[migration]
-enabled = false
-
-# 手动执行迁移
-psql -U netyadmin -d netyadmin -f migrations/table_admin_system.sql
+```yaml
+# server/config.yaml
+migration:
+  enabled: false   # 先关闭自动迁移，修复库状态后再开启
 ```
+
+> 迁移 SQL 已 embed 进二进制，按版本号幂等执行；手动修复建议用 golang-migrate CLI 对准 `internal/pkg/migration/migrations/` 目录，或直接修复库中的 `schema_migrations` 版本记录。
 
 ### 8.3 前端构建失败
 
@@ -545,9 +541,10 @@ pnpm install
 
 ```yaml
 # server/config.yaml
-server:
-  cors_origins:
-    - "http://localhost:3000"
+cors:
+  # Origin 精确白名单（空数组 = 拒绝所有跨域，fail-closed）
+  allowed_origins:
+    - "http://localhost:5173"
     - "https://your-domain.com"
 ```
 
@@ -572,15 +569,9 @@ server:
 
 ### 9.3 监控告警
 
-```bash
-# 安装 Prometheus + Grafana
-# 配置服务端指标暴露
-
-# 编辑 config.yaml
-[metrics]
-enabled = true
-path = "/metrics"
-```
+- **错误追踪**：配置 `[sentry].dsn`（可用环境变量 `NETYADMIN_SENTRY_DSN` 覆盖），panic 与错误日志自动上报
+- **健康探测**：`/health` 端点含 DB/Redis 探活，可接入 K8s liveness/readiness 或负载均衡
+- 配置文件中没有 `[metrics]` Prometheus 端点；如需指标暴露需自行扩展
 
 ---
 

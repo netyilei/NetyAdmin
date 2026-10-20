@@ -742,4 +742,3 @@ func main() {
 - [Server 架构设计与目录结构](server-architecture.md)
 - [状态码规范](status-codes.md)
 - [API 管理指南](api-management.md)
-- [RULES.md](../RULES.md) — 红线规则（**本地保留，不推 GitHub**）

@@ -53,6 +53,7 @@ admin-web/
 │   │   ├── admin-layout/        # 后台布局组件
 │   │   ├── page-tab/            # 页面标签组件
 │   │   └── simple-scrollbar/    # 滚动条组件
+│   ├── ofetch/                   # ofetch请求库封装
 │   ├── scripts/                  # 工程化脚本
 │   ├── uno-preset/               # UnoCSS预设
 │   └── utils/                    # 工具函数
@@ -85,19 +86,26 @@ admin-web/
     │   └── custom/               # 业务组件（跨页面复用）
     │       ├── app-dict-radio-group.vue
     │       ├── app-dict-select.vue
+    │       ├── better-scroll.vue
     │       ├── button-icon.vue
     │       ├── count-to.vue
     │       ├── custom-icon-select.vue
+    │       ├── github-link.vue
+    │       ├── iconify-icon-select.vue
+    │       ├── look-forward.vue
     │       ├── nety-admin-avatar.vue
     │       ├── storage-config-select.vue  # 存储配置选择器（应用绑定存储时复用）
     │       ├── svg-icon.vue
-    │       └── toast-ui-editor.vue
+    │       ├── toast-ui-editor.vue
+    │       ├── wave-bg.vue
+    │       └── web-site-link.vue
     │
     ├── config/                    # 应用配置
     │   └── index.ts
     │
     ├── constants/                 # 常量定义
     │   ├── app.ts                # 应用常量
+    │   ├── business.ts           # 业务常量
     │   ├── map-sdk.ts            # 地图SDK配置
     │   └── reg.ts                # 正则表达式
     │
@@ -114,8 +122,7 @@ admin-web/
     │       ├── icon.ts           # 图标Hook
     │       ├── operation.ts      # 操作Hook
     │       ├── router.ts         # 路由Hook
-    │       ├── table.ts          # 表格Hook
-    │       └── vchart.ts         # VChart Hook
+    │       └── table.ts          # 表格Hook
     │
     ├── layouts/                   # 布局组件
     │   ├── base-layout/          # 基础布局
@@ -182,9 +189,9 @@ admin-web/
     │   │       ├── auth.ts       # 认证API
     │   │       ├── content.ts    # 内容API
     │   │       ├── log.ts        # 日志API
+    │   │       ├── message-hub.ts # 消息中心API
     │   │       ├── open-app.ts   # 开放平台应用API（含存储绑定）
     │   │       ├── open-api.ts   # 开放平台API管理
-    │   │       ├── open-log.ts   # 开放平台日志API
     │   │       ├── route.ts      # 路由API
     │   │       ├── storage.ts    # 存储API
     │   │       ├── system-dict.ts # 字典API
@@ -230,11 +237,13 @@ admin-web/
     │   │       ├── common.d.ts
     │   │       ├── content.d.ts
     │   │       ├── log.d.ts
+    │   │       ├── message-hub.d.ts # 消息中心类型
     │   │       ├── open-app.d.ts # 开放平台应用类型（含StorageID）
     │   │       ├── open-api.d.ts # 开放平台API管理类型
     │   │       ├── route.d.ts
     │   │       ├── storage.d.ts  # 存储类型（UploadRecord含AppID）
     │   │       ├── system-dict.d.ts
+    │   │       ├── system-ipac.d.ts
     │   │       └── system-manage.d.ts
     │   ├── app/                  # 应用类型
     │   ├── components.d.ts       # 组件类型
@@ -244,48 +253,68 @@ admin-web/
     │
     ├── utils/                     # 工具函数
     │   ├── agent.ts              # 浏览器检测
-    │   ├── common.ts             # 通用工具
+    │   ├── category.ts           # 分类树扁平化
+    │   ├── common.ts             # 通用工具（含 isSuperByCode）
+    │   ├── format.ts             # 格式化（日期时间/延迟/字节数）
     │   ├── icon.ts               # 图标工具
     │   ├── iconify-icons.ts      # Iconify图标
     │   ├── service.ts            # 服务工具
     │   ├── storage.ts            # 存储工具
-    │   └── upload.ts             # 上传工具
+    │   └── upload.ts             # 上传工具（三步直传封装）
     │
     ├── views/                     # 【严格页面层】
     │   ├── _builtin/             # 内置页面
     │   │   ├── 403/
     │   │   ├── 404/
-    │   │   └── 500/
+    │   │   ├── 500/
+    │   │   ├── iframe-page/
+    │   │   └── login/
     │   │
     │   ├── content/              # 内容管理
     │   │   ├── article/
     │   │   │   ├── components/   # 【页面级组件】
     │   │   │   └── index.vue
     │   │   ├── banner/
+    │   │   ├── banner-group/
     │   │   └── category/
     │   │
     │   ├── home/                 # 首页
+    │   │   └── components/
+    │   │
     │   ├── manage/               # 系统管理（RBAC）
-    │   │   ├── admin/
-    │   │   ├── role/
+    │   │   ├── admin/            # 管理员
+    │   │   ├── admin-detail/     # 管理员详情
+    │   │   ├── dict/
     │   │   ├── menu/
-    │   │   └── dict/
+    │   │   ├── role/
+    │   │   ├── system/           # 系统配置
+    │   │   └── user/             # C端用户
+    │   │
+    │   ├── message/              # 消息中心（统一发送）
+    │   │   ├── send-email/
+    │   │   ├── send-internal/
+    │   │   └── send-sms/
     │   │
     │   ├── ops/                  # 运维审计
     │   │   ├── error-log/
+    │   │   ├── message-log/      # 消息发送记录
+    │   │   ├── open-platform-log/
     │   │   ├── operation-log/
+    │   │   ├── task/
     │   │   └── upload-record/
     │   │
     │   ├── open-platform/        # 开放平台
+    │   │   ├── apis/             # API管理
     │   │   ├── apps/             # 应用管理（含存储绑定）
     │   │   │   └── components/
     │   │   │       └── app-operate-modal.vue  # 应用操作弹窗（含存储配置选择）
-    │   │   ├── apis/             # API管理
-    │   │   └── logs/             # 调用日志
+    │   │   ├── ip-access/        # IP 访问控制
+    │   │   ├── scopes/           # Scope 权限组
+    │   │   └── statistics/       # 调用统计
     │   │
     │   └── settings/             # 系统设置
-    │       ├── config/
-    │       └── task/
+    │       ├── message-template/ # 消息模板
+    │       └── storage-config/   # 存储配置
     │
     ├── App.vue                    # 根组件
     └── main.ts                    # 应用入口
@@ -336,7 +365,7 @@ backend-error.ts 映射 code -> i18n key
            ↓
 locales/langs/zh-cn/request.ts 获取中文文本
            ↓
-ElMessage.error("用户不存在")
+message.error("用户不存在")   （naive-ui useMessage）
 ```
 
 ---

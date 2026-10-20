@@ -234,7 +234,7 @@ func RecoveryMiddleware(errorLogService log.ErrorLogService) gin.HandlerFunc {
                 errorLogService.Log(c.Request.Context(), errorLog)
                 
                 // 返回错误响应
-                response.Error(c, errorx.CodeInternalError)
+                response.FailWithCode(c, errorx.CodeInternalError)
                 c.Abort()
             }
         }()

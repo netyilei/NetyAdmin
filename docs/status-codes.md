@@ -8,7 +8,7 @@
 
 - HTTP 统一返回结构：`{ code, msg, data, request_id }`
 - `code`：字符串类型，6 位数字（如 `"100000"`、`"101001"`）
-- `msg`：强制返回空字符串，不承载用户可读文本
+- `msg`：成功时为空字符串；失败时携带错误描述（`response.Fail` 写入 `BizError.Message`）
 - `request_id`：链路追踪 ID，配合响应 Header `X-Request-ID`
 - 前端根据 `code` 在请求拦截层映射为当前语言的 i18n 提示文本
 - 成功码 `"100000"` 不需要 i18n 映射
@@ -37,17 +37,20 @@
 
 | YY | 业务域 | 说明 | 码段范围 |
 |---|---|---|---|
-| `00` | 通用 (Common) | 参数错误、鉴权、限流等全局错误 | `100001` ~ `100099` |
+| `00` | 通用 (Common) | 参数错误、鉴权、限流、超时等全局错误 | `100001` ~ `100099` |
 | `10` | 管理员 (Admin User) | 后台管理员认证、账号管理 | `101001` ~ `101099` |
+| `12` | 消息 (Message) | 消息模板、发送记录、驱动 | `101201` ~ `101299` |
+| `13` | 开放平台 (Open Platform) | AppKey认证、签名验证、限流、Scope、调用统计 | `101301` ~ `101399` |
+| `14` | IP 访问控制 (IPAC) | IP 黑白名单、CIDR 校验 | `101401` ~ `101499` |
+| `15` | 存储 (Storage) | 上传凭证、上传记录 | `101501` ~ `101599` |
+| `16` | 内容 (Content) | 分类、文章、Banner | `101601` ~ `101699` |
 | `20` | 角色 (Role) | 角色管理 | `102001` ~ `102099` |
 | `30` | 菜单 (Menu) | 菜单管理 | `103001` ~ `103099` |
 | `40` | 按钮 (Button) | 按钮管理 | `104001` ~ `104099` |
 | `50` | API | API 管理 | `105001` ~ `105099` |
-| `60` | 内容 (Content) | 分类、文章、Banner | `106001` ~ `106099` |
-| `70` | 存储 (Storage) | 对象存储、上传凭证、上传记录 | `107001` ~ `107099` |
-| `80` | 日志 (Log) | 操作日志、错误日志、开放平台日志、任务日志 | `108001` ~ `108099` |
-| `90` | 系统 (System) | 系统配置、字典、任务 | `109001` ~ `109099` |
-| `13` | 开放平台 (Open Platform) | AppKey认证、签名验证、限流、Scope权限 | `101301` ~ `101399` |
+| `90` | 系统/任务 (System) | 任务调度、邮件测试 | `109001` ~ `109099` |
+
+> `60` / `70` / `80` 号段从未分配码位，新增业务域可按顺序取用。
 
 ### Client 端 (20) 业务域分配表
 
@@ -63,6 +66,8 @@
 | `10` | 内容 (Content) | C 端内容浏览（预留） | `201001` ~ `201099` |
 | `20` | 存储 (Storage) | C 端文件上传（预留） | `202001` ~ `202099` |
 | `30` | 邮件 (Email) | 邮件发送与验证 | `203001` ~ `203099` |
+
+> 当前 Client 端仅 `06 验证码` 号段有已定义码位（见 §5.1），其余号段为预留，尚未定义任何码位。
 
 > **新增业务域时**，在对应系统端的分配表中追加新 YY 值，并在本文档中创建对应的章节。
 
@@ -95,7 +100,7 @@
 | `100006` | `CodeTooManyRequest` | `tooManyRequest` | 请求过于频繁 | Too many requests |
 | `100007` | `CodeBadRequest` | `badRequest` | 请求错误 | Bad request |
 | `100008` | `CodeAlreadyExists` | `alreadyExists` | 资源已存在 | Resource already exists |
-| `100009` | `CodeCaptchaWrong` | `captchaWrong` | 验证码错误 | Captcha is incorrect |
+| `100009` | `CodeCaptchaInvalid` | `captchaWrong` | 验证码错误 | Captcha is incorrect |
 | `100010` | `CodeCaptchaRequired` | `captchaRequired` | 验证码必填 | Captcha is required |
 | `100011` | `CodeRequestTimeout` | `requestTimeout` | 请求超时 | Request timeout |
 
@@ -114,7 +119,7 @@
 | `101007` | `CodeUserLocked` | `userLocked` | 账户已锁定 | Account locked |
 | `101008` | `CodeOldPasswordWrong` | `oldPasswordWrong` | 原密码错误 | Incorrect old password |
 | `101009` | `CodePasswordTooWeak` | `passwordTooWeak` | 密码强度不足 | Password is too weak |
-| `101010` | `CodeOAuthAlreadyBound` | `oauthAlreadyBound` | 第三方账号已绑定其他用户 | Third-party account already bound to another user |
+| `101010` | `CodeOAuthAlreadyBound` | — | 第三方账号已绑定其他用户 | Third-party account already bound to another user |
 
 ### 4.3 角色 (1020xx)
 
@@ -152,49 +157,62 @@
 | `105002` | `CodeApiAlreadyExists` | `apiAlreadyExists` | API已存在 | API already exists |
 | `105003` | `CodeApiPathDuplicate` | `apiPathDuplicate` | API路径重复 | Duplicate API path |
 
-### 4.7 内容 (1060xx)
+### 4.7 内容 (1016xx)
 
 | code | 后端常量 | 前端 key | 中文 | English |
 |---|---|---|---|---|
-| `106001` | `CodeCategoryNotFound` | `categoryNotFound` | 分类不存在 | Category not found |
-| `106002` | `CodeCategoryHasChildren` | `categoryHasChildren` | 分类存在子分类 | Category has children |
-| `106003` | `CodeCategoryHasArticles` | `categoryHasArticles` | 分类下存在文章 | Category has articles |
-| `106004` | `CodeArticleNotFound` | `articleNotFound` | 文章不存在 | Article not found |
-| `106005` | `CodeArticleAlreadyPublished` | `articleAlreadyPublished` | 文章已发布 | Article already published |
-| `106006` | `CodeBannerGroupNotFound` | `bannerGroupNotFound` | Banner分组不存在 | Banner group not found |
-| `106007` | `CodeBannerItemNotFound` | `bannerItemNotFound` | Banner项不存在 | Banner item not found |
+| `101601` | `CodeCategoryHasArticles` | — | 该分类下存在文章，请先移走或删除文章后再删除分类 | Category has articles; move or delete them first |
+| `101602` | `CodeCategoryHasChildren` | — | 该分类下存在子分类，请先删除子分类后再删除父分类 | Category has children; delete them first |
+| `101603` | `CodeBannerGroupHasItems` | — | 该 Banner 组下存在 Banner 项，请先移走或删除 Banner 项后再删除组 | Banner group has items; move or delete them first |
 
-### 4.8 存储 (1070xx)
+### 4.8 存储 (1015xx)
 
 | code | 后端常量 | 前端 key | 中文 | English |
 |---|---|---|---|---|
-| `107001` | `CodeStorageConfigNotFound` | `storageConfigNotFound` | 存储配置不存在 | Storage config not found |
-| `107002` | `CodeStorageConfigDisabled` | `storageConfigDisabled` | 存储配置已禁用 | Storage config disabled |
-| `107003` | `CodeUploadFailed` | `uploadFailed` | 上传失败 | Upload failed |
-| `107004` | `CodeFileTooLarge` | `fileTooLarge` | 文件过大 | File too large |
-| `107005` | `CodeInvalidFileType` | `invalidFileType` | 不支持的文件类型 | Invalid file type |
-| `107006` | `CodeUploadRecordNotFound` | `uploadRecordNotFound` | 上传记录不存在 | Upload record not found |
+| `101501` | `CodeUploadRecordNotFound` | — | 上传记录不存在 | Upload record not found |
+| `101502` | `CodeUploadSignatureInvalid` | — | 上传凭证校验失败 | Upload signature verification failed |
+| `101503` | `CodeUploadRecordCompleted` | — | 该上传记录已完成，不可重复提交 | Upload record already completed |
+| `101504` | `CodeUploadRecordExpired` | — | 上传凭证已过期 | Upload credential expired |
+| `101505` | `CodeUploadRecordMismatch` | — | 上传记录与请求不匹配 | Upload record does not match the request |
 
-### 4.9 日志 (1080xx)
-
-| code | 后端常量 | 前端 key | 中文 | English |
-|---|---|---|---|---|
-| `108001` | `CodeOperationLogNotFound` | `operationLogNotFound` | 操作日志不存在 | Operation log not found |
-| `108002` | `CodeErrorLogNotFound` | `errorLogNotFound` | 错误日志不存在 | Error log not found |
-| `108003` | `CodeErrorLogAlreadyResolved` | `errorLogAlreadyResolved` | 错误日志已解决 | Error log already resolved |
-
-### 4.10 系统 (1090xx)
+### 4.9 消息 (1012xx)
 
 | code | 后端常量 | 前端 key | 中文 | English |
 |---|---|---|---|---|
-| `109001` | `CodeDictTypeNotFound` | `dictTypeNotFound` | 字典类型不存在 | Dict type not found |
-| `109002` | `CodeDictTypeCodeExists` | `dictTypeCodeExists` | 字典类型编码已存在 | Dict type code exists |
-| `109003` | `CodeDictDataNotFound` | `dictDataNotFound` | 字典数据不存在 | Dict data not found |
-| `109004` | `CodeConfigNotFound` | `configNotFound` | 配置项不存在 | Config not found |
-| `109005` | `CodeTaskNotFound` | `taskNotFound` | 任务不存在 | Task not found |
-| `109006` | `CodeTaskAlreadyRunning` | `taskAlreadyRunning` | 任务正在运行 | Task already running |
-| `109007` | `CodeTaskNotRunning` | `taskNotRunning` | 任务未运行 | Task not running |
+| `101201` | `CodeMsgTemplateNotFound` | `msgTemplateNotFound` | 消息模板不存在 | Message template not found |
+| `101202` | `CodeMsgTemplateCodeExists` | `msgTemplateCodeExists` | 模板编码已存在 | Template code already exists |
+| `101203` | `CodeMsgSendFailed` | `msgSendFailed` | 消息发送失败 | Message send failed |
+| `101204` | `CodeMsgRecordNotFound` | `msgRecordNotFound` | 消息记录不存在 | Message record not found |
+| `101205` | `CodeMsgDriverNotFound` | `msgDriverNotFound` | 消息驱动未配置或不存在 | Message driver not configured or not found |
+
+### 4.10 系统/任务 (1090xx)
+
+| code | 后端常量 | 前端 key | 中文 | English |
+|---|---|---|---|---|
+| `109005` | `CodeTaskNotFound` | — | 任务不存在 | Task not found |
+| `109006` | `CodeTaskAlreadyRunning` | — | 任务已在运行中 | Task already running |
+| `109007` | `CodeTaskNotRunning` | — | 任务未在运行 | Task not running |
 | `109008` | `CodeEmailTestFailed` | `emailTestFailed` | 邮件测试发送失败 | Email test failed |
+
+### 4.11 开放平台 (1013xx)
+
+| code | 后端常量 | 前端 key | 中文 | English |
+|---|---|---|---|---|
+| `101301` | `CodeAppKeyInvalid` | `appKeyInvalid` | AppKey无效 | Invalid AppKey |
+| `101302` | `CodeSignatureFailed` | `signatureFailed` | 签名验证失败 | Signature verification failed |
+| `101303` | `CodeRequestExpired` | `requestExpired` | 请求已过期 | Request expired |
+| `101304` | `CodeScopeMismatch` | `scopeMismatch` | 权限不足 (Scope 不匹配) | Insufficient permissions (Scope mismatch) |
+| `101305` | `CodeRateLimited` | `rateLimited` | 已触发流量限制 | Rate limit exceeded |
+| `101306` | `CodeAppDisabled` | `appDisabled` | 应用已被禁用 | Application has been disabled |
+| `101307` | `CodeStatisticsInvalidParams` | — | 统计参数无效 | Invalid statistics parameters |
+
+### 4.12 IP 访问控制 (1014xx)
+
+| code | 后端常量 | 前端 key | 中文 | English |
+|---|---|---|---|---|
+| `101401` | `CodeIPBlocked` | `ipBlocked` | 访问受限 (您的 IP 已被封锁) | Access restricted (IP blocked) |
+| `101402` | `CodeIPInvalid` | `ipInvalid` | 非法 IP/CIDR 格式 | Invalid IP/CIDR format |
+| `101403` | `CodeWhitelistMode` | `whitelistMode` | 系统处于白名单模式，您的 IP 未被授权 | Whitelist mode: IP not authorized |
 
 ### 4.11 开放平台 (1013xx)
 
@@ -211,94 +229,16 @@
 
 ## 五、Client 端状态码 (20xxxx)
 
-### 5.1 通用 (2000xx)
+> 当前 Client 端仅验证码号段有已定义码位（下表）；其余号段为预留，尚未定义任何码位。
+> 预留码位：`200602`、`200603`。
 
-| code | 后端常量 | 前端 key | 中文 | English |
-|---|---|---|---|---|
-| `200001` | `CodeClientInvalidParams` | `clientInvalidParams` | 参数错误 | Invalid parameters |
-| `200002` | `CodeClientUnauthorized` | `clientUnauthorized` | 未登录 | Not logged in |
-| `200003` | `CodeClientForbidden` | `clientForbidden` | 无权限访问 | Access denied |
-| `200004` | `CodeClientNotFound` | `clientNotFound` | 资源不存在 | Resource not found |
-| `200005` | `CodeClientInternalError` | `clientInternalError` | 服务器内部错误 | Internal server error |
-| `200006` | `CodeClientTooManyRequest` | `clientTooManyRequest` | 请求过于频繁 | Too many requests |
-
-### 5.2 注册 (2001xx)
-
-| code | 后端常量 | 前端 key | 中文 | English |
-|---|---|---|---|---|
-| `200101` | `CodeRegisterEmailExists` | `registerEmailExists` | 邮箱已注册 | Email already registered |
-| `200102` | `CodeRegisterPhoneExists` | `registerPhoneExists` | 手机号已注册 | Phone already registered |
-| `200103` | `CodeRegisterDisabled` | `registerDisabled` | 注册功能已关闭 | Registration is disabled |
-| `200104` | `CodeRegisterInvalidInvite` | `registerInvalidInvite` | 邀请码无效 | Invalid invitation code |
-| `200105` | `CodeRegisterCaptchaExpired` | `registerCaptchaExpired` | 注册验证码已过期 | Registration captcha expired |
-| `200106` | `CodeRegisterCaptchaInvalid` | `registerCaptchaInvalid` | 注册验证码无效 | Registration captcha invalid |
-
-### 5.3 登录 (2002xx)
-
-| code | 后端常量 | 前端 key | 中文 | English |
-|---|---|---|---|---|
-| `200201` | `CodeLoginAccountNotFound` | `loginAccountNotFound` | 账号不存在 | Account not found |
-| `200202` | `CodeLoginPasswordWrong` | `loginPasswordWrong` | 密码错误 | Incorrect password |
-| `200203` | `CodeLoginAccountDisabled` | `loginAccountDisabled` | 账号已禁用 | Account disabled |
-| `200204` | `CodeLoginAccountLocked` | `loginAccountLocked` | 账号已锁定 | Account locked |
-| `200205` | `CodeLoginTooManyAttempts` | `loginTooManyAttempts` | 登录尝试次数过多 | Too many login attempts |
-| `200206` | `CodeLoginCaptchaExpired` | `loginCaptchaExpired` | 登录验证码已过期 | Login captcha expired |
-| `200207` | `CodeLoginCaptchaInvalid` | `loginCaptchaInvalid` | 登录验证码无效 | Login captcha invalid |
-
-### 5.4 鉴权 (2003xx)
-
-| code | 后端常量 | 前端 key | 中文 | English |
-|---|---|---|---|---|
-| `200301` | `CodeAuthNotLoggedIn` | `authNotLoggedIn` | 未登录，请先登录 | Not logged in, please login |
-| `200302` | `CodeAuthSessionExpired` | `authSessionExpired` | 登录已过期，请重新登录 | Session expired, please login again |
-| `200303` | `CodeAuthCredentialInvalid` | `authCredentialInvalid` | 登录凭证无效 | Invalid credentials |
-| `200304` | `CodeAuthCredentialRevoked` | `authCredentialRevoked` | 登录凭证已撤销 | Credentials revoked |
-| `200305` | `CodeAuthAccessDenied` | `authAccessDenied` | 无权限访问该资源 | Access denied to resource |
-
-### 5.5 令牌 (2004xx)
-
-| code | 后端常量 | 前端 key | 中文 | English |
-|---|---|---|---|---|
-| `200401` | `CodeRefreshTokenExpired` | `refreshTokenExpired` | 刷新令牌已过期，请重新登录 | Refresh token expired, please login again |
-| `200402` | `CodeRefreshTokenInvalid` | `refreshTokenInvalid` | 刷新令牌无效 | Invalid refresh token |
-| `200403` | `CodeRefreshTokenRevoked` | `refreshTokenRevoked` | 刷新令牌已撤销 | Refresh token revoked |
-| `200404` | `CodeRefreshTokenMismatch` | `refreshTokenMismatch` | 刷新令牌不匹配 | Refresh token mismatch |
-
-### 5.6 资料与密码 (2005xx)
-
-| code | 后端常量 | 前端 key | 中文 | English |
-|---|---|---|---|---|
-| `200501` | `CodeProfileOldPasswordWrong` | `profileOldPasswordWrong` | 原密码错误 | Incorrect old password |
-| `200502` | `CodeProfilePasswordTooWeak` | `profilePasswordTooWeak` | 密码强度不足 | Password is too weak |
-| `200503` | `CodeProfilePasswordFormatInvalid` | `profilePasswordFormatInvalid` | 密码格式不正确 | Invalid password format |
-| `200504` | `CodeProfilePhoneFormatInvalid` | `profilePhoneFormatInvalid` | 手机号格式不正确 | Invalid phone format |
-| `200505` | `CodeProfileEmailFormatInvalid` | `profileEmailFormatInvalid` | 邮箱格式不正确 | Invalid email format |
-| `200506` | `CodeProfileNicknameTooLong` | `profileNicknameTooLong` | 昵称过长 | Nickname too long |
-| `200507` | `CodeProfileAvatarTooLarge` | `profileAvatarTooLarge` | 头像文件过大 | Avatar file too large |
-
-### 5.7 验证码 (2006xx)
+### 5.1 验证码 (2006xx)
 
 | code | 后端常量 | 前端 key | 中文 | English |
 |---|---|---|---|---|
 | `200601` | `CodeCaptchaExpired` | `captchaExpired` | 验证码已过期 | Captcha expired |
-| `200602` | `CodeCaptchaInvalid` | `captchaInvalid` | 验证码无效 | Captcha invalid |
-| `200603` | `CodeCaptchaMaxAttempts` | `captchaMaxAttempts` | 验证码尝试次数超限 | Captcha max attempts exceeded |
-| `200604` | `CodeCaptchaSendTooFrequent` | `captchaSendTooFrequent` | 验证码发送过于频繁 | Captcha sent too frequently |
-
-### 5.8 邮件 (2030xx)
-
-| code | 后端常量 | 前端 key | 中文 | English |
-|---|---|---|---|---|
-| `203001` | `CodeEmailSendFailed` | `emailSendFailed` | 邮件发送失败 | Email send failed |
-| `203002` | `CodeEmailTemplateNotFound` | `emailTemplateNotFound` | 邮件模板不存在 | Email template not found |
-| `203003` | `CodeEmailServiceUnavailable` | `emailServiceUnavailable` | 邮件服务不可用 | Email service unavailable |
-| `203004` | `CodeEmailRateLimitExceeded` | `emailRateLimitExceeded` | 邮件发送频率超限 | Email rate limit exceeded |
-| `203005` | `CodeEmailAddressInvalid` | `emailAddressInvalid` | 邮箱地址无效 | Invalid email address |
-| `203006` | `CodeEmailSendTimeout` | `emailSendTimeout` | 邮件发送超时 | Email send timeout |
-| `203101` | `CodeEmailVerifyCodeExpired` | `emailVerifyCodeExpired` | 邮件验证码已过期 | Email verification code expired |
-| `203102` | `CodeEmailVerifyCodeInvalid` | `emailVerifyCodeInvalid` | 邮件验证码无效 | Email verification code invalid |
-| `203103` | `CodeEmailVerifyMaxAttempts` | `emailVerifyMaxAttempts` | 邮件验证码尝试次数超限 | Email verification max attempts exceeded |
-| `203104` | `CodeEmailVerifyCodeUsed` | `emailVerifyCodeUsed` | 邮件验证码已使用 | Email verification code already used |
+| `200604` | `CodeCaptchaSendTooFrequent` | `captchaSendTooFrequent` | 发送过于频繁，请稍后再试 | Captcha sent too frequently |
+| `200605` | `CodeVerifyTypeNotConfigured` | `verifyTypeNotConfigured` | 未配置验证方式，请联系管理员 | Verification method not configured |
 
 ---
 
@@ -315,7 +255,7 @@
 
 ## 七、新增状态码示例
 
-以新增"订单模块"状态码为例：
+以新增"订单模块"状态码为例（取下一个空闲业务域 `17`）：
 
 ### 7.1 后端定义
 
@@ -323,10 +263,10 @@
 // server/internal/pkg/errorx/errorx.go
 
 const (
-    // 订单模块 (1080xx)
-    CodeOrderNotFound     = 108001
-    CodeOrderAlreadyPaid  = 108002
-    CodeOrderCancelled    = 108003
+    // 订单模块 (1017xx)
+    CodeOrderNotFound     Code = 101701
+    CodeOrderAlreadyPaid  Code = 101702
+    CodeOrderCancelled    Code = 101703
 )
 
 var codeMessages = map[int]string{
@@ -345,9 +285,9 @@ export enum BackendErrorCode {
   // ... 现有状态码
   
   // 订单模块
-  ORDER_NOT_FOUND = '108001',
-  ORDER_ALREADY_PAID = '108002',
-  ORDER_CANCELLED = '108003',
+  ORDER_NOT_FOUND = '101701',
+  ORDER_ALREADY_PAID = '101702',
+  ORDER_CANCELLED = '101703',
 }
 
 export const backendErrorI18nKeyMap: Record<string, string> = {

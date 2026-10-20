@@ -20,7 +20,7 @@
 
 ---
 
-## 一、通用错误码（100000-100010）
+## 一、通用错误码（100000-100011）
 
 | 错误码 | 常量名 | 描述 |
 |--------|--------|------|
@@ -35,10 +35,11 @@
 | `100008` | CodeAlreadyExists | 资源已存在 |
 | `100009` | CodeCaptchaInvalid | 验证码错误 |
 | `100010` | CodeCaptchaRequired | 验证码必填 |
+| `100011` | CodeRequestTimeout | 请求超时 |
 
 ---
 
-## 二、管理员认证模块（101001-101009）
+## 二、管理员认证模块（101001-101010）
 
 | 错误码 | 常量名 | 描述 |
 |--------|--------|------|
@@ -51,6 +52,7 @@
 | `101007` | CodeUserLocked | 账户已锁定 |
 | `101008` | CodeOldPasswordWrong | 原密码错误 |
 | `101009` | CodePasswordTooWeak | 密码强度不足 |
+| `101010` | CodeOAuthAlreadyBound | 第三方账号已绑定其他用户 |
 
 ---
 
@@ -110,7 +112,7 @@
 
 ---
 
-## 八、开放平台模块（101301-101306）
+## 八、开放平台模块（101301-101307）
 
 | 错误码 | 常量名 | 描述 |
 |--------|--------|------|
@@ -120,6 +122,7 @@
 | `101304` | CodeScopeMismatch | 权限不足（Scope 不匹配） |
 | `101305` | CodeRateLimited | 已触发流量限制 |
 | `101306` | CodeAppDisabled | 应用已被禁用 |
+| `101307` | CodeStatisticsInvalidParams | 统计参数无效 |
 
 ---
 
@@ -166,21 +169,32 @@
 
 ---
 
+## 十三、内容模块（101601-101603）
+
+| 错误码 | 常量名 | 描述 |
+|--------|--------|------|
+| `101601` | CodeCategoryHasArticles | 该分类下存在文章，请先移走或删除文章后再删除分类 |
+| `101602` | CodeCategoryHasChildren | 该分类下存在子分类，请先删除子分类后再删除父分类 |
+| `101603` | CodeBannerGroupHasItems | 该 Banner 组下存在 Banner 项，请先移走或删除 Banner 项后再删除组 |
+
+---
+
 ## 错误码速查表
 
 按模块分类的快速检索表：
 
 | 模块 | 错误码范围 | 文档 |
 |------|------------|------|
-| 通用 | 100000-100010 | 所有接口 |
-| 管理员认证 | 101001-101009 | [01-auth.md](01-auth.md)、[02-admin.md](02-admin.md) |
+| 通用 | 100000-100011 | 所有接口 |
+| 管理员认证 | 101001-101010 | [01-auth.md](01-auth.md)、[02-admin.md](02-admin.md) |
 | 角色管理 | 102001-102006 | [03-system-rbac.md](03-system-rbac.md) |
 | 菜单管理 | 103001-103004 | [03-system-rbac.md](03-system-rbac.md) |
 | 按钮管理 | 104001-104003 | [03-system-rbac.md](03-system-rbac.md) |
 | API 管理 | 105001-105003 | [03-system-rbac.md](03-system-rbac.md) |
 | 消息模块 | 101201-101205 | [09-message.md](09-message.md) |
-| 开放平台 | 101301-101306 | [08-open-platform.md](08-open-platform.md) |
+| 开放平台 | 101301-101307 | [08-open-platform.md](08-open-platform.md) |
 | IP 访问控制 | 101401-101403 | [07-ops.md](07-ops.md) |
 | 存储上传 | 101501-101505 | [06-storage.md](06-storage.md) |
+| 内容模块 | 101601-101603 | [04-content.md](04-content.md) |
 | 任务调度/配置 | 109005-109008 | [10-task.md](10-task.md)、[12-config.md](12-config.md) |
 | 验证码集成 | 200601-200605 | [13-common.md](13-common.md) |

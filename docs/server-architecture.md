@@ -39,7 +39,7 @@ server/
 ├── cmd/server/                    # 进程入口
 │   └── main.go                    # 加载配置 -> 初始化DB -> 启动服务
 │
-├── config.yaml                    # 运行配置（TOML格式）
+├── config.example.yaml           # 配置模板（提交入库；运行时复制为 config.yaml，后者不入库）
 ├── go.mod / go.sum               # Go模块依赖
 │
 ├── internal/pkg/migration/migrations/   # SQL迁移脚本
@@ -48,9 +48,14 @@ server/
 │
 └── internal/                      # 私有业务代码（不对外暴露）
     ├── app/                       # 应用启动与依赖装配
-    │   ├── app.go                # 应用生命周期管理
-    │   ├── init.go               # 初始化逻辑（DB、Redis等）
-    │   └── wire.go               # Wire依赖注入配置
+    │   ├── app.go                # 应用生命周期管理（Run/优雅关闭）
+    │   ├── init.go               # 初始化逻辑（DB）
+    │   ├── module.go             # 下游 Module 装配扩展点
+    │   ├── wire.go               # Bootstrap 组合根（依赖编排）
+    │   ├── wire_handlers.go      # Handler 装配
+    │   ├── wire_repositories.go  # Repository 装配
+    │   ├── wire_services.go      # Service 装配
+    │   └── wire_utils.go         # 基础设施装配（Redis/JWT/缓存等）
     │
     ├── config/                    # 配置结构与加载
     │   └── config.go             # YAML配置结构体定义
@@ -59,48 +64,78 @@ server/
     │   ├── entity/               # 持久化实体（GORM Model）
     │   │   ├── base.go           # 基础实体（ID、时间戳等）
     │   │   ├── content/          # 内容管理实体
+    │   │   ├── dict/             # 字典实体
+    │   │   ├── ipac/             # IP 访问控制实体
     │   │   ├── log/              # 日志实体
+    │   │   ├── message/          # 消息实体
     │   │   ├── open_platform/    # 开放平台实体（App、ScopeGroup、OpenLog）
     │   │   ├── storage/          # 存储实体（Config、Record含AppID）
-    │   │   └── system/           # 系统管理实体
+    │   │   ├── system/           # 系统管理实体
+    │   │   ├── task/             # 任务实体
+    │   │   └── user/             # 用户实体
     │   │
     │   └── vo/                   # 面向前端的View Object
-    │       ├── content/
     │       ├── log/
-    │       └── system/
+    │       ├── storage/
+    │       ├── system/
+    │       └── user/
     │
     ├── interface/                 # 【接入层】按端隔离
     │   ├── admin/                # 面向Admin-Web的接口
     │   │   ├── dto/              # Admin专用DTO
+    │   │   │   ├── common.go     # 通用DTO
     │   │   │   ├── content/      # 内容管理DTO
+    │   │   │   ├── dict/         # 字典DTO
+    │   │   │   ├── ipac/         # IP访问控制DTO
     │   │   │   ├── log/          # 日志DTO
+    │   │   │   ├── message/      # 消息DTO
     │   │   │   ├── open_platform/ # 开放平台DTO（含StorageID）
     │   │   │   ├── storage/      # 存储DTO
-    │   │   │   └── system/       # 系统管理DTO
+    │   │   │   ├── system/       # 系统管理DTO
+    │   │   │   ├── task/         # 任务DTO
+    │   │   │   └── user/         # C端用户管理DTO
     │   │   │
     │   │   └── http/             # HTTP协议接入
     │   │       ├── handler/v1/   # Handler实现
     │   │       │   ├── admin/    # 管理员相关
     │   │       │   ├── auth/     # 认证相关
+    │   │       │   ├── common/   # 通用（验证码等）
     │   │       │   ├── content/  # 内容管理
-    │   │       │   ├── log/      # 日志管理
-    │   │       │   ├── open_platform/ # 开放平台管理
+    │   │       │   ├── dict/     # 字典管理
+    │   │       │   ├── error_log/      # 错误日志
+    │   │       │   ├── ipac/     # IP访问控制
+    │   │       │   ├── message/  # 消息管理
+    │   │       │   ├── open_platform/  # 开放平台管理
+    │   │       │   ├── operation_log/  # 操作日志
+    │   │       │   ├── route/    # 动态路由
     │   │       │   ├── storage/  # 存储管理
-    │   │       │   └── system/   # 系统管理
+    │   │       │   ├── system/   # 系统管理
+    │   │       │   ├── task/     # 任务管理
+    │   │       │   └── user/     # C端用户管理
     │   │       │
     │   │       └── router/v1/    # 路由注册
+    │   │           ├── router.go # 路由聚合入口（public/auth/permission 三分组）
     │   │           ├── admin.go
     │   │           ├── auth.go
+    │   │           ├── common.go
     │   │           ├── content.go
+    │   │           ├── dict.go
     │   │           ├── log.go
-    │   │           ├── open_platform.go
-    │   │           ├── router.go # 路由聚合入口
+    │   │           ├── message.go
+    │   │           ├── ops.go    # 运维（IPAC/开放平台）
+    │   │           ├── route.go
     │   │           ├── storage.go
-    │   │           └── system.go
+    │   │           ├── system.go
+    │   │           ├── task.go
+    │   │           └── user.go
     │   │
     │   └── client/               # 面向Client端的接口
     │       ├── dto/v1/           # Client专用DTO
-    │       │   └── storage.go    # 存储上传DTO
+    │       │   ├── content.go    # 内容DTO
+    │       │   ├── echo.go       # EchoDTO
+    │       │   ├── message.go    # 消息DTO
+    │       │   ├── storage.go    # 存储上传DTO
+    │       │   └── user.go       # 用户DTO
     │       │
     │       └── http/             # HTTP协议接入
     │           ├── handler/v1/   # Handler实现
@@ -121,52 +156,75 @@ server/
     │               └── user_router.go
     │
     ├── job/                       # 内置任务
-    │   ├── article_publish.go    # 文章定时发布
-    │   ├── init.go               # 任务注册入口
-    │   └── system_log_cleanup.go # 日志清理
+    │   ├── init.go               # 任务注册入口（AllJobs）
+    │   ├── article_publish.go    # 文章定时发布（业务级）
+    │   ├── ipac_reload.go        # IPAC 过期规则感知重载（运维级）
+    │   ├── system_log_cleanup.go # 日志保留期清理（运维级）
+    │   ├── token_hash_cleanup.go # user_tokens/admin_tokens 过期清理（运维级）
+    │   └── upload_record_cleanup.go # 上传记录过期清理（运维级）
     │
     ├── middleware/                # Gin中间件
-    │   ├── auth.go               # 客户端鉴权中间件（UserJWTAuth + TypedUserJWTAuth 多类型用户支持）
+    │   ├── api_ratelimit.go      # 通用业务 API 限流（[api_ratelimit].rules 配置驱动）
+    │   ├── auth.go               # 鉴权中间件（JWTAuth + TypedUserJWTAuth 多类型用户支持）
+    │   ├── cors.go               # CORS Origin 白名单
+    │   ├── ipac.go               # IP 访问控制（CIDR 匹配，fail-closed）
+    │   ├── login_ratelimit.go    # 登录端点 IP 维度限流
     │   ├── open_platform_auth.go # 开放平台签名校验
     │   ├── operation_log.go      # 操作日志记录
     │   ├── permission.go         # RBAC权限校验
     │   ├── recovery.go           # 异常恢复
-    │   ├── timeout.go            # 请求超时控制
-    │   └── trace.go              # 链路追踪
+    │   ├── security_headers.go   # 安全响应头（CSP/HSTS 等）
+    │   ├── skip_operation_log.go # 操作日志豁免标记
+    │   └── timeout.go            # http.TimeoutHandler 包装（超时 503）
     │
     ├── pkg/                       # 可复用基础设施包
-    │   ├── auth/                 # 会话鉴权公共工具（TokenHash/AdminTokenKey/RequireAuth 泛型/会话写入 helper）
-    │   ├── cache/                # 缓存管理（Redis/BigCache）
+    │   ├── auth/                 # 会话鉴权公共工具（TokenHash/AdminTokenKey/RequireAuth 泛型/LoginLimiter/ClaimRefreshRotation）
+    │   ├── cache/                # 缓存管理（Redis/BigCache 双引擎）
     │   ├── captcha/              # 验证码模块
     │   ├── configsync/           # 配置热同步
-    │   ├── database/             # 数据库健康检查
+    │   ├── database/             # TxManager/健康检查/GetDB/DeleteBatchBefore/IsUniqueViolation
     │   ├── errorx/               # 错误码定义
     │   ├── jwt/                  # JWT工具（RS256 非对称签名 + TokenVersion 版本号机制 + alg confusion 防御）
+    │   ├── like/                 # LIKE 查询转义（EscapeLike/LikeContains）
     │   ├── mask/                 # 敏感字段脱敏（导出 SensitiveFieldKeys 单一事实源，供 operation_log 等模块引用）
-    │   ├── migration/            # 数据迁移
+    │   ├── message/              # 消息驱动（Email/SMS Driver 与配置 Provider）
+    │   ├── migration/            # 数据迁移（SQL 文件 embed）
+    │   ├── pagination/           # 分页规整（NormalizePagination）
     │   ├── password/             # 密码加密 + 强度校验（ValidateStrength）
-    │   ├── ratelimit/            # 限流
+    │   ├── pubsub/               # PubSub 事件总线（memory/redis 双驱动 + Topic 注册表）
+    │   ├── ratelimit/            # 限流（滑动窗口，SlidingWindow/开放平台限流）
+    │   ├── recovery/             # GoSafe 安全 goroutine
     │   ├── redis/                # Redis封装
+    │   ├── requestid/            # 请求 ID 生成/继承中间件
     │   ├── response/             # 统一响应封装
     │   ├── sentry/               # 错误追踪（sentry-go）
+    │   ├── slogutil/             # slog 工具（LoggerFromContext 附带 request_id）
     │   ├── storage/              # 对象存储驱动（含 BuildPublicURL/CompleteUploadFromParams）
     │   ├── task/                 # 任务调度引擎
-    │   └── utils/                # 通用工具（含 NormalizePaging/GetIntWithDefault/NewSecretToken/TokenHash）
+    │   └── utils/                # 通用工具（含 NormalizePaging/GetIntWithDefault/NewSecretToken/TokenHash/HMAC/ParseRFC3339/BuildTree）
     │
     ├── repository/                # 数据访问层
     │   ├── content/              # 内容管理仓储
-    │   ├── log/                  # 日志仓储
+    │   ├── dict/                 # 字典仓储
+    │   ├── ipac/                 # IP 访问控制仓储
+    │   ├── log/                  # 日志仓储（操作/错误/任务/开放平台）
+    │   ├── message/              # 消息仓储（模板/记录）
     │   ├── open_platform/        # 开放平台仓储（App、OpenLog）
     │   ├── storage/              # 存储仓储
     │   ├── system/               # 系统管理仓储
+    │   ├── task/                 # 任务仓储（任务/任务日志）
     │   └── user/                 # 用户仓储（含 OAuth 绑定 CRUD：FindOAuthBinding / CreateOAuthBinding / DeleteOAuthBinding 等）
     │
     └── service/                   # 业务服务层
-        ├── content/              # 内容管理服务
-        ├── log/                  # 日志服务
+        ├── content/              # 内容管理服务（admin/client 两套，共享 Repository）
+        ├── dict/                 # 字典服务
+        ├── ipac/                 # IP 访问控制服务
+        ├── log/                  # 日志服务（操作/错误/LogBus 统一缓冲）
+        ├── message/              # 消息服务（统一发送 + 异步发送 Job）
         ├── open_platform/        # 开放平台服务（AppService含GetAppStorageDriver）
         ├── storage/              # 存储服务（RecordService含应用存储配置解析）
         ├── system/               # 系统管理服务（含 CaptchaService 验证码生成/校验，位于 service/system/captcha.go）
+        ├── task/                 # 任务调度服务
         └── user/                 # 用户服务（user_auth/user/user_admin/oauth_binding，OAuthBindingService 含缓存与事务）
 	```
 
@@ -255,7 +313,7 @@ server/
 ### 5.1 错误处理规范
 
 - 使用 `internal/pkg/errorx` 中定义的错误码
-- Handler层统一使用 `response.Error()` 或 `response.Success()` 返回
+- Handler层统一使用 `response.Fail(c, err)`（Service 业务错误）或 `response.FailWithCode(c, code)`（参数错误等）返回，成功用 `response.Success()` / `response.SuccessWithPage()`
 - Service层返回具体的业务错误，不处理HTTP响应
 
 ### 5.2 事务处理规范
@@ -921,7 +979,7 @@ export NETYADMIN_CORS_ALLOWED_ORIGINS='https://admin.example.com,https://app.exa
 RequestID → CORS → SecurityHeaders → Recovery → sentrygin → ...
 ```
 
-参见 [RULES.md §六](../RULES.md) 中间件链顺序。
+中间件链顺序见 `internal/app/wire.go`（engine.Use 注册顺序）。
 
 ---
 
@@ -1280,12 +1338,10 @@ security:
 - 启动期 `ValidateConfig` fail-closed 校验：生产模式下为空 / 占位符时 `log.Fatal` 拒绝启动。
 - 与 JWT 密钥解耦，任一泄露不影响另一功能。
 
-### 相关红线
+### 相关实现
 
-- [RULES.md §11.1](../RULES.md) JWT 签名算法
-- [RULES.md §11.2](../RULES.md) Token TTL 拆分
-- [SHARED.md §9.1](../SHARED.md) JWT HS256 → RS256 迁移
-- [SHARED.md §9.2](../SHARED.md) Access / Refresh TTL 拆分
+- `internal/pkg/jwt/jwt.go` — RS256 签名/校验、TTL 拆分与 alg confusion 防御
+- `internal/config/config.go` — `[jwt]` TTL 配置项
 
 ---
 
@@ -1411,7 +1467,7 @@ func shouldMask(field string) bool {
 }
 ```
 
-### 相关红线
+### 相关实现
 
-- [RULES.md §11.4](../RULES.md) 敏感字段脱敏集中化
-- [SHARED.md §9.6](../SHARED.md) 敏感字段集中脱敏包 pkg/mask
+- `internal/pkg/mask/fields.go` — 敏感字段单一事实源（SensitiveFieldKeys）
+- `internal/pkg/mask/` — IsSensitive / IsSensitiveSubstr / ScrubValue 脱敏 API

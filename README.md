@@ -11,7 +11,7 @@ NetyAdmin 是一个基于 **Go + Gin** 后端和 **Vue 3 + TypeScript** 前端�
 ### 🚀 现代化技术栈
 
 - **前端**: Vue 3, TypeScript, Vite, Naive UI, UnoCSS, Pinia, Vue Router, vue-i18n
-- **后端**: Go 1.21+, Gin, GORM (PostgreSQL), Redis (可选), JWT
+- **后端**: Go 1.26+, Gin, GORM (PostgreSQL), Redis (可选), JWT
 
 ### 🏗️ 清晰的架构设计
 
@@ -64,8 +64,7 @@ NetyAdmin 是一个基于 **Go + Gin** 后端和 **Vue 3 + TypeScript** 前端�
 | 文档 | 说明 |
 |------|------|
 | [AGENTS.md](AGENTS.md) | AI 协作规范：必读流程、开发约定、文档索引、提交规范 |
-| [RULES.md](RULES.md) | **红线规则**：分层架构、事务管理、删除策略、安全规范、代码质量 |
-| [SHARED.md](SHARED.md) | 共享知识库：踩坑记录、架构决策、注意事项 |
+| [CONTEXT.md](CONTEXT.md) | 领域词汇表：缓存/认证/事务领域与架构词汇的统一语言 |
 
 ### 架构设计文档
 
@@ -143,8 +142,8 @@ NetyAdmin 是一个基于 **Go + Gin** 后端和 **Vue 3 + TypeScript** 前端�
 
 ### 环境要求
 
-- **Go** >= 1.25
-- **Node.js** >= 18
+- **Go** >= 1.26
+- **Node.js** >= 20.19
 - **PostgreSQL** >= 14
 - **Redis** >= 6.0（可选）
 
@@ -192,14 +191,15 @@ NetyAdmin/
 ├── server/                    # 后端服务（Go + Gin）
 │   ├── cmd/server/           # 进程入口
 │   ├── internal/             # 业务代码
-│   │   ├── app/              # 应用启动
+│   │   ├── app/              # 应用启动与依赖装配
 │   │   ├── domain/           # 领域模型
 │   │   ├── interface/        # 接入层（BFF）
-│   │   ├── pkg/              # 基础设施
+│   │   ├── job/              # 内置定时任务
+│   │   ├── middleware/       # Gin 中间件
+│   │   ├── pkg/              # 基础设施（迁移脚本在 pkg/migration/migrations/）
 │   │   ├── repository/       # 数据访问
 │   │   └── service/          # 业务服务
-│   ├── migrations/           # 数据库迁移
-│   └── config.yaml           # 配置文件
+│   └── config.example.yaml   # 配置模板（复制为 config.yaml 使用，后者不入库）
 │
 ├── admin-web/                 # 管理后台（Vue 3）
 │   ├── src/

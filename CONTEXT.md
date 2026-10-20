@@ -100,7 +100,7 @@
 
 - **配方**：`for _, id := range ids { check exists → Begin → steps → Commit → invalidate cache }`
 - **语义**：fail-closed（事务失败立即返回错误，已成功的不回滚）
-- **抽取目标**：从 SHARED.md §七 的文字配方深化为可测试的泛型 helper
+- **抽取目标**：从开发指南 §3.3（DeleteBatch fail-closed 范式）深化为可测试的泛型 helper
 
 ---
 

@@ -127,13 +127,13 @@ func NewOrderHandler(service order.OrderService) *OrderHandler {
 func (h *OrderHandler) List(c *gin.Context) {
     var req order.ListOrderReq
     if err := c.ShouldBindQuery(&req); err != nil {
-        response.Error(c, errorx.CodeInvalidParams)
+        response.FailWithCode(c, errorx.CodeInvalidParams)
         return
     }
 
     result, total, err := h.service.List(c.Request.Context(), req)
     if err != nil {
-        response.Error(c, errorx.CodeInternalError)
+        response.FailWithCode(c, errorx.CodeInternalError)
         return
     }
 
@@ -147,13 +147,13 @@ func (h *OrderHandler) List(c *gin.Context) {
 func (h *OrderHandler) Create(c *gin.Context) {
     var req order.CreateOrderReq
     if err := c.ShouldBindJSON(&req); err != nil {
-        response.Error(c, errorx.CodeInvalidParams)
+        response.FailWithCode(c, errorx.CodeInvalidParams)
         return
     }
 
     result, err := h.service.Create(c.Request.Context(), req)
     if err != nil {
-        response.Error(c, errorx.CodeInternalError)
+        response.FailWithCode(c, errorx.CodeInternalError)
         return
     }
 
@@ -165,13 +165,13 @@ func (h *OrderHandler) Get(c *gin.Context) {
     id := c.Param("id")
     orderID, err := strconv.ParseUint(id, 10, 64)
     if err != nil {
-        response.Error(c, errorx.CodeInvalidParams)
+        response.FailWithCode(c, errorx.CodeInvalidParams)
         return
     }
 
     result, err := h.service.Get(c.Request.Context(), uint(orderID))
     if err != nil {
-        response.Error(c, errorx.CodeNotFound)
+        response.FailWithCode(c, errorx.CodeNotFound)
         return
     }
 

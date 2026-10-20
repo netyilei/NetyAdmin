@@ -11,7 +11,7 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 ### 🚀 Modern Tech Stack
 
 - **Frontend**: Vue 3, TypeScript, Vite, Naive UI, UnoCSS, Pinia, Vue Router, vue-i18n
-- **Backend**: Go 1.25+, Gin, GORM (PostgreSQL), Redis (optional), JWT
+- **Backend**: Go 1.26+, Gin, GORM (PostgreSQL), Redis (optional), JWT
 
 ### 🏗️ Clear Architecture Design
 
@@ -62,8 +62,7 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 | Document | Description |
 |----------|-------------|
 | [AGENTS.md](AGENTS.md) | AI collaboration standards: required workflow, development conventions, document index, commit standards |
-| [RULES.md](RULES.md) | **Red-line rules**: layered architecture, transaction management, deletion strategies, security standards, code quality |
-| [SHARED.md](SHARED.md) | Shared knowledge base: pitfalls, architecture decisions, warnings |
+| [CONTEXT.md](CONTEXT.md) | Domain glossary: unified language for cache/auth/transaction domains and architecture vocabulary |
 
 ### Architecture Design Documents
 
@@ -140,8 +139,8 @@ NetyAdmin is an enterprise-level admin system base built with **Go + Gin** backe
 
 ### Environment Requirements
 
-- **Go** >= 1.25
-- **Node.js** >= 18
+- **Go** >= 1.26
+- **Node.js** >= 20.19
 - **PostgreSQL** >= 14
 - **Redis** >= 6.0 (optional)
 
@@ -189,14 +188,15 @@ NetyAdmin/
 ├── server/                    # Backend service (Go + Gin)
 │   ├── cmd/server/           # Process entry
 │   ├── internal/             # Business code
-│   │   ├── app/              # Application startup
+│   │   ├── app/              # Application startup & DI assembly
 │   │   ├── domain/           # Domain models
 │   │   ├── interface/        # Access layer (BFF)
-│   │   ├── pkg/              # Infrastructure
+│   │   ├── job/              # Built-in scheduled jobs
+│   │   ├── middleware/       # Gin middleware
+│   │   ├── pkg/              # Infrastructure (SQL migrations under pkg/migration/migrations/)
 │   │   ├── repository/       # Data access
 │   │   └── service/          # Business services
-│   ├── migrations/           # Database migrations
-│   └── config.yaml           # Configuration file
+│   └── config.example.yaml   # Config template (copy to config.yaml; the latter is gitignored)
 │
 ├── admin-web/                 # Admin frontend (Vue 3)
 │   ├── src/

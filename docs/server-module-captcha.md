@@ -218,18 +218,18 @@ func (s *RedisStore) Verify(id, answer string, clear bool) bool {
 func (h *AuthHandler) Login(c *gin.Context) {
     var req dto.LoginReq
     if err := c.ShouldBindJSON(&req); err != nil {
-        response.Error(c, errorx.CodeInvalidParams)
+        response.FailWithCode(c, errorx.CodeInvalidParams)
         return
     }
-    
+
     // 验证码校验
     if h.captchaConfig.Enabled {
         if !h.captchaStore.Verify(req.CaptchaID, req.CaptchaCode, true) {
-            response.Error(c, errorx.CodeCaptchaWrong)
+            response.FailWithCode(c, errorx.CodeCaptchaInvalid)
             return
         }
     }
-    
+
     // 继续登录逻辑...
 }
 ```
@@ -240,7 +240,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 | Code | 常量 | 说明 |
 |------|------|------|
-| 100009 | CodeCaptchaWrong | 验证码错误 |
+| 100009 | CodeCaptchaInvalid | 验证码错误 |
 | 100010 | CodeCaptchaRequired | 验证码必填 |
 
 ---
