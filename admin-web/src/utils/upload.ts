@@ -136,7 +136,7 @@ export async function uploadFileWithCredentials(options: UploadFileOptions): Pro
   await uploadWithPresignedUrl(credentials, file, onProgress);
 
   // 第三步：回传 recordId + secret，由后端验签后置为 uploaded，完成上传闭环
-  await fetchCompleteUpload({
+  const { error: completeError } = await fetchCompleteUpload({
     recordId: credentials.recordId,
     secret: credentials.secret,
     objectKey: credentials.objectKey,
@@ -144,6 +144,11 @@ export async function uploadFileWithCredentials(options: UploadFileOptions): Pro
     fileSize: file.size,
     mimeType: file.type || 'application/octet-stream'
   });
+
+  if (completeError) {
+    // request 层不抛异常而是返回 { error }；忽略会让调用方把 pending 记录误判为上传成功
+    throw new Error(completeError.message || $t('common.uploadFailed'));
+  }
 
   return { fileUrl: credentials.finalUrl, credentials };
 }

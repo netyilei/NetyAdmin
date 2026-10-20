@@ -1,8 +1,6 @@
 package open_platform
 
 import (
-	"strconv"
-
 	"github.com/gin-gonic/gin"
 
 	openDto "NetyAdmin/internal/interface/admin/dto/open_platform"
@@ -81,27 +79,4 @@ func (h *OpenLogHandler) Statistics(c *gin.Context) {
 	}
 
 	response.Success(c, data)
-}
-
-// Get 获取日志详情
-func (h *OpenLogHandler) Get(c *gin.Context) {
-	idStr := c.Param("id")
-	if idStr == "" {
-		response.FailWithCode(c, errorx.CodeInvalidParams)
-		return
-	}
-
-	id, err := strconv.ParseUint(idStr, 10, 64)
-	if err != nil {
-		response.FailWithCode(c, errorx.CodeInvalidParams)
-		return
-	}
-
-	log, err := h.svc.GetLog(c.Request.Context(), id)
-	if err != nil {
-		response.Fail(c, err)
-		return
-	}
-
-	response.Success(c, log)
 }

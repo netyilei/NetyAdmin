@@ -32,10 +32,10 @@ export namespace Auth {
   }
 
   interface UpdateProfileParams {
-    nickName: string;
-    userPhone: string;
-    userEmail: string;
-    userGender: NonNullable<UserGender>;
+    nickname: string;
+    phone: string;
+    email: string;
+    gender: NonNullable<UserGender>;
   }
 
   interface ChangePasswordParams {

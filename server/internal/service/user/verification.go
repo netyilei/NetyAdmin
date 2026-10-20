@@ -127,6 +127,11 @@ func (s *verificationService) GetSceneCaptchaConfig(ctx context.Context, scene s
 }
 
 func (s *verificationService) SendCode(ctx context.Context, scene, target, captchaKey, captchaCode string) error {
+	// 场景白名单：未知 scene 会拆分频率限制键并允许任意模板发送，必须在入口拒绝
+	// （与 GetVerifyConfig 的 default 分支 “不支持的业务场景” 语义一致）。
+	if !isSupportedScene(scene) {
+		return errorx.New(errorx.CodeInvalidParams, "不支持的业务场景")
+	}
 	// 0. 图形验证码二次校验 (Synergy)
 	// 如果配置开启了图形验证码，则必须校验，防止接口轰炸。
 	captchaEnabledKey := sceneCaptchaKey(scene)
@@ -254,5 +259,16 @@ func sceneCaptchaKey(scene string) string {
 		return "user_login_enabled"
 	default:
 		return ""
+	}
+}
+
+// isSupportedScene 是验证码发送/校验允许的业务场景白名单。
+// 新增场景必须在 Scene* 常量与此处同步登记。
+func isSupportedScene(scene string) bool {
+	switch scene {
+	case SceneRegister, SceneResetPassword, SceneLogin, SceneBind, SceneChangeEmail, SceneChangePhone:
+		return true
+	default:
+		return false
 	}
 }

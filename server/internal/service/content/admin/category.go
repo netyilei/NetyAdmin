@@ -131,6 +131,21 @@ func (s *categoryService) Update(ctx context.Context, adminID uint, id uint, req
 	if req.Name != "" {
 		category.Name = req.Name
 	}
+	// 分类编码可更新（API 文档：更新请求参数同创建）；变更时做唯一性校验（排除自身）。
+	// 并发写竞态由 DB 唯一索引兜底（若存在），与 Create 的校验语义一致。
+	if req.Code != nil && *req.Code != category.Code {
+		if *req.Code != "" {
+			exists, err := s.repo.ExistsByCode(ctx, *req.Code, id)
+			if err != nil {
+				slog.Error("ExistsByCode failed", "code", *req.Code, "err", err)
+				return nil, fmt.Errorf("repo.ExistsByCode: %w", err)
+			}
+			if exists {
+				return nil, errorx.New(errorx.CodeAlreadyExists, "分类编码已存在")
+			}
+		}
+		category.Code = *req.Code
+	}
 	if req.Icon != "" {
 		category.Icon = req.Icon
 	}

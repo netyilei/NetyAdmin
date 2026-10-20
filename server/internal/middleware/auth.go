@@ -130,6 +130,13 @@ func (userClaimsAccessor) TokenStoreKey(claims *jwtPkg.UserClaims) string {
 func (userClaimsAccessor) SkipLegacyTokenStoreCheck() bool { return true }
 
 func (a userClaimsAccessor) LookupAccount(ctx context.Context, claims *jwtPkg.UserClaims, rawToken string) (*auth.AccountCheckResult, error) {
+	// 角色类型隔离：默认 UserJWTAuth 只接受 type == "user" 的 token。
+	// 下游 typed 角色（tech/merchant/rider…）token 的 type 为其各自角色标识，
+	// 若此处不校验，typed token 可被默认用户接口接受，违背文档
+	// 「TypedUserJWTAuth 与默认 UserJWTAuth 严格隔离，防止跨角色 token 互用」。
+	if claims.Type != jwtPkg.DefaultUserType {
+		return &auth.AccountCheckResult{Status: entity.StatusDisabled}, nil
+	}
 	user, err := a.mw.userRepo.GetByID(ctx, claims.UID)
 	if err != nil || user == nil {
 		return nil, err

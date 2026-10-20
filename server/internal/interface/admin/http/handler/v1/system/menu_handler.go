@@ -166,7 +166,8 @@ func (h *SystemHandler) UpdateAdminMenu(c *gin.Context) {
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/systemManage/deleteMenu [delete]
 func (h *SystemHandler) DeleteAdminMenu(c *gin.Context) {
-	idStr := c.Param("id")
+	// 路由 /systemManage/deleteMenu 无路径参数，按 API 文档约定从 query 取 id（?id=5）
+	idStr := c.Query("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil {
 		response.FailWithCode(c, errorx.CodeInvalidParams, "参数错误")

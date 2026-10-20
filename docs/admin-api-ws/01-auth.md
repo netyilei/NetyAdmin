@@ -262,13 +262,11 @@ PUT /admin/v1/auth/profile
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `nickname` | string | 否 | 昵称 |
-| `phone` | string | 否 | 手机号（修改时需配合 `phoneCode`） |
-| `email` | string | 否 | 邮箱（需符合邮箱格式，最大 100 字符；修改时需配合 `emailCode`） |
+| `phone` | string | 否 | 手机号 |
+| `email` | string | 否 | 邮箱（需符合邮箱格式，最大 100 字符） |
 | `gender` | string | 否 | 性别（`0`:未知 `1`:男 `2`:女） |
-| `emailCode` | string | 条件必填 | 邮箱验证码（修改 `email` 时必填，需先调发送邮箱验证码接口获取） |
-| `phoneCode` | string | 条件必填 | 手机验证码（修改 `phone` 时必填，需先调发送短信验证码接口获取） |
 
-> **安全说明**：修改 `email` / `phone` 必须提供对应渠道的验证码，确保新联系方式归属当前用户。仅修改 `nickname` / `gender` 无需验证码。
+> 说明：管理员个人资料接口仅更新上述四个字段，不校验短信/邮箱验证码（管理端无发送验证码端点）；未传字段按空值处理，前端应提交完整表单。
 
 ### 请求示例
 
@@ -276,9 +274,7 @@ PUT /admin/v1/auth/profile
 {
   "nickname": "新昵称",
   "phone": "13900139000",
-  "phoneCode": "123456",
   "email": "newadmin@example.com",
-  "emailCode": "654321",
   "gender": "1"
 }
 ```

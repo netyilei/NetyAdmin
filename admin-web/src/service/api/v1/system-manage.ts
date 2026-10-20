@@ -76,7 +76,7 @@ export function fetchDeleteRole(id: number) {
   return request({
     url: '/admin/v1/systemManage/deleteRole',
     method: 'delete',
-    params: { roleId: id }
+    params: { id }
   });
 }
 
@@ -247,7 +247,7 @@ export function fetchDeleteMenu(id: number) {
   return request({
     url: '/admin/v1/systemManage/deleteMenu',
     method: 'delete',
-    params: { menuId: id }
+    params: { id }
   });
 }
 

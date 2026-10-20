@@ -300,6 +300,12 @@ func (s *userClientService) RefreshToken(ctx context.Context, refreshToken strin
 	if claims.Subject != string(jwt.RefreshToken) {
 		return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌无效")
 	}
+	// 角色类型隔离：默认用户刷新端点只接受 type=user 的 refresh token，
+	// 防止下游 typed 角色（tech/merchant…）的 token 被换取为默认用户 access token
+	// （文档要求 userType 之间 token 不可互用）。
+	if claims.Type != jwt.DefaultUserType {
+		return nil, errorx.New(errorx.CodeUnauthorized, "刷新令牌无效")
+	}
 
 	// 原子抢占轮换黑名单（共享实现见 pkg/auth.ClaimRefreshRotation）
 	claimed, err := authPkg.ClaimRefreshRotation(ctx, s.cacheSlow, refreshToken, claims.ExpiresAt.Time)
@@ -668,6 +674,9 @@ func (s *userClientService) DeleteAccount(ctx context.Context, userID string) er
 //
 // 调用方职责：拿到 verifyConfig 与 target 后，调用 verifySvc.SendCode(scene, target, ...) 实际发送。
 func (s *userClientService) ResolveSendCodeTarget(ctx context.Context, scene, username, target string) (*VerifyConfig, string, error) {
+	if !isSupportedScene(scene) {
+		return nil, "", errorx.New(errorx.CodeInvalidParams, "不支持的业务场景")
+	}
 	if scene == SceneLogin {
 		if username == "" {
 			return nil, "", errorx.New(errorx.CodeInvalidParams, "登录场景需提供 username")

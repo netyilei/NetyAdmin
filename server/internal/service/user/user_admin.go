@@ -256,6 +256,9 @@ func (s *userAdminService) Update(ctx context.Context, id string, req *userDto.U
 func (s *userAdminService) UpdateStatus(ctx context.Context, id string, status string) error {
 	user, err := s.repo.GetByID(ctx, id)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errorx.New(errorx.CodeUserNotFound)
+		}
 		return fmt.Errorf("repo.GetByID: %w", err)
 	}
 

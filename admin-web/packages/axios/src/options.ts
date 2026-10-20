@@ -38,7 +38,9 @@ export function createAxiosConfig(config?: Partial<CreateAxiosDefaults>) {
     },
     validateStatus: isHttpSuccess,
     paramsSerializer: params => {
-      return stringify(params);
+      // arrayFormat: 'repeat'（a=1&a=2）与 Go/Gin 的 `form:"a"` 切片绑定一致；
+      // qs 默认的 indices 格式（a[0]=1）无法被 ShouldBindQuery 匹配。
+      return stringify(params, { arrayFormat: 'repeat' });
     }
   };
 

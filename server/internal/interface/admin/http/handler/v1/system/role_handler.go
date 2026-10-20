@@ -138,7 +138,8 @@ func (h *SystemHandler) UpdateAdminRole(c *gin.Context) {
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/systemManage/deleteRole [delete]
 func (h *SystemHandler) DeleteAdminRole(c *gin.Context) {
-	idStr := c.Param("id")
+	// 路由 /systemManage/deleteRole 无路径参数，按 API 文档约定从 query 取 id（?id=5）
+	idStr := c.Query("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil {
 		response.FailWithCode(c, errorx.CodeInvalidParams, "参数错误")

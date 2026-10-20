@@ -20,10 +20,10 @@ const profileFormRef = ref<FormInst | null>(null);
 const passwordFormRef = ref<FormInst | null>(null);
 
 const profileModel = reactive<Auth.UpdateProfileParams>({
-  nickName: '',
-  userPhone: '',
-  userEmail: '',
-  userGender: GENDER.MALE as NonNullable<Auth.UserGender>
+  nickname: '',
+  phone: '',
+  email: '',
+  gender: GENDER.MALE as NonNullable<Auth.UserGender>
 });
 
 const passwordModel = reactive<Auth.ChangePasswordParams & { confirmPassword: string }>({
@@ -34,10 +34,10 @@ const passwordModel = reactive<Auth.ChangePasswordParams & { confirmPassword: st
 
 const userGender = computed({
   get() {
-    return profileModel.userGender as unknown as string;
+    return profileModel.gender as unknown as string;
   },
   set(val: string | number | null) {
-    profileModel.userGender = (val || GENDER.MALE) as NonNullable<Auth.UserGender>;
+    profileModel.gender = (val || GENDER.MALE) as NonNullable<Auth.UserGender>;
   }
 });
 
@@ -63,10 +63,10 @@ async function loadProfile() {
   profileLoading.value = false;
   if (error) return;
 
-  profileModel.nickName = data.nickName || '';
-  profileModel.userPhone = data.userPhone || '';
-  profileModel.userEmail = data.userEmail || '';
-  profileModel.userGender = (data.userGender ?? GENDER.MALE) as NonNullable<Auth.UserGender>;
+  profileModel.nickname = data.nickName || '';
+  profileModel.phone = data.userPhone || '';
+  profileModel.email = data.userEmail || '';
+  profileModel.gender = (data.userGender ?? GENDER.MALE) as NonNullable<Auth.UserGender>;
 }
 
 async function handleSaveProfile() {
@@ -119,16 +119,16 @@ onMounted(() => {
       <NTabPane name="profile" :tab="$t('page.adminProfile.profileTab')">
         <NSpin :show="profileLoading">
           <NForm ref="profileFormRef" :model="profileModel" label-placement="left" label-width="auto">
-            <NFormItem :label="$t('page.manage.admin.nickName')" path="nickName">
-              <NInput v-model:value="profileModel.nickName" :placeholder="$t('common.pleaseInput')" />
+            <NFormItem :label="$t('page.manage.admin.nickName')" path="nickname">
+              <NInput v-model:value="profileModel.nickname" :placeholder="$t('common.pleaseInput')" />
             </NFormItem>
-            <NFormItem :label="$t('page.manage.admin.userPhone')" path="userPhone">
-              <NInput v-model:value="profileModel.userPhone" :placeholder="$t('common.pleaseInput')" />
+            <NFormItem :label="$t('page.manage.admin.userPhone')" path="phone">
+              <NInput v-model:value="profileModel.phone" :placeholder="$t('common.pleaseInput')" />
             </NFormItem>
-            <NFormItem :label="$t('page.manage.admin.userEmail')" path="userEmail">
-              <NInput v-model:value="profileModel.userEmail" :placeholder="$t('common.pleaseInput')" />
+            <NFormItem :label="$t('page.manage.admin.userEmail')" path="email">
+              <NInput v-model:value="profileModel.email" :placeholder="$t('common.pleaseInput')" />
             </NFormItem>
-            <NFormItem :label="$t('page.manage.admin.userGender')" path="userGender">
+            <NFormItem :label="$t('page.manage.admin.userGender')" path="gender">
               <AppDictRadioGroup v-model:value="userGender" dict-code="sys_gender" />
             </NFormItem>
           </NForm>

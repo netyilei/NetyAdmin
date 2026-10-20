@@ -18,7 +18,6 @@ type OpenLogRepository interface {
 	Create(ctx context.Context, log *open_platform.OpenPlatformLog) error
 	BatchCreate(ctx context.Context, logs []*open_platform.OpenPlatformLog) error
 	List(ctx context.Context, query *OpenLogRepoQuery) ([]*open_platform.OpenPlatformLog, int64, error)
-	GetByID(ctx context.Context, id uint64) (*open_platform.OpenPlatformLog, error)
 	DeleteBatch(ctx context.Context, ids []uint64) error
 	Clear(ctx context.Context, days int) error
 	GetTrendStats(ctx context.Context, query *StatisticsRepoQuery) ([]*open_platform.TrendItem, error)
@@ -111,14 +110,6 @@ func (r *openLogRepository) List(ctx context.Context, query *OpenLogRepoQuery) (
 
 	err := db.Order("created_at DESC").Scopes(pagination.Paginate(query.Page, query.PageSize)).Find(&list).Error
 	return list, total, err
-}
-
-func (r *openLogRepository) GetByID(ctx context.Context, id uint64) (*open_platform.OpenPlatformLog, error) {
-	var log open_platform.OpenPlatformLog
-	if err := r.getDB(ctx).First(&log, id).Error; err != nil {
-		return nil, err
-	}
-	return &log, nil
 }
 
 func (r *openLogRepository) DeleteBatch(ctx context.Context, ids []uint64) error {

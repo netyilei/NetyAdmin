@@ -15,7 +15,6 @@ type RecordFunc func(ctx context.Context, log *open_platform.OpenPlatformLog) er
 type OpenLogService interface {
 	Record(ctx context.Context, req *openDto.RecordOpenLogReq) error
 	ListLogs(ctx context.Context, req *openDto.OpenLogQuery) ([]*open_platform.OpenPlatformLog, int64, error)
-	GetLog(ctx context.Context, id uint64) (*open_platform.OpenPlatformLog, error)
 	DeleteBatch(ctx context.Context, ids []uint64) error
 	ClearOldLogs(ctx context.Context, days int) error
 	GetStatistics(ctx context.Context, req *openDto.StatisticsQuery) (interface{}, error)
@@ -66,10 +65,6 @@ func (s *openLogService) ListLogs(ctx context.Context, req *openDto.OpenLogQuery
 		EndTime:    req.EndTime,
 	}
 	return s.repo.List(ctx, repoQuery)
-}
-
-func (s *openLogService) GetLog(ctx context.Context, id uint64) (*open_platform.OpenPlatformLog, error) {
-	return s.repo.GetByID(ctx, id)
 }
 
 func (s *openLogService) DeleteBatch(ctx context.Context, ids []uint64) error {
