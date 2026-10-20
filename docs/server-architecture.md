@@ -166,6 +166,7 @@ server/
     ├── middleware/                # Gin中间件
     │   ├── api_ratelimit.go      # 通用业务 API 限流（[api_ratelimit].rules 配置驱动）
     │   ├── auth.go               # 鉴权中间件（JWTAuth + TypedUserJWTAuth 多类型用户支持）
+    │   ├── body_limit.go         # 全局请求体读取上限（http.MaxBytesReader，默认 10 MiB）
     │   ├── cors.go               # CORS Origin 白名单
     │   ├── ipac.go               # IP 访问控制（CIDR 匹配，fail-closed）
     │   ├── login_ratelimit.go    # 登录端点 IP 维度限流
@@ -976,7 +977,7 @@ export NETYADMIN_CORS_ALLOWED_ORIGINS='https://admin.example.com,https://app.exa
 ### 中间件链顺序
 
 ```
-RequestID → CORS → SecurityHeaders → Recovery → sentrygin → ...
+RequestID → BodyLimit → CORS → SecurityHeaders → Recovery → sentrygin → ...
 ```
 
 中间件链顺序见 `internal/app/wire.go`（engine.Use 注册顺序）。

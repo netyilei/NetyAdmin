@@ -50,7 +50,7 @@ sentry:
 ### 2.4 中间件链顺序（关键）
 
 ```
-RequestID → CORS → SecurityHeaders → Recovery → sentrygin(Repanic=true) → SentryTagSetter → ErrorLogger → ...
+RequestID → BodyLimit → CORS → SecurityHeaders → Recovery → sentrygin(Repanic=true) → SentryTagSetter → ErrorLogger → ...
 ```
 
 - `sentrygin` 在 `Recovery` 之后：panic 发生时先上报 Sentry，然后 Repanic 重新 panic，由外层 Recovery 兜底

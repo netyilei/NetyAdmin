@@ -69,6 +69,8 @@ Method\nPath\nTimestamp\nNonce\nPayload
 | Nonce | 与 `X-Nonce` 一致 |
 | Payload | GET 请求：Query 参数按 key 字典序排列拼接 `key1=value1&key2=value2`；同名参数的全部值按出现顺序参与拼接（`k=v1&k=v2`）。POST/PUT/DELETE 请求：Body 的 SHA256 哈希（十六进制小写）；无 Body 时为空字符串 |
 
+> **请求体上限**：签名接口的请求体上限为 **10 MiB**，超限返回 HTTP 413（`code=100007`）。文件上传请使用预签名直传，不要经过 API 请求体。
+
 #### Step 2：计算签名
 
 ```

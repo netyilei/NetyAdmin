@@ -206,7 +206,7 @@ PUT /admin/v1/systemManage/updateRole
 DELETE /admin/v1/systemManage/deleteRole
 ```
 
-> 注意：该接口通过路径参数 `id` 传递角色 ID（如 `?id=5` 或路径中携带）。
+> 注意：该接口通过 Query 参数 `id` 传递角色 ID（如 `?id=5`）。
 
 ### 1.7 批量删除角色
 
@@ -381,6 +381,12 @@ PUT /admin/v1/systemManage/updateMenu
 DELETE /admin/v1/systemManage/deleteMenu
 ```
 
+#### 请求参数
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `id` | uint | 是 | 菜单 ID（Query 参数，如 `?id=5`） |
+
 ### 2.10 批量删除菜单
 
 根据菜单 ID 列表批量删除菜单。
@@ -490,6 +496,12 @@ PUT /admin/v1/systemManage/updateButton
 ```
 DELETE /admin/v1/systemManage/deleteButton
 ```
+
+#### 请求参数
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `id` | uint | 是 | 按钮 ID（Query 参数，如 `?id=5`） |
 
 #### 常见错误码
 

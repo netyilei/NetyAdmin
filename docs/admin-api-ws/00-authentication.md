@@ -144,21 +144,22 @@ Content-Type: application/json
 ### 1. Public（公开接口）
 
 - **认证要求**：无
-- **中间件**：仅经过全局中间件（RequestID、IPAC）
+- **中间件**：仅全局中间件（RequestID、BodyLimit、CORS、SecurityHeaders、Recovery、日志链路）
+- **说明**：公开路由**豁免 IPAC 与 JWT**，确保 IPAC 服务故障或误配时仍可登录修复
 - **适用场景**：登录、获取验证码、获取公开配置、获取字典数据
 
 ```
 POST   /admin/v1/auth/login
 POST   /admin/v1/auth/refresh-token
 GET    /admin/v1/common/captcha
-GET    /admin/v1/system/configs
+GET    /admin/v1/system/configs/public
 GET    /admin/v1/system/dict/data/:code
 ```
 
 ### 2. Auth（认证接口）
 
 - **认证要求**：JWT Token 必填
-- **中间件**：`JWTAuth()`
+- **中间件**：`IPACAuth()` → `JWTAuth()` →（可选）`api_ratelimit`
 - **适用场景**：获取个人信息、修改密码、退出登录、获取上传凭证、获取用户路由
 
 ```
@@ -176,7 +177,7 @@ GET    /admin/v1/route/isRouteExist
 ### 3. Permission（权限接口）
 
 - **认证要求**：JWT Token + RBAC 权限校验
-- **中间件**：`JWTAuth()` + `PermissionAuth(authVerifier)`
+- **中间件**：`IPACAuth()` → `JWTAuth()` →（可选）`api_ratelimit` → `PermissionAuth(authVerifier)`
 - **适用场景**：所有管理类操作（管理员管理、角色管理、菜单管理、内容管理等）
 
 ```
@@ -298,6 +299,12 @@ POST   /admin/v1/systemManage/addRole
 | 中间件 | 说明 |
 |--------|------|
 | `RequestID()` | 为每个请求注入唯一 `request_id`（UUID），并写入响应头和响应体 |
-| `IPACAuth(ipacSvc)` | IP 访问控制，校验请求来源 IP 是否在黑名单/白名单中 |
+| `BodyLimit()` | 请求体读取上限 10 MiB（`http.MaxBytesReader`），超限由具体入口返回参数错误或 413 |
+| `CORS()` | Origin 白名单跨域控制（空白名单 fail-closed） |
+| `SecurityHeaders()` | 安全响应头（CSP/HSTS/X-Frame-Options 等） |
+| `Recovery()` | panic 兜底：写错误日志并返回 500 |
+| `sentrygin` / `SentryTagSetter()` | Sentry 捕获与 request_id/path/method/user 标签注入 |
+| `ErrorLogger()` | 收集 Gin 上下文错误写入错误日志并上报 Sentry |
+| `Logger()` / `OperationLogger()` | 访问日志与操作日志（LogBus 异步落库） |
 
-> RequestID 中间件在应用初始化时全局注册，IPAC 中间件在路由注册时挂载。
+> `IPACAuth` 与 `api_ratelimit` 不在全局链上：IPAC 挂载在 Auth/Permission 路由组（公开路由豁免，防止 IPAC 故障自锁），`api_ratelimit` 按配置选择性挂载。请求处理超时由 `http.TimeoutHandler` 在 engine 外层包装（超时返回 503）。
