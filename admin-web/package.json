@@ -40,7 +40,6 @@
     "dev": "vite --mode test",
     "dev:prod": "vite --mode prod",
     "lint": "eslint . --fix",
-    "prepare": "simple-git-hooks",
     "preview": "vite preview",
     "release": "na release",
     "typecheck": "vue-tsc --noEmit --skipLibCheck",
@@ -110,7 +109,6 @@
     "eslint-plugin-vue": "10.3.0",
     "kolorist": "1.8.0",
     "sass": "1.89.2",
-    "simple-git-hooks": "2.13.0",
     "tsx": "4.20.3",
     "typescript": "5.8.3",
     "unplugin-icons": "22.1.0",
@@ -121,13 +119,6 @@
     "vite-plugin-vue-devtools": "7.7.7",
     "vue-eslint-parser": "10.2.0",
     "vue-tsc": "3.0.1"
-  },
-  "simple-git-hooks": {
-    "commit-msg": "pnpm na git-commit-verify",
-    "pre-commit": "pnpm typecheck && pnpm lint && git diff --exit-code"
-  },
-  "lint-staged": {
-    "*": "eslint --fix"
   },
   "website": "https://admin.NetyAdminjs.cn"
 }
