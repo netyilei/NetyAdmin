@@ -67,7 +67,7 @@ Method\nPath\nTimestamp\nNonce\nPayload
 | Path | 请求路径，不含域名和 Query，如 `/client/v1/user/login` |
 | Timestamp | 与 `X-Timestamp` 一致 |
 | Nonce | 与 `X-Nonce` 一致 |
-| Payload | GET 请求：Query 参数按 key 字典序排列拼接 `key1=value1&key2=value2`；POST/PUT/DELETE 请求：Body 的 SHA256 哈希（十六进制小写）；无 Body 时为空字符串 |
+| Payload | GET 请求：Query 参数按 key 字典序排列拼接 `key1=value1&key2=value2`；同名参数的全部值按出现顺序参与拼接（`k=v1&k=v2`）。POST/PUT/DELETE 请求：Body 的 SHA256 哈希（十六进制小写）；无 Body 时为空字符串 |
 
 #### Step 2：计算签名
 

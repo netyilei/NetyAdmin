@@ -6,6 +6,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -35,6 +36,12 @@ type openPlatformResponseWriter struct {
 	body *bytes.Buffer
 }
 
+// maxSignedRequestBodyBytes 是开放平台签名接口的请求体上限（10 MiB）。
+// 验签前必须先读取完整 Body 计算 SHA256，若不设上限，未认证攻击者可反复发送
+// 超大请求体造成内存耗尽。客户端文件上传走预签名直传（不经过 API），
+// JSON 业务请求远小于该值。
+const maxSignedRequestBodyBytes = 10 << 20
+
 func (w *openPlatformResponseWriter) Write(b []byte) (int, error) {
 	w.body.Write(b)
 	return w.ResponseWriter.Write(b)
@@ -51,9 +58,17 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 
 		var requestBody []byte
 		if c.Request.Body != nil {
+			// 读取前施加大小上限（DoS 防护），超限时 ReadAll 返回 *http.MaxBytesError
+			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxSignedRequestBodyBytes)
 			var err error
 			requestBody, err = io.ReadAll(c.Request.Body)
 			if err != nil {
+				var maxBytesErr *http.MaxBytesError
+				if errors.As(err, &maxBytesErr) {
+					response.FailWithStatus(c, http.StatusRequestEntityTooLarge, errorx.CodeBadRequest, "请求体过大")
+					c.Abort()
+					return
+				}
 				response.FailWithCode(c, errorx.CodeInvalidParams, "请求体读取失败")
 				c.Abort()
 				return
@@ -249,14 +264,21 @@ func constructStringToSign(c *gin.Context, timestamp, nonce string, requestBody 
 		}
 		sort.Strings(keys)
 
+		// 同名参数的全部值都参与签名（按服务端解析顺序），避免只签首值导致
+		// 攻击者在已签名的 key 上追加未被签名覆盖的第二个值（参数走私）。
+		// 单值请求的拼接结果与旧实现完全一致。
 		var sb strings.Builder
-		for i, k := range keys {
-			if i > 0 {
-				sb.WriteString("&")
+		first := true
+		for _, k := range keys {
+			for _, v := range query[k] {
+				if !first {
+					sb.WriteString("&")
+				}
+				first = false
+				sb.WriteString(k)
+				sb.WriteString("=")
+				sb.WriteString(v)
 			}
-			sb.WriteString(k)
-			sb.WriteString("=")
-			sb.WriteString(query.Get(k))
 		}
 		payload = sb.String()
 	} else {

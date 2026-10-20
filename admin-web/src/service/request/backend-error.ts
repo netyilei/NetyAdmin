@@ -76,6 +76,7 @@ const backendErrorI18nKeyMap: Record<string, string> = {
   [BackendErrorCode.requestTimeout]: 'request.backend.requestTimeout',
   [BackendErrorCode.userNotFound]: 'request.backend.userNotFound',
   [BackendErrorCode.userDisabled]: 'request.backend.userDisabled',
+  [BackendErrorCode.userLocked]: 'request.backend.userLocked',
   [BackendErrorCode.passwordWrong]: 'request.backend.passwordWrong',
   [BackendErrorCode.userAlreadyExists]: 'request.backend.userAlreadyExists',
   [BackendErrorCode.tokenExpired]: 'request.backend.tokenExpired',
