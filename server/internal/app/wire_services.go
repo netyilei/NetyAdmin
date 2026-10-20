@@ -76,6 +76,11 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr *cach
 	storageMgr := storagePkg.NewManager(storagePkg.NewMinioDriverFactory())
 	// 限流器：复用 Bootstrap 已建立的 Redis 连接，Redis 不可用时自动降级为进程内内存限流
 	rateLimiter := ratelimitPkg.New(redisClient, cfg.Redis.Prefix)
+	rateLimiterBackend := "memory(single-node)"
+	if redisClient != nil {
+		rateLimiterBackend = "redis(distributed)"
+	}
+	slog.Info("open platform rate limiter 初始化", "backend", rateLimiterBackend)
 
 	s := &serviceSet{}
 

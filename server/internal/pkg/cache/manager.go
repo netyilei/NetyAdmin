@@ -150,8 +150,9 @@ type LazyCacheManager struct {
 	eventBus     pubsub.EventBus
 	eventBusMu   sync.RWMutex
 
-	localNX sync.Map
-	l2Cache *cache.Cache[any]
+	localNX       sync.Map
+	localCounters sync.Map
+	l2Cache       *cache.Cache[any]
 
 	// flightGroup 合并 Fetch/FetchFast 在同一 key 上的并发回源调用，
 	// 防止缓存击穿（热点 key 失效瞬间 N 个请求同时穿透到 DB）。
@@ -370,7 +371,17 @@ func (m *LazyCacheManager) Get(ctx context.Context, key string, v interface{}) e
 // L2 未启用时通过 l2() 降级到 l1Cache 本地兜底。
 func (m *LazyCacheManager) Delete(ctx context.Context, key string) error {
 	fullKey := m.buildKey(key)
-	return m.l2().Delete(ctx, fullKey)
+	// 本地降级计数器与普通缓存共用 key 命名空间，删除时一并清理，
+	// 避免 ClearLoginRetry 后本地计数残留（Redis 模式下为 no-op）。
+	m.localCounters.Delete(fullKey)
+	err := m.l2().Delete(ctx, fullKey)
+	// Delete 幂等：Redis DEL 对不存在的 key 返回成功，而 BigCache 返回
+	// ErrEntryNotFound（gocache 的 Delete 未做 NotFound 包装）。
+	// 统一为成功，避免 L1 模式下调用方把"本就无需删除"误判为清理失败。
+	if err != nil && (errors.Is(err, store.NotFound{}) || errors.Is(err, bigcache.ErrEntryNotFound)) {
+		return nil
+	}
+	return err
 }
 
 func (m *LazyCacheManager) Exists(ctx context.Context, key string) (bool, error) {
@@ -386,23 +397,23 @@ func (m *LazyCacheManager) Exists(ctx context.Context, key string) (bool, error)
 	return false, err
 }
 
-// Incr 原子自增计数器，基于 Redis INCR + EXPIRE 实现。
+// Incr 原子自增计数器。
 //
 // 设计说明（B2 原子化）：
-//   - BigCache（L1）不支持 INCR，只在 Redis（L2）上操作
-//   - Redis 不可用时返回 error（fail-closed，不允许跳过原子计数）
-//   - 仅在 INCR 返回值 == 1（首次设置）时调用 EXPIRE 设置 TTL
-//   - INCR 与 EXPIRE 非完全原子（极小窗口 TTL 未设置），但首次 INCR 必然返回 1，
-//     EXPIRE 失败时计数仍存在但无 TTL（永久残留），下次清理由 ClearLoginRetry 兜底
+//   - Redis 启用时：INCR + EXPIRE，仅在首次（返回值 == 1）设置 TTL；
+//     Redis 运行时故障返回 error（fail-closed，不放大跨节点计数失真）。
+//   - Redis 未启用时：降级为进程内原子计数（localIncr）。多节点部署必须启用
+//     Redis（启动期 ValidateConfig 强制），因此该分支只会在单机部署生效；
+//     单机语义与 Redis 一致（首次设置 TTL、TTL 内累计、Delete 清理）。
 //
 // 用于登录失败计数等需防 TOCTOU 竞态的场景。
 func (m *LazyCacheManager) Incr(ctx context.Context, key string, ttl time.Duration) (int64, error) {
-	// fail-closed：Redis 不可用时不允许降级为本地计数（避免多节点计数失真）
-	if m.redisClient == nil {
-		return 0, fmt.Errorf("incr requires redis client, but redis is unavailable (fail-closed)")
-	}
-
 	fullKey := m.buildKey(key)
+
+	// 单机模式（Redis 关闭）：进程内原子计数
+	if m.redisClient == nil {
+		return m.localIncr(fullKey, ttl), nil
+	}
 
 	// 1. 原子 INCR
 	val, err := m.redisClient.Incr(ctx, fullKey).Result()
@@ -421,6 +432,51 @@ func (m *LazyCacheManager) Incr(ctx context.Context, key string, ttl time.Durati
 	}
 
 	return val, nil
+}
+
+// localCounter 是单机模式的进程内计数器。
+// 每个 key 独立加锁，保证并发自增不丢计数；exp 语义与 Redis EXPIRE 对齐
+// （首次自增时设置，后续自增不续期）。
+type localCounter struct {
+	mu  sync.Mutex
+	n   int64
+	exp time.Time
+}
+
+// localIncr 单进程原子计数（仅 Redis 未启用时使用）。
+// 到期条目通过 time.AfterFunc 清理，避免按用户名/ID 累积造成 map 常驻。
+func (m *LazyCacheManager) localIncr(key string, ttl time.Duration) int64 {
+	v, _ := m.localCounters.LoadOrStore(key, &localCounter{})
+	c := v.(*localCounter)
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	now := time.Now()
+	if !c.exp.IsZero() && !now.Before(c.exp) {
+		// TTL 已过：按 Redis EXPIRE 语义重新从 0 开始
+		c.n = 0
+		c.exp = time.Time{}
+	}
+
+	c.n++
+	if c.n == 1 && ttl > 0 {
+		c.exp = now.Add(ttl)
+		entry := c
+		time.AfterFunc(ttl, func() {
+			entry.mu.Lock()
+			expired := !entry.exp.IsZero() && !time.Now().Before(entry.exp)
+			entry.mu.Unlock()
+			if expired {
+				// 仅删除自己这一代条目（期间可能已被重新创建）
+				if cur, ok := m.localCounters.Load(key); ok && cur == entry {
+					m.localCounters.CompareAndDelete(key, entry)
+				}
+			}
+		})
+	}
+
+	return c.n
 }
 
 func (m *LazyCacheManager) buildKey(key string) string {

@@ -440,6 +440,18 @@ func ValidateConfig(cfg *Config) {
 	if cfg == nil {
 		log.Fatal("配置校验失败: cfg 为 nil")
 	}
+
+	// 架构不变量（debug 模式同样生效）：
+	//   - L1（本地 BigCache）与 L2（Redis）至少启用一个，否则缓存层没有有效介质；
+	//   - 多节点部署必须启用 Redis：Nonce 防重放、开放平台限流、缓存失效广播、
+	//     IPAC/配置热同步都依赖 Redis，缺失会导致跨节点行为分裂。
+	if !cfg.Redis.Enabled && !cfg.Redis.L1Enabled {
+		log.Fatal("配置校验失败: [redis].enabled (L2) 与 [redis].l1_enabled (L1) 至少启用一个")
+	}
+	if cfg.Server.MultiNode && !cfg.Redis.Enabled {
+		log.Fatal("配置校验失败: [server].multi_node=true 时必须启用 Redis（[redis].enabled=true）：多节点依赖 Redis 提供 Nonce 防重放、分布式限流、缓存失效广播与配置/IPAC 热同步")
+	}
+
 	if cfg.Server.Mode == "debug" {
 		return
 	}

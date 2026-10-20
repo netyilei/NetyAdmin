@@ -149,6 +149,18 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 
 	lazyCacheMgr.SetEventBus(eventBus)
 
+	// 缓存模式启动日志：便于运维确认 L1/L2 实际组合（启动期已强制至少启用一个）
+	cacheMode := "l1_l2"
+	if redisClient == nil {
+		cacheMode = "l1_only(single-node)"
+	} else if !cfg.Redis.L1Enabled {
+		cacheMode = "l2_only"
+	}
+	slog.Info("cache manager 初始化",
+		"mode", cacheMode,
+		"l1_max_mb", cfg.Redis.LocalMaxSizeMB,
+		"local_ttl_min", cfg.Redis.LocalTTLMin)
+
 	// 5. Task Manager
 	taskManager := task.NewManager(&cfg.Task, &cfg.Redis, redisClient)
 
