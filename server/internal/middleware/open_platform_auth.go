@@ -342,8 +342,9 @@ func sanitizeRequestBody(body []byte) string {
 }
 
 // sanitizeBody 对请求/响应体做截断与脱敏。
-// 超过 maxLoggedBodyBytes 的 Body 不再解析（避免大 Body 的 JSON 反序列化/
-// 递归脱敏开销），只返回大小摘要；非 JSON 小 Body 保持原样（无法结构化脱敏）。
+// 超过 maxLoggedBodyBytes 的 Body 不再解析，只返回大小摘要；
+// 非 JSON Body 无法结构化脱敏，同样只记录摘要（绝不落原文，避免表单/二进制中的
+// 明文密码、Token 等敏感信息进入日志）。
 func sanitizeBody(body string) string {
 	if body == "" {
 		return ""
@@ -353,8 +354,7 @@ func sanitizeBody(body string) string {
 	}
 	var parsed interface{}
 	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
-		// 非 JSON 体，直接返回（避免明文密码等被记录，但无法结构化脱敏）
-		return body
+		return unparsedBodySummary(len(body))
 	}
 	// 深度 64：原实现无深度限制，取实践等价的上限保护（防恶意超深嵌套拖垮日志路径）
 	sanitized := mask.ScrubValue(parsed, redactedPlaceholder, 64)
@@ -376,4 +376,10 @@ func sanitizeResponseBody(w *openPlatformResponseWriter) string {
 
 func truncatedBodySummary(size int) string {
 	return fmt.Sprintf(`{"_truncated":true,"size":%d}`, size)
+}
+
+// unparsedBodySummary 用于非 JSON Body：无法结构化脱敏，只记录大小，
+// 不落原文（表单/二进制可能携带明文凭据）。
+func unparsedBodySummary(size int) string {
+	return fmt.Sprintf(`{"_unparsed":true,"size":%d}`, size)
 }

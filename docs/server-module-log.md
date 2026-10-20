@@ -139,7 +139,8 @@ type LogBusService interface {
 - 请求体/响应体各自最多保留 **32 KiB**；超过上限只记录
   `{"_truncated":true,"size":<原始字节数>}` 摘要，不再做 JSON 解析与递归脱敏。
 - 响应体缓冲也只保留前 32 KiB（`total` 记录完整长度），避免大响应全量驻留内存。
-- 非 JSON 的**小**请求体保持原样（无法结构化脱敏）；大 Body 统一走摘要。
+- 非 JSON Body 无法结构化脱敏，一律只记录 `{"_unparsed":true,"size":N}`，**不落原文**
+  （表单/二进制可能携带明文密码、Token 等敏感信息）。
 
 **接入方式**：
 

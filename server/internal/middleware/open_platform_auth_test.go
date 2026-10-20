@@ -85,6 +85,18 @@ func TestSanitizeBody_SanitizesSmallJSON(t *testing.T) {
 	assert.Contains(t, got, `"name":"ok"`)
 }
 
+// TestSanitizeBody_NonJSONIsSummarized 验证非 JSON Body 不落原文，
+// 只记录 {"_unparsed":true,"size":N}（表单/二进制可能携带明文凭据）。
+func TestSanitizeBody_NonJSONIsSummarized(t *testing.T) {
+	body := "username=admin&password=secret"
+	got := sanitizeBody(body)
+
+	assert.Contains(t, got, `"_unparsed":true`)
+	assert.Contains(t, got, fmt.Sprintf(`"size":%d`, len(body)))
+	assert.NotContains(t, got, "secret")
+	assert.NotContains(t, got, "username")
+}
+
 // TestResponseWriter_TruncatesBufferedBody 验证响应体只保留前 maxLoggedBodyBytes 字节，
 // total 仍记录完整长度，超限时日志使用大小摘要。
 func TestResponseWriter_TruncatesBufferedBody(t *testing.T) {
