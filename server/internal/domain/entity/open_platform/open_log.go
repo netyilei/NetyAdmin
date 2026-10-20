@@ -40,3 +40,11 @@ func (l *OpenPlatformLog) GetCreatedAt() time.Time {
 func (l *OpenPlatformLog) GetRequestID() string {
 	return l.RequestID
 }
+
+// GetSizeBytes 统计日志主要字段的字节数，供 LogBus 做字节级容量控制。
+// 请求/响应体已在写入前按 maxLoggedBodyBytes 截断，单条规模可控。
+func (l *OpenPlatformLog) GetSizeBytes() int {
+	return len(l.AppKey) + len(l.ApiPath) + len(l.ClientIP) +
+		len(l.RequestHeader) + len(l.RequestBody) + len(l.ResponseBody) +
+		len(l.ErrorMsg) + len(l.RequestID)
+}

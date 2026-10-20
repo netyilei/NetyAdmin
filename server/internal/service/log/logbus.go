@@ -40,9 +40,10 @@ type logBusService struct {
 	stopOnce sync.Once
 
 	globalMaxEntries int
-	globalMaxBytesMB int
+	globalMaxBytes   int64
 	forceSync        bool
 	totalEntries     int
+	totalBytes       int64
 }
 
 func NewLogBusService(
@@ -81,7 +82,7 @@ func (b *logBusService) loadConfig() {
 		b.globalMaxEntries = v
 	}
 	if v := utils.GetIntWithDefault(b.watcher, "logbus_config", "global_max_bytes_mb", 10); v > 0 {
-		b.globalMaxBytesMB = v
+		b.globalMaxBytes = int64(v) * 1024 * 1024
 	}
 
 	if val, ok := b.watcher.GetConfig("logbus_config", "force_sync"); ok {
@@ -127,17 +128,20 @@ func (b *logBusService) Record(ctx context.Context, entry logEntity.LogEntry) er
 	}
 
 	b.mu.Lock()
-	if b.totalEntries >= b.globalMaxEntries {
+	size := entry.GetSizeBytes()
+	// 容量控制同时约束条数与字节数：先按优先级淘汰旧条目，仍不足时
+	// P0 走同步写（不丢），P1/P2 由各自 submit 路径降级/丢弃。
+	if !b.hasCapacity(size) {
 		b.evictOldest(logEntity.PriorityP2)
-		if b.totalEntries >= b.globalMaxEntries {
+		if !b.hasCapacity(size) {
 			b.evictOldest(logEntity.PriorityP1)
 		}
-		if b.totalEntries >= b.globalMaxEntries && cfg.Priority == logEntity.PriorityP0 {
-			b.mu.Unlock()
-			return b.syncWrite(ctx, entry)
-		}
 	}
+	overCapacity := !b.hasCapacity(size)
 	b.mu.Unlock()
+	if overCapacity && cfg.Priority == logEntity.PriorityP0 {
+		return b.syncWrite(ctx, entry)
+	}
 
 	switch cfg.Priority {
 	case logEntity.PriorityP0:
@@ -209,8 +213,25 @@ func (b *logBusService) tryAppend(entry logEntity.LogEntry) bool {
 	if cfg.SizeThreshold > 0 && len(b.buffers[lt]) >= cfg.SizeThreshold {
 		return false
 	}
+	size := entry.GetSizeBytes()
+	if !b.hasCapacity(size) {
+		return false
+	}
 	b.buffers[lt] = append(b.buffers[lt], entry)
 	b.totalEntries++
+	b.totalBytes += int64(size)
+	return true
+}
+
+// hasCapacity 判断全局缓冲是否还能容纳一条 size 字节的日志。
+// 调用方必须持有 b.mu。
+func (b *logBusService) hasCapacity(size int) bool {
+	if b.totalEntries >= b.globalMaxEntries {
+		return false
+	}
+	if b.globalMaxBytes > 0 && b.totalBytes+int64(size) > b.globalMaxBytes {
+		return false
+	}
 	return true
 }
 
@@ -223,6 +244,10 @@ func (b *logBusService) evictOldest(minPriority logEntity.LogPriority) {
 		if len(buf) > 0 {
 			b.buffers[lt] = buf[1:]
 			b.totalEntries--
+			b.totalBytes -= int64(buf[0].GetSizeBytes())
+			if b.totalBytes < 0 {
+				b.totalBytes = 0
+			}
 			return
 		}
 	}
@@ -275,6 +300,7 @@ func (b *logBusService) flushAll() {
 		}
 	}
 	b.totalEntries = 0
+	b.totalBytes = 0
 	b.mu.Unlock()
 
 	for lt, entries := range snapshots {

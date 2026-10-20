@@ -31,14 +31,32 @@ import (
 	openSvcPkg "NetyAdmin/internal/service/open_platform"
 )
 
+// maxLoggedBodyBytes 是开放平台日志中请求体/响应体各自的最大保留字节数（32 KiB）。
+// 日志体仅用于排障：超过上限时只记录大小摘要，避免大 Body 触发全量 JSON
+// 反序列化/脱敏/回写，以及 DB text 列膨胀。
+const maxLoggedBodyBytes = 32 << 10
+
 type openPlatformResponseWriter struct {
 	gin.ResponseWriter
-	body *bytes.Buffer
+	// body 只保留响应体的前 maxLoggedBodyBytes 字节用于日志；
+	// total 记录完整响应字节数，用于超限时输出摘要。
+	body  bytes.Buffer
+	total int
 }
 
 func (w *openPlatformResponseWriter) Write(b []byte) (int, error) {
-	w.body.Write(b)
-	return w.ResponseWriter.Write(b)
+	n, err := w.ResponseWriter.Write(b)
+	w.total += n
+	if remain := maxLoggedBodyBytes - w.body.Len(); remain > 0 {
+		take := n
+		if take > remain {
+			take = remain
+		}
+		if take > 0 {
+			w.body.Write(b[:take])
+		}
+	}
+	return n, err
 }
 
 // OpenPlatformAuth 开放平台签名验证中间件
@@ -72,7 +90,6 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 
 		writer := &openPlatformResponseWriter{
 			ResponseWriter: c.Writer,
-			body:           bytes.NewBufferString(""),
 		}
 		c.Writer = writer
 
@@ -97,8 +114,8 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 				StatusCode:    statusCode,
 				Latency:       latency,
 				RequestHeader: sanitizeHeaderValue(string(headerBytes)),
-				RequestBody:   sanitizeBody(string(requestBody)),
-				ResponseBody:  sanitizeBody(writer.body.String()),
+				RequestBody:   sanitizeRequestBody(requestBody),
+				ResponseBody:  sanitizeResponseBody(writer),
 				// Task 8.5: 从 c.Request.Context() 提取 request_id，
 				// 由 middleware.RequestID 中间件注入；service 层透传到 entity 后写入 DB。
 				// 注意：GoSafe 闭包内执行 logSvc.Record 时已脱离原请求 ctx 生命周期，
@@ -312,11 +329,27 @@ func sanitizeHeaderValue(headerJSON string) string {
 	return string(out)
 }
 
-// sanitizeBody 对请求/响应体中的敏感字段值进行脱敏
-// 支持 JSON 对象和嵌套对象，对匹配敏感字段名的 value 替换为 ***REDACTED***
+// sanitizeRequestBody 处理请求体：先按字节长度判断，超限直接返回摘要，
+// 避免为大 Body 做一次 string([]byte) 拷贝后再截断。
+func sanitizeRequestBody(body []byte) string {
+	if len(body) == 0 {
+		return ""
+	}
+	if len(body) > maxLoggedBodyBytes {
+		return truncatedBodySummary(len(body))
+	}
+	return sanitizeBody(string(body))
+}
+
+// sanitizeBody 对请求/响应体做截断与脱敏。
+// 超过 maxLoggedBodyBytes 的 Body 不再解析（避免大 Body 的 JSON 反序列化/
+// 递归脱敏开销），只返回大小摘要；非 JSON 小 Body 保持原样（无法结构化脱敏）。
 func sanitizeBody(body string) string {
 	if body == "" {
 		return ""
+	}
+	if len(body) > maxLoggedBodyBytes {
+		return truncatedBodySummary(len(body))
 	}
 	var parsed interface{}
 	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
@@ -330,4 +363,17 @@ func sanitizeBody(body string) string {
 		return "[unparseable body]"
 	}
 	return string(out)
+}
+
+// sanitizeResponseBody 处理响应体：超过上限的响应只记录大小摘要
+// （writer 只保留前 maxLoggedBodyBytes 字节，避免大响应全量驻留内存）。
+func sanitizeResponseBody(w *openPlatformResponseWriter) string {
+	if w.total > maxLoggedBodyBytes {
+		return truncatedBodySummary(w.total)
+	}
+	return sanitizeBody(w.body.String())
+}
+
+func truncatedBodySummary(size int) string {
+	return fmt.Sprintf(`{"_truncated":true,"size":%d}`, size)
 }

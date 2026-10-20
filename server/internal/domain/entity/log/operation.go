@@ -33,3 +33,7 @@ func (o *Operation) GetCreatedAt() time.Time {
 func (o *Operation) GetRequestID() string {
 	return o.RequestID
 }
+
+func (o *Operation) GetSizeBytes() int {
+	return len(o.Action) + len(o.Resource) + len(o.Detail) + len(o.UserAgent) + len(o.RequestID)
+}

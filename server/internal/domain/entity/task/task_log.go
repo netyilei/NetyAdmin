@@ -35,3 +35,7 @@ func (l *TaskLog) GetCreatedAt() time.Time {
 func (l *TaskLog) GetRequestID() string {
 	return l.RequestID
 }
+
+func (l *TaskLog) GetSizeBytes() int {
+	return len(l.Name) + len(l.Message) + len(l.RequestID)
+}

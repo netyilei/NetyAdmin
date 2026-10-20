@@ -42,6 +42,10 @@ func (e *Error) GetRequestID() string {
 	return e.RequestID
 }
 
+func (e *Error) GetSizeBytes() int {
+	return len(e.Message) + len(e.Stack) + len(e.Path) + len(e.UserAgent) + len(e.RequestID)
+}
+
 const (
 	LogLevelPanic = "PANIC"
 	LogLevelError = "ERROR"

@@ -30,4 +30,7 @@ type LogEntry interface {
 	GetLogType() LogType
 	GetCreatedAt() time.Time
 	GetRequestID() string
+	// GetSizeBytes 返回该条日志的主要内存占用（大文本字段长度之和），
+	// 供 LogBus 按 global_max_bytes_mb 做字节级容量控制。
+	GetSizeBytes() int
 }
