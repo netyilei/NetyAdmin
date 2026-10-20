@@ -14,9 +14,9 @@ server:
   # 优雅关闭超时（srv.Shutdown 等待在途请求的最大时长）。
   # 零值 = 默认 30s。环境变量：NETYADMIN_SERVER_SHUTDOWN_TIMEOUT
   shutdown_timeout: "30s"
-  # 多机部署时设为 true：启动期强校验 [redis].enabled 必须为 true（多节点依赖 Redis
-  # 提供 Nonce 防重放、分布式限流、缓存失效广播与配置/IPAC 热同步），并校验
-  # [bus].driver 是否为 "redis"（仍为 memory 时打印 WARN）。
+  # 多机部署时设为 true：启动时自动启用 L2（Redis）——多节点依赖 Redis
+  # 提供 Nonce 防重放、分布式限流、缓存失效广播与配置/IPAC 热同步。
+  # [bus].driver 仍为 memory 时会打印 WARN（建议显式配置 "redis"）。
   multi_node: false
   # 可信代理 IP 或 IPv4 CIDR 列表（如 ["127.0.0.1", "10.0.0.0/8"]）。
   # 空数组（默认）= 不信任任何代理：c.ClientIP() 直接回退到 RemoteAddr，
