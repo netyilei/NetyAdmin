@@ -54,6 +54,18 @@ type AppService interface {
 	DeleteScopeGroup(ctx context.Context, id uint64) error
 }
 
+// defaultAppCacheTTL 是应用未配置 CacheTTL（<=0）时的兜底缓存时长。
+// 防止失效广播遗漏/失败时 L2 永久陈旧；显式 >0 时以管理端配置为准。
+const defaultAppCacheTTL = 5 * time.Minute
+
+// appCacheTTL 将管理端的 CacheTTL（秒）换算为缓存 TTL：<=0 使用默认值。
+func appCacheTTL(seconds int) time.Duration {
+	if seconds > 0 {
+		return time.Duration(seconds) * time.Second
+	}
+	return defaultAppCacheTTL
+}
+
 type appService struct {
 	repo          openRepo.AppRepository
 	cacheFast     cache.ConfigCache   // 配置类：app info / scopes（Fast 系列：L1+L2 chain）
@@ -100,10 +112,9 @@ func (s *appService) GetAppByKey(ctx context.Context, appKey string) (*open_plat
 		return nil, err
 	}
 
-	ttl := time.Duration(0)
-	if a.CacheTTL > 0 {
-		ttl = time.Duration(a.CacheTTL) * time.Second
-	}
+	// App 信息缓存 TTL：管理端配置 >0 时按配置，<=0（含未配置）使用默认 5 分钟兜底，
+	// 避免失效广播遗漏时 L2 永久陈旧。
+	ttl := appCacheTTL(a.CacheTTL)
 
 	if err := s.cacheFast.SetFast(ctx, key, a, tags, ttl); err != nil {
 		slog.Warn("set fast cache failed", "key", key, "err", err)

@@ -39,10 +39,10 @@ const openPlatform = {
       quotaCapacityPlaceholder: 'Leave empty for system default',
       quotaCapacitySuffix: 'req',
       quotaCapacityTip: 'Maximum concurrent requests allowed in a short burst to handle traffic spikes',
-      cacheTTLPlaceholder: '0 for permanent cache',
+      cacheTTLPlaceholder: '0 for default 5 minutes',
       cacheTTLSuffix: 'sec',
       cacheTTLTip:
-        'Cache expiration time for this app config. Set to 0 for permanent cache, invalidated only when app is updated'
+        'App info cache TTL. Set to 0 or negative to use the default 5 minutes; cache is still invalidated when the app is updated'
     }
   },
   scope: {

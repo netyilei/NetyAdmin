@@ -82,7 +82,7 @@ POST /admin/v1/open/apps
 | `rateLimitEnabled` | bool | 否 | 是否启用限流 |
 | `remark` | string | 否 | 备注 |
 | `quotaConfig` | string | 否 | 配额配置（JSON 字符串，默认 `{}`） |
-| `cacheTTL` | int | 否 | 缓存时间（秒） |
+| `cacheTTL` | int | 否 | App 信息缓存时间（秒）；`<=0` 或未传时使用默认 5 分钟 |
 | `storageId` | uint | 否 | 关联存储配置 ID |
 | `scopes` | []string | 否 | 权限范围编码列表 |
 
@@ -120,7 +120,7 @@ PUT /admin/v1/open/apps
 | `rateLimitEnabled` | bool | 否 | 是否启用限流 |
 | `remark` | string | 否 | 备注 |
 | `quotaConfig` | string | 否 | 配额配置 |
-| `cacheTTL` | int | 否 | 缓存时间 |
+| `cacheTTL` | int | 否 | App 信息缓存时间（秒）；`<=0` 时使用默认 5 分钟 |
 | `storageId` | uint | 否 | 关联存储配置 ID |
 | `scopes` | []string | 否 | 权限范围编码列表 |
 

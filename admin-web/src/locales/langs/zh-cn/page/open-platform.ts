@@ -38,9 +38,9 @@ const openPlatform = {
       quotaCapacityPlaceholder: '留空使用系统默认',
       quotaCapacitySuffix: '次',
       quotaCapacityTip: '允许短时间内的最大并发请求数，用于应对瞬时流量高峰',
-      cacheTTLPlaceholder: '0 为永久缓存',
+      cacheTTLPlaceholder: '0 使用默认 5 分钟',
       cacheTTLSuffix: '秒',
-      cacheTTLTip: '该应用配置的缓存过期时间，设为 0 则永久缓存，仅通过更新应用时自动失效'
+      cacheTTLTip: '该应用配置的缓存过期时间；设为 0 或负数时使用默认 5 分钟，更新应用时仍会自动失效'
     }
   },
   scope: {

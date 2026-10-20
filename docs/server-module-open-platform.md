@@ -97,7 +97,7 @@ API 开发者在注册路由时可标记所属 Scope。应用必须被授予该 
 
 - **L1 命中即返回**：App 信息 / Scopes / API 白名单在 L1 命中时不会访问 Redis（`GetFast`/`FetchFast`）。
 - **热更新依赖事件总线**：多节点必须 `[bus].driver = "redis"`；`bus=memory` 时广播不出本进程。
-- **失效广播失败**：其他节点的 L1 会陈旧至 `local_ttl_min`（默认 10 分钟）；`App.CacheTTL=0` 时 L2 不会自动过期，因此建议在管理端为应用配置合理缓存 TTL。
+- **失效广播失败**：其他节点的 L1 会陈旧至 `local_ttl_min`（默认 10 分钟）；App 信息缓存 TTL 由 `CacheTTL` 控制，`<=0` 时回落默认 5 分钟，作为失效遗漏的兜底。
 - **Redis 关闭（单机）**：App/Scopes/API 仍由 L1 服务；Nonce 与限流切换为进程内实现。
   `multi_node=true` 时会自动启用 L2（Redis），不存在"多机却用本地计数"的配置组合。
 
@@ -118,7 +118,7 @@ type App struct {
     IPFilterEnabled  bool   `gorm:"default:false"`      // 是否启用 IP 过滤
     RateLimitEnabled bool   `gorm:"default:true"`       // 是否启用限流
     QuotaConfig      string `gorm:"type:jsonb"`         // 限流配置 {"rate":100,"capacity":200}
-    CacheTTL         int    `gorm:"default:0"`          // App 信息缓存 TTL（秒），0=不过期（依赖失效广播）
+    CacheTTL         int    `gorm:"default:0"`          // App 信息缓存 TTL（秒），<=0 使用默认 5 分钟
     Remark           string `gorm:"size:255"`
     StorageID        uint   `gorm:"default:0"`          // 绑定的存储配置ID，0表示使用全局默认
 }
