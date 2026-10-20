@@ -36,12 +36,6 @@ type openPlatformResponseWriter struct {
 	body *bytes.Buffer
 }
 
-// maxSignedRequestBodyBytes 是开放平台签名接口的请求体上限（10 MiB）。
-// 验签前必须先读取完整 Body 计算 SHA256，若不设上限，未认证攻击者可反复发送
-// 超大请求体造成内存耗尽。客户端文件上传走预签名直传（不经过 API），
-// JSON 业务请求远小于该值。
-const maxSignedRequestBodyBytes = 10 << 20
-
 func (w *openPlatformResponseWriter) Write(b []byte) (int, error) {
 	w.body.Write(b)
 	return w.ResponseWriter.Write(b)
@@ -58,8 +52,8 @@ func OpenPlatformAuth(appSvc openSvcPkg.AppService, apiSvc openSvcPkg.OpenApiSer
 
 		var requestBody []byte
 		if c.Request.Body != nil {
-			// 读取前施加大小上限（DoS 防护），超限时 ReadAll 返回 *http.MaxBytesError
-			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxSignedRequestBodyBytes)
+			// Body 已由全局 middleware.BodyLimit 施加读取上限；
+			// 超限时 ReadAll 返回 *http.MaxBytesError（验签前即拒绝，无需进入签名计算）
 			var err error
 			requestBody, err = io.ReadAll(c.Request.Body)
 			if err != nil {

@@ -60,15 +60,26 @@ func (s *categoryService) getCategoryCacheTTL() time.Duration {
 	return 60 * time.Minute
 }
 
+// ensureUniqueCode 校验分类编码唯一（空编码表示不使用编码，直接通过）。
+// excludeID 用于更新场景排除自身。Create/Update 共用，避免两处校验逻辑漂移。
+func (s *categoryService) ensureUniqueCode(ctx context.Context, code string, excludeID ...uint) error {
+	if code == "" {
+		return nil
+	}
+	exists, err := s.repo.ExistsByCode(ctx, code, excludeID...)
+	if err != nil {
+		slog.Error("ExistsByCode failed", "code", code, "err", err)
+		return fmt.Errorf("repo.ExistsByCode: %w", err)
+	}
+	if exists {
+		return errorx.New(errorx.CodeAlreadyExists, "分类编码已存在")
+	}
+	return nil
+}
+
 func (s *categoryService) Create(ctx context.Context, adminID uint, req *contentDto.CreateContentCategoryDTO) (*contentEntity.ContentCategory, error) {
-	if req.Code != "" {
-		exists, err := s.repo.ExistsByCode(ctx, req.Code)
-		if err != nil {
-			return nil, err
-		}
-		if exists {
-			return nil, errorx.New(errorx.CodeAlreadyExists, "分类编码已存在")
-		}
+	if err := s.ensureUniqueCode(ctx, req.Code); err != nil {
+		return nil, err
 	}
 
 	contentType := contentEntity.ContentTypeRichText
@@ -134,15 +145,8 @@ func (s *categoryService) Update(ctx context.Context, adminID uint, id uint, req
 	// 分类编码可更新（API 文档：更新请求参数同创建）；变更时做唯一性校验（排除自身）。
 	// 并发写竞态由 DB 唯一索引兜底（若存在），与 Create 的校验语义一致。
 	if req.Code != nil && *req.Code != category.Code {
-		if *req.Code != "" {
-			exists, err := s.repo.ExistsByCode(ctx, *req.Code, id)
-			if err != nil {
-				slog.Error("ExistsByCode failed", "code", *req.Code, "err", err)
-				return nil, fmt.Errorf("repo.ExistsByCode: %w", err)
-			}
-			if exists {
-				return nil, errorx.New(errorx.CodeAlreadyExists, "分类编码已存在")
-			}
+		if err := s.ensureUniqueCode(ctx, *req.Code, id); err != nil {
+			return nil, err
 		}
 		category.Code = *req.Code
 	}

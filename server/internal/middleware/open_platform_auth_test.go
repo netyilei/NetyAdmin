@@ -10,19 +10,21 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestOpenPlatformAuth_RejectsOversizedBody 验证验签前的请求体上限：
-// 超过 maxSignedRequestBodyBytes 的请求在读取阶段即被拒绝（413），
+// TestOpenPlatformAuth_RejectsOversizedBody 验证全局 BodyLimit + 验签中间件的组合：
+// 超过 DefaultMaxRequestBodyBytes 的请求在读取阶段即被拒绝（413），
 // 不会进入签名校验或占用无界内存。
 func TestOpenPlatformAuth_RejectsOversizedBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	body := strings.NewReader(strings.Repeat("a", maxSignedRequestBodyBytes+1))
+	body := strings.NewReader(strings.Repeat("a", int(DefaultMaxRequestBodyBytes)+1))
 	req := httptest.NewRequest(http.MethodPost, "/client/v1/echo", body)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
+	// 与生产装配一致：全局 BodyLimit 先于 OpenPlatformAuth 执行。
 	// 超限在读取阶段返回，早于任何 service 调用，故依赖可传 nil。
+	BodyLimit(DefaultMaxRequestBodyBytes)(c)
 	OpenPlatformAuth(nil, nil, nil, nil)(c)
 
 	assert.Equal(t, http.StatusRequestEntityTooLarge, rec.Code)

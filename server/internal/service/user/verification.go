@@ -28,6 +28,25 @@ const (
 	SceneChangePhone   = "change_phone" // 手机变更验证码场景
 )
 
+// sceneSpec 描述一个验证码业务场景的配置来源。
+// 场景是否允许发送/校验、图形验证码开关键、消息验证配置键统一在此登记，
+// 避免 GetVerifyConfig / sceneCaptchaKey / 发送白名单三份 switch 各自漂移。
+type sceneSpec struct {
+	captchaConfigKey string // captcha_config 图形验证码开关；空 = 该场景不校验图形验证码
+	verifyEnabledKey string // user_config 消息验证开关；空 = 该场景不使用开关式验证配置
+	verifyTypeKey    string // user_config 消息验证类型（email/sms）
+}
+
+var sceneSpecs = map[string]sceneSpec{
+	SceneRegister:      {"user_register_enabled", "user_register_verify", "user_register_verify_type"},
+	SceneResetPassword: {"user_reset_pwd_captcha_enabled", "user_reset_pwd_verify", "user_reset_pwd_verify_type"},
+	SceneLogin:         {"user_login_enabled", "user_login_verify", "user_login_verify_type"},
+	// 资料变更场景由已认证用户主动触发，无场景级开关/图形验证码配置
+	SceneChangeEmail: {},
+	SceneChangePhone: {},
+	SceneBind:        {},
+}
+
 // VerifyConfig 验证配置响应
 type VerifyConfig struct {
 	Enabled    bool   `json:"enabled"`
@@ -73,27 +92,16 @@ func NewVerificationService(cacheSlow cache.SecurityCache, msgSvc msgSvc.Message
 }
 
 func (s *verificationService) GetVerifyConfig(ctx context.Context, scene string) (*VerifyConfig, error) {
-	config := &VerifyConfig{Scene: scene}
-
-	var enabledKey, typeKey string
-	switch scene {
-	case SceneRegister:
-		enabledKey = "user_register_verify"
-		typeKey = "user_register_verify_type"
-	case SceneResetPassword:
-		enabledKey = "user_reset_pwd_verify"
-		typeKey = "user_reset_pwd_verify_type"
-	case SceneLogin:
-		enabledKey = "user_login_verify"
-		typeKey = "user_login_verify_type"
-	default:
+	spec, ok := sceneSpecs[scene]
+	if !ok || spec.verifyEnabledKey == "" {
 		return nil, errorx.New(errorx.CodeInvalidParams, "不支持的业务场景")
 	}
+	config := &VerifyConfig{Scene: scene}
 
-	enabledVal, _ := s.watcher.GetConfig("user_config", enabledKey)
+	enabledVal, _ := s.watcher.GetConfig("user_config", spec.verifyEnabledKey)
 	config.Enabled = utils.IsTruthy(enabledVal)
 
-	typeVal, _ := s.watcher.GetConfig("user_config", typeKey)
+	typeVal, _ := s.watcher.GetConfig("user_config", spec.verifyTypeKey)
 	if typeVal == "" {
 		typeVal = "email" // 默认邮件
 	}
@@ -249,26 +257,13 @@ func (s *verificationService) generateCode(length int) (string, error) {
 	return string(result), nil
 }
 
+// sceneCaptchaKey 返回场景的图形验证码开关配置键；不支持或无配置时返回空串。
 func sceneCaptchaKey(scene string) string {
-	switch scene {
-	case SceneRegister:
-		return "user_register_enabled"
-	case SceneResetPassword:
-		return "user_reset_pwd_captcha_enabled"
-	case SceneLogin:
-		return "user_login_enabled"
-	default:
-		return ""
-	}
+	return sceneSpecs[scene].captchaConfigKey
 }
 
-// isSupportedScene 是验证码发送/校验允许的业务场景白名单。
-// 新增场景必须在 Scene* 常量与此处同步登记。
+// isSupportedScene 报告场景是否在注册表中（允许发送/校验验证码）。
 func isSupportedScene(scene string) bool {
-	switch scene {
-	case SceneRegister, SceneResetPassword, SceneLogin, SceneBind, SceneChangeEmail, SceneChangePhone:
-		return true
-	default:
-		return false
-	}
+	_, ok := sceneSpecs[scene]
+	return ok
 }

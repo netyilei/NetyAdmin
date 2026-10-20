@@ -286,6 +286,9 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	}
 
 	engine.Use(middleware.RequestID())
+	// 全局请求体上限：所有 handler（含公开路由）的 Body 读取都受此保护，
+	// 超限由入口自行转换（开放平台验签返回 413，其余绑定失败返回参数错误）
+	engine.Use(middleware.BodyLimit(middleware.DefaultMaxRequestBodyBytes))
 	engine.Use(middleware.CORS(cfg.CORS.AllowedOrigins))
 	engine.Use(middleware.SecurityHeaders(cfg.SecurityHeaders.CSP))
 	engine.Use(middleware.Recovery(services.errorLog))
