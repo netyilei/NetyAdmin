@@ -27,11 +27,13 @@ func NewAPIRateLimit(limiter *ratelimit.SlidingWindow, rules []config.APIRateLim
 	}
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
-		for _, rule := range rules {
+		for i, rule := range rules {
 			if !rulePathsMatch(rule.Paths, path) {
 				continue
 			}
-			if limiter.Allow(c.Request.Context(), ruleDimensionKey(c, rule), rule.Window.Duration(), rule.Max) {
+			// 规则作用域 + 维度键：同维度不同规则（window/max 相同的不同 paths）也隔离计数。
+			// SlidingWindow 内部还会拼入 window/max，双重保证不同参数的规则不共享 ZSET。
+			if limiter.Allow(c.Request.Context(), ruleScope(i, rule)+":"+ruleDimensionKey(c, rule), rule.Window.Duration(), rule.Max) {
 				continue
 			}
 			slog.Warn("api_ratelimit: request rejected",
@@ -42,6 +44,12 @@ func NewAPIRateLimit(limiter *ratelimit.SlidingWindow, rules []config.APIRateLim
 		}
 		c.Next()
 	}
+}
+
+// ruleScope 为每条规则生成稳定且唯一的计数作用域。
+// 配置序号保证唯一（重名/空名不碰撞），名称仅用于 Redis key 可读性。
+func ruleScope(index int, rule config.APIRateLimitRule) string {
+	return "r" + strconv.Itoa(index) + ":" + rule.Name
 }
 
 // rulePathsMatch 前缀匹配；空 Paths 匹配全部（规则作用于所挂路由组）。
