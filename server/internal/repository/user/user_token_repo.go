@@ -2,7 +2,6 @@ package user
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"gorm.io/gorm"
@@ -27,8 +26,8 @@ type UserTokenRepository interface {
 	// (user_id, platform) row WITHOUT bumping token_version. Used by RefreshToken
 	// to keep the session alive on the same device.
 	// PRECONDITION: the row must already exist (create it via UpsertAndIncrement).
-	// Returns gorm.ErrRecordNotFound (wrapped) when no row matches — a silent
-	// 0-row UPDATE would leave the session without a usable access hash.
+	// Returns gorm.ErrRecordNotFound when no row matches — a silent 0-row UPDATE
+	// would leave the session without a usable access hash.
 	UpdateAccessHash(ctx context.Context, userID, platform, accessHash string, accessExpiresAt time.Time) error
 	// UpdateHashes overwrites access_hash + refresh_hash + both expiries WITHOUT
 	// bumping token_version. Used by Login right after UpsertAndIncrement to
@@ -36,7 +35,7 @@ type UserTokenRepository interface {
 	// PRECONDITION: the (user_id, platform) row must already exist — call
 	// UpsertAndIncrement first. It is a plain UPDATE, not an upsert; a silent
 	// 0-row result would drop the hashes and break hash validation on restart.
-	// Returns gorm.ErrRecordNotFound (wrapped) when no row matches.
+	// Returns gorm.ErrRecordNotFound when no row matches.
 	UpdateHashes(ctx context.Context, userID, platform, accessHash, refreshHash string, accessExpiresAt, refreshExpiresAt time.Time) error
 	// ClearHashes clears access_hash + refresh_hash of the (user_id, platform) row
 	// on Logout so the next request fails tokenStore-independent hash validation.
@@ -97,7 +96,7 @@ func (r *userTokenRepository) UpdateAccessHash(ctx context.Context, userID, plat
 			"access_expires_at": accessExpiresAt,
 			"updated_at":        gorm.Expr("NOW()"),
 		})
-	return requireUpdatedRow("UpdateAccessHash", userID, platform, res)
+	return requireUpdatedRow(res)
 }
 
 func (r *userTokenRepository) UpdateHashes(ctx context.Context, userID, platform, accessHash, refreshHash string, accessExpiresAt, refreshExpiresAt time.Time) error {
@@ -110,21 +109,20 @@ func (r *userTokenRepository) UpdateHashes(ctx context.Context, userID, platform
 			"refresh_expires_at": refreshExpiresAt,
 			"updated_at":         gorm.Expr("NOW()"),
 		})
-	return requireUpdatedRow("UpdateHashes", userID, platform, res)
+	return requireUpdatedRow(res)
 }
 
 // requireUpdatedRow 要求 UPDATE 至少命中一行。
 //
 // 纯 UPDATE 命中 0 行不会返回错误，但数据也未写入——调用方会误以为
 // token hash 已落库（注册自动登录未建 user_tokens 行的事故根因）。
-// 统一包成 gorm.ErrRecordNotFound，便于调用方 errors.Is 判定并 fail-closed。
-func requireUpdatedRow(method, userID, platform string, res *gorm.DB) error {
+// 按 Repository 红线返回原始 GORM 错误，由 Service 层决定业务语义。
+func requireUpdatedRow(res *gorm.DB) error {
 	if res.Error != nil {
 		return res.Error
 	}
 	if res.RowsAffected == 0 {
-		return fmt.Errorf("%s: user_tokens row not found (user_id=%s, platform=%s): %w",
-			method, userID, platform, gorm.ErrRecordNotFound)
+		return gorm.ErrRecordNotFound
 	}
 	return nil
 }

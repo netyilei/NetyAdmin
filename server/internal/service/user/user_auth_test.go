@@ -326,16 +326,24 @@ func (m *mockUserTokenRepo) GetByPlatform(_ context.Context, userID, platform st
 }
 
 func (m *mockUserTokenRepo) UpdateAccessHash(_ context.Context, userID, platform, accessHash string, _ time.Time) error {
-	m.accessHash[m.key(userID, platform)] = accessHash
+	k := m.key(userID, platform)
+	if _, ok := m.versions[k]; !ok {
+		return gorm.ErrRecordNotFound // 与真实 repo 契约一致：纯 UPDATE 0 行必须报错
+	}
+	m.accessHash[k] = accessHash
 	return nil
 }
 
 func (m *mockUserTokenRepo) UpdateHashes(_ context.Context, userID, platform, accessHash, refreshHash string, _, _ time.Time) error {
+	k := m.key(userID, platform)
+	if _, ok := m.versions[k]; !ok {
+		return gorm.ErrRecordNotFound // 与真实 repo 契约一致：纯 UPDATE 0 行必须报错
+	}
 	if accessHash != "" {
-		m.accessHash[m.key(userID, platform)] = accessHash
+		m.accessHash[k] = accessHash
 	}
 	if refreshHash != "" {
-		m.refreshHash[m.key(userID, platform)] = refreshHash
+		m.refreshHash[k] = refreshHash
 	}
 	return nil
 }
@@ -645,6 +653,10 @@ func TestUserLogout_NoRefreshToken(t *testing.T) {
 
 // ============== RefreshToken 测试 ==============
 
+// TestUserRefreshToken_Success 覆盖两条刷新成功路径：
+//   - user_tokens 行不存在（旧基座签发的 token）→ 跳过端级校验，UpdateHashes
+//     返回 ErrRecordNotFound 也必须继续签发（升级兼容，不能被 fail-closed 误伤）；
+//   - 行存在（Login 后）→ refresh_hash 校验通过并回写新 hash。
 func TestUserRefreshToken_Success(t *testing.T) {
 	_ = hashedUserPassword(t)
 	svc, repo, cacheMgr, store, _, j := newTestUserClientService(t)

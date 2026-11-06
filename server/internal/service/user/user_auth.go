@@ -352,6 +352,10 @@ func (s *userClientService) RefreshToken(ctx context.Context, refreshToken strin
 		slog.Error("GetByPlatform user_tokens failed", "userID", user.ID, "platform", claims.Platform, "err", utErr)
 		return nil, errorx.New(errorx.CodeInternalError, "会话校验异常，请重新登录")
 	}
+	// 旧基座签发的 token 没有 user_tokens 行：上面已按兼容路径跳过端级校验，
+	// 下面的 hash 回写也必须允许"行不存在"继续签发（与升级前行为一致）。
+	// 行存在但回写失败（含并发删除）仍然 fail-closed。
+	legacyNoRow := errors.Is(utErr, gorm.ErrRecordNotFound)
 
 	newClaims := s.jwt.NewUserClaims(user.ID, claims.Platform, jwt.DefaultUserType, jwt.AccessToken, user.TokenVersion, claims.PlatTokenVersion)
 	token, err := s.jwt.GenerateToken(newClaims)
@@ -374,11 +378,18 @@ func (s *userClientService) RefreshToken(ctx context.Context, refreshToken strin
 	// 旧 access 由其自然过期或下次 Logout 清理，不影响其他设备。
 	// fail-closed：UpdateHashes 失败必须返错——否则客户端拿到新 token 但 DB 仍是旧 hash，
 	// 下次请求 middleware hash 校验必拒（新 token 立即不可用的静默失败）。
+	// 例外：旧 token 本就无 user_tokens 行（legacyNoRow），保持升级前的"跳过端级校验"语义，
+	// 继续签发新 token；待用户下次 Login 建行后再收紧。
 	if err := s.userTokenRepo.UpdateHashes(ctx, user.ID, claims.Platform,
 		authPkg.HashToken(token), authPkg.HashToken(newRefreshToken),
 		time.Unix(newClaims.ExpiresAt.Unix(), 0), time.Unix(newRefreshClaims.ExpiresAt.Unix(), 0)); err != nil {
-		slog.Error("UpdateHashes on refresh failed", "userID", user.ID, "platform", claims.Platform, "err", err)
-		return nil, errorx.New(errorx.CodeInternalError, "令牌存储失败")
+		if legacyNoRow && errors.Is(err, gorm.ErrRecordNotFound) {
+			slog.Warn("UpdateHashes on refresh: user_tokens row missing for legacy token, session continues without platform row",
+				"userID", user.ID, "platform", claims.Platform)
+		} else {
+			slog.Error("UpdateHashes on refresh failed", "userID", user.ID, "platform", claims.Platform, "err", err)
+			return nil, errorx.New(errorx.CodeInternalError, "令牌存储失败")
+		}
 	}
 
 	return &userVO.UserLoginVO{
