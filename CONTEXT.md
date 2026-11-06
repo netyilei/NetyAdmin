@@ -31,7 +31,7 @@
 - **持有者**：token_store、verification、admin_auth、user_auth、pkg/auth/session 等安全类服务
 - **铁律**：持有此接口的服务只能操作 L2 (Redis)，数据永不进入 L1 (BigCache)
 - **失效**：Redis 删除一次即对整个集群立即生效，无 PubSub 窗口期
-- **方法**：Fetch、Set、Get、Delete、Exists、SetNX、Incr、InvalidateByTags、IsCacheEnabled
+- **方法**：Fetch、Set、Get、Delete、Exists、SetNX、GetAndDelete、Incr、InvalidateByTags、IsCacheEnabled
 
 ### CacheLifecycle（缓存生命周期接口）
 

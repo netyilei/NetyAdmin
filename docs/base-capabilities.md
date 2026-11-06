@@ -23,14 +23,15 @@
 | 日志保留期治理 | `internal/job/system_log_cleanup.go` + sys_configs `retention_days` | **开箱即生效**：每天 02:00 清理操作/错误/任务/消息记录/开放平台五类日志，保留期种子默认 30 天（0038，ops_config/error_config/task_config/msg_record_config/open_platform_config 五组可调）。upload_record 仅标记 expired 不删除（业务语义保留） |
 | endpoint 解析与 URL 构造 | `pkg/storage.ParseEndpoint` / `BuildPublicURL(domain, endpoint, bucket, key, style)` | 含协议剥离、path/virtual-host 寻址风格（`AddressingStyleFor(provider)` 为唯一决策点） |
 | MIME 推断 | `pkg/storage.MimeTypeByExt(fileName)` | 上传凭证的 contentType 一律服务端推断 |
-| 缓存 | `pkg/cache`：FetchFast（L1+L2）/ SetNX（原子占位）/ **GetAndDelete**（GETDEL 原子消费）/ InvalidateByTags（跨节点失效） | 一次性凭证消费、防重放、tag 失效均有现成原语 |
-| 验证码原子消费 | `service/user` 的 `VerifyAndClearCode` | GETDEL + 5 次错误上限 + 故障 fail-closed，直接用 |
+| 缓存 | `pkg/cache`：FetchFast（L1+L2）/ SetNX（原子占位）/ **GetAndDelete**（Lua GET+DEL 原子消费，兼容 Redis 6.0）/ InvalidateByTags（跨节点失效） | 一次性凭证消费、防重放、tag 失效均有现成原语 |
+| 验证码原子消费 | `service/user` 的 `VerifyAndClearCode` | 原子取出 + 5 次错误上限 + 故障 fail-closed，直接用 |
+| 动态配置热读 | `App.ConfigWatcher()`（`configsync.ConfigWatcher`） | 下游模块读取 sys_configs 统一走 watcher（缓存 + 变更刷新），勿直读 DB |
 | 登录锁定 | `pkg/auth.HandlePasswordWrong` / `ClearLoginRetry` | 计数、锁定、Redis 故障 fail-closed 语义齐备 |
 | refresh 轮换抢占/登出拉黑 | `pkg/auth.ClaimRefreshRotation`（fail-closed）/ `BlacklistRefresh`（best-effort） | admin/user 两端共享，勿再内联 SetNX/Set 黑名单块 |
 | 用户唯一性预检 | `userBase.checkUserUnique`（service/user） | Register 与 admin Create 共享；DB 唯一索引兜底 |
 | 布尔配置解析 | `pkg/utils.IsTruthy(s)` | "true"/"1" 唯一定义（configsync 内部变体因循环依赖保留） |
 | int 配置读取 | `pkg/utils.GetIntWithDefault` / 无 watcher 版 | 勿再手写 Atoi+默认值 |
-| 通用 API 限流 | `[api_ratelimit].rules`（config.yaml）+ `pkg/ratelimit.SlidingWindow` + `middleware.NewAPIRateLimit` | 三维度（ip/user_id/claim）、ZSET 滑动窗口、空配置不启用、Redis 故障 fail-open；挂在 admin/client 认证路由组 |
+| 通用 API 限流 | `[api_ratelimit].rules`（config.yaml）+ `pkg/ratelimit.SlidingWindow` + `middleware.NewAPIRateLimit` | 三维度（ip/user_id/claim）、ZSET 滑动窗口、**规则间计数隔离**（key 含规则作用域+窗口+阈值）、空配置不启用、Redis 故障 fail-open；挂在 admin/client 认证路由组 |
 | 直传完成事件 | PubSub 订阅 `storage.uploaded` / `storage.expired`（pkg/pubsub/topics.go） | 事件源为已验签的 CompleteUpload，天然可信；下游做缩略图/审核/业务确认勿用客户端自报绕过验签链 |
 | 日志分批删除 | `database.DeleteBatchBefore(ctx, db, table, before, batch)` | 日志类表清理统一走分批（避免长事务），勿再写一次性大 DELETE |
 

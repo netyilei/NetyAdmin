@@ -82,23 +82,28 @@ type ConfigCache interface {
 }
 ```
 
-#### SecurityCache（9 方法，L2 only）
+#### SecurityCache（10 方法，L2 only）
 
 用于 **安全/一次性数据**（验证码、Nonce 防重放、登录锁定、Token 黑名单等），仅走 L2 (Redis)，不需要 L1 加速：
 
 ```go
 type SecurityCache interface {
     Fetch(ctx context.Context, key string, moduleName string, tags []string, ttl time.Duration, v interface{}, loader func() (interface{}, error)) error
-    Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
+    Set(ctx context.Context, key string, value interface{}, ttl time.Duration, tags ...string) error
     Get(ctx context.Context, key string, v interface{}) error
     Delete(ctx context.Context, key string) error
     Exists(ctx context.Context, key string) (bool, error)
     SetNX(ctx context.Context, key string, value interface{}, ttl time.Duration) (bool, error)
-    Incr(ctx context.Context, key string) (int64, error)
+    GetAndDelete(ctx context.Context, key string, v interface{}) error
+    Incr(ctx context.Context, key string, ttl time.Duration) (int64, error)
     InvalidateByTags(ctx context.Context, tags ...string) error
-    IsCacheEnabled(ctx context.Context, moduleName string) bool
+    IsCacheEnabled(moduleName string) bool
 }
 ```
+
+> `GetAndDelete` 用 Lua（GET + DEL 同脚本）保证原子消费，兼容 Redis 6.0；
+> `Incr` 用单条 Lua 完成 INCR + TTL 补挂（PTTL < 0 才 PEXPIRE），不存在
+> 「计数已递增但 key 无 TTL 永久残留」的中间态。
 
 #### CacheLifecycle（2 方法，Wire 装配专用）
 
@@ -138,7 +143,8 @@ type CacheLifecycle interface {
 | `Delete` | SecurityCache | — | L2 | 标准删除 |
 | `Exists` | SecurityCache | L2 | — | 检查 Key 是否存在 |
 | `SetNX` | SecurityCache | — | Redis 原子操作 | Nonce 防重放等场景 |
-| `Incr` | SecurityCache | — | Redis 原子操作 | 计数器（如登录重试次数） |
+| `GetAndDelete` | SecurityCache | L2 | Redis 原子操作 | 一次性凭证消费（Lua GET+DEL，兼容 Redis 6.0） |
+| `Incr` | SecurityCache | — | Redis 原子操作 | 计数器（如登录重试次数）；Lua INCR + 缺失 TTL 补挂 |
 | `SetEventBus` | CacheLifecycle | — | — | 注入 PubSubBus 实例 |
 | `InvalidateL1ByTags` | CacheLifecycle | — | L1 only | 仅失效本地 L1（PubSub 订阅者调用） |
 
@@ -506,7 +512,7 @@ const (
 ```
 需要极致速度？（每次 HTTP 请求都要校验）
   ├─ 是 → 使用 ConfigCache (cacheFast)：FetchFast / SetFast / GetFast / DeleteFast
-  └─ 否（安全/一次性数据） → 使用 SecurityCache (cacheSlow)：Fetch / Set / Get / Delete / SetNX / Incr
+  └─ 否（安全/一次性数据） → 使用 SecurityCache (cacheSlow)：Fetch / Set / Get / Delete / SetNX / GetAndDelete / Incr
 ```
 
 ### 8.2 典型场景
@@ -591,7 +597,7 @@ if err != nil || !set {
 | 模块 | 文件 | 字段名 | 使用的方法 |
 |------|------|--------|-----------|
 | 验证码 | `pkg/captcha/store.go` | `cacheSlow` | Set, Get, Delete |
-| 用户验证 | `service/user/verification.go` | `cacheSlow` | Set, Get, Delete, Exists |
+| 用户验证 | `service/user/verification.go` | `cacheSlow` | Set, Get, Delete, Exists, GetAndDelete |
 | 用户认证 | `service/user/user_auth.go` | `cacheSlow` | Set, Get, Delete, Exists, Incr |
 | 用户管理 | `service/user/user_admin.go` | `cacheSlow` | Set, Delete, Exists |
 | Token 存储 | `service/user/token_store.go` | `cacheSlow` | Set, Get, Delete, Exists |
