@@ -201,7 +201,7 @@ func (s *verificationService) SendCode(ctx context.Context, scene, target, captc
 
 // VerifyAndClearCode 原子校验并消费验证码（一次性语义）。
 //
-// 用 GetAndDelete（Lua GET+DEL）原子"取出+比对"替代原 Verify→Delete 两步：两步之间并发请求
+// 用 GetAndDelete（原生 GETDEL）原子"取出+比对"替代原 Verify→Delete 两步：两步之间并发请求
 // 可用同一验证码各通过一次。错误尝试仍保留 VerifyCode 的计数语义
 // （5 次上限），校验失败时回写验证码以维持多次尝试窗口。
 func (s *verificationService) VerifyAndClearCode(ctx context.Context, scene, target, code string) (bool, error) {

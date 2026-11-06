@@ -26,17 +26,8 @@ var (
 	ErrCacheDisabled = errors.New("cache disabled for module")
 )
 
-// getAndDeleteScript 以 Lua 实现「取值并删除」的原子消费，等价于 Redis 6.2+ 的 GETDEL。
-// 基座支持矩阵是 Redis >= 6.0（README / DEPLOYMENT），不能直接依赖 GETDEL；
-// Lua 脚本自 Redis 2.6 起可用，且 GET+DEL 在同一脚本内执行，无并发复用窗口。
-var getAndDeleteScript = redis.NewScript(`
-local v = redis.call('GET', KEYS[1])
-if not v then
-	return false
-end
-redis.call('DEL', KEYS[1])
-return v
-`)
+// 基座支持矩阵是 Redis >= 8.1（README / DEPLOYMENT），直接使用原生 GETDEL 单命令
+// （Redis 6.2+），一次往返完成取值+删除，优于 Lua 脚本（免脚本加载/SHA 校验开销）。
 
 // incrWithTTLScript 原子完成 INCR + TTL 补挂。
 //
@@ -44,8 +35,9 @@ return v
 // key 无 TTL，会永久残留——登录重试等场景会在下一个窗口直接触发上限。
 // 这里在脚本内判定 PTTL < 0（无 TTL）才补挂：首次自增必挂，历史遗留的无 TTL
 // 计数 key 也会在下一次自增时被修复；已有 TTL 的 key 不续期（与原语义一致）。
-// 字面 EXPIRE NX 需要 Redis >= 7.0，超出基座 6.0 支持矩阵——PTTL 守卫是其
-// 等价实现（仅在缺 TTL 时补挂、绝不续期），勿"修回"字面 NX。
+// 说明：EXPIRE NX（Redis 7.0+）虽是 TTL 语义的单命令，但 INCR 与 EXPIRE NX
+// 分两条命令执行仍有窗口——INCR 后连接断开则计数无 TTL 永久残留（正是本修复
+// 要根除的缺陷）。Lua 单脚本保证"计数与 TTL 同生命周期"，故保留。
 var incrWithTTLScript = redis.NewScript(`
 local v = redis.call('INCR', KEYS[1])
 if ARGV[1] ~= '0' and redis.call('PTTL', KEYS[1]) < 0 then
@@ -122,7 +114,7 @@ type SecurityCache interface {
 	// 用于 Nonce 防重放等需要原子占位的场景
 	SetNX(ctx context.Context, key string, value interface{}, ttl time.Duration) (bool, error)
 
-	// GetAndDelete 原子读取并删除（Lua GET+DEL，兼容 Redis 6.0；本地降级模式为 Get+Delete 两步）
+	// GetAndDelete 原子读取并删除（原生 GETDEL 单命令，Redis 6.2+；本地降级模式为 Get+Delete 两步）
 	// 用于一次性凭证（如验证码）的原子消费，消除"校验→删除"两步间的并发复用窗口
 	GetAndDelete(ctx context.Context, key string, v interface{}) error
 
@@ -327,19 +319,19 @@ func (m *LazyCacheManager) SetNX(ctx context.Context, key string, value interfac
 
 // GetAndDelete 原子读取并删除（模式B，绝不碰 L1）。
 //
-// Redis 模式用 Lua（GET + DEL 同脚本）原子完成，兼容 Redis 6.0；
-// 不使用 GETDEL（要求 Redis >= 6.2，超出基座支持矩阵）。
+// Redis 模式用原生 GETDEL 单命令原子完成（Redis 6.2+，基座 8.1 支持矩阵内），
+// 一次往返，免 Lua 脚本的加载与解释开销。
 // 本地降级模式退化为 Get+Delete 两步（仅单进程场景，竞态窗口可忽略）。
 // key 不存在时返回错误（redis.Nil 语义），调用方据此判定"凭证不存在/已消费"。
 func (m *LazyCacheManager) GetAndDelete(ctx context.Context, key string, v interface{}) error {
 	fullKey := m.buildKey(key)
 
 	if m.redisClient != nil {
-		raw, err := getAndDeleteScript.Run(ctx, m.redisClient, []string{fullKey}).Text()
+		data, err := m.redisClient.GetDel(ctx, fullKey).Bytes()
 		if err != nil {
 			return err
 		}
-		return m.unmarshal([]byte(raw), v)
+		return m.unmarshal(data, v)
 	}
 
 	// 本地降级：Get 原始值 → Delete（两步，仅单进程场景，竞态窗口可忽略）。

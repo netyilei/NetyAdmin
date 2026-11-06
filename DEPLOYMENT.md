@@ -10,7 +10,7 @@
 *   **Node.js**: 20.x 或更高版本
 *   **pnpm**: 8.x 或更高版本 (推荐使用 `npm install -g pnpm` 安装)
 *   **PostgreSQL**: 12 或更高版本
-*   **Redis**: 6 或更高版本
+*   **Redis**: 8.1 或更高版本
 *   **Git**: 用于克隆项目代码
 
 ## 2. 后端部署 (`server`)

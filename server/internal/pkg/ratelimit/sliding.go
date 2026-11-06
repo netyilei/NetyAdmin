@@ -44,6 +44,10 @@ return count
 `)
 
 // counterKey 是计数 ZSET key 的唯一构造点：prefix + 维度键 + 窗口 + 阈值。
+//
+// Lua 保留理由（Redis 8.1 基线下亦无单命令等价物）：清窗→计数→记录→续期是
+// 四步复合序列，必须原子（见上方运行时实测注释）；流水线（pipeline）不满足——
+// 中间结果 count 需要参与放行判定且后续命令依赖同一时刻的视图。
 // 同一维度键可能被多条规则共用，只按维度键共享 ZSET 会让不同窗口/阈值的
 // 规则互相污染计数，且短窗口规则的 PEXPIRE 会把长窗口计数一并缩短。
 func counterKey(prefix, key string, window time.Duration, max int64) string {

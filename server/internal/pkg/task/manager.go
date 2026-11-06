@@ -21,6 +21,8 @@ import (
 )
 
 // taskLockReleaseScript 原子比对 token 后删除锁，避免误删其他实例的锁。
+// Redis 8.1+ 可用原生比较删除（GET 与 DEL 单脚本内完成比较+删除，语义等价）；
+// 保留 Lua：token 比较必须与删除原子（GET→比较→DEL 分离则有窗口误删）。
 // KEYS[1] = lockKey, ARGV[1] = lockToken
 var taskLockReleaseScript = redis.NewScript(`
 if redis.call("GET", KEYS[1]) == ARGV[1] then
@@ -31,6 +33,7 @@ end
 `)
 
 // taskLockRenewScript 原子比对 token 后续期，确保仅锁持有者能续期。
+// Lua 保留理由同上：比较与续期必须原子，无单命令等价物。
 // KEYS[1] = lockKey, ARGV[1] = lockToken, ARGV[2] = TTL seconds
 var taskLockRenewScript = redis.NewScript(`
 if redis.call("GET", KEYS[1]) == ARGV[1] then

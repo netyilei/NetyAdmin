@@ -41,7 +41,7 @@ func clearRuntimeKeys(t *testing.T, client *redis.Client, ctx context.Context, p
 	}
 }
 
-// TestGetAndDeleteRuntime 真 Redis 验证 Lua GET+DEL（Redis 6.0 兼容路径）：
+// TestGetAndDeleteRuntime 真 Redis 验证原生 GETDEL 单命令原子消费：
 // 缺失返回 redis.Nil、命中原子取出并删除、并发消费恰好一个成功。
 func TestGetAndDeleteRuntime(t *testing.T) {
 	mgr, client, prefix := newRuntimeManager(t)

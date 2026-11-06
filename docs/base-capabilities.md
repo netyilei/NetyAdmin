@@ -23,7 +23,7 @@
 | 日志保留期治理 | `internal/job/system_log_cleanup.go` + sys_configs `retention_days` | **开箱即生效**：每天 02:00 清理操作/错误/任务/消息记录/开放平台五类日志，保留期种子默认 30 天（0038，ops_config/error_config/task_config/msg_record_config/open_platform_config 五组可调）。upload_record 仅标记 expired 不删除（业务语义保留） |
 | endpoint 解析与 URL 构造 | `pkg/storage.ParseEndpoint` / `BuildPublicURL(domain, endpoint, bucket, key, style)` | 含协议剥离、path/virtual-host 寻址风格（`AddressingStyleFor(provider)` 为唯一决策点） |
 | MIME 推断 | `pkg/storage.MimeTypeByExt(fileName)` | 上传凭证的 contentType 一律服务端推断 |
-| 缓存 | `pkg/cache`：FetchFast（L1+L2）/ SetNX（原子占位）/ **GetAndDelete**（Lua GET+DEL 原子消费，兼容 Redis 6.0）/ InvalidateByTags（跨节点失效） | 一次性凭证消费、防重放、tag 失效均有现成原语 |
+| 缓存 | `pkg/cache`：FetchFast（L1+L2）/ SetNX（原子占位）/ **GetAndDelete**（原生 GETDEL 单命令原子消费，要求 Redis 8.1+）/ InvalidateByTags（跨节点失效） | 一次性凭证消费、防重放、tag 失效均有现成原语 |
 | 验证码原子消费 | `service/user` 的 `VerifyAndClearCode` | 原子取出 + 5 次错误上限 + 故障 fail-closed，直接用 |
 | 动态配置热读 | `App.ConfigWatcher()`（`configsync.ConfigWatcher`） | 下游模块读取 sys_configs 统一走 watcher（缓存 + 变更刷新），勿直读 DB |
 | 登录锁定 | `pkg/auth.HandlePasswordWrong` / `ClearLoginRetry` | 计数、锁定、Redis 故障 fail-closed 语义齐备 |

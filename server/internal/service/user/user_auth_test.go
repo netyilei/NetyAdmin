@@ -135,7 +135,7 @@ func (m *mockUserCacheMgr) SetNX(_ context.Context, key string, value interface{
 	return true, nil
 }
 
-// GetAndDelete 与真实实现（Lua GET+DEL）同语义：原子取出并删除，key 不存在返回 redis.Nil
+// GetAndDelete 与真实实现（原生 GETDEL）同语义：原子取出并删除，key 不存在返回 redis.Nil
 // （真实实现本地降级路径已统一映射 redis.Nil，mock 保持同契约）
 func (m *mockUserCacheMgr) GetAndDelete(_ context.Context, key string, v interface{}) error {
 	m.mu.Lock()

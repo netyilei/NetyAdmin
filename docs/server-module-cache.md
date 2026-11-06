@@ -101,7 +101,7 @@ type SecurityCache interface {
 }
 ```
 
-> `GetAndDelete` 用 Lua（GET + DEL 同脚本）保证原子消费，兼容 Redis 6.0；
+> `GetAndDelete` 用原生 GETDEL 单命令保证原子消费（Redis 6.2+，基座支持矩阵 8.1+），单次往返免 Lua 开销；
 > `Incr` 用单条 Lua 完成 INCR + TTL 补挂（PTTL < 0 才 PEXPIRE），不存在
 > 「计数已递增但 key 无 TTL 永久残留」的中间态。
 
@@ -143,7 +143,7 @@ type CacheLifecycle interface {
 | `Delete` | SecurityCache | — | L2 | 标准删除 |
 | `Exists` | SecurityCache | L2 | — | 检查 Key 是否存在 |
 | `SetNX` | SecurityCache | — | Redis 原子操作 | Nonce 防重放等场景 |
-| `GetAndDelete` | SecurityCache | L2 | Redis 原子操作 | 一次性凭证消费（Lua GET+DEL，兼容 Redis 6.0） |
+| `GetAndDelete` | SecurityCache | L2 | Redis 原子操作 | 一次性凭证消费（原生 GETDEL 单命令） |
 | `Incr` | SecurityCache | — | Redis 原子操作 | 计数器（如登录重试次数）；Lua INCR + 缺失 TTL 补挂 |
 | `SetEventBus` | CacheLifecycle | — | — | 注入 PubSubBus 实例 |
 | `InvalidateL1ByTags` | CacheLifecycle | — | L1 only | 仅失效本地 L1（PubSub 订阅者调用） |
