@@ -17,6 +17,7 @@ import (
 	"NetyAdmin/internal/config"
 	"NetyAdmin/internal/middleware"
 	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/database"
 	jwtPkg "NetyAdmin/internal/pkg/jwt"
 	"NetyAdmin/internal/pkg/pubsub"
@@ -95,10 +96,11 @@ type App struct {
 
 	// Infrastructure — exposed via getters for downstream service construction
 	// (repos, caches, message service, etc.) via App.DB() / App.CacheMgr() / ...
-	redisClient  *redis.Client
-	cacheMgr     *cache.LazyCacheManager
-	userTokenRep userRepoPkg.UserTokenRepository
-	messageSvc   msgService.MessageService
+	redisClient   *redis.Client
+	cacheMgr      *cache.LazyCacheManager
+	userTokenRep  userRepoPkg.UserTokenRepository
+	messageSvc    msgService.MessageService
+	configWatcher configsync.ConfigWatcher
 }
 
 func NewApp(
@@ -126,6 +128,7 @@ func NewApp(
 	cacheMgr *cache.LazyCacheManager,
 	userTokenRep userRepoPkg.UserTokenRepository,
 	messageSvc msgService.MessageService,
+	configWatcher configsync.ConfigWatcher,
 ) *App {
 	return &App{
 		cfg:              cfg,
@@ -150,6 +153,7 @@ func NewApp(
 		cacheMgr:         cacheMgr,
 		userTokenRep:     userTokenRep,
 		messageSvc:       messageSvc,
+		configWatcher:    configWatcher,
 		routerDeps: RouterDeps{
 			AuthMiddleware:   authMW,
 			OpenPlatformAuth: openPlatformAuth,
@@ -223,6 +227,13 @@ func (a *App) UserTokenRepository() userRepoPkg.UserTokenRepository { return a.u
 // MessageService returns the unified message service (SMS/Email/Internal)
 // for downstream notification features (e.g., admin push notifications).
 func (a *App) MessageService() msgService.MessageService { return a.messageSvc }
+
+// ConfigWatcher returns the hot-reload config watcher (sys_configs snapshot).
+//
+// 下游模块读取动态配置（如验证码长度、短信尝试次数、业务开关）时应使用本
+// getter，而不是每次直读 sys_configs：ConfigWatcher 由基座统一缓存并在
+// 配置变更时刷新，与基座登录参数等配置的即时生效体验一致。
+func (a *App) ConfigWatcher() configsync.ConfigWatcher { return a.configWatcher }
 
 func (a *App) Run() error {
 	a.started = true // 标记已启动，RegisterModule 此后调用会 panic（路由不可变更）
