@@ -350,7 +350,7 @@ NetyAdmin 使用 `TransactionManager`（TM）统一管理数据库事务。TM �
 | **Repository 不返回业务错误** | 禁止 `errorx.New(...)`，只返回原始 GORM 错误（如 `gorm.ErrRecordNotFound`）；业务错误码映射（`CodeNotFound`/`CodeInternalError` 等）由 Service 层通过 `errors.Is(err, gorm.ErrRecordNotFound)` 完成 |
 | **多步写操作必须用 TM** | 两个以上 repo 调用必须用 `tm.Begin → tm.Commit/Rollback` |
 | **所有 repo 调用传 txCtx** | 事务内的 repo 调用必须用 `txCtx`（Begin 返回的 context），不是原始 `ctx` |
-| **缓存失效在 Commit 之后** | 缓存失效 / 事件发布必须在 `tm.Commit()` 成功之后执行 |
+| **缓存失效在 Commit 之后** | 缓存失效 / 事件发布必须在 `tm.Commit()` 成功之后执行。事务内写入的失效用 `database.OnCommit(txCtx, fn)` 注册（Commit 成功后按序执行，Rollback/失败丢弃；无事务 ctx 立即执行）；闭包式 `WithTransaction` 则在返回 nil 后用原始 ctx 执行 |
 | **Redis 处理在事务前** | `clearLoginLockCache` 等 Redis 操作在事务前调用，不进事务 |
 | **fail-closed** | 失败直接 return error，不尝试补偿 |
 

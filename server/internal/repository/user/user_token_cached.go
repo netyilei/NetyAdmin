@@ -7,6 +7,7 @@ import (
 
 	"NetyAdmin/internal/domain/entity/user"
 	"NetyAdmin/internal/pkg/cache"
+	"NetyAdmin/internal/pkg/database"
 )
 
 // cachedUserTokenRepository wraps a UserTokenRepository with an L2 (Redis) cache layer.
@@ -26,14 +27,19 @@ import (
 //     (login kick-in: same platform re-login).
 //
 // Invalidation contract: every write path (UpsertAndIncrement / UpdateHashes /
-// ClearHashes / DeleteExpired) invalidates the affected entries. TTL is the safety net
+// UpdateAccessHash / ClearHashes / DeleteExpired) invalidates the affected entries,
+// deferred to transaction commit via database.OnCommit (see below). TTL is the safety net
 // for PubSub cross-node invalidation lag (typically <100ms, TTL bounds worst case).
 //
-// Known TTL-bounded races (accepted, documented for maintainers):
-//   - Read-revive: a concurrent Get may load the OLD row, miss the write's
-//     invalidation, and back-fill the stale value — stale for up to the 30s TTL
-//     (e.g. a logged-out token could pass hash check for ≤30s). Writes win on
-//     the DB path; the middleware's version checks bound the impact.
+// Known races (documented for maintainers):
+//   - Read-revive: ELIMINATED for transactional writes — invalidation is registered
+//     via database.OnCommit and runs AFTER tm.Commit succeeds, so a concurrent
+//     Get can no longer back-fill the pre-commit (old) row over the fresh state.
+//     Residual window = commit→invalidate execution time (microseconds, same
+//     goroutine). For non-transactional writes (Refresh/Logout) invalidation runs
+//     inline after the UPDATE as before.
+//   - Invalidate failure: logged (slog.Error) and bounded by the 30s TTL — same
+//     as before; OnCommit hooks must swallow errors, never panic.
 //   - Rolling deploy: cache entries written by pre-entry-struct code lack the
 //     hash fields, deserialize as empty strings, and fail the fail-closed hash
 //     check until they expire (≤30s) — self-healing, no action needed.
@@ -65,6 +71,17 @@ func (r *cachedUserTokenRepository) invalidatePlatform(ctx context.Context, user
 		// 缓存失效失败不阻断主流程——TTL 兜底（30s 后自然过期），但记录错误便于排查。
 		slog.Error("invalidate user_tokens cache failed", "userID", userID, "platform", platform, "tags", tags, "err", err)
 	}
+}
+
+// invalidatePlatformAfterCommit 在「写生效点」注册平台缓存失效：
+//   - 事务路径（Login 的 UpsertAndIncrement / UpdateHashes）→ 推迟到 tm.Commit
+//     成功后执行，根除「commit 前失效被并发回源旧值回填、压制新会话 ≤30s」
+//     的 read-revive 窗口（§5.2 红线：缓存失效必须在 Commit 之后）；
+//   - 非事务路径（Refresh / Logout）→ 立即失效，行为与原实现一致。
+func (r *cachedUserTokenRepository) invalidatePlatformAfterCommit(ctx context.Context, userID, platform string) {
+	database.OnCommit(ctx, func() {
+		r.invalidatePlatform(context.WithoutCancel(ctx), userID, platform)
+	})
 }
 
 func (r *cachedUserTokenRepository) invalidateUser(ctx context.Context, userID string) {
@@ -120,7 +137,7 @@ func (r *cachedUserTokenRepository) UpsertAndIncrement(ctx context.Context, t *u
 	}
 	// 顶号场景：同 platform 重新登录，旧会话缓存必须立即失效。
 	// 仅失效当前 platform（跨 platform 不受影响），同时带 user 级 tag 保持一致。
-	r.invalidatePlatform(ctx, t.UserID, t.Platform)
+	r.invalidatePlatformAfterCommit(ctx, t.UserID, t.Platform)
 	return v, nil
 }
 
@@ -152,7 +169,7 @@ func (r *cachedUserTokenRepository) UpdateAccessHash(ctx context.Context, userID
 	if err := r.inner.UpdateAccessHash(ctx, userID, platform, expectedTokenVersion, accessHash, accessExpiresAt); err != nil {
 		return err
 	}
-	r.invalidatePlatform(ctx, userID, platform)
+	r.invalidatePlatformAfterCommit(ctx, userID, platform)
 	return nil
 }
 
@@ -160,7 +177,7 @@ func (r *cachedUserTokenRepository) UpdateHashes(ctx context.Context, userID, pl
 	if err := r.inner.UpdateHashes(ctx, userID, platform, in); err != nil {
 		return err
 	}
-	r.invalidatePlatform(ctx, userID, platform)
+	r.invalidatePlatformAfterCommit(ctx, userID, platform)
 	return nil
 }
 
@@ -168,7 +185,7 @@ func (r *cachedUserTokenRepository) ClearHashes(ctx context.Context, userID, pla
 	if err := r.inner.ClearHashes(ctx, userID, platform, expectedAccessHash); err != nil {
 		return err
 	}
-	r.invalidatePlatform(ctx, userID, platform)
+	r.invalidatePlatformAfterCommit(ctx, userID, platform)
 	return nil
 }
 

@@ -26,12 +26,40 @@ var TxKey txKeyType
 // Tx 封装一次数据库事务句柄。
 //
 // 字段仅在同包内可见：Service 层通过 TransactionManager 的方法操作 *Tx，
-// 不直接读写其字段；Repository 层通过 GetDB(ctx, fallback) 间接取到 *gorm.DB。
+// 不直接读写其字段；Repository 层通过 GetDB(ctx, fallback) 间接取到 *gorm.DB，
+// 副作用（缓存失效等）通过包级 OnCommit(ctx, fn) 注册。
 //
 // NOT safe for concurrent use. Expected to be used by a single goroutine per transaction.
 type Tx struct {
 	// DB 是 GORM 事务句柄（由 tm.db.WithContext(ctx).Begin() 得到）。
 	DB *gorm.DB
+	// onCommit 是「提交成功后」按序执行的副作用队列（缓存失效、事件发布等），
+	// 由包级 OnCommit(ctx, fn) 注册；Rollback / Commit 失败时整体丢弃。
+	onCommit []func()
+}
+
+// OnCommit 注册「事务提交成功后」执行的副作用（缓存失效、事件发布等）。
+//
+// 这是 docs/server-architecture.md §5.2 红线「缓存失效在 Commit 之后」的
+// 基础设施实现：Repository / 缓存包装层在事务内写入时用它注册失效动作，
+// 事务提交成功后按注册顺序执行；Rollback 或 Commit 失败时整体丢弃
+// （DB 未生效，失效也不应发生）。
+//
+// 行为：
+//   - ctx 携带事务（Begin 返回的 txCtx）→ 挂到该事务，Commit 成功后执行；
+//   - ctx 无事务（非事务写路径）→ 立即执行（写入已即时生效，等效于"已提交"）。
+//
+// fn 自身不得 panic：缓存失效实现必须自吞错误（记日志 + TTL 兜底），
+// 否则 Commit 阶段的 panic 会把已提交的事务变成"业务成功但客户端收到 500"。
+// TxManager 的 mock 实现（ctx 不携带 *Tx）天然走"立即执行"分支，
+// 单元测试中失效语义与原行为一致。
+func OnCommit(ctx context.Context, fn func()) {
+	tx, ok := ctx.Value(TxKey).(*Tx)
+	if !ok || tx == nil {
+		fn()
+		return
+	}
+	tx.onCommit = append(tx.onCommit, fn)
 }
 
 // TransactionManager 事务管理器：可作为单例在应用生命周期内复用。
@@ -91,22 +119,30 @@ func (tm *TransactionManager) Begin(ctx context.Context) (context.Context, *Tx) 
 // Commit 提交事务。
 //
 // 返回提交时的 error：调用方据此决定是否上抛业务错误。
-// 提交后需要执行的副作用（如缓存失效）应由调用方在 Commit 成功后自行处理，
-// 这样可以保证「DB 已提交 → 缓存失效」的顺序，避免「缓存已清但 DB 回滚」中间态。
+// 提交成功后按注册顺序执行 OnCommit 注册的副作用（缓存失效等）——
+// 保证「DB 已提交 → 缓存失效」的顺序；提交失败或 Rollback 时副作用整体丢弃。
 // 无论提交成功或失败都会递减活跃事务计数器（事务已结束）。
 func (tm *TransactionManager) Commit(tx *Tx) error {
 	err := tx.DB.Commit().Error
 	tm.activeTxCount.Add(-1)
+	if err == nil {
+		for _, fn := range tx.onCommit {
+			fn()
+		}
+	}
+	tx.onCommit = nil
 	return err
 }
 
 // Rollback 回滚事务。无返回值：调用方通常在错误路径上调用，
 // 失败仅以 slog.Warn 记录（如重复提交/回滚导致的 sql.ErrTxDone），不向上传播。
+// OnCommit 注册的副作用整体丢弃（DB 未生效，失效也不应发生）。
 // 无论回滚成功或失败都会递减活跃事务计数器（事务已结束）。
 func (tm *TransactionManager) Rollback(tx *Tx) {
 	if err := tx.DB.Rollback().Error; err != nil {
 		slog.Warn("transaction rollback failed", "error", err)
 	}
+	tx.onCommit = nil
 	tm.activeTxCount.Add(-1)
 }
 

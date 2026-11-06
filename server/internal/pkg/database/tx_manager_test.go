@@ -23,6 +23,10 @@ type testEntity struct {
 //  1. NETYADMIN_TEST_PG_DSN 环境变量（与 batch_runtime_test 统一）
 //  2. NETYADMIN_DB_HOST 等逐字段环境变量
 //  3. 默认值：localhost:5432 / postgres / postgres / netyadmin_test
+//
+// 契约：本测试【直接连接】该 DSN 指向的库（不做库名改写，无维护库派生），
+// 因此 env 指向的库必须是可丢弃的测试库——表 test_entities 会被 AutoMigrate
+// 与反复 INSERT/DELETE。切勿指向生产/开发库。
 func getTestDSN() string {
 	if dsn := os.Getenv("NETYADMIN_TEST_PG_DSN"); dsn != "" {
 		return dsn
@@ -258,4 +262,42 @@ func TestContext_TxRetrieval(t *testing.T) {
 	assert.True(t, ok, "context 中应能取出 *Tx")
 	assert.Same(t, tx, got, "取出的 *Tx 应与 Begin 返回的是同一指针")
 	assert.NotNil(t, got.DB, "Tx.DB 应非空")
+}
+
+// TestOnCommit_CommitRunsHooksRollbackDiscards 真库验证提交钩子语义（§5.2 红线
+// 「缓存失效在 Commit 之后」的基础设施）：commit 成功 → 按序执行；rollback /
+// commit 失败 → 整体丢弃；无事务 ctx → 立即执行（非事务写路径）。
+func TestOnCommit_CommitRunsHooksRollbackDiscards(t *testing.T) {
+	// 1. 无事务 ctx：立即执行（cached wrapper 的非事务写路径依赖此分支）
+	immediate := false
+	OnCommit(context.Background(), func() { immediate = true })
+	require.True(t, immediate, "无事务 ctx 应立即执行 hook")
+
+	// 2. 真事务：commit 成功 → hooks 按序执行
+	db := setupTestDB(t)
+	tm := NewTransactionManager(db)
+
+	ctxA, txA := tm.Begin(context.Background())
+	var order []string
+	OnCommit(ctxA, func() { order = append(order, "first") })
+	OnCommit(ctxA, func() { order = append(order, "second") })
+	// hook 注册后、commit 前不得提前执行
+	require.Empty(t, order, "commit 前 hooks 不得执行")
+	require.NoError(t, tm.Commit(txA))
+	require.Equal(t, []string{"first", "second"}, order, "commit 后按注册顺序执行")
+
+	// 3. rollback → hooks 丢弃
+	ctxB, txB := tm.Begin(context.Background())
+	rolled := false
+	OnCommit(ctxB, func() { rolled = true })
+	tm.Rollback(txB)
+	require.False(t, rolled, "rollback 后 hooks 不得执行")
+
+	// 4. commit 失败 → hooks 丢弃（tx 已被手动提交，二次 Commit 必失败）
+	ctxC, txC := tm.Begin(context.Background())
+	require.NoError(t, txC.DB.Commit().Error) // 先行提交，使 tm.Commit 失败
+	failed := false
+	OnCommit(ctxC, func() { failed = true })
+	require.Error(t, tm.Commit(txC), "二次提交应失败")
+	require.False(t, failed, "commit 失败后 hooks 不得执行")
 }
