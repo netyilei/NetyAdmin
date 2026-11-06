@@ -137,6 +137,13 @@ func (r *userRepository) sealPhone(u *userEntity.User) error {
 		u.Phone = ""
 		return nil
 	}
+	// 空明文 = "未变更"：保持现有密文列原样。
+	// 读路径解密失败时 Phone 会降级为空串，若此处按空写回三列会**静默清空**
+	// 已加密的手机号（密钥错配/脏数据下的数据丢失路径）。显式清空请走
+	// UpdatePhone(..., "")（Seal("") 产出空列，语义明确）。
+	if u.Phone == "" {
+		return nil
+	}
 	enc, idx, tail4, err := r.phonePII.Seal(u.Phone)
 	if err != nil {
 		return err
@@ -150,6 +157,10 @@ func (r *userRepository) sealPhone(u *userEntity.User) error {
 func (r *userRepository) sealEmail(u *userEntity.User) error {
 	if pii.IsMasked(u.Email) {
 		u.Email = ""
+		return nil
+	}
+	// 空明文 = "未变更"（语义同 sealPhone：防解密失败静默清空）
+	if u.Email == "" {
 		return nil
 	}
 	enc, idx, err := r.phonePII.SealEmail(u.Email)
@@ -291,8 +302,8 @@ func (r *userRepository) List(ctx context.Context, query *UserRepoQuery) ([]user
 
 func (r *userRepository) SearchForAutocomplete(ctx context.Context, keyword string, limit int) ([]userEntity.User, error) {
 	var users []userEntity.User
-	db := r.getDB(ctx).Model(&userEntity.User{}).
-		Where("username LIKE ? OR email LIKE ?", like.LikeContains(keyword), like.LikeContains(keyword))
+	// 邮箱明文列已退役（0060）：模糊 LIKE 换成 username LIKE + email 盲索引精确
+	db := r.getDB(ctx).Model(&userEntity.User{}).Where("username LIKE ?", like.LikeContains(keyword))
 	// keyword 为手机号形态（完整号/尾号）时追加盲索引/尾号精确匹配；
 	// 中缀模糊在加密下不可恢复（见 pii 包注释）
 	if _, arg, ok := phoneSearchCondition(r.phonePII, keyword); ok {

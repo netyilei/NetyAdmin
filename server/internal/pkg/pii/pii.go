@@ -265,9 +265,13 @@ func (c *Cipher) IndexEmail(email string) string {
 // （john.doe@x.com → j***@x.com）。无 @ 的值原样返回（防御）。
 func MaskEmail(email string) string {
 	e := strings.TrimSpace(email)
+	if e == "" {
+		return ""
+	}
 	at := strings.LastIndex(e, "@")
 	if at <= 0 {
-		return email
+		// 非法/历史脏值（无 @）不能原样出接口：只留首字符
+		return e[:1] + "***"
 	}
 	return e[:1] + "***" + e[at:]
 }

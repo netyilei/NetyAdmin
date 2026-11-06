@@ -110,6 +110,10 @@ func (r *adminRepository) sealEmail(a *systemEntity.Admin) error {
 		a.Email = ""
 		return nil
 	}
+	// 空明文 = "未变更"（语义同 users repo：防解密失败静默清空）
+	if a.Email == "" {
+		return nil
+	}
 	enc, idx, err := r.phonePII.SealEmail(a.Email)
 	if err != nil {
 		return err
@@ -123,6 +127,10 @@ func (r *adminRepository) sealEmail(a *systemEntity.Admin) error {
 func (r *adminRepository) sealPhone(a *systemEntity.Admin) error {
 	if pii.IsMasked(a.Phone) {
 		a.Phone = ""
+		return nil
+	}
+	// 空明文 = "未变更"（语义同 users repo：防解密失败静默清空）
+	if a.Phone == "" {
 		return nil
 	}
 	enc, idx, tail4, err := r.phonePII.Seal(a.Phone)

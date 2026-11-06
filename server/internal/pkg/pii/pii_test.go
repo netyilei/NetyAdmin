@@ -179,7 +179,7 @@ func TestMaskEmail(t *testing.T) {
 	}{
 		{"standard", "john.doe@x.com", "j***@x.com"},
 		{"trim spaces", "  a@b.co  ", "a***@b.co"},
-		{"no at kept as-is", "not-an-email", "not-an-email"},
+		{"no at masked", "not-an-email", "n***"}, // 历史脏值不得原样出接口
 		{"empty kept", "", ""},
 		{"single-char local", "x@y.io", "x***@y.io"},
 	}

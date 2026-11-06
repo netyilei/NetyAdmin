@@ -8,7 +8,6 @@ import (
 	"gorm.io/gorm"
 
 	"NetyAdmin/internal/pkg/pii"
-	"NetyAdmin/internal/pkg/recovery"
 )
 
 // piiBackfillBatchSize 是惰性加密迁移的批大小：单批行数小、事务短，
@@ -38,10 +37,22 @@ type piiColumnSet struct {
 //
 // 失败容忍：单行失败记日志继续；整体失败下次启动自动重跑（幂等）。
 //
-// 在 Bootstrap 内以 GoSafe 启动（不进任务表——这是基座基建自愈动作，
-// 不是业务任务；下游无感知）。明文列在任务完成后全库为 NULL。
-func RunPIIPhoneBackfill(ctx context.Context, db *gorm.DB, c *pii.Cipher) {
-	recovery.GoSafe("pii_backfill", func() {
+// 在 Bootstrap 内同步执行（服务开始监听之前完成加密）：
+//   - 消除迁移窗口——若异步执行，窗口内注册的新号在 users.phone_idx 唯一索引
+//     上与会话期"明文未迁移"的旧行互不可见，可能产生重复号，旧行随后加密时
+//     撞唯一索引而永久停留在明文（静默泄露）；
+//   - 表行数量级小、分批 500 行/批，阻塞时间通常在毫秒到秒级。
+//
+// 不进任务表——这是基座基建自愈动作，不是业务任务；下游无感知。
+// 明文列在任务完成后全库为 NULL。
+func RunPIIBackfill(db *gorm.DB, c *pii.Cipher) {
+	// 同步执行 + recover：panic 不得阻断启动（下次启动重跑，幂等）
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("pii backfill panic, retry on next boot", "panic", r)
+		}
+	}()
+	{
 		bg := context.Background()
 		start := time.Now()
 
@@ -70,7 +81,7 @@ func RunPIIPhoneBackfill(ctx context.Context, db *gorm.DB, c *pii.Cipher) {
 			slog.Info("pii backfill completed",
 				"counts", counts, "elapsed", time.Since(start).String())
 		}
-	})
+	}
 }
 
 // backfillColumn 迁移单表单列组：循环分批取「明文非空且密文为空」的行，

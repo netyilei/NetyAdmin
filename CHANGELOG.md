@@ -15,18 +15,21 @@
 | **users / admin_user 邮箱静态加密（同构）** | 直接读写 `email` 列的下游 SQL/报表 | 明文列退役；密文在 `email_enc`（保留原始大小写）、检索走 `email_idx`（小写归一化盲索引，大小写多形态同索引）。**无尾号等价物**，检索语义 = 完整地址精确；中缀模糊搜索永久下线 |
 | **接口出口手机号/邮箱统一掩码**（138\*\*\*\*5678 / J\*\*\*@example.com） | 前端展示层 | profile / admin 用户列表 / autocomplete 的 phone/email 字段变为掩码；编辑表单回显掩码值原样提交视为未变更（不会覆盖真实值）。需要完整值的内部场景走服务端解密 |
 | **邮箱格式校验收紧** | 注册 / 换邮箱 / admin 建/编 | 非法邮箱返回 CodeInvalidParams；`utils.IsEmail` 正则迁入 `pii.IsValidEmail`（单一事实源，调用方已同步） |
+| **空手机号/邮箱提交 = 保持原值**（原为清空） | admin 编辑用户/管理员、资料更新 | 写路径 `seal` 对空明文采取"未变更"语义：一方面防解密失败（密钥错配）时静默清空密文，另一方面避免编辑表单留空误清号。显式清空需走专用方法（当前无 UI 入口） |
+| **启动期同步加密迁移** | 部署时序 | 存量明文在服务开始监听前完成加密（阻塞启动，通常毫秒~秒级）。**滚动部署注意**：混合版本期间旧代码读明文列会失效（明文已被新节点清空），建议一次性全量切换或低峰维护窗口执行 |
 | **写入口手机号格式校验**（^1[3-9]\d{9}，归一化后） | 注册 / 换手机号 / admin 建/编用户与管理员 | 不合法号码返回 CodeInvalidParams |
 
 ### ➕ Added
 
 - `internal/pkg/pii`：手机号/邮箱 PII 单一事实源（HKDF 从 `[security].aes_key` 派生四子密钥、AES-GCM 加密、HMAC 盲索引、归一化、掩码；邮箱格式校验正则自 utils 迁入）。
-- `UserRepository.UpdatePhone` / `AdminRepository.UpdatePhone`：换号专用（加密在 repo 层，service 不接触密钥与列名）。
+- `UserRepository.UpdatePhone` / `UpdateEmail`、`AdminRepository.UpdatePhone` / `UpdateEmail`：换号/换邮箱专用（加密在 repo 层，service 不接触密钥与列名；显式清空可传空串）。
 - 启动惰性迁移：存量明文手机号后台加密写回（幂等、多节点安全），完成后明文列置 NULL。
 
 ### 🐛 Fixed
 
 - **手机号/邮箱明文泄露面清零**：admin 用户列表与 autocomplete 此前直接序列化实体（明文 phone/email 全量出接口），现统一 VO + 掩码；操作日志/开放平台日志的 phone/email 字段纳入脱敏（mask 包）。
 - admin 编辑回显掩码值被当作改号提交的回写污染（防御性跳过）。
+- 自审修复：`UpdateProfile` 双改（手机+邮箱）三条写改为同事务（拆分后原为部分成功）；autocomplete 移除对已退役明文列的 `email LIKE` 死条件；历史脏值邮箱（无 @）掩码不再原样出接口；email 明文日志脱敏。
 
 ---
 

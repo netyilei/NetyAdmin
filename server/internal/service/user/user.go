@@ -140,7 +140,7 @@ func (b *userBase) checkUserUnique(ctx context.Context, username, phone, email s
 		exists, err = b.repo.ExistsByEmail(ctx, email)
 		if err != nil {
 			slog.Warn("ExistsByEmail query failed (rely on DB unique constraint as fallback)",
-				"email", email, "error", err)
+				"email", pii.MaskEmail(email), "error", err)
 		}
 		if exists {
 			return errorx.New(errorx.CodeUserAlreadyExists, "邮箱已存在")

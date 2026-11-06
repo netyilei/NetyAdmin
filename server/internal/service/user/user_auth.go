@@ -508,7 +508,7 @@ func (s *userClientService) UpdateProfile(ctx context.Context, userID string, re
 		phoneChanged = true
 	}
 
-	// 列级更新（仅资料五列），不用 Save 全字段：
+	// 列级更新（nickname/avatar/gender 三列；phone/email 走专用方法），不用 Save 全字段：
 	// 本函数从 GetByID 到落库之间穿插验证码与多次 DB 查询（窗口百毫秒级），
 	// 全字段 Save 会用旧快照覆盖并发 admin 操作（禁用/改密）刚写入的
 	// status/token_version，导致被禁用账号复活（审计 H2）。
@@ -517,32 +517,33 @@ func (s *userClientService) UpdateProfile(ctx context.Context, userID string, re
 		"avatar":   user.Avatar,
 		"gender":   user.Gender,
 	}
-	// 手机号变更走专用方法（repo 内加密三列）；仅真正变更时更新——
+	// 三条写（email/phone/资料列）必须同事务：双改场景下若 email 已落库、
+	// phone 冲突失败而无事务，会留下"邮箱改了、手机没改"的部分成功状态
+	//（拆分前是单条 UpdateFields，天然原子）。
+	// 手机号/邮箱变更走专用方法（repo 内加密）；仅真正变更时更新——
 	// 未变更时重加密同值虽幂等，但会凭空刷新行 updated_at。
-	// 并发换号竞态由 phone_idx 部分唯一索引兜底，冲突转业务错误码
-	if emailChanged {
-		if err := s.repo.UpdateEmail(ctx, userID, user.Email); err != nil {
-			if database.IsUniqueViolation(err) {
-				return errorx.New(errorx.CodeUserAlreadyExists, "邮箱已被占用")
+	// 并发竞态由 phone_idx/email_idx 部分唯一索引兜底，冲突转业务错误码。
+	err = s.tm.WithTransaction(ctx, func(txCtx context.Context) error {
+		if emailChanged {
+			if err := s.repo.UpdateEmail(txCtx, userID, user.Email); err != nil {
+				if database.IsUniqueViolation(err) {
+					return errorx.New(errorx.CodeUserAlreadyExists, "邮箱已被占用")
+				}
+				return fmt.Errorf("repo.UpdateEmail: %w", err)
 			}
-			return fmt.Errorf("repo.UpdateEmail: %w", err)
 		}
-	}
-	if phoneChanged {
-		if err := s.repo.UpdatePhone(ctx, userID, user.Phone); err != nil {
-			if database.IsUniqueViolation(err) {
-				return errorx.New(errorx.CodeUserAlreadyExists, "手机号已被占用")
+		if phoneChanged {
+			if err := s.repo.UpdatePhone(txCtx, userID, user.Phone); err != nil {
+				if database.IsUniqueViolation(err) {
+					return errorx.New(errorx.CodeUserAlreadyExists, "手机号已被占用")
+				}
+				return fmt.Errorf("repo.UpdatePhone: %w", err)
 			}
-			return fmt.Errorf("repo.UpdatePhone: %w", err)
 		}
-	}
-	if len(fields) > 0 {
-		if err := s.repo.UpdateFields(ctx, userID, fields); err != nil {
-			if database.IsUniqueViolation(err) {
-				return errorx.New(errorx.CodeUserAlreadyExists, "邮箱已被占用")
-			}
-			return fmt.Errorf("repo.UpdateFields: %w", err)
-		}
+		return s.repo.UpdateFields(txCtx, userID, fields)
+	})
+	if err != nil {
+		return err
 	}
 	return nil
 }

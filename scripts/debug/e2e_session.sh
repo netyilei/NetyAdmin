@@ -126,6 +126,18 @@ step "H1 构建 server.exe"
 ok "构建完成"
 
 # ============ ② 启动 + 等健康 ============
+step "H1.5 造数：把种子用户 testuser1 重置为明文（让迁移哨兵每次真实生效）"
+# 若该行已是加密态，哨兵会平凡通过——每次启动前恢复明文，
+# 由本次启动的同步迁移重新加密，才是对迁移路径的真实断言。
+export PGPASSWORD=123456
+before=$(db "SELECT COALESCE(phone_enc,'') FROM users WHERE username='testuser1' AND deleted_at = 0;")
+db "UPDATE users SET phone='13800000001', phone_enc=NULL, phone_idx=NULL, phone_tail4=NULL,
+       email='test1@netyadmin.com', email_enc=NULL, email_idx=NULL
+     WHERE username='testuser1' AND deleted_at = 0;" >/dev/null
+plain_ok=$(db "SELECT COALESCE(phone='13800000001' AND email='test1@netyadmin.com' AND COALESCE(phone_enc,'')='' AND COALESCE(email_enc,'')='', false) FROM users WHERE username='testuser1' AND deleted_at = 0;")
+[ "$plain_ok" = "t" ] || die "造数失败：testuser1 未恢复为明文（before_enc=[$before]）"
+ok "testuser1 已重置为明文（原状态：$( [ -n "$before" ] && echo 已加密 || echo 明文 )），等待启动迁移"
+
 step "H2 启动独立实例（9091）"
 ./server.exe > "$LOG" 2>&1 &
 SPID=$!

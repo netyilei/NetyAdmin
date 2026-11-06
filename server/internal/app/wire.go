@@ -102,9 +102,10 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	// 4. Repositories
 	repos := initRepositories(db, phonePII)
 
-	// 3.2 惰性加密迁移：存量明文手机号 → 三列（幂等、多节点安全、后台执行）；
-	//     独立 background ctx——迁移生命周期与任何请求无关
-	job.RunPIIPhoneBackfill(context.Background(), db, phonePII)
+	// 3.2 PII 加密迁移：存量明文手机号/邮箱 → 密文+盲索引列（幂等、多节点安全）。
+	//     同步执行——必须在服务开始监听前完成，否则窗口期内新注册可能与
+	//     未迁移的旧行形成重复号，旧行加密时撞唯一索引而永久残留明文
+	job.RunPIIBackfill(db, phonePII)
 
 	// 4.1 TransactionManager（事务管理器，无状态可作为单例在应用生命周期内复用）
 	//     Service 层通过 tm.Begin/Commit/Rollback 编排跨 Repository 的多步事务，
