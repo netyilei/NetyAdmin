@@ -20,6 +20,7 @@ import (
 	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/password"
+	"NetyAdmin/internal/pkg/pii"
 	systemRepo "NetyAdmin/internal/repository/system"
 )
 
@@ -50,7 +51,7 @@ func (s *adminService) List(ctx context.Context, req *systemDto.AdminQuery) ([]*
 			ID:        a.ID,
 			Username:  a.Username,
 			Nickname:  a.Nickname,
-			Phone:     a.Phone,
+			Phone:     pii.Mask(a.Phone),
 			Email:     a.Email,
 			Gender:    gender,
 			Status:    a.Status,
@@ -66,6 +67,11 @@ func (s *adminService) List(ctx context.Context, req *systemDto.AdminQuery) ([]*
 }
 
 func (s *adminService) Create(ctx context.Context, req *systemDto.CreateAdminReq, operatorID uint, operatorIsSuper bool) (uint, error) {
+	if req.Phone != "" {
+		if err := pii.Validate(req.Phone); err != nil {
+			return 0, errorx.New(errorx.CodeInvalidParams, "手机号格式不正确")
+		}
+	}
 	exists, err := s.adminRepo.ExistsByUsername(ctx, req.Username)
 	if err != nil {
 		return 0, err
@@ -167,6 +173,12 @@ func (s *adminService) Update(ctx context.Context, req *systemDto.UpdateAdminReq
 
 	admin.Username = req.Username
 	admin.Nickname = req.Nickname
+	// 掩码回写防御 + 格式校验（与 users 侧一致；空 = 清空手机号保持原语义）
+	if req.Phone != "" && !pii.IsMasked(req.Phone) {
+		if err := pii.Validate(req.Phone); err != nil {
+			return errorx.New(errorx.CodeInvalidParams, "手机号格式不正确")
+		}
+	}
 	admin.Phone = req.Phone
 	admin.Email = req.Email
 	admin.Gender = req.Gender

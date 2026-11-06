@@ -20,6 +20,7 @@ import (
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
 	passwordPkg "NetyAdmin/internal/pkg/password"
+	"NetyAdmin/internal/pkg/pii"
 	storagePkg "NetyAdmin/internal/pkg/storage"
 	userRepo "NetyAdmin/internal/repository/user"
 )
@@ -122,10 +123,14 @@ func (b *userBase) checkUserUnique(ctx context.Context, username, phone, email s
 		return errorx.New(errorx.CodeUserAlreadyExists)
 	}
 	if phone != "" {
+		// 写入口格式校验（加密下垃圾号码也会进盲索引，必须在源头拦截）
+		if err := pii.Validate(phone); err != nil {
+			return errorx.New(errorx.CodeInvalidParams, "手机号格式不正确")
+		}
 		exists, err = b.repo.ExistsByPhone(ctx, phone)
 		if err != nil {
 			slog.Warn("ExistsByPhone query failed (rely on DB unique constraint as fallback)",
-				"phone", phone, "error", err)
+				"phone", pii.Mask(phone), "error", err)
 		}
 		if exists {
 			return errorx.New(errorx.CodeUserAlreadyExists, "手机号已存在")

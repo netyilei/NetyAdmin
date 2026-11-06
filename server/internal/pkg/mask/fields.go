@@ -38,6 +38,12 @@ var SensitiveFieldKeys = []string{
 	"appsecret",
 	// 签名
 	"signature",
+	// 个人敏感信息（PII）：手机号（覆盖 camelCase userPhone / phone、
+	// snake_case phone / mobile 等命名变体，归一化后统一命中）
+	"phone",
+	"userphone",
+	"mobile",
+	"phonenumber",
 	// 验证码
 	"captchacode",
 	"captchakey",

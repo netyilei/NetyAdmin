@@ -5,6 +5,29 @@
 
 ---
 
+## 2026-11-07（手机号 PII 静态加密，随本日第二批推送）
+
+### ⚠️ Breaking / 行为变更
+
+| 变更 | 影响面 | 迁移动作 |
+|------|--------|---------|
+| **users / admin_user 手机号静态加密** | 直接读写 `users.phone` / `admin_user.phone` 列的下游 SQL/报表 | 明文列退役（惰性迁移后恒空）；密文在 `phone_enc`（AES-256-GCM）、检索走 `phone_idx`（HMAC 盲索引）、尾号检索走 `phone_tail4`。**中缀模糊搜索（LIKE '%…%'）永久下线**，检索语义 = 完整号精确 / 尾号 4 位精确 |
+| **接口出口手机号统一掩码**（138\*\*\*\*5678） | 前端展示层 | profile / admin 用户列表 / autocomplete 的 phone 字段变为掩码；编辑表单回显掩码值原样提交视为未变更（不会覆盖真实号）。需要完整号的内部场景走服务端解密 |
+| **写入口手机号格式校验**（^1[3-9]\d{9}，归一化后） | 注册 / 换手机号 / admin 建/编用户与管理员 | 不合法号码返回 CodeInvalidParams |
+
+### ➕ Added
+
+- `internal/pkg/pii`：手机号 PII 单一事实源（HKDF 从 `[security].aes_key` 派生 enc/idx 双子密钥、AES-GCM 加密、HMAC 盲索引、归一化、掩码）。
+- `UserRepository.UpdatePhone` / `AdminRepository.UpdatePhone`：换号专用（加密在 repo 层，service 不接触密钥与列名）。
+- 启动惰性迁移：存量明文手机号后台加密写回（幂等、多节点安全），完成后明文列置 NULL。
+
+### 🐛 Fixed
+
+- **手机号明文泄露面清零**：admin 用户列表与 autocomplete 此前直接序列化实体（明文 phone 全量出接口），现统一 VO + 掩码；操作日志/开放平台日志的 phone 字段纳入脱敏（mask 包）。
+- admin 编辑回显掩码值被当作改号提交的回写污染（防御性跳过）。
+
+---
+
 ## 2026-11-07（origin/master = 8a9a401；基线 762b894..8a9a401，17 提交）
 
 ### ⚠️ Breaking / 行为变更

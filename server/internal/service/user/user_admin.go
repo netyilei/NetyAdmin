@@ -19,10 +19,12 @@ import (
 	userDto "NetyAdmin/internal/interface/admin/dto/user"
 
 	"NetyAdmin/internal/domain/entity"
+	userVO "NetyAdmin/internal/domain/vo/user"
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/errorx"
 	passwordPkg "NetyAdmin/internal/pkg/password"
+	"NetyAdmin/internal/pkg/pii"
 	"NetyAdmin/internal/pkg/utils"
 	userRepo "NetyAdmin/internal/repository/user"
 )
@@ -31,7 +33,7 @@ import (
 // 仅包含 admin handler 调用的方法，入参为 admin DTO（禁止 entity 入参，spec D4）。
 type UserAdminService interface {
 	List(ctx context.Context, req *userDto.UserQuery) ([]UserWithLock, int64, error)
-	SearchForAutocomplete(ctx context.Context, keyword string, limit int) ([]userEntity.User, error)
+	SearchForAutocomplete(ctx context.Context, keyword string, limit int) ([]userVO.UserAutoCompleteVO, error)
 	Create(ctx context.Context, req *userDto.CreateUserReq) error
 	Update(ctx context.Context, id string, req *userDto.UpdateUserReq) error
 	UpdateStatus(ctx context.Context, id string, status string) error
@@ -55,6 +57,9 @@ func NewUserAdminService(base userBase) UserAdminService {
 type UserWithLock struct {
 	userEntity.User
 	Locked bool `json:"locked"`
+	// Phone 是展示掩码（138****5678）：内嵌 User 的明文 Phone 为 json:"-"，
+	// 此字段是列表页唯一的手机号出口（掩码返回是 CHANGELOG 2026-11-07 的决策）。
+	Phone string `json:"phone"`
 }
 
 func (s *userAdminService) List(ctx context.Context, req *userDto.UserQuery) ([]UserWithLock, int64, error) {
@@ -83,13 +88,26 @@ func (s *userAdminService) List(ctx context.Context, req *userDto.UserQuery) ([]
 		if err := s.cacheSlow.Get(ctx, lockKey, &lockVal); err == nil && lockVal != "" {
 			locked = true
 		}
-		items = append(items, UserWithLock{User: u, Locked: locked})
+		items = append(items, UserWithLock{User: u, Locked: locked, Phone: pii.Mask(u.Phone)})
 	}
 	return items, total, nil
 }
 
-func (s *userAdminService) SearchForAutocomplete(ctx context.Context, keyword string, limit int) ([]userEntity.User, error) {
-	return s.repo.SearchForAutocomplete(ctx, keyword, limit)
+func (s *userAdminService) SearchForAutocomplete(ctx context.Context, keyword string, limit int) ([]userVO.UserAutoCompleteVO, error) {
+	users, err := s.repo.SearchForAutocomplete(ctx, keyword, limit)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]userVO.UserAutoCompleteVO, 0, len(users))
+	for _, u := range users {
+		items = append(items, userVO.UserAutoCompleteVO{
+			ID:       u.ID,
+			Username: u.Username,
+			Nickname: u.Nickname,
+			Phone:    pii.Mask(u.Phone),
+		})
+	}
+	return items, nil
 }
 
 // Create 创建用户。entity 构造下沉到 service 层（spec D4：禁止 entity 入参）。
@@ -157,10 +175,14 @@ func (s *userAdminService) Update(ctx context.Context, id string, req *userDto.U
 		exists    bool
 		existsErr error
 	)
-	if req.Phone != "" && req.Phone != oldUser.Phone {
+	// 掩码回写防御：编辑表单回显掩码值（138****5678）被原样提交时视为未变更
+	if req.Phone != "" && req.Phone != oldUser.Phone && !pii.IsMasked(req.Phone) {
+		if err := pii.Validate(req.Phone); err != nil {
+			return errorx.New(errorx.CodeInvalidParams, "手机号格式不正确")
+		}
 		exists, existsErr = s.repo.ExistsByPhone(ctx, req.Phone, id)
 		if existsErr != nil {
-			slog.Warn("ExistsByPhone query failed", "phone", req.Phone, "error", existsErr)
+			slog.Warn("ExistsByPhone query failed", "phone", pii.Mask(req.Phone), "error", existsErr)
 		}
 		if exists {
 			return errorx.New(errorx.CodeUserAlreadyExists, "手机号已存在")

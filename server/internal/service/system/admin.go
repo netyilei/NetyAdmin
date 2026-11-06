@@ -21,6 +21,7 @@ import (
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
 	"NetyAdmin/internal/pkg/password"
+	"NetyAdmin/internal/pkg/pii"
 	systemRepo "NetyAdmin/internal/repository/system"
 	userService "NetyAdmin/internal/service/user"
 )
@@ -147,7 +148,7 @@ func (s *adminService) GetProfile(ctx context.Context, adminID uint) (*systemVO.
 		ID:        admin.ID,
 		Username:  admin.Username,
 		Nickname:  admin.Nickname,
-		Phone:     admin.Phone,
+		Phone:     pii.Mask(admin.Phone),
 		Email:     admin.Email,
 		Gender:    admin.Gender,
 		Status:    admin.Status,

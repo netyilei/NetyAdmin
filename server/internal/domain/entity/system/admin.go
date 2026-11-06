@@ -5,10 +5,14 @@ import "NetyAdmin/internal/domain/entity"
 type Admin struct {
 	entity.Model
 	entity.Operator
-	Username    string  `gorm:"column:username;size:50;not null;uniqueIndex" json:"userName"`
-	Password    string  `gorm:"column:password;size:100;not null" json:"-"`
-	Nickname    string  `gorm:"column:nickname;size:50" json:"nickName"`
-	Phone       string  `gorm:"column:phone;size:20" json:"userPhone"`
+	Username string `gorm:"column:username;size:50;not null;uniqueIndex" json:"userName"`
+	Password string `gorm:"column:password;size:100;not null" json:"-"`
+	Nickname string `gorm:"column:nickname;size:50" json:"nickName"`
+	// Phone 语义同 users.Phone（见 entity/user/user.go）：解密回填、明文列退役。
+	Phone       string  `gorm:"column:phone;size:20" json:"-"`
+	PhoneEnc    string  `gorm:"column:phone_enc" json:"-"`
+	PhoneIdx    string  `gorm:"column:phone_idx;size:64" json:"-"`
+	PhoneTail4  string  `gorm:"column:phone_tail4;size:4" json:"-"`
 	Email       string  `gorm:"column:email;size:100" json:"userEmail"`
 	Gender      string  `gorm:"column:gender;size:1;default:1" json:"userGender"`
 	Status      string  `gorm:"column:status;size:1;default:1" json:"status"`

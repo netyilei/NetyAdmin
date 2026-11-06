@@ -234,6 +234,9 @@ func (r *mockAdminRepo) List(_ context.Context, _ *systemRepo.AdminRepoQuery) ([
 	return nil, 0, nil
 }
 func (r *mockAdminRepo) Update(_ context.Context, _ *systemEntity.Admin) error { return nil }
+func (r *mockAdminRepo) UpdatePhone(_ context.Context, _ uint, _ string) error {
+	return nil
+}
 func (r *mockAdminRepo) IncrementTokenVersion(_ context.Context, _ uint) error { return nil }
 func (r *mockAdminRepo) ClearRoles(_ context.Context, _ uint) error            { return nil }
 func (r *mockAdminRepo) Delete(_ context.Context, _ uint) error                { return nil }

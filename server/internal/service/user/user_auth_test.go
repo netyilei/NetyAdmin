@@ -243,6 +243,7 @@ func (r *mockUserRepo) SearchForAutocomplete(_ context.Context, _ string, _ int)
 	return nil, nil
 }
 func (r *mockUserRepo) Update(_ context.Context, _ *userEntity.User) error      { return nil }
+func (r *mockUserRepo) UpdatePhone(_ context.Context, _ string, _ string) error { return nil }
 func (r *mockUserRepo) Delete(_ context.Context, _ string) error                { return nil }
 func (r *mockUserRepo) DeleteBatch(_ context.Context, _ []string) error         { return nil }
 func (r *mockUserRepo) IncrementTokenVersion(_ context.Context, _ string) error { return nil }
@@ -921,4 +922,30 @@ func TestUserLogin_SamePlatformKickIn(t *testing.T) {
 	// 三次 token 互不相同（不同 platform / 不同版本号）
 	assert.NotEqual(t, vo1.AccessToken, vo2.AccessToken, "同 platform 二次登录应签发新 token")
 	assert.NotEqual(t, vo1.AccessToken, vo3.AccessToken, "不同 platform token 应不同")
+}
+
+// TestUserGetInfo_MaskedPhone 验证 GetInfo 出口掩码：明文手机号绝不直接出接口
+// （read-revive/CAS 修复后的暴露面哨兵——掩码返回是 CHANGELOG 2026-11-07 的决策）。
+func TestUserGetInfo_MaskedPhone(t *testing.T) {
+	svc, repo, _, _, _, _ := newTestUserClientService(t)
+	user := enabledUser("01HTESTUSERGETINFO01", "maskcheck")
+	user.Phone = "13812345678" // mock 不走加密：GetByID 直接回明文（模拟 repo 解密回填后状态）
+	repo.UserByID = user
+
+	vo, err := svc.GetInfo(context.Background(), user.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "138****5678", vo.Phone, "接口出口必须为掩码")
+	assert.NotContains(t, vo.Phone, "12345678", "掩码不得包含中段明文")
+}
+
+// TestUserGetInfo_MaskedPhoneEmpty 验证未设置手机号的行出口为空串而非占位符。
+func TestUserGetInfo_MaskedPhoneEmpty(t *testing.T) {
+	svc, repo, _, _, _, _ := newTestUserClientService(t)
+	user := enabledUser("01HTESTUSERGETINFO02", "nophone")
+	user.Phone = ""
+	repo.UserByID = user
+
+	vo, err := svc.GetInfo(context.Background(), user.ID)
+	require.NoError(t, err)
+	assert.Empty(t, vo.Phone)
 }

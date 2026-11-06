@@ -2,6 +2,7 @@ package system
 
 import (
 	"context"
+	"log/slog"
 
 	"gorm.io/gorm"
 
@@ -10,6 +11,7 @@ import (
 	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/like"
 	"NetyAdmin/internal/pkg/pagination"
+	"NetyAdmin/internal/pkg/pii"
 )
 
 type AdminRepository interface {
@@ -19,6 +21,8 @@ type AdminRepository interface {
 	ExistsByUsername(ctx context.Context, username string, excludeID ...uint) (bool, error)
 	List(ctx context.Context, query *AdminRepoQuery) ([]systemEntity.Admin, int64, error)
 	Update(ctx context.Context, admin *systemEntity.Admin) error
+	// UpdatePhone 管理员换手机号专用（repo 内加密，service 不接触密钥/列名）。
+	UpdatePhone(ctx context.Context, id uint, phone string) error
 	UpdateLastLoginAt(ctx context.Context, id uint, lastLoginAt string) error
 	// IncrementTokenVersion 原子递增管理员 token_version（BUG #5）。
 	// 用于改密/禁用/删除等敏感操作，使旧 token 携带的版本号失效。
@@ -53,11 +57,46 @@ type AdminRepoQuery struct {
 }
 
 type adminRepository struct {
-	db *gorm.DB
+	db       *gorm.DB
+	phonePII *pii.Cipher
 }
 
-func NewAdminRepository(db *gorm.DB) AdminRepository {
-	return &adminRepository{db: db}
+func NewAdminRepository(db *gorm.DB, phonePII *pii.Cipher) AdminRepository {
+	return &adminRepository{db: db, phonePII: phonePII}
+}
+
+// fillPhone 读后解密回填（语义同 users repo：解密失败按空号降级）。
+func (r *adminRepository) fillPhone(a *systemEntity.Admin) {
+	if a == nil || a.PhoneEnc == "" {
+		return
+	}
+	plain, err := r.phonePII.Open(a.PhoneEnc)
+	if err != nil {
+		slog.Error("decrypt admin_user.phone failed, degrade to empty", "adminID", a.ID, "err", err)
+		return
+	}
+	a.Phone = plain
+}
+
+func (r *adminRepository) fillPhones(admins []systemEntity.Admin) {
+	for i := range admins {
+		r.fillPhone(&admins[i])
+	}
+}
+
+// sealPhone 写前加密（语义同 users repo：明文列退役，掩码值防御性保留三列）。
+func (r *adminRepository) sealPhone(a *systemEntity.Admin) error {
+	if pii.IsMasked(a.Phone) {
+		a.Phone = ""
+		return nil
+	}
+	enc, idx, tail4, err := r.phonePII.Seal(a.Phone)
+	if err != nil {
+		return err
+	}
+	a.PhoneEnc, a.PhoneIdx, a.PhoneTail4 = enc, idx, tail4
+	a.Phone = ""
+	return nil
 }
 
 // getDB 取当前 context 下的 *gorm.DB：若 ctx 中存在事务句柄则复用事务，否则回退到 r.db。
@@ -66,6 +105,9 @@ func (r *adminRepository) getDB(ctx context.Context) *gorm.DB {
 }
 
 func (r *adminRepository) Create(ctx context.Context, admin *systemEntity.Admin) error {
+	if err := r.sealPhone(admin); err != nil {
+		return err
+	}
 	return r.getDB(ctx).Create(admin).Error
 }
 
@@ -100,6 +142,7 @@ func (r *adminRepository) GetByUsername(ctx context.Context, username string) (*
 	if err := r.getDB(ctx).Preload("Roles").Preload("Roles.Buttons").Where("username = ?", username).First(&admin).Error; err != nil {
 		return nil, err
 	}
+	r.fillPhone(&admin)
 	return &admin, nil
 }
 
@@ -136,7 +179,14 @@ func (r *adminRepository) List(ctx context.Context, query *AdminRepoQuery) ([]sy
 		db = db.Where("gender = ?", *query.Gender)
 	}
 	if query.Phone != "" {
-		db = db.Where("phone LIKE ?", like.LikeContains(query.Phone))
+		// 加密下检索语义 = 完整号精确（盲索引）/ 尾号 4 位精确（与 users 一致）
+		p := pii.Normalize(query.Phone)
+		switch {
+		case len(p) == 4 && isAllDigitsSys(p):
+			db = db.Where("phone_tail4 = ?", p)
+		case pii.Validate(p) == nil:
+			db = db.Where("phone_idx = ?", r.phonePII.Index(p))
+		}
 	}
 	if query.Email != "" {
 		db = db.Where("email LIKE ?", like.LikeContains(query.Email))
@@ -157,6 +207,7 @@ func (r *adminRepository) List(ctx context.Context, query *AdminRepoQuery) ([]sy
 		return nil, 0, err
 	}
 
+	r.fillPhones(admins)
 	return admins, total, nil
 }
 
@@ -165,7 +216,24 @@ func (r *adminRepository) List(ctx context.Context, query *AdminRepoQuery) ([]sy
 // token_version 只能经 IncrementTokenVersion 原子递增，禁止随 Save 回写
 // 旧快照值（否则同事务内 Increment 的结果被覆盖，改密/禁用后旧 JWT 永不失效）。
 func (r *adminRepository) Update(ctx context.Context, admin *systemEntity.Admin) error {
+	if err := r.sealPhone(admin); err != nil {
+		return err
+	}
 	return r.getDB(ctx).Omit("token_version").Save(admin).Error
+}
+
+// UpdatePhone 管理员换手机号专用（repo 内 Seal，列级更新，明文列置空）。
+func (r *adminRepository) UpdatePhone(ctx context.Context, id uint, phone string) error {
+	enc, idx, tail4, err := r.phonePII.Seal(phone)
+	if err != nil {
+		return err
+	}
+	return r.getDB(ctx).Model(&systemEntity.Admin{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"phone_enc":   enc,
+		"phone_idx":   idx,
+		"phone_tail4": tail4,
+		"phone":       "",
+	}).Error
 }
 
 func (r *adminRepository) UpdateLastLoginAt(ctx context.Context, id uint, lastLoginAt string) error {
@@ -216,4 +284,14 @@ func (r *adminRepository) UpdateRoles(ctx context.Context, adminID uint, roleIDs
 	}
 
 	return db.Model(&admin).Association("Roles").Replace(roles)
+}
+
+// isAllDigitsSys 判断字符串是否全为数字（admin 列表尾号筛选用）。
+func isAllDigitsSys(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return len(s) > 0
 }

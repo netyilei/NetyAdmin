@@ -8,22 +8,28 @@ import (
 
 // User 终端用户实体
 type User struct {
-	ID          string                `gorm:"primaryKey;size:26" json:"id"`
-	CreatedAt   time.Time             `gorm:"column:created_at;autoCreateTime" json:"createdAt"`
-	UpdatedAt   time.Time             `gorm:"column:updated_at;autoUpdateTime" json:"updatedAt"`
-	DeletedAt   soft_delete.DeletedAt `gorm:"column:deleted_at;softDelete:milli;default:0" json:"-"`
-	Username    string                `gorm:"column:username;size:50;not null;uniqueIndex" json:"userName"`
-	Password    string                `gorm:"column:password;size:100;not null" json:"-"`
-	Nickname    string                `gorm:"column:nickname;size:50" json:"nickName"`
-	Phone       string                `gorm:"column:phone;size:20" json:"phone"`
-	Email       string                `gorm:"column:email;size:100" json:"email"`
-	Avatar      string                `gorm:"column:avatar;size:255" json:"avatar"`
-	Gender      string                `gorm:"column:gender;size:1;default:0" json:"gender"` // 0: 未知, 1: 男, 2: 女
-	Status      string                `gorm:"column:status;size:1;default:1" json:"status"` // 1: 正常, 0: 禁用
-	LastLoginAt *time.Time            `gorm:"column:last_login_at" json:"lastLoginAt"`
-	LastLoginIP string                `gorm:"column:last_login_ip;size:50" json:"lastLoginIp"`
-	Remark      string                `gorm:"column:remark" json:"remark"`
-	LastReadID  uint64                `gorm:"column:last_read_announcement_id;default:0" json:"lastReadAnnouncementId"`
+	ID        string                `gorm:"primaryKey;size:26" json:"id"`
+	CreatedAt time.Time             `gorm:"column:created_at;autoCreateTime" json:"createdAt"`
+	UpdatedAt time.Time             `gorm:"column:updated_at;autoUpdateTime" json:"updatedAt"`
+	DeletedAt soft_delete.DeletedAt `gorm:"column:deleted_at;softDelete:milli;default:0" json:"-"`
+	Username  string                `gorm:"column:username;size:50;not null;uniqueIndex" json:"userName"`
+	Password  string                `gorm:"column:password;size:100;not null" json:"-"`
+	Nickname  string                `gorm:"column:nickname;size:50" json:"nickName"`
+	// Phone 是解密回填的明文手机号（repo 读取时从 PhoneEnc 解密填充，出口统一掩码）。
+	// 【废弃写】明文列 phone 已退役：repo 写路径统一 Seal 到三列并将本列置空；
+	// 本字段仅在惰性加密迁移期间作为存量明文读取源（迁移完成后恒为 ""）。
+	Phone       string     `gorm:"column:phone;size:20" json:"-"`
+	PhoneEnc    string     `gorm:"column:phone_enc" json:"-"`
+	PhoneIdx    string     `gorm:"column:phone_idx;size:64" json:"-"`
+	PhoneTail4  string     `gorm:"column:phone_tail4;size:4" json:"-"`
+	Email       string     `gorm:"column:email;size:100" json:"email"`
+	Avatar      string     `gorm:"column:avatar;size:255" json:"avatar"`
+	Gender      string     `gorm:"column:gender;size:1;default:0" json:"gender"` // 0: 未知, 1: 男, 2: 女
+	Status      string     `gorm:"column:status;size:1;default:1" json:"status"` // 1: 正常, 0: 禁用
+	LastLoginAt *time.Time `gorm:"column:last_login_at" json:"lastLoginAt"`
+	LastLoginIP string     `gorm:"column:last_login_ip;size:50" json:"lastLoginIp"`
+	Remark      string     `gorm:"column:remark" json:"remark"`
+	LastReadID  uint64     `gorm:"column:last_read_announcement_id;default:0" json:"lastReadAnnouncementId"`
 	// TokenVersion 是会话失效的版本号（BUG #5 纵深防御）。
 	// 敏感操作（改密/禁用/删除）递增此值；JWT claims 携带签发时的版本号，
 	// 中间件比较 claims.TokenVersion < User.TokenVersion → 拒绝旧 token。

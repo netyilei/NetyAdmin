@@ -27,6 +27,7 @@ import (
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
 	passwordPkg "NetyAdmin/internal/pkg/password"
+	"NetyAdmin/internal/pkg/pii"
 	"NetyAdmin/internal/pkg/utils"
 	userRepo "NetyAdmin/internal/repository/user"
 )
@@ -428,7 +429,7 @@ func (s *userClientService) GetInfo(ctx context.Context, userID string) (*userVO
 		Username:    user.Username,
 		Nickname:    user.Nickname,
 		Avatar:      user.Avatar,
-		Phone:       user.Phone,
+		Phone:       pii.Mask(user.Phone),
 		Email:       user.Email,
 		Gender:      user.Gender,
 		Status:      user.Status,
@@ -476,7 +477,12 @@ func (s *userClientService) UpdateProfile(ctx context.Context, userID string, re
 	}
 
 	// 手机变更需验证码（仅当手机真正变更时才校验，避免未变更也要求验证码）
-	if req.Phone != "" && req.Phone != user.Phone {
+	// 掩码回写防御：前端把掩码值原样提交时视为未变更
+	phoneChanged := false
+	if req.Phone != "" && req.Phone != user.Phone && !pii.IsMasked(req.Phone) {
+		if err := pii.Validate(req.Phone); err != nil {
+			return errorx.New(errorx.CodeInvalidParams, "手机号格式不正确")
+		}
 		if req.PhoneCode == "" {
 			return errorx.New(errorx.CodeCaptchaRequired, "手机变更需提供验证码")
 		}
@@ -492,6 +498,7 @@ func (s *userClientService) UpdateProfile(ctx context.Context, userID string, re
 			return errorx.New(errorx.CodeUserAlreadyExists, "手机号已占用")
 		}
 		user.Phone = req.Phone
+		phoneChanged = true
 	}
 
 	// 列级更新（仅资料五列），不用 Save 全字段：
@@ -503,15 +510,25 @@ func (s *userClientService) UpdateProfile(ctx context.Context, userID string, re
 		"avatar":   user.Avatar,
 		"gender":   user.Gender,
 		"email":    user.Email,
-		"phone":    user.Phone,
 	}
-	if err := s.repo.UpdateFields(ctx, userID, fields); err != nil {
-		// 并发改绑同一邮箱/手机竞态下 ExistsBy 检查双双通过，
-		// DB 部分唯一索引（0018 users email/phone）兜底，冲突转业务错误码
-		if database.IsUniqueViolation(err) {
-			return errorx.New(errorx.CodeUserAlreadyExists, "邮箱或手机号已被占用")
+	// 手机号变更走专用方法（repo 内加密三列）；仅真正变更时更新——
+	// 未变更时重加密同值虽幂等，但会凭空刷新行 updated_at。
+	// 并发换号竞态由 phone_idx 部分唯一索引兜底，冲突转业务错误码
+	if phoneChanged {
+		if err := s.repo.UpdatePhone(ctx, userID, user.Phone); err != nil {
+			if database.IsUniqueViolation(err) {
+				return errorx.New(errorx.CodeUserAlreadyExists, "手机号已被占用")
+			}
+			return fmt.Errorf("repo.UpdatePhone: %w", err)
 		}
-		return fmt.Errorf("repo.UpdateFields: %w", err)
+	}
+	if len(fields) > 0 {
+		if err := s.repo.UpdateFields(ctx, userID, fields); err != nil {
+			if database.IsUniqueViolation(err) {
+				return errorx.New(errorx.CodeUserAlreadyExists, "邮箱已被占用")
+			}
+			return fmt.Errorf("repo.UpdateFields: %w", err)
+		}
 	}
 	return nil
 }

@@ -24,6 +24,7 @@ import (
 	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
+	"NetyAdmin/internal/pkg/pii"
 	"NetyAdmin/internal/pkg/pubsub"
 	"NetyAdmin/internal/pkg/ratelimit"
 	pkgredis "NetyAdmin/internal/pkg/redis"
@@ -95,8 +96,15 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		return nil, fmt.Errorf("JWT 初始化失败: %w", err)
 	}
 
+	// 3.1 手机号 PII 加密器（users/admin_user 静态加密，HKDF 从 aes_key 派生子密钥）
+	phonePII := pii.NewCipher(cfg.Security.AESKey)
+
 	// 4. Repositories
-	repos := initRepositories(db)
+	repos := initRepositories(db, phonePII)
+
+	// 3.2 惰性加密迁移：存量明文手机号 → 三列（幂等、多节点安全、后台执行）；
+	//     独立 background ctx——迁移生命周期与任何请求无关
+	job.RunPIIPhoneBackfill(context.Background(), db, phonePII)
 
 	// 4.1 TransactionManager（事务管理器，无状态可作为单例在应用生命周期内复用）
 	//     Service 层通过 tm.Begin/Commit/Rollback 编排跨 Repository 的多步事务，

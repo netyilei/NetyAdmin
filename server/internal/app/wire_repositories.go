@@ -3,6 +3,7 @@ package app
 import (
 	"gorm.io/gorm"
 
+	"NetyAdmin/internal/pkg/pii"
 	contentRepo "NetyAdmin/internal/repository/content"
 	dictRepoPkg "NetyAdmin/internal/repository/dict"
 	ipacRepo "NetyAdmin/internal/repository/ipac"
@@ -41,10 +42,10 @@ type repositorySet struct {
 	userToken          userRepoPkg.UserTokenRepository
 }
 
-func initRepositories(db *gorm.DB) *repositorySet {
+func initRepositories(db *gorm.DB, phonePII *pii.Cipher) *repositorySet {
 	return &repositorySet{
 		systemConfig:       sysRepo.NewConfigRepository(db),
-		admin:              sysRepo.NewAdminRepository(db),
+		admin:              sysRepo.NewAdminRepository(db, phonePII),
 		role:               sysRepo.NewRoleRepository(db),
 		menu:               sysRepo.NewMenuRepository(db),
 		api:                sysRepo.NewAPIRepository(db),
@@ -64,7 +65,7 @@ func initRepositories(db *gorm.DB) *repositorySet {
 		openApi:            openRepo.NewOpenApiRepository(db),
 		openLog:            openRepo.NewOpenLogRepository(db),
 		message:            msgRepo.NewMsgRepository(db),
-		user:               userRepoPkg.NewUserRepository(db),
+		user:               userRepoPkg.NewUserRepository(db, phonePII),
 		userToken:          userRepoPkg.NewUserTokenRepository(db),
 	}
 }
