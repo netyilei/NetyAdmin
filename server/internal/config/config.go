@@ -98,8 +98,11 @@ type LoginRateLimitConfig struct {
 //
 // 规则为空数组或 Redis 未启用时中间件不注册（零行为变化）；
 // Redis 故障时 fail-open 放行（与 login_ratelimit 一致）。
+// max<=0 或 window<=0 的规则在 Load 归一化时丢弃并告警（见 normalize）。
 type APIRateLimitConfig struct {
-	// Rules 限流规则列表，按声明顺序逐条评估，命中任一超限即拒绝
+	// Rules 限流规则列表，按声明顺序逐条评估，命中任一超限即拒绝。
+	// 注意：多条规则命中同一请求时各自独立计数，重复定义同一条规则
+	// 等于阈值减半——保证规则语义唯一。
 	Rules []APIRateLimitRule `yaml:"rules"`
 }
 
@@ -115,9 +118,9 @@ type APIRateLimitRule struct {
 	Dimension string `yaml:"dimension"`
 	// Claim dimension=claim 时的 context 字段名
 	Claim string `yaml:"claim"`
-	// Window 滑动窗口时长（如 "1m"）
+	// Window 滑动窗口时长（如 "1m"）；<=0 的规则加载时丢弃
 	Window Duration `yaml:"window"`
-	// Max 窗口内最大请求数
+	// Max 窗口内最大请求数；<=0 的规则加载时丢弃
 	Max int64 `yaml:"max"`
 	// Paths 路径前缀匹配（空 = 规则作用于所挂路由组全部路径）
 	Paths []string `yaml:"paths"`
@@ -324,7 +327,10 @@ func Load(path string) (*Config, error) {
 //   - multi_node=true 且显式指定 bus=memory 时自动切换为 redis：memory 总线的
 //     广播不出本进程，跨节点缓存失效/IPAC/配置同步全部失效；
 //   - L1 与 L2 同时关闭时自动启用 L1（两条规则独立判定，可叠加）：
-//     L1 作为单机唯一缓存层，避免"无缓存介质"组合。
+//     L1 作为单机唯一缓存层，避免"无缓存介质"组合；
+//   - api_ratelimit 规则中 max<=0 或 window<=0 的条目直接丢弃并告警：
+//     这类规则无法表达限流语义（max=0 会对命中路径整组 429、window=0 恒放行），
+//     静默保留比丢弃更危险（与 pkg/auth/login_limiter 的非法值归一化约定一致）。
 //
 // 归一化只在配置加载边界执行一次（幂等），运行期不再改配置语义。
 func (c *Config) normalize() {
@@ -342,6 +348,30 @@ func (c *Config) normalize() {
 	if c.Server.MultiNode && c.Bus.Driver == "memory" {
 		log.Printf("[config] multi_node=true 且 bus.driver=memory：已自动切换为 redis（memory 总线无法跨节点同步缓存失效/IPAC/配置）")
 		c.Bus.Driver = "redis"
+	}
+	c.normalizeAPIRateLimitRules()
+}
+
+// normalizeAPIRateLimitRules 丢弃无法表达限流语义的规则（max<=0 或 window<=0）。
+// 丢弃而非猜测默认值：给业务 API 猜一个阈值可能反过来打死正常流量，
+// 与本中间件"限流是保护层，不阻断业务主路径"的 fail-open 哲学一致。
+func (c *Config) normalizeAPIRateLimitRules() {
+	if len(c.APIRateLimit.Rules) == 0 {
+		return
+	}
+	valid := make([]APIRateLimitRule, 0, len(c.APIRateLimit.Rules))
+	dropped := false
+	for i, rule := range c.APIRateLimit.Rules {
+		if rule.Max <= 0 || rule.Window.Duration() <= 0 {
+			log.Printf("[config] api_ratelimit.rules[%d]（name=%q）非法：max 与 window 必须为正数，已忽略该规则", i, rule.Name)
+			dropped = true
+			continue
+		}
+		valid = append(valid, rule)
+	}
+	// 无丢弃时不替换切片：保持原值（幂等，且不产生 nil→空切片的语义漂移）
+	if dropped {
+		c.APIRateLimit.Rules = valid
 	}
 }
 

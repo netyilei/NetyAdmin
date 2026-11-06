@@ -2,6 +2,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -50,6 +51,54 @@ func TestNormalize_CacheAndMultiNode(t *testing.T) {
 			assert.Equal(t, tt.wantRedisOn, cfg.Redis.Enabled)
 			assert.Equal(t, tt.wantL1On, cfg.Redis.L1Enabled)
 			assert.Equal(t, tt.wantBus, cfg.Bus.Driver)
+		})
+	}
+}
+
+// TestNormalize_APIRateLimitRules 验证非法限流规则在加载边界被丢弃并保留合法规则：
+// max<=0 或 window<=0 的规则无法表达限流语义（max=0 整组 429、window=0 恒放行）。
+func TestNormalize_APIRateLimitRules(t *testing.T) {
+	tests := []struct {
+		name      string
+		rules     []APIRateLimitRule
+		wantNames []string
+	}{
+		{"empty rules untouched", nil, nil},
+		{"valid rules kept", []APIRateLimitRule{
+			{Name: "a", Dimension: "ip", Window: Duration(time.Minute), Max: 10},
+			{Name: "b", Dimension: "ip", Window: Duration(time.Hour), Max: 100},
+		}, []string{"a", "b"}},
+		{"zero max dropped", []APIRateLimitRule{
+			{Name: "bad", Dimension: "ip", Window: Duration(time.Minute), Max: 0},
+			{Name: "good", Dimension: "ip", Window: Duration(time.Minute), Max: 5},
+		}, []string{"good"}},
+		{"negative max dropped", []APIRateLimitRule{
+			{Name: "bad", Dimension: "ip", Window: Duration(time.Minute), Max: -1},
+		}, nil},
+		{"zero window dropped", []APIRateLimitRule{
+			{Name: "bad", Dimension: "ip", Window: Duration(0), Max: 5},
+		}, nil},
+		{"negative window dropped", []APIRateLimitRule{
+			{Name: "bad", Dimension: "ip", Window: Duration(-time.Second), Max: 5},
+		}, nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{}
+			cfg.APIRateLimit.Rules = tt.rules
+
+			cfg.normalize()
+
+			var got []string
+			for _, r := range cfg.APIRateLimit.Rules {
+				got = append(got, r.Name)
+			}
+			assert.Equal(t, tt.wantNames, got)
+
+			// 幂等：再次归一化不得继续改变结果
+			cfg.normalize()
+			assert.Len(t, cfg.APIRateLimit.Rules, len(tt.wantNames))
 		})
 	}
 }

@@ -222,6 +222,8 @@ login_ratelimit:
 # 通用业务 API 限流（admin/client 认证路由组）。rules 为空 = 不启用；
 # Redis 故障时 fail-open 放行（与 login_ratelimit 一致）。
 # 维度 dimension: ip / user_id / claim（claim 需指定 context 字段名，如 platform）
+# max<=0 或 window<=0 的规则无法表达限流语义，加载时告警丢弃；
+# 不要重复定义同一条规则——多条规则命中同一请求时各自计数，重复即阈值减半。
 api_ratelimit:
   rules: []
   # rules:

@@ -31,7 +31,7 @@
 | 用户唯一性预检 | `userBase.checkUserUnique`（service/user） | Register 与 admin Create 共享；DB 唯一索引兜底 |
 | 布尔配置解析 | `pkg/utils.IsTruthy(s)` | "true"/"1" 唯一定义（configsync 内部变体因循环依赖保留） |
 | int 配置读取 | `pkg/utils.GetIntWithDefault` / 无 watcher 版 | 勿再手写 Atoi+默认值 |
-| 通用 API 限流 | `[api_ratelimit].rules`（config.yaml）+ `pkg/ratelimit.SlidingWindow` + `middleware.NewAPIRateLimit` | 三维度（ip/user_id/claim）、ZSET 滑动窗口、**规则间计数隔离**（key 含规则作用域+窗口+阈值）、空配置不启用、Redis 故障 fail-open；挂在 admin/client 认证路由组 |
+| 通用 API 限流 | `[api_ratelimit].rules`（config.yaml）+ `pkg/ratelimit.SlidingWindow` + `middleware.NewAPIRateLimit` | 三维度（ip/user_id/claim）、ZSET 滑动窗口、**规则间计数隔离**（key 含规则指纹+窗口+阈值）、非法规则（max/window≤0）加载时告警丢弃、空配置不启用、Redis 故障 fail-open；挂在 admin/client 认证路由组 |
 | 直传完成事件 | PubSub 订阅 `storage.uploaded` / `storage.expired`（pkg/pubsub/topics.go） | 事件源为已验签的 CompleteUpload，天然可信；下游做缩略图/审核/业务确认勿用客户端自报绕过验签链 |
 | 日志分批删除 | `database.DeleteBatchBefore(ctx, db, table, before, batch)` | 日志类表清理统一走分批（避免长事务），勿再写一次性大 DELETE |
 
