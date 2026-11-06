@@ -26,9 +26,11 @@ import (
 //     TagUserTokenByPlatform(userID, platform) — invalidate one platform only
 //     (login kick-in: same platform re-login).
 //
-// Invalidation contract: every write path (UpsertAndIncrement / UpdateHashes /
-// UpdateAccessHash / ClearHashes / DeleteExpired) invalidates the affected entries,
-// deferred to transaction commit via database.OnCommit (see below). TTL is the safety net
+// Invalidation contract: transactional/inline writes (UpsertAndIncrement /
+// UpdateHashes / UpdateAccessHash / ClearHashes) invalidate the affected entries,
+// deferred to transaction commit via database.OnCommit (see below). DeleteExpired
+// (bulk cleanup job) does NOT invalidate — stale cache entries are bounded by TTL
+// and fail closed on expires-at checks. TTL is the safety net
 // for PubSub cross-node invalidation lag (typically <100ms, TTL bounds worst case).
 //
 // Known races (documented for maintainers):

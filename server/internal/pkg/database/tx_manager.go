@@ -35,7 +35,11 @@ type Tx struct {
 	DB *gorm.DB
 	// onCommit 是「提交成功后」按序执行的副作用队列（缓存失效、事件发布等），
 	// 由包级 OnCommit(ctx, fn) 注册；Rollback / Commit 失败时整体丢弃。
+	// 单 goroutine 契约下 append 无需加锁（见结构体注释）。
 	onCommit []func()
+	// done 标记事务已终结（Commit 成功或 Rollback）。终结后再 OnCommit 的 hook
+	// 转为立即执行（写入已生效 / 已撤销），避免静默丢失。
+	done bool
 }
 
 // OnCommit 注册「事务提交成功后」执行的副作用（缓存失效、事件发布等）。
@@ -46,8 +50,9 @@ type Tx struct {
 // （DB 未生效，失效也不应发生）。
 //
 // 行为：
-//   - ctx 携带事务（Begin 返回的 txCtx）→ 挂到该事务，Commit 成功后执行；
-//   - ctx 无事务（非事务写路径）→ 立即执行（写入已即时生效，等效于"已提交"）。
+//   - ctx 携带未终结事务（Begin 返回的 txCtx）→ 挂到该事务，Commit 成功后执行；
+//   - ctx 无事务 → 立即执行（写入已即时生效，等效于"已提交"）；
+//   - ctx 携带已终结事务（Commit/Rollback 之后）→ 立即执行（避免静默丢失）。
 //
 // fn 自身不得 panic：缓存失效实现必须自吞错误（记日志 + TTL 兜底），
 // 否则 Commit 阶段的 panic 会把已提交的事务变成"业务成功但客户端收到 500"。
@@ -55,7 +60,7 @@ type Tx struct {
 // 单元测试中失效语义与原行为一致。
 func OnCommit(ctx context.Context, fn func()) {
 	tx, ok := ctx.Value(TxKey).(*Tx)
-	if !ok || tx == nil {
+	if !ok || tx == nil || tx.done {
 		fn()
 		return
 	}
@@ -125,6 +130,7 @@ func (tm *TransactionManager) Begin(ctx context.Context) (context.Context, *Tx) 
 func (tm *TransactionManager) Commit(tx *Tx) error {
 	err := tx.DB.Commit().Error
 	tm.activeTxCount.Add(-1)
+	tx.done = true // 终结后该 txCtx 的 OnCommit 转为立即执行
 	if err == nil {
 		for _, fn := range tx.onCommit {
 			fn()
@@ -142,6 +148,7 @@ func (tm *TransactionManager) Rollback(tx *Tx) {
 	if err := tx.DB.Rollback().Error; err != nil {
 		slog.Warn("transaction rollback failed", "error", err)
 	}
+	tx.done = true
 	tx.onCommit = nil
 	tm.activeTxCount.Add(-1)
 }

@@ -300,4 +300,9 @@ func TestOnCommit_CommitRunsHooksRollbackDiscards(t *testing.T) {
 	OnCommit(ctxC, func() { failed = true })
 	require.Error(t, tm.Commit(txC), "二次提交应失败")
 	require.False(t, failed, "commit 失败后 hooks 不得执行")
+
+	// 5. 已终结事务（commit 成功后）再注册 → 立即执行（写入已生效，不静默丢失）
+	immediate2 := false
+	OnCommit(ctxA, func() { immediate2 = true })
+	require.True(t, immediate2, "已 commit 的 txCtx 再注册应立即执行")
 }

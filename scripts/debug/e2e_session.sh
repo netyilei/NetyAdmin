@@ -21,12 +21,22 @@ PSQL="psql -h localhost -U root -d netyadmin -t -A -q"
 LOG=server.log
 PASS=0
 SPID=""
+BL_KEYS=""
+INSTANCE_STARTED=0
 kill_9091() {
+  # 仅终止「本脚本启动且路径匹配 server/tmp/e2e/server.exe」的实例：
+  # 绝不强杀占用 9091 的无关进程（外部占用时 H0 会直接 die 中止）。
   local pid=$(netstat -ano 2>/dev/null | grep -E ":9091 .*LISTENING" | head -1 | awk '{print $NF}')
-  if [ -n "$pid" ]; then
-    taskkill //F //PID "$pid" >/dev/null 2>&1 && echo "[$(date +%H:%M:%S)] 已终止 9091 实例 pid=$pid"
-  fi
+  [ -n "$pid" ] || return 0
+  local path
+  path=$(powershell -NoProfile -Command "(Get-Process -Id $pid -ErrorAction SilentlyContinue).Path" 2>/dev/null | tr -d '
+')
+  case "$path" in
+    *tmp*e2e*server.exe*) taskkill //F //PID "$pid" >/dev/null 2>&1 && echo "[$(date +%H:%M:%S)] 已终止本 E2E 实例 pid=$pid" ;;
+    *) [ "$INSTANCE_STARTED" = "1" ] && echo "[$(date +%H:%M:%S)] WARN: 9091 监听者非本 E2E 实例（path=$path pid=$pid），跳过终止" ;;
+  esac
 }
+trap 'kill_9091' INT TERM
 step() { echo "[$(date +%H:%M:%S)] $*"; }
 die() {
   echo "[$(date +%H:%M:%S)] FAIL: $*"
@@ -59,7 +69,7 @@ api() {
 }
 
 # ============ ⓪ 产物准备（自包含，可重复执行）============
-if [ ! -f "$E2E_DIR/config.yaml" ]; then
+if true; then   # 每次从源 config.yaml 重新派生（幂等，避免陈旧副本）
   { sed 's/^  port: 9090/  port: 9091/' "$SRV_DIR/config.yaml"
     cat << 'CFG'
 
@@ -110,6 +120,7 @@ for i in $(seq 1 30); do
   sleep 1
 done
 [ -n "$ready" ] || die "服务 30s 未就绪（health!=200），启动层未动"
+INSTANCE_STARTED=1
 ok "health=200，server.pid=$SPID"
 
 # ============ ③ 前置断言 + 造数复原 ============
@@ -146,6 +157,23 @@ AUTH=$ACCESS1 BODY= resp=$(api GET /client/v1/user/profile)
 assert_eq "100000" "$(jget "$resp" "['code']")" "profile code"
 ok "access#1 有效（CAS 写入的 hash 与中间件校验闭环）"
 
+# ============ S2.5 read-revive 回归哨兵：登录后并发 20 profile 全放行 ============
+# 原缺陷：commit 前失效被并发回源旧行回填 → 新会话 ≤30s 被拒（偶发 101002）。
+# 修复后失效在 commit 后同 goroutine 执行，窗口微秒级——本场景作为回归哨兵：
+# 出现任何非 100000 即判 FAIL（原竞态的确定性负样本由 OnCommit 真库单测锁定）。
+step "S2.5 并发哨兵：登录后 20 并发 profile 应全部放行"
+AUTH=$ACCESS1 BODY=
+codes=$(mktemp); pids=""
+for i in $(seq 1 20); do
+  ( api GET /client/v1/user/profile | jget "['code']" >> "$codes" ) &
+  pids="$pids $!"
+done
+wait $pids
+non_ok=$(grep -cv '^100000$' "$codes"); non_ok=${non_ok:-0}
+assert_eq "0" "$non_ok" "并发 profile 非 100000 的个数（read-revive 哨兵）"
+rm -f "$codes"
+ok "20 并发 profile 全部放行（read-revive 未复现）"
+
 # ============ ⑥ S3 刷新（CAS 轮换 hash）============
 step "S3 刷新：POST /client/v1/user/refresh-token（refresh#1）"
 AUTH= XREFRESH=$REFRESH1 BODY="{\"refreshToken\":\"$REFRESH1\"}" resp=$(api POST /client/v1/user/refresh-token)
@@ -156,7 +184,7 @@ REFRESH2=$(jget "$resp" "['data']['refreshToken']")
 # 端级拒绝响应码 = 101002（middleware 将 ptv 顶号 / hash 不匹配统一伪装为
 # CodeUserDisabled，避免向客户端泄露具体拒绝原因）；窗口内残留计数会让限流
 # 层（101305）先拒——断言前清窗，确保拒绝来自 hash 校验层本身。
-redis-cli --scan --pattern "netyadmin:api_rl:*" 2>/dev/null | xargs -r redis-cli del >/dev/null
+redis-cli --scan --pattern "netyadmin:api_rl:e2e-*" 2>/dev/null | xargs -r redis-cli del >/dev/null
 AUTH=$ACCESS1 BODY= resp=$(api GET /client/v1/user/profile)
 assert_eq "101002" "$(jget "$resp" "['code']")" "旧 access#1 应 101002（hash 已被 CAS 轮换，端级校验拒绝）"
 AUTH=$ACCESS2 BODY= resp=$(api GET /client/v1/user/profile)
@@ -172,7 +200,7 @@ ACCESS3=$(jget "$resp" "['data']['accessToken']")
 REFRESH3=$(jget "$resp" "['data']['refreshToken']")
 v=$(db "SELECT token_version FROM user_tokens WHERE user_id='$UID_' AND platform='web';")
 assert_eq "2" "$v" "S4 后 token_version"
-redis-cli --scan --pattern "netyadmin:api_rl:*" 2>/dev/null | xargs -r redis-cli del >/dev/null
+redis-cli --scan --pattern "netyadmin:api_rl:e2e-*" 2>/dev/null | xargs -r redis-cli del >/dev/null
 AUTH=$ACCESS2 BODY= resp=$(api GET /client/v1/user/profile)
 assert_eq "101002" "$(jget "$resp" "['code']")" "旧会话 access#2 应 101002（ptv1 < v2 顶号）"
 AUTH=$ACCESS3 BODY= resp=$(api GET /client/v1/user/profile)
@@ -185,13 +213,15 @@ AUTH=$ACCESS3 XREFRESH=$REFRESH3 BODY= resp=$(api POST /client/v1/user/logout)
 assert_eq "100000" "$(jget "$resp" "['code']")" "登出 code"
 hashes=$(db "SELECT access_hash = '' AND refresh_hash = '' FROM user_tokens WHERE user_id='$UID_' AND platform='web';")
 assert_eq "t" "$hashes" "登出后 hash 应清空（持久层）"
-redis-cli --scan --pattern "netyadmin:api_rl:*" 2>/dev/null | xargs -r redis-cli del >/dev/null
+redis-cli --scan --pattern "netyadmin:api_rl:e2e-*" 2>/dev/null | xargs -r redis-cli del >/dev/null
 AUTH=$ACCESS3 BODY= resp=$(api GET /client/v1/user/profile)
 assert_eq "101002" "$(jget "$resp" "['code']")" "登出后 access#3 应 101002（hash 已清空）"
 AUTH= XREFRESH=$REFRESH3 BODY="{\"refreshToken\":\"$REFRESH3\"}" resp=$(api POST /client/v1/user/refresh-token)
 assert_eq "100002" "$(jget "$resp" "['code']")" "登出后 refresh#3 应 100002（黑名单）"
 bl=$(redis-cli --scan --pattern "netyadmin:auth:blacklist:refresh:$REFRESH3" 2>/dev/null | head -1)
 [ -n "$bl" ] || die "黑名单键不存在"
+BL_KEYS="$BL_KEYS$bl
+"
 ok "登出成功：hash 清空、access 401、refresh 黑名单（Redis 键=$bl）"
 
 # ============ ⑨ S6 登录失败 → Incr TTL 补挂 ============
@@ -207,7 +237,7 @@ ok "失败计数键 TTL=$ttl（>0，Incr Lua 补挂生效）"
 # ============ ⑩ S7 限流（等待窗口重置后压 profile）============
 step "S7 准备：正确密码再登录（应清失败计数）"
 sleep 9   # 等待限流窗口重置（window=10s，>窗口即清零；条件已知，无需轮询）
-BODY="{\"userName\":\"$USER_NAME\",\"password\":\"$USER_PASS\",\"platform\":\"web\"}"
+AUTH= XREFRESH= BODY="{\"userName\":\"$USER_NAME\",\"password\":\"$USER_PASS\",\"platform\":\"web\"}"
 resp=$(api POST /client/v1/user/login)
 assert_eq "100000" "$(jget "$resp" "['code']")" "S7 登录 code（ClearLoginRetry 后成功）"
 ACCESS4=$(jget "$resp" "['data']['accessToken']")
@@ -215,6 +245,7 @@ retry_left=$(redis-cli --scan --pattern "netyadmin:auth:retry:$UID_" 2>/dev/null
 [ -z "$retry_left" ] || ok "提示：retry 键存在但登录已成功（ClearLoginRetry 时序内），不判失败"
 
 step "S8 限流：profile 3 次放行 + 第 4 次 101305 + 窗口后恢复"
+XREFRESH=
 AUTH=$ACCESS4 BODY=
 for i in 1 2 3; do
   resp=$(api GET /client/v1/user/profile)
@@ -222,7 +253,7 @@ for i in 1 2 3; do
 done
 resp=$(api GET /client/v1/user/profile)
 assert_eq "101305" "$(jget "$resp" "['code']")" "第 4 次应 101305 流量限制"
-rl_key=$(redis-cli --scan --pattern "netyadmin:api_rl:*" 2>/dev/null | head -1)
+rl_key=$(redis-cli --scan --pattern "netyadmin:api_rl:e2e-*" 2>/dev/null | head -1)
 [ -n "$rl_key" ] || die "限流 ZSET 键不存在"
 ok "限流生效：ZSET 键=$rl_key"
 sleep 11  # 窗口（10s）过期后恢复
@@ -232,7 +263,7 @@ ok "窗口恢复：滑动窗口语义正确"
 
 # ============ ⑪ S9 非法规则告警 ============
 step "S9 非法规则：max:0 应被 normalize 丢弃并告警恰一次"
-n=$(grep -c "已忽略该规则" "$LOG" 2>/dev/null || echo 0)
+n=$(grep -c "已忽略该规则" "$LOG" 2>/dev/null); n=${n:-0}
 assert_eq "1" "$n" "启动日志中『已忽略该规则』条数"
 ok "非法规则丢弃告警恰 1 条"
 
@@ -241,9 +272,10 @@ step "C0 清理复原"
 db "DELETE FROM user_tokens WHERE user_id='$UID_';" >/dev/null
 redis-cli --scan --pattern "netyadmin:auth:retry:$UID_" 2>/dev/null | xargs -r redis-cli del >/dev/null
 redis-cli --scan --pattern "netyadmin:auth:lock:$UID_" 2>/dev/null | xargs -r redis-cli del >/dev/null
-redis-cli --scan --pattern "netyadmin:api_rl:*" 2>/dev/null | xargs -r redis-cli del >/dev/null
-redis-cli --scan --pattern "netyadmin:auth:blacklist:refresh:*" 2>/dev/null | xargs -r redis-cli del >/dev/null
-kill "$SPID" 2>/dev/null
+redis-cli --scan --pattern "netyadmin:api_rl:e2e-*" 2>/dev/null | xargs -r redis-cli del >/dev/null
+[ -n "${BL_KEYS:-}" ] && printf '%s
+' "$BL_KEYS" | while read -r k; do redis-cli del "$k" >/dev/null; done
+kill_9091
 ok "会话行/计数键/黑名单/限流键已清，服务已停止"
 
 echo ""
