@@ -65,6 +65,7 @@ NetyAdmin 是一个基于 **Go + Gin** 后端和 **Vue 3 + TypeScript** 前端�
 |------|------|
 | [AGENTS.md](AGENTS.md) | AI 协作规范：必读流程、开发约定、文档索引、提交规范 |
 | [CONTEXT.md](CONTEXT.md) | 领域词汇表：缓存/认证/事务领域与架构词汇的统一语言 |
+| [CHANGELOG.md](CHANGELOG.md) | 行为变更与接口变更记录（面向下游项目与运维，含迁移动作） |
 
 ### 架构设计文档
 
