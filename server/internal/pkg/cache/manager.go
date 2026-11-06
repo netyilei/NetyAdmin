@@ -26,6 +26,32 @@ var (
 	ErrCacheDisabled = errors.New("cache disabled for module")
 )
 
+// getAndDeleteScript 以 Lua 实现「取值并删除」的原子消费，等价于 Redis 6.2+ 的 GETDEL。
+// 基座支持矩阵是 Redis >= 6.0（README / DEPLOYMENT），不能直接依赖 GETDEL；
+// Lua 脚本自 Redis 2.6 起可用，且 GET+DEL 在同一脚本内执行，无并发复用窗口。
+var getAndDeleteScript = redis.NewScript(`
+local v = redis.call('GET', KEYS[1])
+if not v then
+	return false
+end
+redis.call('DEL', KEYS[1])
+return v
+`)
+
+// incrWithTTLScript 原子完成 INCR + TTL 补挂。
+//
+// 分步 INCR + EXPIRE 的问题：EXPIRE 失败（连接抖动 / 主从切换）时计数已递增但
+// key 无 TTL，会永久残留——登录重试等场景会在下一个窗口直接触发上限。
+// 这里在脚本内判定 PTTL < 0（无 TTL）才补挂：首次自增必挂，历史遗留的无 TTL
+// 计数 key 也会在下一次自增时被修复；已有 TTL 的 key 不续期（与原语义一致）。
+var incrWithTTLScript = redis.NewScript(`
+local v = redis.call('INCR', KEYS[1])
+if ARGV[1] ~= '0' and redis.call('PTTL', KEYS[1]) < 0 then
+	redis.call('PEXPIRE', KEYS[1], ARGV[1])
+end
+return v
+`)
+
 // ConfigCache 配置类数据的缓存接口，对应 Fast 方法系列（L1+L2 chain）。
 //
 // 适用场景（RULES.md §12.1）：数据变更后容忍秒级延迟全集群生效，
@@ -94,11 +120,11 @@ type SecurityCache interface {
 	// 用于 Nonce 防重放等需要原子占位的场景
 	SetNX(ctx context.Context, key string, value interface{}, ttl time.Duration) (bool, error)
 
-	// GetAndDelete 原子读取并删除（Redis GETDEL；本地降级模式为 Get+Delete 两步）
+	// GetAndDelete 原子读取并删除（Lua GET+DEL，兼容 Redis 6.0；本地降级模式为 Get+Delete 两步）
 	// 用于一次性凭证（如验证码）的原子消费，消除"校验→删除"两步间的并发复用窗口
 	GetAndDelete(ctx context.Context, key string, v interface{}) error
 
-	// Incr 原子自增计数器，并在首次设置时配置 TTL
+	// Incr 原子自增计数器，并在 TTL 缺失时补挂（单条 Lua：INCR + PTTL 判定 + PEXPIRE）
 	// 仅在 Redis（L2）上操作，BigCache（L1）不支持 INCR
 	// Redis 不可用时返回 error（fail-closed，不允许跳过原子计数）
 	Incr(ctx context.Context, key string, ttl time.Duration) (int64, error)
@@ -299,18 +325,19 @@ func (m *LazyCacheManager) SetNX(ctx context.Context, key string, value interfac
 
 // GetAndDelete 原子读取并删除（模式B，绝不碰 L1）。
 //
-// Redis 模式用 GETDEL 单命令原子完成；本地降级模式退化为 Get+Delete 两步
-// （仅单进程场景，竞态窗口可忽略）。key 不存在时返回错误（redis.Nil 语义），
-// 调用方据此判定"凭证不存在/已消费"。
+// Redis 模式用 Lua（GET + DEL 同脚本）原子完成，兼容 Redis 6.0；
+// 不使用 GETDEL（要求 Redis >= 6.2，超出基座支持矩阵）。
+// 本地降级模式退化为 Get+Delete 两步（仅单进程场景，竞态窗口可忽略）。
+// key 不存在时返回错误（redis.Nil 语义），调用方据此判定"凭证不存在/已消费"。
 func (m *LazyCacheManager) GetAndDelete(ctx context.Context, key string, v interface{}) error {
 	fullKey := m.buildKey(key)
 
 	if m.redisClient != nil {
-		data, err := m.redisClient.GetDel(ctx, fullKey).Bytes()
+		raw, err := getAndDeleteScript.Run(ctx, m.redisClient, []string{fullKey}).Text()
 		if err != nil {
 			return err
 		}
-		return m.unmarshal(data, v)
+		return m.unmarshal([]byte(raw), v)
 	}
 
 	// 本地降级：Get 原始值 → Delete（两步，仅单进程场景，竞态窗口可忽略）。
@@ -405,7 +432,8 @@ func (m *LazyCacheManager) Exists(ctx context.Context, key string) (bool, error)
 // Incr 原子自增计数器。
 //
 // 设计说明（B2 原子化）：
-//   - Redis 启用时：INCR + EXPIRE，仅在首次（返回值 == 1）设置 TTL；
+//   - Redis 启用时：单条 Lua 完成 INCR + TTL 补挂（PTTL < 0 才 PEXPIRE），
+//     不存在"INCR 成功、EXPIRE 失败导致 key 永久残留"的中间态；
 //     Redis 运行时故障返回 error（fail-closed，不放大跨节点计数失真）。
 //   - Redis 未启用时：降级为进程内原子计数（localIncr）。multi_node=true 会自动启用
 //     L2（见 config.normalize），因此该分支只会在单机部署生效；
@@ -420,22 +448,18 @@ func (m *LazyCacheManager) Incr(ctx context.Context, key string, ttl time.Durati
 		return m.localIncr(fullKey, ttl), nil
 	}
 
-	// 1. 原子 INCR
-	val, err := m.redisClient.Incr(ctx, fullKey).Result()
+	// 0 作为"不设 TTL"哨兵；亚毫秒 TTL 向上取整到 1ms，避免 PEXPIRE 0 直接删 key。
+	var ttlMS int64
+	if ttl > 0 {
+		ttlMS = ttl.Milliseconds()
+		if ttlMS == 0 {
+			ttlMS = 1
+		}
+	}
+	val, err := incrWithTTLScript.Run(ctx, m.redisClient, []string{fullKey}, ttlMS).Int64()
 	if err != nil {
 		return 0, err
 	}
-
-	// 2. 仅在首次设置（INCR 返回 1）时配置 TTL
-	if val == 1 && ttl > 0 {
-		if err := m.redisClient.Expire(ctx, fullKey, ttl).Err(); err != nil {
-			// EXPIRE 失败仅记录不返回错误：计数已正确递增，
-			// TTL 缺失会导致 key 永久残留，但 ClearLoginRetry 会在登录成功时清理
-			// 此处选择不破坏原子性（不回滚 INCR），优先保证计数正确
-			return val, nil
-		}
-	}
-
 	return val, nil
 }
 

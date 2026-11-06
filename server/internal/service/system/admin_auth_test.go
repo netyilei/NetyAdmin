@@ -138,7 +138,7 @@ func (m *mockCacheMgr) SetNX(_ context.Context, key string, value interface{}, _
 	return true, nil
 }
 
-// GetAndDelete 与真实 GETDEL 同语义：原子取出并删除，key 不存在返回错误
+// GetAndDelete 与真实实现（Lua GET+DEL）同语义：原子取出并删除，key 不存在返回错误
 func (m *mockCacheMgr) GetAndDelete(_ context.Context, key string, v interface{}) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

@@ -12,7 +12,7 @@ import (
 )
 
 // TestGetAndDeleteLocalMode 本地降级模式（无 Redis）下 GetAndDelete 的语义：
-// 缺失返回 redis.Nil（与 Redis GETDEL 统一）、命中返回值并删除、二次取值为 Nil。
+// 缺失返回 redis.Nil（与 Redis 原子消费一致）、命中返回值并删除、二次取值为 Nil。
 // 验证码原子消费（VerifyAndClearCode）依赖该语义区分"不存在"与"故障"。
 func TestGetAndDeleteLocalMode(t *testing.T) {
 	mgr, err := NewLazyCacheManager(&config.RedisConfig{Enabled: false}, nil, nil)
