@@ -2,8 +2,12 @@ package user
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -11,6 +15,7 @@ import (
 	"gorm.io/gorm"
 
 	userEntity "NetyAdmin/internal/domain/entity/user"
+	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/pii"
 )
 
@@ -166,7 +171,7 @@ func newPhonePIIRuntimeDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 	t.Cleanup(func() { sqlDB.Close() })
 
-	require.NoError(t, db.WithContext(ctx).AutoMigrate(&userEntity.User{}))
+	require.NoError(t, db.WithContext(ctx).AutoMigrate(&userEntity.User{}, &userEntity.UserToken{}))
 	// 0059/0060 的部分唯一索引 GORM 无法自动生成，测试 setup 手工补建
 	require.NoError(t, db.WithContext(ctx).Exec(
 		`CREATE UNIQUE INDEX users_phone_idx_key ON users(phone_idx)
@@ -175,4 +180,123 @@ func newPhonePIIRuntimeDB(t *testing.T) *gorm.DB {
 		`CREATE UNIQUE INDEX users_email_idx_key ON users(email_idx)
 		 WHERE deleted_at = 0 AND email_idx IS NOT NULL AND email_idx <> ''`).Error)
 	return db
+}
+
+// TestUserPhonePII_DecryptFailurePreservesCiphertext A4 数据丢失守卫的真实验证：
+// 密钥错配时读路径解密失败降级 Phone=""，随后 Save 绝不能清空已加密列。
+func TestUserPhonePII_DecryptFailurePreservesCiphertext(t *testing.T) {
+	db := newPhonePIIRuntimeDB(t)
+	// 清空上轮残留（同库复用）
+	db.Exec("DELETE FROM users")
+	good := pii.NewCipher("good-master-key-32-bytes-long!")
+	repoGood := NewUserRepository(db, good)
+	ctx := context.Background()
+
+	u := &userEntity.User{ID: "01HPIIDECRYPTFAIL0001", Username: "decrypt_fail", Phone: "13811112222", Email: "a@b.co", Status: "1"}
+	require.NoError(t, repoGood.Create(ctx, u))
+	var row struct {
+		PhoneEnc string
+		EmailEnc string
+	}
+	require.NoError(t, db.Raw(`SELECT phone_enc, email_enc FROM users WHERE id = ?`, u.ID).Scan(&row).Error)
+	encBefore := row.PhoneEnc
+	require.NotEmpty(t, encBefore)
+
+	// 错密钥仓库：读 → 解密失败降级空串；写 → 空明文必须"保持原列"
+	repoWrong := NewUserRepository(db, pii.NewCipher("wrong-master-key-32-bytes!!!"))
+
+	got, err := repoWrong.GetByID(ctx, u.ID)
+	require.NoError(t, err)
+	require.Empty(t, got.Phone, "错密钥必须降级为空（fail-safe 显示）")
+	require.Empty(t, got.Email)
+
+	require.NoError(t, repoWrong.Update(ctx, got), "空明文 Update 不得报错")
+	var encAfter string
+	require.NoError(t, db.Raw(`SELECT phone_enc FROM users WHERE id = ?`, u.ID).Scan(&encAfter).Error)
+	require.Equal(t, encBefore, encAfter, "解密失败后的 Save 绝不能清空密文列（数据丢失守卫）")
+
+	// 原密钥仍可正确解密（数据完好）
+	back, err := repoGood.GetByID(ctx, u.ID)
+	require.NoError(t, err)
+	require.Equal(t, "13811112222", back.Phone)
+	require.Equal(t, "a@b.co", back.Email)
+}
+
+// TestUserPhonePII_ConcurrentCASSingleWinner 真并发验证 CAS 唯一性：
+// N 个 goroutine 同期望态回写 → 恰好 1 个成功，其余 ErrRecordNotFound；
+// 成功方写回的 hash 与期望态一致（输家无一覆盖）。
+func TestUserPhonePII_ConcurrentCASSingleWinner(t *testing.T) {
+	db := newPhonePIIRuntimeDB(t)
+	db.Exec("DELETE FROM user_tokens")
+	ctx := context.Background()
+
+	tokenRepo := NewUserTokenRepository(db)
+	_, err := tokenRepo.UpsertAndIncrement(ctx, &userEntity.UserToken{UserID: "cas_conc", Platform: "web"})
+	require.NoError(t, err)
+	created, err := tokenRepo.GetByPlatform(ctx, "cas_conc", "web")
+	require.NoError(t, err)
+	expVer, expHash := created.TokenVersion, created.RefreshHash
+
+	const workers = 16
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var okCount, conflictCount int
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			err := tokenRepo.UpdateHashes(ctx, "cas_conc", "web", UserTokenHashUpdate{
+				ExpectedTokenVersion: expVer,
+				ExpectedRefreshHash:  expHash,
+				AccessHash:           fmt.Sprintf("access-%d", i),
+				RefreshHash:          fmt.Sprintf("refresh-%d", i),
+				AccessExpiresAt:      time.Now().Add(time.Hour),
+				RefreshExpiresAt:     time.Now().Add(time.Hour),
+			})
+			mu.Lock()
+			defer mu.Unlock()
+			switch {
+			case err == nil:
+				okCount++
+			case errors.Is(err, gorm.ErrRecordNotFound):
+				conflictCount++
+			default:
+				t.Errorf("unexpected err: %v", err)
+			}
+		}(i)
+	}
+	wg.Wait()
+	require.Equal(t, 1, okCount, "并发 CAS 必须恰好一个赢家")
+	require.Equal(t, workers-1, conflictCount, "其余全部干净失败（ErrRecordNotFound）")
+}
+
+// TestUserPhonePII_TransactionAtomicity A3 原子性真实验证（真 TM + 真库）：
+// 事务内先改邮箱、后改手机号撞唯一索引 → Rollback 后邮箱必须回滚，不留部分成功。
+func TestUserPhonePII_TransactionAtomicity(t *testing.T) {
+	db := newPhonePIIRuntimeDB(t)
+	db.Exec("DELETE FROM users")
+	c := pii.NewCipher("test-master-key-32-bytes-long!!")
+	repo := NewUserRepository(db, c)
+	tm := database.NewTransactionManager(db)
+	ctx := context.Background()
+
+	a := &userEntity.User{ID: "01HPIITXAAAA000001", Username: "tx_a", Email: "tx_a@x.com", Phone: "13800001111", Status: "1"}
+	b := &userEntity.User{ID: "01HPIITXBBBB000001", Username: "tx_b", Email: "tx_b@x.com", Phone: "13800002222", Status: "1"}
+	require.NoError(t, repo.Create(ctx, a))
+	require.NoError(t, repo.Create(ctx, b))
+
+	err := tm.WithTransaction(ctx, func(txCtx context.Context) error {
+		// 第一步：改邮箱（应成功）
+		if err := repo.UpdateEmail(txCtx, a.ID, "tx_a_new@x.com"); err != nil {
+			return err
+		}
+		// 第二步：把手机号改成 b 已占用的号码 → email_idx/phone_idx 唯一索引拒绝
+		return repo.UpdatePhone(txCtx, a.ID, "13800002222")
+	})
+	require.Error(t, err, "唯一冲突必须整体失败")
+
+	got, err := repo.GetByID(ctx, a.ID)
+	require.NoError(t, err)
+	require.Equal(t, "tx_a@x.com", got.Email, "事务回滚后邮箱必须保持原值（无部分成功）")
+	require.Equal(t, "13800001111", got.Phone)
 }
