@@ -217,7 +217,7 @@ func (h *AdminHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	admin, err := h.adminService.GetByID(c.Request.Context(), uint(id))
+	admin, err := h.adminService.GetDetail(c.Request.Context(), uint(id))
 	if err != nil {
 		response.Fail(c, err)
 		return

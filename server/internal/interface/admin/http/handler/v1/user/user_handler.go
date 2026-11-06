@@ -64,6 +64,24 @@ func (h *UserHandler) List(c *gin.Context) {
 // @Success      200 {object} response.Response "用户列表"
 // @Security    ApiKeyAuth
 // @Router       /admin/v1/systemManage/users/autocomplete [get]
+// @Summary      获取用户详情
+// @Description  返回用户详细资料（手机号/邮箱为完整值——列表为掩码，详情按权限查看完整）
+// @Tags         用户管理
+// @Produce      json
+// @Param        id path string true "用户ID"
+// @Success      200 {object} response.Response "用户详情"
+// @Security    ApiKeyAuth
+// @Router       /admin/v1/systemManage/users/{id} [get]
+func (h *UserHandler) GetByID(c *gin.Context) {
+	id := c.Param("id")
+	detail, err := h.svc.GetDetail(c.Request.Context(), id)
+	if err != nil {
+		response.Fail(c, err)
+		return
+	}
+	response.Success(c, detail)
+}
+
 func (h *UserHandler) Autocomplete(c *gin.Context) {
 	keyword := c.Query("keyword")
 	if keyword == "" {

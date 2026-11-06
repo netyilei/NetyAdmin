@@ -33,7 +33,9 @@ const (
 	// startupProbeTimeout 启动期主动探活的总体超时（需覆盖所有注册检查）。
 	startupProbeTimeout = 5 * time.Second
 	// componentVersion 对外暴露的组件版本标识（供 /health 响应与运维识别）。
-	componentVersion = "v1"
+	// 2.0.0：Redis 基线 8.1+ / 手机号邮箱 PII 静态加密（0059-0060）/ 会话写路径 CAS。
+	// 升级步骤见 docs/upgrade-guide.md。
+	componentVersion = "2.0.0"
 	// componentName 对外暴露的组件名称。
 	componentName = "NetyAdmin"
 	// checkNamePostgres / checkNameRedis 注册到 health-go 的检查项名称，

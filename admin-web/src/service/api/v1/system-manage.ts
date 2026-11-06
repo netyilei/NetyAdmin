@@ -116,6 +116,14 @@ export function fetchUpdateAdmin(id: number, data: Omit<SystemManage.EditAdmin, 
   });
 }
 
+/** get admin detail（PII 完整值——列表为掩码） */
+export function fetchGetAdmin(id: number) {
+  return request<SystemManage.Admin>({
+    url: `/admin/v1/admins/${id}`,
+    method: 'get'
+  });
+}
+
 /** delete admin */
 export function fetchDeleteAdmin(id: number) {
   return request({
@@ -275,6 +283,14 @@ export function fetchUserAutocomplete(keyword: string) {
     url: '/admin/v1/systemManage/users/autocomplete',
     method: 'get',
     params: { keyword }
+  });
+}
+
+/** 获取终端用户详情（PII 完整值——列表为掩码） */
+export function fetchGetUserDetail(id: string) {
+  return request<SystemManage.ClientUser.UserDetail>({
+    url: `/admin/v1/systemManage/users/${id}`,
+    method: 'get'
   });
 }
 

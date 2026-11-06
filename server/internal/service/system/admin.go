@@ -21,7 +21,6 @@ import (
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
 	"NetyAdmin/internal/pkg/password"
-	"NetyAdmin/internal/pkg/pii"
 	systemRepo "NetyAdmin/internal/repository/system"
 	userService "NetyAdmin/internal/service/user"
 )
@@ -40,7 +39,8 @@ type AdminService interface {
 	Create(ctx context.Context, req *systemDto.CreateAdminReq, operatorID uint, operatorIsSuper bool) (uint, error)
 	Update(ctx context.Context, req *systemDto.UpdateAdminReq, operatorID uint, operatorIsSuper bool) error
 	Delete(ctx context.Context, id uint, operatorID uint) error
-	GetByID(ctx context.Context, id uint) (*systemEntity.Admin, error)
+	// GetDetail 返回管理员详细资料（PII 完整展示出口，与列表掩码互补）。
+	GetDetail(ctx context.Context, id uint) (*systemVO.AdminDetailVO, error)
 	GetByUsername(ctx context.Context, username string) (*systemEntity.Admin, error)
 	ExistsByUsername(ctx context.Context, username string, excludeID ...uint) (bool, error)
 	DeleteBatch(ctx context.Context, ids []uint, operatorID uint) error
@@ -148,8 +148,8 @@ func (s *adminService) GetProfile(ctx context.Context, adminID uint) (*systemVO.
 		ID:        admin.ID,
 		Username:  admin.Username,
 		Nickname:  admin.Nickname,
-		Phone:     pii.Mask(admin.Phone),
-		Email:     pii.MaskEmail(admin.Email),
+		Phone:     admin.Phone,
+		Email:     admin.Email,
 		Gender:    admin.Gender,
 		Status:    admin.Status,
 		CreatedAt: admin.CreatedAt.Format(time.DateTime),
@@ -235,8 +235,33 @@ func (s *adminService) ChangePassword(ctx context.Context, adminID uint, req *sy
 	return nil
 }
 
-func (s *adminService) GetByID(ctx context.Context, id uint) (*systemEntity.Admin, error) {
-	return s.adminRepo.GetByID(ctx, id)
+func (s *adminService) GetDetail(ctx context.Context, id uint) (*systemVO.AdminDetailVO, error) {
+	admin, err := s.adminRepo.GetByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errorx.New(errorx.CodeUserNotFound)
+		}
+		slog.Error("adminRepo.GetByID failed", "adminID", id, "err", err)
+		return nil, fmt.Errorf("adminRepo.GetByID: %w", err)
+	}
+	var gender *string
+	if admin.Gender != "" {
+		gender = &admin.Gender
+	}
+	return &systemVO.AdminDetailVO{
+		ID:        admin.ID,
+		Username:  admin.Username,
+		Nickname:  admin.Nickname,
+		Phone:     admin.Phone,
+		Email:     admin.Email,
+		Gender:    gender,
+		Status:    admin.Status,
+		Roles:     admin.RoleCodes(),
+		Creator:   admin.CreatorName(),
+		CreatedAt: admin.CreatedAt.Format(time.DateTime),
+		Updater:   admin.UpdaterName(),
+		UpdatedAt: admin.UpdatedAt.Format(time.DateTime),
+	}, nil
 }
 
 func (s *adminService) GetByUsername(ctx context.Context, username string) (*systemEntity.Admin, error) {

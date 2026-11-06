@@ -33,6 +33,8 @@ import (
 // 仅包含 admin handler 调用的方法，入参为 admin DTO（禁止 entity 入参，spec D4）。
 type UserAdminService interface {
 	List(ctx context.Context, req *userDto.UserQuery) ([]UserWithLock, int64, error)
+	// GetDetail 返回用户详细资料（PII 完整展示出口，与列表掩码互补）。
+	GetDetail(ctx context.Context, id string) (*userVO.UserDetailVO, error)
 	SearchForAutocomplete(ctx context.Context, keyword string, limit int) ([]userVO.UserAutoCompleteVO, error)
 	Create(ctx context.Context, req *userDto.CreateUserReq) error
 	Update(ctx context.Context, id string, req *userDto.UpdateUserReq) error
@@ -93,6 +95,38 @@ func (s *userAdminService) List(ctx context.Context, req *userDto.UserQuery) ([]
 		items = append(items, UserWithLock{User: u, Locked: locked, Phone: pii.Mask(u.Phone), Email: pii.MaskEmail(u.Email)})
 	}
 	return items, total, nil
+}
+
+// GetDetail 组装用户详细资料：PII 完整返回（列表/autocomplete 保持掩码）。
+func (s *userAdminService) GetDetail(ctx context.Context, id string) (*userVO.UserDetailVO, error) {
+	u, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errorx.New(errorx.CodeUserNotFound)
+		}
+		slog.Error("repo.GetByID failed", "userID", id, "err", err)
+		return nil, fmt.Errorf("repo.GetByID: %w", err)
+	}
+	locked := false
+	var lockVal string
+	if err := s.cacheSlow.Get(ctx, cache.KeyLoginLock(u.ID), &lockVal); err == nil && lockVal != "" {
+		locked = true
+	}
+	return &userVO.UserDetailVO{
+		ID:          u.ID,
+		Username:    u.Username,
+		Nickname:    u.Nickname,
+		Avatar:      u.Avatar,
+		Gender:      u.Gender,
+		Status:      u.Status,
+		Phone:       u.Phone,
+		Email:       u.Email,
+		Remark:      u.Remark,
+		Locked:      locked,
+		LastLoginAt: u.LastLoginAt,
+		LastLoginIP: u.LastLoginIP,
+		CreatedAt:   u.CreatedAt,
+	}, nil
 }
 
 func (s *userAdminService) SearchForAutocomplete(ctx context.Context, keyword string, limit int) ([]userVO.UserAutoCompleteVO, error) {

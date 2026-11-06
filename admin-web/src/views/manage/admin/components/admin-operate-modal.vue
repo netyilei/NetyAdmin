@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
-import { fetchAddAdmin, fetchGetAllRoles, fetchUpdateAdmin } from '@/service/api/v1/system-manage';
+import { fetchAddAdmin, fetchGetAdmin, fetchGetAllRoles, fetchUpdateAdmin } from '@/service/api/v1/system-manage';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { useOperation } from '@/hooks/common/operation';
 import type { SystemManage } from '@/typings/api/v1/system-manage';
@@ -81,20 +81,24 @@ async function getRoleOptions() {
   }
 }
 
-function handleInitModel() {
+async function handleInitModel() {
   Object.assign(model, createDefaultModel());
 
   if (props.operateType === 'edit' && props.rowData) {
-    Object.assign(model, {
-      id: props.rowData.id,
-      username: props.rowData.userName,
-      gender: props.rowData.userGender,
-      nickname: props.rowData.nickName,
-      phone: props.rowData.userPhone,
-      email: props.rowData.userEmail,
-      roles: props.rowData.userRoles,
-      status: props.rowData.status
-    });
+    // 同用户管理：详情接口返回完整 PII（列表为掩码），编辑基于完整值。
+    const { data } = await fetchGetAdmin(props.rowData.id);
+    if (data) {
+      Object.assign(model, {
+        id: data.id,
+        username: data.userName,
+        gender: data.userGender,
+        nickname: data.nickName,
+        phone: data.userPhone,
+        email: data.userEmail,
+        roles: data.userRoles,
+        status: data.status
+      });
+    }
   }
 }
 
@@ -118,9 +122,9 @@ async function handleSubmit() {
   });
 }
 
-watch(visible, val => {
+watch(visible, async val => {
   if (val) {
-    handleInitModel();
+    await handleInitModel();
     restoreValidation();
     getRoleOptions();
   }

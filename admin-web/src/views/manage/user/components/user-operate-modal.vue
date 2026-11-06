@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
 import type { UploadFileInfo } from 'naive-ui';
-import { fetchAddUser, fetchGetSysConfigs, fetchUpdateUser } from '@/service/api/v1/system-manage';
+import { fetchAddUser, fetchGetSysConfigs, fetchGetUserDetail, fetchUpdateUser } from '@/service/api/v1/system-manage';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { useOperation } from '@/hooks/common/operation';
 import { uploadFileWithCredentials } from '@/utils/upload';
@@ -114,10 +114,25 @@ const rules: Record<string, App.Global.FormRule[]> = {
   status: [defaultRequiredRule]
 };
 
-function handleInitModel() {
+async function handleInitModel() {
   Object.assign(model, createDefaultModel());
   if (props.operateType === 'edit' && props.rowData) {
-    Object.assign(model, props.rowData);
+    // 编辑回填走详情接口：列表行是掩码（138****5678），直接回填会在提交时
+    // 把掩码值当作新值（后端防御性忽略，但用户看不到 / 改不了真实号码）。
+    // 详情接口返回完整 PII——这是"详细资料里查看/修改"的唯一数据源。
+    const { data } = await fetchGetUserDetail(props.rowData.id);
+    if (data) {
+      Object.assign(model, {
+        id: data.id,
+        username: data.userName,
+        nickname: data.nickName,
+        avatar: data.avatar ?? '',
+        gender: data.gender,
+        phone: data.phone,
+        email: data.email,
+        status: data.status
+      });
+    }
     model.password = '';
   }
 }
@@ -163,9 +178,9 @@ async function handleSubmit() {
   });
 }
 
-watch(visible, val => {
+watch(visible, async val => {
   if (val) {
-    handleInitModel();
+    await handleInitModel();
     restoreValidation();
     loadUserConfigs();
   }

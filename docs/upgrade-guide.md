@@ -1,0 +1,100 @@
+# 升级指南（Upgrade Guide）
+
+> 本文件是基座版本升级的唯一操作手册。变更明细见 [CHANGELOG.md](../CHANGELOG.md)。
+> **基座不提供混合版本运行支持**：一次升级必须整批切换全部节点，禁止新旧版本同时对外服务。
+
+---
+
+## 当前版本：2.0.0
+
+**版本判定**：`GET /health` 返回的 `component.version` 即基座版本（升级前为 `v1`）。
+也可用 `git describe` / 部署时记录的提交号辅助判断。
+
+### 2.0.0 的破坏性变更（升级前必须逐条确认）
+
+| 变更 | 影响 |
+|------|------|
+| **Redis 基线提升到 8.1+** | 低于 8.1 的 Redis 不受支持（启动后缓存/限流/会话路径行为未经验证） |
+| **手机号/邮箱静态加密（users + admin_user）** | 存量明文在**升级启动时同步加密**并清空明文列；直查明文列的 SQL/报表/BI 必须改造（详见 CHANGELOG 的 Breaking 表） |
+| **列表掩码 / 详情完整** | 列表、autocomplete 的 phone/email 为掩码（`138****5678` / `J***@Example.COM`）；新增用户详情接口 `GET /admin/v1/systemManage/users/:id` 返回完整值（管理员详情 `GET /admins/:id` 同） |
+| **检索语义变化** | 手机号 = 完整号精确 / 尾号 4 位精确；邮箱 = 完整地址精确（大小写不敏感）。**中缀模糊搜索永久下线** |
+| **写路径语义** | 手机号/邮箱提交空值 = 保持原值（不再清空）；格式校验收紧（非法手机号/邮箱拒绝） |
+| **会话写路径 CAS** | UserTokenRepository 的 UpdateHashes/UpdateAccessHash/ClearHashes 签名与失败语义已变（直接调用方需对齐，见接口注释） |
+| **api_ratelimit 规则校验** | `max<=0`/`window<=0` 的规则加载时告警丢弃；规则间计数隔离 |
+
+### ⚠️ 密钥（`[security].aes_key`）红线
+
+PII 加密密钥由 `aes_key` 经 HKDF 派生。**升级前**：
+1. 确认当前 `aes_key` 已固定为生产值并**单独备份**；
+2. **升级后禁止更换 `aes_key`**——更换会使 `phone_enc`/`email_enc` 无法解密（现有密文永久不可读），
+   当前版本未提供密钥轮换（key-version）能力，见 CHANGELOG 演进项。
+
+---
+
+## 升级步骤
+
+### 0. 预检（自动）
+
+```bash
+bash scripts/tools/upgrade_preflight.sh
+```
+
+脚本检查：Redis ≥ 8.1、Redis/PG 可达、PG 当前迁移版本、`aes_key` 已配置且非模板默认值；
+任一 FAIL 立即停止升级。输出会提示备份命令与停服顺序。
+
+### 1. 备份
+
+```bash
+pg_dump -h <host> -U <user> -d <dbname> -Fc -f backup_before_v2_$(date +%Y%m%d%H%M).dump
+```
+
+Redis 为缓存层可不备份；如需保留限流/黑名单状态可 `BGSAVE`。
+
+### 2. 停止全部节点（必须）
+
+- 所有实例**全部停止**后再启动新版本，禁止先滚一台（混合版本会读不到已清空的明文列）；
+- 记录停服时间窗，升级单节点启动耗时 ≈ 迁移 + 存量 PII 加密（分批 500 行/批，通常毫秒~秒级）。
+
+### 3. 部署新版本并启动
+
+启动时自动执行（无需手工 SQL）：
+1. 迁移 0059/0060（新增 PII 列与索引、唯一索引切换）；
+2. **同步**存量明文加密回填（日志出现 `pii backfill completed` 即完成）；
+3. 健康检查 `GET /health` 返回 `"version":"2.0.0"`。
+
+### 4. 升级验证清单
+
+```sql
+-- 明文列应全部为空、密文/索引已落库（两表两字段）
+SELECT count(*) FROM users WHERE deleted_at = 0 AND (phone <> '' OR email <> '');
+-- 期望 0
+SELECT count(*) FROM users WHERE deleted_at = 0 AND phone_idx IS NOT NULL AND phone_idx <> '';
+-- 期望 > 0（有手机号的用户数）
+```
+
+- 登录 / 刷新 / 登出正常（会话 CAS 路径）；
+- 用户管理列表 phone/email 为掩码；打开编辑弹窗显示完整值并可正常保存；
+- 若配置了 `[api_ratelimit].rules`：确认启动日志无「已忽略该规则」（有则修正配置）。
+
+### 5. 回滚
+
+- 结构：回滚到旧二进制前先执行 0060/0059 的 down 迁移（恢复明文列与旧唯一索引）；
+- 数据：`*_enc` 是应用侧 AES-GCM 密文，SQL 无法解密——回滚前用新版本导出明文或保留备份，
+  down 迁移不会自动解密；
+- 因明文列已被清空，**回滚必须使用升级前备份**（第 1 步）。
+
+---
+
+## 数据库迁移对照
+
+| 版本 | 迁移 | 内容 |
+|------|------|------|
+| 2.0.0 | 0059 | users/admin_user 手机号三列 + `users_phone_idx_key` 唯一索引 |
+| 2.0.0 | 0060 | users/admin_user 邮箱两列 + `users_email_idx_key` 唯一索引 |
+| 2.0.0 | 0061 | 用户详情 API 权限种子（超管自动可用；普通角色需在角色管理勾选） |
+
+## 升级后必须同步给下游/前端的点
+
+1. 列表/autocomplete 的 phone/email 变掩码，编辑表单请改为调用详情接口回填完整值；
+2. 涉及 `users`/`admin_user` 手机号或邮箱的报表 SQL 全部失效于明文列，需改走 `*_idx`（精确）或 `*_tail4`（手机号尾号）；
+3. 端级会话拒绝码为 `101002`（顶号/hash 失效统一伪装禁用），前端按“请重新登录”处理。

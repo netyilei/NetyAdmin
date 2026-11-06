@@ -162,6 +162,14 @@ export namespace SystemManage {
       lastLoginAt?: string;
     }
 
+    /** 用户详情（编辑弹窗加载：PII 为完整值；列表/自动补全为掩码） */
+    interface UserDetail extends UserInfo {
+      remark: string;
+      locked: boolean;
+      lastLoginIp: string;
+      createdAt: string;
+    }
+
     type ClientUserSearchParams = CommonType.RecordNullable<
       {
         username: string;

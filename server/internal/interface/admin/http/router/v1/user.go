@@ -23,6 +23,7 @@ func (r *UserRouter) RegisterPermission(group *gin.RouterGroup) {
 	{
 		userGroup.GET("/autocomplete", r.user.Autocomplete)
 		userGroup.GET("", r.user.List)
+		userGroup.GET("/:id", r.user.GetByID)
 		userGroup.POST("", r.user.Create)
 		userGroup.PUT("/:id", r.user.Update)
 		userGroup.PATCH("/:id/status", r.user.UpdateStatus)
