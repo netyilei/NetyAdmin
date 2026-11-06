@@ -98,6 +98,41 @@ func TestUserPhonePIIRuntime(t *testing.T) {
 	require.NoError(t, repo.Update(ctx, got4))
 	got5, _ := repo.GetByID(ctx, u.ID)
 	assert.Equal(t, "13999999999", got5.Phone, "掩码写入不得破坏原手机号")
+
+	// 9. email 全链：Create 明文→密文列、明文列空、大小写归一化检索、唯一索引、掩码防御
+	ue := &userEntity.User{ID: "01HPIITESTUSER0003", Username: "pii_carol", Email: "Carol@Example.COM", Status: "1"}
+	require.NoError(t, repo.Create(ctx, ue))
+	erow := struct {
+		Email    *string
+		EmailEnc string
+		EmailIdx string
+	}{}
+	require.NoError(t, db.Raw(`SELECT email, email_enc, email_idx FROM users WHERE id = ?`, ue.ID).Scan(&erow).Error)
+	assert.Empty(t, erow.Email, "email 明文列必须为空")
+	assert.NotEmpty(t, erow.EmailEnc)
+	assert.Equal(t, c.IndexEmail("carol@example.com"), erow.EmailIdx, "盲索引小写归一化")
+
+	ge, err := repo.GetByEmail(ctx, "CAROL@example.COM")
+	require.NoError(t, err)
+	assert.Equal(t, "Carol@Example.COM", ge.Email, "解密回填保留原始大小写")
+
+	dupE := &userEntity.User{ID: "01HPIITESTUSER0004", Username: "pii_dave", Email: "carol@example.com", Status: "1"}
+	err = repo.Create(ctx, dupE)
+	require.Error(t, err, "同邮箱（大小写归一后）必须被 email_idx 唯一索引拦截")
+
+	require.NoError(t, repo.UpdateEmail(ctx, ue.ID, "carol.new@example.com"))
+	_, err = repo.GetByEmail(ctx, "Carol@Example.COM")
+	assert.ErrorIs(t, err, gorm.ErrRecordNotFound, "旧邮箱检索应落空")
+	ge2, err := repo.GetByEmail(ctx, "carol.new@example.com")
+	require.NoError(t, err)
+	assert.Equal(t, ue.ID, ge2.ID)
+
+	// email 掩码写入防御
+	ge3, _ := repo.GetByEmail(ctx, "carol.new@example.com")
+	ge3.Email = "c***@example.com"
+	require.NoError(t, repo.Update(ctx, ge3))
+	ge4, _ := repo.GetByEmail(ctx, "carol.new@example.com")
+	assert.Equal(t, "carol.new@example.com", ge4.Email, "掩码写入不得破坏原邮箱")
 }
 
 // newPhonePIIRuntimeDB 连接维护库、创建 PID 命名临时库、AutoMigrate users
@@ -132,8 +167,12 @@ func newPhonePIIRuntimeDB(t *testing.T) *gorm.DB {
 	t.Cleanup(func() { sqlDB.Close() })
 
 	require.NoError(t, db.WithContext(ctx).AutoMigrate(&userEntity.User{}))
+	// 0059/0060 的部分唯一索引 GORM 无法自动生成，测试 setup 手工补建
 	require.NoError(t, db.WithContext(ctx).Exec(
 		`CREATE UNIQUE INDEX users_phone_idx_key ON users(phone_idx)
 		 WHERE deleted_at = 0 AND phone_idx IS NOT NULL AND phone_idx <> ''`).Error)
+	require.NoError(t, db.WithContext(ctx).Exec(
+		`CREATE UNIQUE INDEX users_email_idx_key ON users(email_idx)
+		 WHERE deleted_at = 0 AND email_idx IS NOT NULL AND email_idx <> ''`).Error)
 	return db
 }

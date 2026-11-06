@@ -44,6 +44,9 @@ var SensitiveFieldKeys = []string{
 	"userphone",
 	"mobile",
 	"phonenumber",
+	// 邮箱（camelCase userEmail / email、snake_case email 变体）
+	"email",
+	"useremail",
 	// 验证码
 	"captchacode",
 	"captchakey",

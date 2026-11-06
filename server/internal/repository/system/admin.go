@@ -23,6 +23,8 @@ type AdminRepository interface {
 	Update(ctx context.Context, admin *systemEntity.Admin) error
 	// UpdatePhone 管理员换手机号专用（repo 内加密，service 不接触密钥/列名）。
 	UpdatePhone(ctx context.Context, id uint, phone string) error
+	// UpdateEmail 管理员换邮箱专用（同 UpdatePhone 语义）。
+	UpdateEmail(ctx context.Context, id uint, email string) error
 	UpdateLastLoginAt(ctx context.Context, id uint, lastLoginAt string) error
 	// IncrementTokenVersion 原子递增管理员 token_version（BUG #5）。
 	// 用于改密/禁用/删除等敏感操作，使旧 token 携带的版本号失效。
@@ -78,10 +80,43 @@ func (r *adminRepository) fillPhone(a *systemEntity.Admin) {
 	a.Phone = plain
 }
 
+func (r *adminRepository) fillPII(a *systemEntity.Admin) {
+	r.fillPhone(a)
+	r.fillEmail(a)
+}
+
 func (r *adminRepository) fillPhones(admins []systemEntity.Admin) {
 	for i := range admins {
-		r.fillPhone(&admins[i])
+		r.fillPII(&admins[i])
 	}
+}
+
+// fillEmail 读后解密回填邮箱（语义同 users repo）。
+func (r *adminRepository) fillEmail(a *systemEntity.Admin) {
+	if a == nil || a.EmailEnc == "" {
+		return
+	}
+	plain, err := r.phonePII.OpenEmail(a.EmailEnc)
+	if err != nil {
+		slog.Error("decrypt admin_user.email failed, degrade to empty", "adminID", a.ID, "err", err)
+		return
+	}
+	a.Email = plain
+}
+
+// sealEmail 写前加密邮箱（掩码防御语义同 users repo）。
+func (r *adminRepository) sealEmail(a *systemEntity.Admin) error {
+	if pii.IsMasked(a.Email) {
+		a.Email = ""
+		return nil
+	}
+	enc, idx, err := r.phonePII.SealEmail(a.Email)
+	if err != nil {
+		return err
+	}
+	a.EmailEnc, a.EmailIdx = enc, idx
+	a.Email = ""
+	return nil
 }
 
 // sealPhone 写前加密（语义同 users repo：明文列退役，掩码值防御性保留三列）。
@@ -108,6 +143,9 @@ func (r *adminRepository) Create(ctx context.Context, admin *systemEntity.Admin)
 	if err := r.sealPhone(admin); err != nil {
 		return err
 	}
+	if err := r.sealEmail(admin); err != nil {
+		return err
+	}
 	return r.getDB(ctx).Create(admin).Error
 }
 
@@ -119,6 +157,7 @@ func (r *adminRepository) GetByID(ctx context.Context, id uint) (*systemEntity.A
 		First(&admin, id).Error; err != nil {
 		return nil, err
 	}
+	r.fillPII(&admin)
 	return &admin, nil
 }
 
@@ -142,7 +181,7 @@ func (r *adminRepository) GetByUsername(ctx context.Context, username string) (*
 	if err := r.getDB(ctx).Preload("Roles").Preload("Roles.Buttons").Where("username = ?", username).First(&admin).Error; err != nil {
 		return nil, err
 	}
-	r.fillPhone(&admin)
+	r.fillPII(&admin)
 	return &admin, nil
 }
 
@@ -189,7 +228,9 @@ func (r *adminRepository) List(ctx context.Context, query *AdminRepoQuery) ([]sy
 		}
 	}
 	if query.Email != "" {
-		db = db.Where("email LIKE ?", like.LikeContains(query.Email))
+		if pii.IsValidEmail(query.Email) {
+			db = db.Where("email_idx = ?", r.phonePII.IndexEmail(query.Email))
+		}
 	}
 	if query.Status != nil && *query.Status != "" {
 		db = db.Where("status = ?", *query.Status)
@@ -207,7 +248,9 @@ func (r *adminRepository) List(ctx context.Context, query *AdminRepoQuery) ([]sy
 		return nil, 0, err
 	}
 
-	r.fillPhones(admins)
+	for i := range admins {
+		r.fillPII(&admins[i])
+	}
 	return admins, total, nil
 }
 
@@ -219,7 +262,23 @@ func (r *adminRepository) Update(ctx context.Context, admin *systemEntity.Admin)
 	if err := r.sealPhone(admin); err != nil {
 		return err
 	}
+	if err := r.sealEmail(admin); err != nil {
+		return err
+	}
 	return r.getDB(ctx).Omit("token_version").Save(admin).Error
+}
+
+// UpdateEmail 管理员换邮箱专用（repo 内 SealEmail，列级更新，明文列置空）。
+func (r *adminRepository) UpdateEmail(ctx context.Context, id uint, email string) error {
+	enc, idx, err := r.phonePII.SealEmail(email)
+	if err != nil {
+		return err
+	}
+	return r.getDB(ctx).Model(&systemEntity.Admin{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"email_enc": enc,
+		"email_idx": idx,
+		"email":     "",
+	}).Error
 }
 
 // UpdatePhone 管理员换手机号专用（repo 内 Seal，列级更新，明文列置空）。

@@ -28,6 +28,8 @@ type UserRepository interface {
 	Update(ctx context.Context, user *userEntity.User) error
 	// UpdatePhone 换手机号专用（repo 内加密，service 不接触密钥/列名）。
 	UpdatePhone(ctx context.Context, id string, phone string) error
+	// UpdateEmail 换邮箱专用（同 UpdatePhone 语义）。
+	UpdateEmail(ctx context.Context, id string, email string) error
 	Delete(ctx context.Context, id string) error
 	DeleteBatch(ctx context.Context, ids []string) error
 	UpdateFields(ctx context.Context, id string, fields map[string]interface{}) error
@@ -103,9 +105,27 @@ func (r *userRepository) fillPhone(u *userEntity.User) {
 	u.Phone = plain
 }
 
+// fillEmail 读后解密回填邮箱（解密失败按空降级，语义同手机号）。
+func (r *userRepository) fillEmail(u *userEntity.User) {
+	if u == nil || u.EmailEnc == "" {
+		return
+	}
+	plain, err := r.phonePII.OpenEmail(u.EmailEnc)
+	if err != nil {
+		slog.Error("decrypt users.email failed, degrade to empty", "userID", u.ID, "err", err)
+		return
+	}
+	u.Email = plain
+}
+
+func (r *userRepository) fillPII(u *userEntity.User) {
+	r.fillPhone(u)
+	r.fillEmail(u)
+}
+
 func (r *userRepository) fillPhones(users []userEntity.User) {
 	for i := range users {
-		r.fillPhone(&users[i])
+		r.fillPII(&users[i])
 	}
 }
 
@@ -126,8 +146,26 @@ func (r *userRepository) sealPhone(u *userEntity.User) error {
 	return nil
 }
 
+// sealEmail 写前加密邮箱（掩码防御语义同手机号）。
+func (r *userRepository) sealEmail(u *userEntity.User) error {
+	if pii.IsMasked(u.Email) {
+		u.Email = ""
+		return nil
+	}
+	enc, idx, err := r.phonePII.SealEmail(u.Email)
+	if err != nil {
+		return err
+	}
+	u.EmailEnc, u.EmailIdx = enc, idx
+	u.Email = ""
+	return nil
+}
+
 func (r *userRepository) Create(ctx context.Context, user *userEntity.User) error {
 	if err := r.sealPhone(user); err != nil {
+		return err
+	}
+	if err := r.sealEmail(user); err != nil {
 		return err
 	}
 	return r.getDB(ctx).Create(user).Error
@@ -138,7 +176,7 @@ func (r *userRepository) GetByID(ctx context.Context, id string) (*userEntity.Us
 	if err := r.getDB(ctx).First(&user, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
-	r.fillPhone(&user)
+	r.fillPII(&user)
 	return &user, nil
 }
 
@@ -147,7 +185,7 @@ func (r *userRepository) GetByUsername(ctx context.Context, username string) (*u
 	if err := r.getDB(ctx).Where("username = ?", username).First(&user).Error; err != nil {
 		return nil, err
 	}
-	r.fillPhone(&user)
+	r.fillPII(&user)
 	return &user, nil
 }
 
@@ -157,16 +195,16 @@ func (r *userRepository) GetByPhone(ctx context.Context, phone string) (*userEnt
 	if err := r.getDB(ctx).Where("phone_idx = ?", r.phonePII.Index(phone)).First(&user).Error; err != nil {
 		return nil, err
 	}
-	r.fillPhone(&user)
+	r.fillPII(&user)
 	return &user, nil
 }
 
 func (r *userRepository) GetByEmail(ctx context.Context, email string) (*userEntity.User, error) {
 	var user userEntity.User
-	if err := r.getDB(ctx).Where("email = ?", email).First(&user).Error; err != nil {
+	if err := r.getDB(ctx).Where("email_idx = ?", r.phonePII.IndexEmail(email)).First(&user).Error; err != nil {
 		return nil, err
 	}
-	r.fillPhone(&user)
+	r.fillPII(&user)
 	return &user, nil
 }
 
@@ -191,7 +229,7 @@ func (r *userRepository) ExistsByPhone(ctx context.Context, phone string, exclud
 }
 
 func (r *userRepository) ExistsByEmail(ctx context.Context, email string, excludeID ...string) (bool, error) {
-	query := r.getDB(ctx).Model(&userEntity.User{}).Where("email = ?", email)
+	query := r.getDB(ctx).Model(&userEntity.User{}).Where("email_idx = ?", r.phonePII.IndexEmail(email))
 	if len(excludeID) > 0 {
 		query = query.Where("id <> ?", excludeID[0])
 	}
@@ -229,7 +267,9 @@ func (r *userRepository) List(ctx context.Context, query *UserRepoQuery) ([]user
 		}
 	}
 	if query.Email != "" {
-		db = db.Where("email LIKE ?", like.LikeContains(query.Email))
+		if pii.IsValidEmail(query.Email) {
+			db = db.Where("email_idx = ?", r.phonePII.IndexEmail(query.Email))
+		}
 	}
 	if query.Status != nil && *query.Status != "" {
 		db = db.Where("status = ?", *query.Status)
@@ -258,6 +298,9 @@ func (r *userRepository) SearchForAutocomplete(ctx context.Context, keyword stri
 	if _, arg, ok := phoneSearchCondition(r.phonePII, keyword); ok {
 		db = db.Or("(phone_idx = ? OR phone_tail4 = ?)", arg, arg)
 	}
+	if pii.IsValidEmail(keyword) {
+		db = db.Or("email_idx = ?", r.phonePII.IndexEmail(keyword))
+	}
 	if err := db.Limit(limit).Order("id DESC").Find(&users).Error; err != nil {
 		return nil, err
 	}
@@ -275,6 +318,9 @@ func (r *userRepository) Update(ctx context.Context, user *userEntity.User) erro
 	if err := r.sealPhone(user); err != nil {
 		return err
 	}
+	if err := r.sealEmail(user); err != nil {
+		return err
+	}
 	return r.getDB(ctx).Omit("token_version").Save(user).Error
 }
 
@@ -288,6 +334,20 @@ func (r *userRepository) DeleteBatch(ctx context.Context, ids []string) error {
 
 func (r *userRepository) UpdateFields(ctx context.Context, id string, fields map[string]interface{}) error {
 	return r.getDB(ctx).Model(&userEntity.User{}).Where("id = ?", id).Updates(fields).Error
+}
+
+// UpdateEmail 换邮箱专用（repo 内 SealEmail，列级更新，明文列置空）。
+// 并发改绑竞态由 email_idx 部分唯一索引兜底。
+func (r *userRepository) UpdateEmail(ctx context.Context, id string, email string) error {
+	enc, idx, err := r.phonePII.SealEmail(email)
+	if err != nil {
+		return err
+	}
+	return r.getDB(ctx).Model(&userEntity.User{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"email_enc": enc,
+		"email_idx": idx,
+		"email":     "",
+	}).Error
 }
 
 // UpdatePhone 换手机号专用：repo 内 Seal 并列级更新三列（明文列置空）。

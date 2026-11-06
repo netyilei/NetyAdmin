@@ -244,6 +244,7 @@ func (r *mockUserRepo) SearchForAutocomplete(_ context.Context, _ string, _ int)
 }
 func (r *mockUserRepo) Update(_ context.Context, _ *userEntity.User) error      { return nil }
 func (r *mockUserRepo) UpdatePhone(_ context.Context, _ string, _ string) error { return nil }
+func (r *mockUserRepo) UpdateEmail(_ context.Context, _ string, _ string) error { return nil }
 func (r *mockUserRepo) Delete(_ context.Context, _ string) error                { return nil }
 func (r *mockUserRepo) DeleteBatch(_ context.Context, _ []string) error         { return nil }
 func (r *mockUserRepo) IncrementTokenVersion(_ context.Context, _ string) error { return nil }
@@ -936,6 +937,11 @@ func TestUserGetInfo_MaskedPhone(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "138****5678", vo.Phone, "接口出口必须为掩码")
 	assert.NotContains(t, vo.Phone, "12345678", "掩码不得包含中段明文")
+	user.Email = "John.Doe@Example.COM"
+	repo.UserByID = user
+	vo2, err := svc.GetInfo(context.Background(), user.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "J***@Example.COM", vo2.Email, "email 出口掩码（域名保留原大小写、本地部分只留首字符）")
 }
 
 // TestUserGetInfo_MaskedPhoneEmpty 验证未设置手机号的行出口为空串而非占位符。

@@ -60,6 +60,8 @@ type UserWithLock struct {
 	// Phone 是展示掩码（138****5678）：内嵌 User 的明文 Phone 为 json:"-"，
 	// 此字段是列表页唯一的手机号出口（掩码返回是 CHANGELOG 2026-11-07 的决策）。
 	Phone string `json:"phone"`
+	// Email 同上：掩码出口。
+	Email string `json:"email"`
 }
 
 func (s *userAdminService) List(ctx context.Context, req *userDto.UserQuery) ([]UserWithLock, int64, error) {
@@ -88,7 +90,7 @@ func (s *userAdminService) List(ctx context.Context, req *userDto.UserQuery) ([]
 		if err := s.cacheSlow.Get(ctx, lockKey, &lockVal); err == nil && lockVal != "" {
 			locked = true
 		}
-		items = append(items, UserWithLock{User: u, Locked: locked, Phone: pii.Mask(u.Phone)})
+		items = append(items, UserWithLock{User: u, Locked: locked, Phone: pii.Mask(u.Phone), Email: pii.MaskEmail(u.Email)})
 	}
 	return items, total, nil
 }
@@ -105,6 +107,7 @@ func (s *userAdminService) SearchForAutocomplete(ctx context.Context, keyword st
 			Username: u.Username,
 			Nickname: u.Nickname,
 			Phone:    pii.Mask(u.Phone),
+			Email:    pii.MaskEmail(u.Email),
 		})
 	}
 	return items, nil
@@ -189,10 +192,14 @@ func (s *userAdminService) Update(ctx context.Context, id string, req *userDto.U
 		}
 		oldUser.Phone = req.Phone
 	}
-	if req.Email != "" && req.Email != oldUser.Email {
+	// 掩码回写防御（同手机号）
+	if req.Email != "" && req.Email != oldUser.Email && !pii.IsMasked(req.Email) {
+		if err := pii.ValidateEmail(req.Email); err != nil {
+			return errorx.New(errorx.CodeInvalidParams, "邮箱格式不正确")
+		}
 		exists, existsErr = s.repo.ExistsByEmail(ctx, req.Email, id)
 		if existsErr != nil {
-			slog.Warn("ExistsByEmail query failed", "email", req.Email, "error", existsErr)
+			slog.Warn("ExistsByEmail query failed", "email", pii.MaskEmail(req.Email), "error", existsErr)
 		}
 		if exists {
 			return errorx.New(errorx.CodeUserAlreadyExists, "邮箱已存在")

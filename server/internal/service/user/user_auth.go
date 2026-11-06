@@ -430,7 +430,7 @@ func (s *userClientService) GetInfo(ctx context.Context, userID string) (*userVO
 		Nickname:    user.Nickname,
 		Avatar:      user.Avatar,
 		Phone:       pii.Mask(user.Phone),
-		Email:       user.Email,
+		Email:       pii.MaskEmail(user.Email),
 		Gender:      user.Gender,
 		Status:      user.Status,
 		LastLoginAt: user.LastLoginAt,
@@ -457,8 +457,15 @@ func (s *userClientService) UpdateProfile(ctx context.Context, userID string, re
 		user.Gender = req.Gender
 	}
 
+	phoneChanged := false
+	emailChanged := false
+
 	// 邮箱变更需验证码（仅当邮箱真正变更时才校验，避免未变更也要求验证码）
-	if req.Email != "" && req.Email != user.Email {
+	// 掩码回写防御：前端把掩码值原样提交时视为未变更（与手机号同语义）
+	if req.Email != "" && req.Email != user.Email && !pii.IsMasked(req.Email) {
+		if err := pii.ValidateEmail(req.Email); err != nil {
+			return errorx.New(errorx.CodeInvalidParams, "邮箱格式不正确")
+		}
 		if req.EmailCode == "" {
 			return errorx.New(errorx.CodeCaptchaRequired, "邮箱变更需提供验证码")
 		}
@@ -474,11 +481,11 @@ func (s *userClientService) UpdateProfile(ctx context.Context, userID string, re
 			return errorx.New(errorx.CodeUserAlreadyExists, "邮箱已占用")
 		}
 		user.Email = req.Email
+		emailChanged = true
 	}
 
 	// 手机变更需验证码（仅当手机真正变更时才校验，避免未变更也要求验证码）
 	// 掩码回写防御：前端把掩码值原样提交时视为未变更
-	phoneChanged := false
 	if req.Phone != "" && req.Phone != user.Phone && !pii.IsMasked(req.Phone) {
 		if err := pii.Validate(req.Phone); err != nil {
 			return errorx.New(errorx.CodeInvalidParams, "手机号格式不正确")
@@ -509,11 +516,18 @@ func (s *userClientService) UpdateProfile(ctx context.Context, userID string, re
 		"nickname": user.Nickname,
 		"avatar":   user.Avatar,
 		"gender":   user.Gender,
-		"email":    user.Email,
 	}
 	// 手机号变更走专用方法（repo 内加密三列）；仅真正变更时更新——
 	// 未变更时重加密同值虽幂等，但会凭空刷新行 updated_at。
 	// 并发换号竞态由 phone_idx 部分唯一索引兜底，冲突转业务错误码
+	if emailChanged {
+		if err := s.repo.UpdateEmail(ctx, userID, user.Email); err != nil {
+			if database.IsUniqueViolation(err) {
+				return errorx.New(errorx.CodeUserAlreadyExists, "邮箱已被占用")
+			}
+			return fmt.Errorf("repo.UpdateEmail: %w", err)
+		}
+	}
 	if phoneChanged {
 		if err := s.repo.UpdatePhone(ctx, userID, user.Phone); err != nil {
 			if database.IsUniqueViolation(err) {
@@ -636,7 +650,7 @@ func (s *userClientService) ResetPassword(ctx context.Context, req *clientDto.Us
 
 	var user *userEntity.User
 	var err error
-	if utils.IsEmail(req.Target) {
+	if pii.IsValidEmail(req.Target) {
 		user, err = s.repo.GetByEmail(ctx, req.Target)
 	} else {
 		user, err = s.repo.GetByPhone(ctx, req.Target)

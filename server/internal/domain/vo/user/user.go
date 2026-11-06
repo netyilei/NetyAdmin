@@ -36,4 +36,5 @@ type UserAutoCompleteVO struct {
 	Username string `json:"userName"`
 	Nickname string `json:"nickName"`
 	Phone    string `json:"phone"`
+	Email    string `json:"email"`
 }

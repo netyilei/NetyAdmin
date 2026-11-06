@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"golang.org/x/crypto/hkdf"
+	"regexp"
 )
 
 // ErrInvalidPhone 是手机号格式非法的错误（写入口校验用，^1[3-9]\d{9}$）。
@@ -35,15 +36,19 @@ var ErrInvalidPhone = errors.New("pii: invalid phone format")
 // hkdfSalt 与 info 将主密钥按用途分离：enc（AES-GCM 存储密钥）与
 // idx（HMAC-SHA256 盲索引密钥）永不共用，防跨用途密钥重放。
 var (
-	hkdfSalt = []byte("netyadmin/pii/v1")
-	encInfo  = []byte("netyadmin/pii/v1/phone-enc")
-	idxInfo  = []byte("netyadmin/pii/v1/phone-idx")
+	hkdfSalt     = []byte("netyadmin/pii/v1")
+	encInfo      = []byte("netyadmin/pii/v1/phone-enc")
+	idxInfo      = []byte("netyadmin/pii/v1/phone-idx")
+	encEmailInfo = []byte("netyadmin/pii/v1/email-enc")
+	idxEmailInfo = []byte("netyadmin/pii/v1/email-idx")
 )
 
 // Cipher 是手机号 PII 加密器。构造后并发安全（密钥只读）。
 type Cipher struct {
-	encKey []byte
-	idxKey []byte
+	encKey      []byte
+	idxKey      []byte
+	encKeyEmail []byte
+	idxKeyEmail []byte
 }
 
 // NewCipher 从主密钥（[security].aes_key）派生子密钥构造 Cipher。
@@ -51,8 +56,10 @@ type Cipher struct {
 // 强制 aes_key 非默认值，不依赖本包兜底。
 func NewCipher(masterKey string) *Cipher {
 	return &Cipher{
-		encKey: derive(masterKey, encInfo),
-		idxKey: derive(masterKey, idxInfo),
+		encKey:      derive(masterKey, encInfo),
+		idxKey:      derive(masterKey, idxInfo),
+		encKeyEmail: derive(masterKey, encEmailInfo),
+		idxKeyEmail: derive(masterKey, idxEmailInfo),
 	}
 }
 
@@ -193,4 +200,115 @@ func Mask(phone string) string {
 // 用于编辑回写防御：前端把掩码值原样提交时不当作"改号"处理。
 func IsMasked(phone string) bool {
 	return strings.Contains(phone, "*")
+}
+
+// ---------- 邮箱 PII（与手机号同构，两处差异） ----------
+//   - 检索语义只有完整地址精确（无尾号等价物，email 无辅助列）；
+//   - 大小写：存储密文保留原始大小写（展示保真），盲索引以小写归一化
+//     （邮箱路由实践上大小写不敏感，同地址多形态必须映射同一索引）。
+
+// emailRegex 是后端唯一的邮箱格式定义点（原 utils.IsEmail 迁入：
+// utils 因依赖 configsync 不是纯叶子包，pii 不能反向依赖，见 pkg/like 先例）。
+var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+
+// IsValidEmail 报告邮箱格式是否合法（找回密码 target 判定等只读场景用；
+// 写入口请用 ValidateEmail 以获得带上下文的错误）。
+func IsValidEmail(email string) bool {
+	return emailRegex.MatchString(strings.TrimSpace(email))
+}
+
+// ValidateEmail 校验邮箱格式（归一化后），写入口用。
+func ValidateEmail(email string) error {
+	if !IsValidEmail(email) {
+		return fmt.Errorf("%w: %q", ErrInvalidEmail, email)
+	}
+	return nil
+}
+
+// ErrInvalidEmail 是邮箱格式非法的错误（写入口校验用）。
+var ErrInvalidEmail = errors.New("pii: invalid email format")
+
+// SealEmail 产出邮箱的两个持久化形态：enc（GCM 密文，保留大小写）与
+// idx（小写归一化的 HMAC 盲索引）。空串返回空对（未设置邮箱的行）。
+func (c *Cipher) SealEmail(email string) (enc, idx string, err error) {
+	e := strings.TrimSpace(email)
+	if e == "" {
+		return "", "", nil
+	}
+	encB, err := c.sealGCMKey(e, c.encKeyEmail)
+	if err != nil {
+		return "", "", err
+	}
+	return encB, c.IndexEmail(e), nil
+}
+
+// OpenEmail 解密邮箱存储密文。空密文返回空串。
+func (c *Cipher) OpenEmail(enc string) (string, error) {
+	if enc == "" {
+		return "", nil
+	}
+	return c.openGCMKey(enc, c.encKeyEmail)
+}
+
+// IndexEmail 返回邮箱盲索引（小写归一化）。空串返回空串。
+func (c *Cipher) IndexEmail(email string) string {
+	e := strings.ToLower(strings.TrimSpace(email))
+	if e == "" {
+		return ""
+	}
+	m := hmac.New(sha256.New, c.idxKeyEmail)
+	m.Write([]byte(e))
+	return hex.EncodeToString(m.Sum(nil))
+}
+
+// MaskEmail 返回展示掩码：本地部分保留首字符 + "***" + @域名
+// （john.doe@x.com → j***@x.com）。无 @ 的值原样返回（防御）。
+func MaskEmail(email string) string {
+	e := strings.TrimSpace(email)
+	at := strings.LastIndex(e, "@")
+	if at <= 0 {
+		return email
+	}
+	return e[:1] + "***" + e[at:]
+}
+
+// sealGCMKey / openGCMKey 是 GCM 的密钥参数化版本（phone/email 各自子密钥共用实现）。
+func (c *Cipher) sealGCMKey(plaintext string, key []byte) (string, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", err
+	}
+	ct := gcm.Seal(nonce, nonce, []byte(plaintext), nil)
+	return base64.StdEncoding.EncodeToString(ct), nil
+}
+
+func (c *Cipher) openGCMKey(enc string, key []byte) (string, error) {
+	data, err := base64.StdEncoding.DecodeString(enc)
+	if err != nil {
+		return "", fmt.Errorf("pii: decode base64: %w", err)
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	if len(data) < gcm.NonceSize() {
+		return "", errors.New("pii: ciphertext shorter than nonce")
+	}
+	plain, err := gcm.Open(nil, data[:gcm.NonceSize()], data[gcm.NonceSize():], nil)
+	if err != nil {
+		return "", fmt.Errorf("pii: gcm open: %w", err)
+	}
+	return string(plain), nil
 }

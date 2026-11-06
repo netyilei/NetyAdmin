@@ -4,6 +4,7 @@ import (
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/errorx"
+	"NetyAdmin/internal/pkg/pii"
 	"NetyAdmin/internal/pkg/utils"
 	msgSvc "NetyAdmin/internal/service/message"
 	"context"
@@ -192,7 +193,7 @@ func (s *verificationService) SendCode(ctx context.Context, scene, target, captc
 	}
 
 	// 简单判断是邮箱还是手机号
-	if utils.IsEmail(target) {
+	if pii.IsValidEmail(target) {
 		return s.msgSvc.SendTemplate(ctx, "VERIFY_CODE_EMAIL", target, params)
 	} else {
 		return s.msgSvc.SendTemplate(ctx, "VERIFY_CODE_SMS", target, params)

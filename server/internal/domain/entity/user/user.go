@@ -18,11 +18,14 @@ type User struct {
 	// Phone 是解密回填的明文手机号（repo 读取时从 PhoneEnc 解密填充，出口统一掩码）。
 	// 【废弃写】明文列 phone 已退役：repo 写路径统一 Seal 到三列并将本列置空；
 	// 本字段仅在惰性加密迁移期间作为存量明文读取源（迁移完成后恒为 ""）。
-	Phone       string     `gorm:"column:phone;size:20" json:"-"`
-	PhoneEnc    string     `gorm:"column:phone_enc" json:"-"`
-	PhoneIdx    string     `gorm:"column:phone_idx;size:64" json:"-"`
-	PhoneTail4  string     `gorm:"column:phone_tail4;size:4" json:"-"`
-	Email       string     `gorm:"column:email;size:100" json:"email"`
+	Phone      string `gorm:"column:phone;size:20" json:"-"`
+	PhoneEnc   string `gorm:"column:phone_enc" json:"-"`
+	PhoneIdx   string `gorm:"column:phone_idx;size:64" json:"-"`
+	PhoneTail4 string `gorm:"column:phone_tail4;size:4" json:"-"`
+	// Email 语义同 Phone（解密回填/明文列退役）；密文保留原始大小写、盲索引小写归一化。
+	Email       string     `gorm:"column:email;size:100" json:"-"`
+	EmailEnc    string     `gorm:"column:email_enc" json:"-"`
+	EmailIdx    string     `gorm:"column:email_idx;size:64" json:"-"`
 	Avatar      string     `gorm:"column:avatar;size:255" json:"avatar"`
 	Gender      string     `gorm:"column:gender;size:1;default:0" json:"gender"` // 0: 未知, 1: 男, 2: 女
 	Status      string     `gorm:"column:status;size:1;default:1" json:"status"` // 1: 正常, 0: 禁用

@@ -9,11 +9,14 @@ type Admin struct {
 	Password string `gorm:"column:password;size:100;not null" json:"-"`
 	Nickname string `gorm:"column:nickname;size:50" json:"nickName"`
 	// Phone 语义同 users.Phone（见 entity/user/user.go）：解密回填、明文列退役。
-	Phone       string  `gorm:"column:phone;size:20" json:"-"`
-	PhoneEnc    string  `gorm:"column:phone_enc" json:"-"`
-	PhoneIdx    string  `gorm:"column:phone_idx;size:64" json:"-"`
-	PhoneTail4  string  `gorm:"column:phone_tail4;size:4" json:"-"`
-	Email       string  `gorm:"column:email;size:100" json:"userEmail"`
+	Phone      string `gorm:"column:phone;size:20" json:"-"`
+	PhoneEnc   string `gorm:"column:phone_enc" json:"-"`
+	PhoneIdx   string `gorm:"column:phone_idx;size:64" json:"-"`
+	PhoneTail4 string `gorm:"column:phone_tail4;size:4" json:"-"`
+	// Email 语义同 Phone（解密回填/明文列退役）。
+	Email       string  `gorm:"column:email;size:100" json:"-"`
+	EmailEnc    string  `gorm:"column:email_enc" json:"-"`
+	EmailIdx    string  `gorm:"column:email_idx;size:64" json:"-"`
 	Gender      string  `gorm:"column:gender;size:1;default:1" json:"userGender"`
 	Status      string  `gorm:"column:status;size:1;default:1" json:"status"`
 	LastLoginAt *string `gorm:"column:last_login_at;size:30" json:"lastLoginAt"`

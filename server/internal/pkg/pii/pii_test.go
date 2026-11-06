@@ -123,3 +123,106 @@ func TestIsMasked(t *testing.T) {
 	assert.False(t, IsMasked("13812345678"))
 	assert.False(t, IsMasked(""))
 }
+
+func TestEmailSeal_IndexLowercase_EncPreservesCase(t *testing.T) {
+	c := NewCipher(testMaster)
+
+	enc1, idx1, err := c.SealEmail("John.Doe@Example.COM")
+	require.NoError(t, err)
+	enc2, idx2, err := c.SealEmail("john.doe@example.com")
+	require.NoError(t, err)
+
+	// 大小写多形态映射同一盲索引（邮箱路由实践不区分大小写）
+	assert.Equal(t, idx1, idx2)
+	// 存储密文保留原始大小写（展示保真）
+	got, err := c.OpenEmail(enc1)
+	require.NoError(t, err)
+	assert.Equal(t, "John.Doe@Example.COM", got)
+	assert.NotEqual(t, enc1, enc2, "随机化加密")
+}
+
+func TestEmailSealOpenRoundtrip(t *testing.T) {
+	c := NewCipher(testMaster)
+	enc, idx, err := c.SealEmail("  alice+tag@netyadmin.com ")
+	require.NoError(t, err)
+	got, err := c.OpenEmail(enc)
+	require.NoError(t, err)
+	assert.Equal(t, "alice+tag@netyadmin.com", got)
+	assert.NotEqual(t, c.IndexEmail("other@x.com"), idx)
+}
+
+func TestEmailOpen_EmptyAndCorrupt(t *testing.T) {
+	c := NewCipher(testMaster)
+	got, err := c.OpenEmail("")
+	require.NoError(t, err)
+	assert.Empty(t, got)
+	_, err = c.OpenEmail("broken@@@")
+	assert.Error(t, err)
+}
+
+func TestValidateEmail(t *testing.T) {
+	valid := []string{"a@b.co", " first.last+tag@sub.example.org ", "John@Example.COM"}
+	for _, e := range valid {
+		assert.NoError(t, ValidateEmail(e), e)
+	}
+	invalid := []string{"", "no-at-sign", "@no-local.com", "no-domain@", "has space@x.com", "a@b"}
+	for _, e := range invalid {
+		assert.ErrorIs(t, ValidateEmail(e), ErrInvalidEmail, e)
+	}
+}
+
+func TestMaskEmail(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"standard", "john.doe@x.com", "j***@x.com"},
+		{"trim spaces", "  a@b.co  ", "a***@b.co"},
+		{"no at kept as-is", "not-an-email", "not-an-email"},
+		{"empty kept", "", ""},
+		{"single-char local", "x@y.io", "x***@y.io"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) { assert.Equal(t, tt.want, MaskEmail(tt.in)) })
+	}
+}
+
+func TestEmailKeyIsolation(t *testing.T) {
+	c := NewCipher(testMaster)
+	// email 与 phone 四个子密钥两两不同（用途隔离）
+	assert.NotEqual(t, c.encKey, c.encKeyEmail)
+	assert.NotEqual(t, c.idxKey, c.idxKeyEmail)
+	// email 盲索引 ≠ phone 盲索引（同输入不同域）
+	assert.NotEqual(t, c.Index("a@b.com"), c.IndexEmail("a@b.com"))
+}
+
+// TestIsValidEmail 全量用例自 utils.IsEmail 原测试迁移（正则单一事实源随迁）。
+func TestIsValidEmail(t *testing.T) {
+	tests := []struct {
+		name  string
+		email string
+		want  bool
+	}{
+		{"simple valid", "user@example.com", true},
+		{"with dot in local", "test.user@domain.org", true},
+		{"short TLD", "a@b.co", true},
+		{"with plus sign", "user+tag@domain.com", true},
+		{"with percent", "user%name@domain.com", true},
+		{"with digits", "user123@123.com", true},
+		{"empty string", "", false},
+		{"no at sign", "userdomain.com", false},
+		{"no domain", "user@", false},
+		{"no local part", "@domain.com", false},
+		{"no TLD", "user@domain", false},
+		{"double at", "user@@domain.com", false},
+		{"TLD too short", "user@domain.c", false},
+		{"special chars invalid", "user!name@domain.com", false},
+		{"space in email", "user @domain.com", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, IsValidEmail(tt.email), "IsValidEmail(%q)", tt.email)
+		})
+	}
+}

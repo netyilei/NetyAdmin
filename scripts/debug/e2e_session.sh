@@ -157,15 +157,16 @@ ok "前置就绪（历史会话已清）"
 # 0059 + 启动后台任务：users.phone 明文列清空、phone_enc/phone_idx 落库。
 # testuser1 是 0042 种子用户（明文 13800000001）；任务为 GoSafe 异步——
 # 轮询等待（条件+超时+诊断），超时说明惰性迁移未生效。
-step "P1 惰性加密哨兵：种子用户 phone 明文列清空、三列落库"
+step "P1 惰性加密哨兵：种子用户 phone/email 明文列清空、密文列落库"
 enc_done=""
 for i in $(seq 1 10); do
-  plain_empty=$(db "SELECT COALESCE(phone = '' OR phone IS NULL, false) FROM users WHERE username='testuser1' AND deleted_at = 0;")
-  enc_filled=$(db "SELECT COALESCE(phone_enc <> '', false) FROM users WHERE username='testuser1' AND deleted_at = 0;")
-  if [ "$plain_empty" = "t" ] && [ "$enc_filled" = "t" ]; then enc_done=1; break; fi
+  ok_count=$(db "SELECT count(*) FROM users WHERE username='testuser1' AND deleted_at = 0
+    AND (phone IS NULL OR phone = '') AND COALESCE(phone_enc,'') <> ''
+    AND (email IS NULL OR email = '') AND COALESCE(email_enc,'') <> '';")
+  [ "$ok_count" = "1" ] && enc_done=1 && break
   sleep 1
 done
-[ -n "$enc_done" ] || die "惰性加密迁移未在 10s 内生效（testuser1：plain_empty=[$plain_empty] enc_filled=[$enc_filled]）"
+[ -n "$enc_done" ] || die "惰性加密迁移未在 10s 内生效（testuser1 phone/email 未完成加密，ok_count=[$ok_count]）"
 dup=$(db "SELECT count(*) FROM (SELECT phone_idx FROM users WHERE deleted_at = 0 AND phone_idx <> '' GROUP BY phone_idx HAVING count(*) > 1) d;")
 [ "$dup" = "0" ] || die "phone_idx 出现重复（唯一索引未生效）"
 ok "惰性迁移完成：明文列已清空、phone_enc/idx 已落库、盲索引无重复"

@@ -149,7 +149,7 @@ func (s *adminService) GetProfile(ctx context.Context, adminID uint) (*systemVO.
 		Username:  admin.Username,
 		Nickname:  admin.Nickname,
 		Phone:     pii.Mask(admin.Phone),
-		Email:     admin.Email,
+		Email:     pii.MaskEmail(admin.Email),
 		Gender:    admin.Gender,
 		Status:    admin.Status,
 		CreatedAt: admin.CreatedAt.Format(time.DateTime),

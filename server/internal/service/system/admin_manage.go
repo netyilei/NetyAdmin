@@ -52,7 +52,7 @@ func (s *adminService) List(ctx context.Context, req *systemDto.AdminQuery) ([]*
 			Username:  a.Username,
 			Nickname:  a.Nickname,
 			Phone:     pii.Mask(a.Phone),
-			Email:     a.Email,
+			Email:     pii.MaskEmail(a.Email),
 			Gender:    gender,
 			Status:    a.Status,
 			Roles:     a.RoleCodes(),
@@ -70,6 +70,11 @@ func (s *adminService) Create(ctx context.Context, req *systemDto.CreateAdminReq
 	if req.Phone != "" {
 		if err := pii.Validate(req.Phone); err != nil {
 			return 0, errorx.New(errorx.CodeInvalidParams, "手机号格式不正确")
+		}
+	}
+	if req.Email != "" {
+		if err := pii.ValidateEmail(req.Email); err != nil {
+			return 0, errorx.New(errorx.CodeInvalidParams, "邮箱格式不正确")
 		}
 	}
 	exists, err := s.adminRepo.ExistsByUsername(ctx, req.Username)
@@ -177,6 +182,12 @@ func (s *adminService) Update(ctx context.Context, req *systemDto.UpdateAdminReq
 	if req.Phone != "" && !pii.IsMasked(req.Phone) {
 		if err := pii.Validate(req.Phone); err != nil {
 			return errorx.New(errorx.CodeInvalidParams, "手机号格式不正确")
+		}
+	}
+	// 邮箱同语义：掩码回写防御（编辑回显掩码 = 不变更邮箱）
+	if req.Email != "" && !pii.IsMasked(req.Email) {
+		if err := pii.ValidateEmail(req.Email); err != nil {
+			return errorx.New(errorx.CodeInvalidParams, "邮箱格式不正确")
 		}
 	}
 	admin.Phone = req.Phone
