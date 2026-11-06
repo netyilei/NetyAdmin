@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // newRuntimeManager 构造只接 Redis 的 LazyCacheManager，用于验证依赖 Lua/Redis
@@ -30,107 +32,101 @@ func newRuntimeManager(t *testing.T) (*LazyCacheManager, *redis.Client, string) 
 	return &LazyCacheManager{redisClient: client, prefix: prefix}, client, prefix
 }
 
-// TestGetAndDeleteRuntime 真 Redis 验证 Lua GET+DEL：
-// 原子消费（并发仅一个成功）、二次取值为 redis.Nil、缺失返回 redis.Nil。
-// 覆盖 Redis 6.0（无 GETDEL）兼容路径。
-func TestGetAndDeleteRuntime(t *testing.T) {
-	mgr, client, prefix := newRuntimeManager(t)
-	ctx := context.Background()
-	t.Cleanup(func() {
-		if keys, err := client.Keys(ctx, prefix+":*").Result(); err == nil && len(keys) > 0 {
-			client.Del(ctx, keys...)
-		}
-	})
-
-	key := prefix + ":gad"
-	if err := client.Set(ctx, key, `"secret"`, time.Minute).Err(); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
-	var got string
-	if err := mgr.GetAndDelete(ctx, "gad", &got); err != nil {
-		t.Fatalf("GetAndDelete: %v", err)
-	}
-	if got != "secret" {
-		t.Fatalf("got = %q, want secret", got)
-	}
-	if err := mgr.GetAndDelete(ctx, "gad", new(string)); !errors.Is(err, redis.Nil) {
-		t.Fatalf("second GetAndDelete: err = %v, want redis.Nil", err)
-	}
-
-	// 并发消费同一凭证：Lua 脚本原子执行，必须恰好一个成功。
-	key2 := prefix + ":gad-concurrent"
-	if err := client.Set(ctx, key2, `"once"`, time.Minute).Err(); err != nil {
-		t.Fatalf("seed concurrent: %v", err)
-	}
-	const workers = 32
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	var ok, nilErrs, otherErrs int
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			var v string
-			err := mgr.GetAndDelete(ctx, "gad-concurrent", &v)
-			mu.Lock()
-			defer mu.Unlock()
-			switch {
-			case err == nil:
-				ok++
-			case errors.Is(err, redis.Nil):
-				nilErrs++
-			default:
-				otherErrs++
-			}
-		}()
-	}
-	wg.Wait()
-	if ok != 1 || nilErrs != workers-1 || otherErrs != 0 {
-		t.Fatalf("concurrent consume: ok=%d nil=%d other=%d, want 1/%d/0", ok, nilErrs, otherErrs, workers-1)
+func clearRuntimeKeys(t *testing.T, client *redis.Client, ctx context.Context, prefix string) {
+	t.Helper()
+	keys, err := client.Keys(ctx, prefix+":*").Result()
+	require.NoError(t, err)
+	if len(keys) > 0 {
+		require.NoError(t, client.Del(ctx, keys...).Err())
 	}
 }
 
+// TestGetAndDeleteRuntime 真 Redis 验证 Lua GET+DEL（Redis 6.0 兼容路径）：
+// 缺失返回 redis.Nil、命中原子取出并删除、并发消费恰好一个成功。
+func TestGetAndDeleteRuntime(t *testing.T) {
+	mgr, client, prefix := newRuntimeManager(t)
+	ctx := context.Background()
+	t.Cleanup(func() { clearRuntimeKeys(t, client, ctx, prefix) })
+
+	t.Run("missing returns redis.Nil", func(t *testing.T) {
+		err := mgr.GetAndDelete(ctx, "missing", new(string))
+		assert.ErrorIs(t, err, redis.Nil)
+	})
+
+	t.Run("hit consumes value", func(t *testing.T) {
+		require.NoError(t, client.Set(ctx, prefix+":hit", `"secret"`, time.Minute).Err())
+		var got string
+		require.NoError(t, mgr.GetAndDelete(ctx, "hit", &got))
+		assert.Equal(t, "secret", got)
+		assert.ErrorIs(t, mgr.GetAndDelete(ctx, "hit", new(string)), redis.Nil, "second read must be empty")
+	})
+
+	t.Run("concurrent consume has exactly one winner", func(t *testing.T) {
+		require.NoError(t, client.Set(ctx, prefix+":once", `"once"`, time.Minute).Err())
+		const workers = 32
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		var ok, nilErrs, otherErrs int
+		for i := 0; i < workers; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				var v string
+				err := mgr.GetAndDelete(ctx, "once", &v)
+				mu.Lock()
+				defer mu.Unlock()
+				switch {
+				case err == nil:
+					ok++
+				case errors.Is(err, redis.Nil):
+					nilErrs++
+				default:
+					otherErrs++
+				}
+			}()
+		}
+		wg.Wait()
+		assert.Equal(t, 1, ok, "only one consumer may win")
+		assert.Equal(t, workers-1, nilErrs)
+		assert.Equal(t, 0, otherErrs)
+	})
+}
+
 // TestIncrRuntimeTTL 真 Redis 验证单条 Lua 的 INCR + TTL 补挂：
-// 首次自增即挂 TTL；已有 TTL 不续期；历史遗留的无 TTL key 在下一次自增时补挂。
+// 首次自增即挂 TTL、已有 TTL 不续期、历史遗留的无 TTL key 在下一次自增时补挂。
 func TestIncrRuntimeTTL(t *testing.T) {
 	mgr, client, prefix := newRuntimeManager(t)
 	ctx := context.Background()
-	t.Cleanup(func() {
-		if keys, err := client.Keys(ctx, prefix+":*").Result(); err == nil && len(keys) > 0 {
-			client.Del(ctx, keys...)
-		}
+	t.Cleanup(func() { clearRuntimeKeys(t, client, ctx, prefix) })
+
+	t.Run("first incr attaches ttl", func(t *testing.T) {
+		v, err := mgr.Incr(ctx, "first", time.Minute)
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), v)
+		ttl := client.PTTL(ctx, prefix+":first").Val()
+		assert.Positive(t, ttl, "TTL must be attached on first increment")
+		assert.LessOrEqual(t, ttl, time.Minute)
 	})
 
-	v, err := mgr.Incr(ctx, "incr", time.Minute)
-	if err != nil || v != 1 {
-		t.Fatalf("Incr = %d, %v; want 1, nil", v, err)
-	}
-	key := prefix + ":incr"
-	ttl := client.PTTL(ctx, key).Val()
-	if ttl <= 0 || ttl > time.Minute {
-		t.Fatalf("TTL = %v, want (0, 1m]", ttl)
-	}
+	t.Run("existing ttl is not renewed", func(t *testing.T) {
+		key := prefix + ":existing"
+		require.NoError(t, client.Set(ctx, key, 1, 2*time.Second).Err())
+		time.Sleep(20 * time.Millisecond)
 
-	// 后续自增不续期：TTL 只会变小。
-	time.Sleep(20 * time.Millisecond)
-	v, err = mgr.Incr(ctx, "incr", time.Minute)
-	if err != nil || v != 2 {
-		t.Fatalf("second Incr = %d, %v; want 2, nil", v, err)
-	}
-	if ttl2 := client.PTTL(ctx, key).Val(); ttl2 > ttl {
-		t.Fatalf("TTL renewed: %v -> %v", ttl, ttl2)
-	}
+		v, err := mgr.Incr(ctx, "existing", time.Minute)
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), v)
+		assert.LessOrEqual(t, client.PTTL(ctx, key).Val(), 2*time.Second,
+			"an existing TTL must not be extended to the caller's 1m")
+	})
 
-	// 模拟旧版本遗留的无 TTL 计数 key：下一次 Incr 必须补挂 TTL。
-	legacy := prefix + ":incr-legacy"
-	if err := client.Set(ctx, legacy, 5, 0).Err(); err != nil {
-		t.Fatalf("seed legacy: %v", err)
-	}
-	v, err = mgr.Incr(ctx, "incr-legacy", time.Minute)
-	if err != nil || v != 6 {
-		t.Fatalf("legacy Incr = %d, %v; want 6, nil", v, err)
-	}
-	if ttl := client.PTTL(ctx, legacy).Val(); ttl <= 0 {
-		t.Fatalf("legacy key TTL not attached: %v", ttl)
-	}
+	t.Run("legacy key without ttl is repaired", func(t *testing.T) {
+		key := prefix + ":legacy"
+		require.NoError(t, client.Set(ctx, key, 5, 0).Err())
+
+		v, err := mgr.Incr(ctx, "legacy", time.Minute)
+		require.NoError(t, err)
+		assert.Equal(t, int64(6), v)
+		assert.Positive(t, client.PTTL(ctx, key).Val(), "legacy key must get a TTL on next increment")
+	})
 }

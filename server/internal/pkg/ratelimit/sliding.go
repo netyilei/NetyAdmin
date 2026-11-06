@@ -43,13 +43,17 @@ redis.call('PEXPIRE', KEYS[1], ARGV[4])
 return count
 `)
 
+// counterKey 是计数 ZSET key 的唯一构造点：prefix + 维度键 + 窗口 + 阈值。
+// 同一维度键可能被多条规则共用，只按维度键共享 ZSET 会让不同窗口/阈值的
+// 规则互相污染计数，且短窗口规则的 PEXPIRE 会把长窗口计数一并缩短。
+func counterKey(prefix, key string, window time.Duration, max int64) string {
+	return fmt.Sprintf("%s:%s:%d:%d", prefix, key, window.Nanoseconds(), max)
+}
+
 // Allow 判定 key 在 window 窗口内是否放行（max 为阈值）。
 // 被拒绝的请求同样计数（抑制高频重试）。Redis 故障时 fail-open 放行
 // （与 login_ratelimit 一致：限流是保护层，不能因缓存故障阻断业务主路径）。
 //
-// 计数 key 由 prefix + key + window + max 组成：同一维度键（如 ip:1.2.3.4）
-// 可能被多条规则共用，若只按维度键共享 ZSET，不同窗口/阈值的规则会互相
-// 污染计数，且短窗口规则的 PEXPIRE 会把长窗口计数一并缩短。
 // 同参数不同作用域的规则（如同 window/max 但 paths 不同）仍需调用方
 // 在 key 中带规则标识（见 middleware.NewAPIRateLimit）。
 func (l *SlidingWindow) Allow(ctx context.Context, key string, window time.Duration, max int64) bool {
@@ -58,7 +62,7 @@ func (l *SlidingWindow) Allow(ctx context.Context, key string, window time.Durat
 	}
 	now := time.Now().UnixNano()
 	count, err := slidingWindowScript.Run(ctx, l.client,
-		[]string{fmt.Sprintf("%s:%s:%d:%d", l.prefix, key, window.Nanoseconds(), max)},
+		[]string{counterKey(l.prefix, key, window, max)},
 		now-window.Nanoseconds(), // ARGV[1] 窗口下界（cutoff）
 		now,                      // ARGV[2] score（纳秒时间戳）
 		fmt.Sprintf("%d-%s", now, uuid.NewString()), // ARGV[3] 唯一 member

@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"fmt"
+	"hash/fnv"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -27,13 +29,13 @@ func NewAPIRateLimit(limiter *ratelimit.SlidingWindow, rules []config.APIRateLim
 	}
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
-		for i, rule := range rules {
+		for _, rule := range rules {
 			if !rulePathsMatch(rule.Paths, path) {
 				continue
 			}
 			// 规则作用域 + 维度键：同维度不同规则（window/max 相同的不同 paths）也隔离计数。
 			// SlidingWindow 内部还会拼入 window/max，双重保证不同参数的规则不共享 ZSET。
-			if limiter.Allow(c.Request.Context(), ruleScope(i, rule)+":"+ruleDimensionKey(c, rule), rule.Window.Duration(), rule.Max) {
+			if limiter.Allow(c.Request.Context(), ruleScope(rule)+":"+ruleDimensionKey(c, rule), rule.Window.Duration(), rule.Max) {
 				continue
 			}
 			slog.Warn("api_ratelimit: request rejected",
@@ -47,9 +49,16 @@ func NewAPIRateLimit(limiter *ratelimit.SlidingWindow, rules []config.APIRateLim
 }
 
 // ruleScope 为每条规则生成稳定且唯一的计数作用域。
-// 配置序号保证唯一（重名/空名不碰撞），名称仅用于 Redis key 可读性。
-func ruleScope(index int, rule config.APIRateLimitRule) string {
-	return "r" + strconv.Itoa(index) + ":" + rule.Name
+//
+// 用规则语义字段的指纹而不是配置序号：配置顺序调整或增删规则时，已有计数
+// 不会静默转移给另一条规则（序号会）。名称保留在 key 中便于排查；
+// 完全相同（含名称）的两条规则指纹相同、共享计数，语义等价无影响。
+func ruleScope(rule config.APIRateLimitRule) string {
+	h := fnv.New64a()
+	_, _ = fmt.Fprintf(h, "%q|%q|%q|%q|%s|%d",
+		rule.Name, rule.Dimension, rule.Claim, rule.Paths,
+		rule.Window.Duration(), rule.Max)
+	return rule.Name + ":" + strconv.FormatUint(h.Sum64(), 16)
 }
 
 // rulePathsMatch 前缀匹配；空 Paths 匹配全部（规则作用于所挂路由组）。

@@ -67,7 +67,7 @@ func TestSlidingWindowRuntime(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	card, _ := client.ZCard(ctx, "swtest:k3:60000000000:10").Result()
+	card, _ := client.ZCard(ctx, counterKey("swtest", "k3", time.Minute, 10)).Result()
 	if okCount != 10 || card != 100 {
 		t.Errorf("T3 100并发/限10 放行=%d ZCARD=%d 期望10/100（member 去重会少计）", okCount, card)
 	}

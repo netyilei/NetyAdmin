@@ -223,7 +223,7 @@ func (s *verificationService) VerifyAndClearCode(ctx context.Context, scene, tar
 		if errors.Is(err, redis.Nil) {
 			return false, nil // 验证码不存在或已被消费
 		}
-		slog.Error("verify code: cache getdel failed", "scene", scene, "target", target, "err", err)
+		slog.Error("verify code: cache atomic consume failed", "scene", scene, "target", target, "err", err)
 		return false, errorx.New(errorx.CodeInternalError, "验证服务暂不可用，请稍后重试")
 	}
 

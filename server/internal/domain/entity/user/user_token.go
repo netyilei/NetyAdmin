@@ -16,7 +16,7 @@ import "time"
 // every platform at once; both checks run in the middleware.
 type UserToken struct {
 	ID               uint       `gorm:"primaryKey" json:"id"`
-	UserID           string     `gorm:"column:user_id;size:26;not null;index" json:"userId"`
+	UserID           string     `gorm:"column:user_id;size:26;not null;index;uniqueIndex:uniq_user_tokens_user_id_platform,priority:1" json:"userId"`
 	Platform         string     `gorm:"column:platform;size:50;not null;uniqueIndex:uniq_user_tokens_user_id_platform,priority:2" json:"platform"`
 	TokenVersion     uint64     `gorm:"column:token_version;not null;default:0" json:"tokenVersion"`
 	AccessHash       string     `gorm:"column:access_hash;size:64;not null;default:''" json:"-"`
