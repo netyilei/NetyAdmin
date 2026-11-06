@@ -43,3 +43,6 @@ server/keys/
 
 # Build artifacts
 server/bin/
+
+# 本地临时文件（E2E 产物、调试输出，不入库）
+**/tmp/
