@@ -44,6 +44,8 @@ return v
 // key 无 TTL，会永久残留——登录重试等场景会在下一个窗口直接触发上限。
 // 这里在脚本内判定 PTTL < 0（无 TTL）才补挂：首次自增必挂，历史遗留的无 TTL
 // 计数 key 也会在下一次自增时被修复；已有 TTL 的 key 不续期（与原语义一致）。
+// 字面 EXPIRE NX 需要 Redis >= 7.0，超出基座 6.0 支持矩阵——PTTL 守卫是其
+// 等价实现（仅在缺 TTL 时补挂、绝不续期），勿"修回"字面 NX。
 var incrWithTTLScript = redis.NewScript(`
 local v = redis.call('INCR', KEYS[1])
 if ARGV[1] ~= '0' and redis.call('PTTL', KEYS[1]) < 0 then

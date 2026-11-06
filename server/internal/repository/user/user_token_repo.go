@@ -10,6 +10,20 @@ import (
 	"NetyAdmin/internal/pkg/database"
 )
 
+// UserTokenHashUpdate 描述一次 token hash 回写：期望态（乐观守卫输入）+ 新值。
+// 独立成类型而非平铺参数：期望态与新值共 4 个相邻同型 string，平铺时错位
+// 即静默写错 hash（Data Clumps）；命名字段让调用点自文档化。
+type UserTokenHashUpdate struct {
+	// 期望态：调用方校验/读取时观察到的行状态；不匹配则 0 行报错（CAS）。
+	ExpectedTokenVersion uint64
+	ExpectedRefreshHash  string
+	// 新值
+	AccessHash       string
+	RefreshHash      string
+	AccessExpiresAt  time.Time
+	RefreshExpiresAt time.Time
+}
+
 // UserTokenRepository manages client-side multi-device sessions (user_tokens table).
 // One row per (user_id, platform); each Login UPSERTs the row and atomically
 // increments TokenVersion, invalidating older tokens on the SAME platform only
@@ -44,7 +58,7 @@ type UserTokenRepository interface {
 	// Returns gorm.ErrRecordNotFound when the row is missing OR moved on —
 	// callers MUST fail closed (a blind overwrite would corrupt the winning
 	// session's hashes).
-	UpdateHashes(ctx context.Context, userID, platform string, expectedTokenVersion uint64, expectedRefreshHash, accessHash, refreshHash string, accessExpiresAt, refreshExpiresAt time.Time) error
+	UpdateHashes(ctx context.Context, userID, platform string, in UserTokenHashUpdate) error
 	// ClearHashes clears access_hash + refresh_hash of the (user_id, platform)
 	// row on Logout, but ONLY while the row still holds expectedAccessHash —
 	// i.e. the caller is logging out the session that currently owns the row.
@@ -112,15 +126,15 @@ func (r *userTokenRepository) UpdateAccessHash(ctx context.Context, userID, plat
 	return requireUpdatedRow(res)
 }
 
-func (r *userTokenRepository) UpdateHashes(ctx context.Context, userID, platform string, expectedTokenVersion uint64, expectedRefreshHash, accessHash, refreshHash string, accessExpiresAt, refreshExpiresAt time.Time) error {
+func (r *userTokenRepository) UpdateHashes(ctx context.Context, userID, platform string, in UserTokenHashUpdate) error {
 	res := r.getDB(ctx).Model(&userEntity.UserToken{}).
 		Where("user_id = ? AND platform = ? AND token_version = ? AND refresh_hash = ?",
-			userID, platform, expectedTokenVersion, expectedRefreshHash).
+			userID, platform, in.ExpectedTokenVersion, in.ExpectedRefreshHash).
 		Updates(map[string]interface{}{
-			"access_hash":        accessHash,
-			"refresh_hash":       refreshHash,
-			"access_expires_at":  accessExpiresAt,
-			"refresh_expires_at": refreshExpiresAt,
+			"access_hash":        in.AccessHash,
+			"refresh_hash":       in.RefreshHash,
+			"access_expires_at":  in.AccessExpiresAt,
+			"refresh_expires_at": in.RefreshExpiresAt,
 			"updated_at":         gorm.Expr("NOW()"),
 		})
 	return requireUpdatedRow(res)

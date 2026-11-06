@@ -283,6 +283,9 @@ type mockUserTokenRepo struct {
 	versions    map[string]uint64 // key: userID+":"+platform → token_version
 	accessHash  map[string]string // key: userID+":"+platform → access_hash
 	refreshHash map[string]string // key: userID+":"+platform → refresh_hash
+	// forceUpdateHashesErr 非 nil 时，UpdateHashes 直接返回该错误——
+	// 用于模拟 CAS 0 行（并发 Login/Logout 抢先），驱动服务层 fail-closed 分支。
+	forceUpdateHashesErr error
 }
 
 func newMockUserTokenRepo() *mockUserTokenRepo {
@@ -334,18 +337,18 @@ func (m *mockUserTokenRepo) UpdateAccessHash(_ context.Context, userID, platform
 	return nil
 }
 
-func (m *mockUserTokenRepo) UpdateHashes(_ context.Context, userID, platform string, expectedTokenVersion uint64, expectedRefreshHash, accessHash, refreshHash string, _, _ time.Time) error {
+func (m *mockUserTokenRepo) UpdateHashes(_ context.Context, userID, platform string, in userRepo.UserTokenHashUpdate) error {
+	if m.forceUpdateHashesErr != nil {
+		return m.forceUpdateHashesErr
+	}
 	k := m.key(userID, platform)
 	// 与真实 repo 契约一致：行缺失 / 版本已变 / refresh hash 已变 → 0 行 → ErrRecordNotFound
-	if v, ok := m.versions[k]; !ok || v != expectedTokenVersion || m.refreshHash[k] != expectedRefreshHash {
+	if v, ok := m.versions[k]; !ok || v != in.ExpectedTokenVersion || m.refreshHash[k] != in.ExpectedRefreshHash {
 		return gorm.ErrRecordNotFound
 	}
-	if accessHash != "" {
-		m.accessHash[k] = accessHash
-	}
-	if refreshHash != "" {
-		m.refreshHash[k] = refreshHash
-	}
+	// 真实 SQL 无条件覆盖（含空值），mock 镜像同一语义
+	m.accessHash[k] = in.AccessHash
+	m.refreshHash[k] = in.RefreshHash
 	return nil
 }
 
@@ -747,6 +750,38 @@ func TestUserRefreshToken_RefreshHashMismatchRejected(t *testing.T) {
 	var bizErr *errorx.BizError
 	require.True(t, errors.As(err, &bizErr))
 	assert.Equal(t, errorx.CodeUnauthorized, bizErr.Code)
+}
+
+// TestUserRefreshToken_CASConflictFailsClosed 覆盖 CAS 冲突的 fail-closed 分支：
+// 校验通过后回写被并发会话变更抢先（CAS 0 行，mock 注入 ErrRecordNotFound 模拟）
+// → 必须返回 CodeInternalError 且不签发新 token。旧 token 已被轮换拉黑，
+// 若静默成功签发即失效，正是本分支要堵的静默失败红线。
+func TestUserRefreshToken_CASConflictFailsClosed(t *testing.T) {
+	_ = hashedUserPassword(t)
+	svc, repo, _, _, _, j := newTestUserClientService(t)
+	user := enabledUser("01HTESTUSERREFRESH006", "refresh-cas")
+	repo.UserByID = user
+
+	claims := j.NewUserClaims(user.ID, "web", jwt.DefaultUserType, jwt.RefreshToken, user.TokenVersion, 1)
+	refresh, err := j.GenerateToken(claims)
+	require.NoError(t, err)
+
+	tokenRepo := svc.userTokenRepo.(*mockUserTokenRepo)
+	_, err = tokenRepo.UpsertAndIncrement(context.Background(), &userEntity.UserToken{
+		UserID:      user.ID,
+		Platform:    "web",
+		AccessHash:  "placeholder",
+		RefreshHash: authPkg.HashToken(refresh),
+	})
+	require.NoError(t, err)
+	tokenRepo.forceUpdateHashesErr = gorm.ErrRecordNotFound
+
+	vo, err := svc.RefreshToken(context.Background(), refresh)
+	require.Error(t, err)
+	assert.Nil(t, vo, "CAS 失败不得返回新 token")
+	var bizErr *errorx.BizError
+	require.True(t, errors.As(err, &bizErr))
+	assert.Equal(t, errorx.CodeInternalError, bizErr.Code)
 }
 
 func TestUserRefreshToken_InvalidTokenRejected(t *testing.T) {

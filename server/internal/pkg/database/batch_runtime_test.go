@@ -97,7 +97,7 @@ UNION ALL SELECT 'new', now() FROM generate_series(1, 300)`).Error; err != nil {
 }
 
 // replaceTestDBName 同时支持 keyword DSN（dbname=...）与 URL DSN（postgres://.../dbname）。
-// 与 repository/user/user_token_repo_runtime_test.go 的同名 helper 保持一致
+// 与 repository/user/user_token_repo_runtime_test.go 的 replaceDBName 逻辑一致
 // （跨包无法共享 _test.go，改动时两处同步）。
 func replaceTestDBName(dsn, dbName string) (string, error) {
 	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {

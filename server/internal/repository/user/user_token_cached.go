@@ -156,8 +156,8 @@ func (r *cachedUserTokenRepository) UpdateAccessHash(ctx context.Context, userID
 	return nil
 }
 
-func (r *cachedUserTokenRepository) UpdateHashes(ctx context.Context, userID, platform string, expectedTokenVersion uint64, expectedRefreshHash, accessHash, refreshHash string, accessExpiresAt, refreshExpiresAt time.Time) error {
-	if err := r.inner.UpdateHashes(ctx, userID, platform, expectedTokenVersion, expectedRefreshHash, accessHash, refreshHash, accessExpiresAt, refreshExpiresAt); err != nil {
+func (r *cachedUserTokenRepository) UpdateHashes(ctx context.Context, userID, platform string, in UserTokenHashUpdate) error {
+	if err := r.inner.UpdateHashes(ctx, userID, platform, in); err != nil {
 		return err
 	}
 	r.invalidatePlatform(ctx, userID, platform)

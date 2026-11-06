@@ -32,8 +32,10 @@ func TestUpdateHashesRequiresRowRuntime(t *testing.T) {
 	exp := now.Add(time.Hour)
 
 	t.Run("missing row: updates fail, clear is noop success", func(t *testing.T) {
-		assert.ErrorIs(t, repo.UpdateHashes(ctx, "missing", "web", 1, "r1", "a1", "r1", exp, exp),
-			gorm.ErrRecordNotFound)
+		assert.ErrorIs(t, repo.UpdateHashes(ctx, "missing", "web", UserTokenHashUpdate{
+			ExpectedTokenVersion: 1, ExpectedRefreshHash: "r1", AccessHash: "a1", RefreshHash: "r1",
+			AccessExpiresAt: exp, RefreshExpiresAt: exp,
+		}), gorm.ErrRecordNotFound)
 		assert.ErrorIs(t, repo.UpdateAccessHash(ctx, "missing", "web", 1, "a1", exp),
 			gorm.ErrRecordNotFound)
 		assert.NoError(t, repo.ClearHashes(ctx, "missing", "web", "a1"), "登出幂等：无行也是成功")
@@ -44,7 +46,10 @@ func TestUpdateHashesRequiresRowRuntime(t *testing.T) {
 		v, err := repo.UpsertAndIncrement(ctx, &userEntity.UserToken{UserID: "alice", Platform: "web"})
 		require.NoError(t, err)
 		require.Equal(t, uint64(1), v)
-		require.NoError(t, repo.UpdateHashes(ctx, "alice", "web", v, "", "a1", "r1", exp, exp))
+		require.NoError(t, repo.UpdateHashes(ctx, "alice", "web", UserTokenHashUpdate{
+			ExpectedTokenVersion: v, ExpectedRefreshHash: "", AccessHash: "a1", RefreshHash: "r1",
+			AccessExpiresAt: exp, RefreshExpiresAt: exp,
+		}))
 
 		got, err := repo.GetByPlatform(ctx, "alice", "web")
 		require.NoError(t, err)
@@ -56,8 +61,11 @@ func TestUpdateHashesRequiresRowRuntime(t *testing.T) {
 		// 刷新路径：校验阶段读到 (v1, r1)，按同一状态回写。
 		ut, err := repo.GetByPlatform(ctx, "alice", "web")
 		require.NoError(t, err)
-		require.NoError(t, repo.UpdateHashes(ctx, "alice", "web",
-			ut.TokenVersion, ut.RefreshHash, ut.AccessHash, ut.RefreshHash, exp, exp))
+		require.NoError(t, repo.UpdateHashes(ctx, "alice", "web", UserTokenHashUpdate{
+			ExpectedTokenVersion: ut.TokenVersion, ExpectedRefreshHash: ut.RefreshHash,
+			AccessHash: ut.AccessHash, RefreshHash: ut.RefreshHash,
+			AccessExpiresAt: exp, RefreshExpiresAt: exp,
+		}))
 		// PostgreSQL 的 UPDATE 计数包含"新值等于旧值"的行；同一秒内签发的
 		// token 字符串可能完全相同，刷新回写同值不能误报 0 行。
 	})
@@ -67,11 +75,16 @@ func TestUpdateHashesRequiresRowRuntime(t *testing.T) {
 		v2, err := repo.UpsertAndIncrement(ctx, &userEntity.UserToken{UserID: "alice", Platform: "web"})
 		require.NoError(t, err)
 		require.Equal(t, uint64(2), v2)
-		require.NoError(t, repo.UpdateHashes(ctx, "alice", "web", v2, "", "a2", "r2", exp, exp))
+		require.NoError(t, repo.UpdateHashes(ctx, "alice", "web", UserTokenHashUpdate{
+			ExpectedTokenVersion: v2, ExpectedRefreshHash: "", AccessHash: "a2", RefreshHash: "r2",
+			AccessExpiresAt: exp, RefreshExpiresAt: exp,
+		}))
 
 		// 旧刷新会话仍按 (v1, r1) 回写 → 0 行报错，而不是覆盖 v2 会话的 hash。
-		assert.ErrorIs(t, repo.UpdateHashes(ctx, "alice", "web", 1, "r1", "ax", "rx", exp, exp),
-			gorm.ErrRecordNotFound)
+		assert.ErrorIs(t, repo.UpdateHashes(ctx, "alice", "web", UserTokenHashUpdate{
+			ExpectedTokenVersion: 1, ExpectedRefreshHash: "r1", AccessHash: "ax", RefreshHash: "rx",
+			AccessExpiresAt: exp, RefreshExpiresAt: exp,
+		}), gorm.ErrRecordNotFound)
 		got, err := repo.GetByPlatform(ctx, "alice", "web")
 		require.NoError(t, err)
 		assert.Equal(t, "a2", got.AccessHash, "新会话 hash 不被旧刷新覆盖")
@@ -92,7 +105,10 @@ func TestUpdateHashesRequiresRowRuntime(t *testing.T) {
 		// 行内 hash 已被并发 Login 更新时，旧登出不得覆盖（守卫 生效）
 		v3, err := repo.UpsertAndIncrement(ctx, &userEntity.UserToken{UserID: "alice", Platform: "web"})
 		require.NoError(t, err)
-		require.NoError(t, repo.UpdateHashes(ctx, "alice", "web", v3, "", "a3", "r3", exp, exp))
+		require.NoError(t, repo.UpdateHashes(ctx, "alice", "web", UserTokenHashUpdate{
+			ExpectedTokenVersion: v3, ExpectedRefreshHash: "", AccessHash: "a3", RefreshHash: "r3",
+			AccessExpiresAt: exp, RefreshExpiresAt: exp,
+		}))
 		require.NoError(t, repo.ClearHashes(ctx, "alice", "web", "a1"), "旧 token 登出 no-op")
 		got, err = repo.GetByPlatform(ctx, "alice", "web")
 		require.NoError(t, err)
@@ -102,7 +118,10 @@ func TestUpdateHashesRequiresRowRuntime(t *testing.T) {
 	t.Run("update access hash CAS", func(t *testing.T) {
 		v, err := repo.UpsertAndIncrement(ctx, &userEntity.UserToken{UserID: "alice", Platform: "web"})
 		require.NoError(t, err)
-		require.NoError(t, repo.UpdateHashes(ctx, "alice", "web", v, "", "a4", "r4", exp, exp))
+		require.NoError(t, repo.UpdateHashes(ctx, "alice", "web", UserTokenHashUpdate{
+			ExpectedTokenVersion: v, ExpectedRefreshHash: "", AccessHash: "a4", RefreshHash: "r4",
+			AccessExpiresAt: exp, RefreshExpiresAt: exp,
+		}))
 
 		assert.ErrorIs(t, repo.UpdateAccessHash(ctx, "alice", "web", v-1, "ax", exp),
 			gorm.ErrRecordNotFound, "版本已递增 → 拒绝")
