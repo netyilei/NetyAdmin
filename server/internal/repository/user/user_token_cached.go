@@ -148,24 +148,24 @@ func (r *cachedUserTokenRepository) GetByPlatform(ctx context.Context, userID, p
 	return got, nil
 }
 
-func (r *cachedUserTokenRepository) UpdateAccessHash(ctx context.Context, userID, platform, accessHash string, accessExpiresAt time.Time) error {
-	if err := r.inner.UpdateAccessHash(ctx, userID, platform, accessHash, accessExpiresAt); err != nil {
+func (r *cachedUserTokenRepository) UpdateAccessHash(ctx context.Context, userID, platform string, expectedTokenVersion uint64, accessHash string, accessExpiresAt time.Time) error {
+	if err := r.inner.UpdateAccessHash(ctx, userID, platform, expectedTokenVersion, accessHash, accessExpiresAt); err != nil {
 		return err
 	}
 	r.invalidatePlatform(ctx, userID, platform)
 	return nil
 }
 
-func (r *cachedUserTokenRepository) UpdateHashes(ctx context.Context, userID, platform, accessHash, refreshHash string, accessExpiresAt, refreshExpiresAt time.Time) error {
-	if err := r.inner.UpdateHashes(ctx, userID, platform, accessHash, refreshHash, accessExpiresAt, refreshExpiresAt); err != nil {
+func (r *cachedUserTokenRepository) UpdateHashes(ctx context.Context, userID, platform string, expectedTokenVersion uint64, expectedRefreshHash, accessHash, refreshHash string, accessExpiresAt, refreshExpiresAt time.Time) error {
+	if err := r.inner.UpdateHashes(ctx, userID, platform, expectedTokenVersion, expectedRefreshHash, accessHash, refreshHash, accessExpiresAt, refreshExpiresAt); err != nil {
 		return err
 	}
 	r.invalidatePlatform(ctx, userID, platform)
 	return nil
 }
 
-func (r *cachedUserTokenRepository) ClearHashes(ctx context.Context, userID, platform string) error {
-	if err := r.inner.ClearHashes(ctx, userID, platform); err != nil {
+func (r *cachedUserTokenRepository) ClearHashes(ctx context.Context, userID, platform, expectedAccessHash string) error {
+	if err := r.inner.ClearHashes(ctx, userID, platform, expectedAccessHash); err != nil {
 		return err
 	}
 	r.invalidatePlatform(ctx, userID, platform)

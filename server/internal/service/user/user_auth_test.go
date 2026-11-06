@@ -301,12 +301,11 @@ func (m *mockUserTokenRepo) UpsertAndIncrement(_ context.Context, t *userEntity.
 	k := m.key(t.UserID, t.Platform)
 	m.versions[k]++
 	v := m.versions[k]
-	if t.AccessHash != "" {
-		m.accessHash[k] = t.AccessHash
-	}
-	if t.RefreshHash != "" {
-		m.refreshHash[k] = t.RefreshHash
-	}
+	// 真实 SQL 的 ON CONFLICT DO UPDATE 用 EXCLUDED 无条件覆盖 hash
+	// （Login 传空 → 顶号后 hash 先清空，事务内再由 UpdateHashes 写入）。
+	// mock 必须镜像这一语义，否则 CAS 期望 "" 会误判失败。
+	m.accessHash[k] = t.AccessHash
+	m.refreshHash[k] = t.RefreshHash
 	return v, nil
 }
 
@@ -325,19 +324,21 @@ func (m *mockUserTokenRepo) GetByPlatform(_ context.Context, userID, platform st
 	}, nil
 }
 
-func (m *mockUserTokenRepo) UpdateAccessHash(_ context.Context, userID, platform, accessHash string, _ time.Time) error {
+func (m *mockUserTokenRepo) UpdateAccessHash(_ context.Context, userID, platform string, expectedTokenVersion uint64, accessHash string, _ time.Time) error {
 	k := m.key(userID, platform)
-	if _, ok := m.versions[k]; !ok {
-		return gorm.ErrRecordNotFound // 与真实 repo 契约一致：纯 UPDATE 0 行必须报错
+	// 与真实 repo 契约一致：行缺失或版本已变化 → 0 行 → ErrRecordNotFound
+	if v, ok := m.versions[k]; !ok || v != expectedTokenVersion {
+		return gorm.ErrRecordNotFound
 	}
 	m.accessHash[k] = accessHash
 	return nil
 }
 
-func (m *mockUserTokenRepo) UpdateHashes(_ context.Context, userID, platform, accessHash, refreshHash string, _, _ time.Time) error {
+func (m *mockUserTokenRepo) UpdateHashes(_ context.Context, userID, platform string, expectedTokenVersion uint64, expectedRefreshHash, accessHash, refreshHash string, _, _ time.Time) error {
 	k := m.key(userID, platform)
-	if _, ok := m.versions[k]; !ok {
-		return gorm.ErrRecordNotFound // 与真实 repo 契约一致：纯 UPDATE 0 行必须报错
+	// 与真实 repo 契约一致：行缺失 / 版本已变 / refresh hash 已变 → 0 行 → ErrRecordNotFound
+	if v, ok := m.versions[k]; !ok || v != expectedTokenVersion || m.refreshHash[k] != expectedRefreshHash {
+		return gorm.ErrRecordNotFound
 	}
 	if accessHash != "" {
 		m.accessHash[k] = accessHash
@@ -348,8 +349,12 @@ func (m *mockUserTokenRepo) UpdateHashes(_ context.Context, userID, platform, ac
 	return nil
 }
 
-func (m *mockUserTokenRepo) ClearHashes(_ context.Context, userID, platform string) error {
+func (m *mockUserTokenRepo) ClearHashes(_ context.Context, userID, platform, expectedAccessHash string) error {
 	k := m.key(userID, platform)
+	// 与真实 repo 契约一致：行存在且 access hash 匹配才清空；否则幂等 no-op 成功
+	if m.accessHash[k] != expectedAccessHash {
+		return nil
+	}
 	m.accessHash[k] = ""
 	m.refreshHash[k] = ""
 	return nil

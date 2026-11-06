@@ -274,8 +274,10 @@ func (s *userClientService) Login(ctx context.Context, req *clientDto.UserLoginR
 	// 中间件 LookupAccount 比对 user_tokens.access_hash 做纵深防御（Logout 后立即失效）。
 	accessExp := time.Unix(claims.ExpiresAt.Unix(), 0)
 	refreshExp := time.Unix(refreshClaims.ExpiresAt.Unix(), 0)
+	// CAS 期望状态 = 本事务刚 UpsertAndIncrement 建立的行（版本 platTV、hash 为空）。
+	// 同事务内不存在并发窗口，守卫是防御性的；platTV 来自 upsert 返回值，恒匹配。
 	if err := s.userTokenRepo.UpdateHashes(txCtx, user.ID, req.Platform,
-		authPkg.HashToken(token), authPkg.HashToken(refreshToken), accessExp, refreshExp); err != nil {
+		platTV, "", authPkg.HashToken(token), authPkg.HashToken(refreshToken), accessExp, refreshExp); err != nil {
 		s.tm.Rollback(tx)
 		slog.Error("UpdateHashes user_tokens failed", "userID", user.ID, "platform", req.Platform, "err", err)
 		return nil, errorx.New(errorx.CodeInternalError, "令牌存储失败")
@@ -381,10 +383,14 @@ func (s *userClientService) RefreshToken(ctx context.Context, refreshToken strin
 	// 下次请求 middleware hash 校验必拒（新 token 立即不可用的静默失败）。
 	// 例外：旧 token 本就无 user_tokens 行（legacyNoRow）——跳过回写直接签发，
 	// 与升级前行为一致；middleware 对无行跳过端级校验，token 不会签发即失效。
+	// CAS 期望状态 = 校验阶段读到的 (TokenVersion, RefreshHash)：并发的 Login（版本递增）、
+	// Logout（清空 hash）或另一路刷新赢得轮换（hash 变化）都会让本次写入 0 行失败，
+	// 严格优于旧实现的盲写互踩（双方会话 hash 互相覆盖、一起失效）。
 	if legacyNoRow {
 		slog.Warn("refresh on legacy token without user_tokens row; issuing tokens without platform session row",
 			"userID", user.ID, "platform", claims.Platform)
 	} else if err := s.userTokenRepo.UpdateHashes(ctx, user.ID, claims.Platform,
+		ut.TokenVersion, ut.RefreshHash,
 		authPkg.HashToken(token), authPkg.HashToken(newRefreshToken),
 		time.Unix(newClaims.ExpiresAt.Unix(), 0), time.Unix(newRefreshClaims.ExpiresAt.Unix(), 0)); err != nil {
 		slog.Error("UpdateHashes on refresh failed", "userID", user.ID, "platform", claims.Platform, "err", err)
@@ -560,9 +566,12 @@ func (s *userClientService) Logout(ctx context.Context, userID string, accessTok
 	// 从 accessToken 解析 platform，清空 user_tokens 该 platform 行的 hash。
 	// hash 清空后中间件 hash 校验会拒绝后续携带该 token 的请求（纵深防御）。
 	// accessToken 无效（解析失败）→ 跳过 ClearHashes（token 本就不可用，自然过期即可）。
+	// CAS：仅当行仍持有"本次登出的 access hash"才清空——若行已被并发的新
+	// Login/Refresh 更新，本次登出是 no-op，绝不误清新会话的 hash
+	// （旧实现盲清，登出一个已被刷新替换的旧 token 会连带踢掉当前会话）。
 	claims := &jwt.UserClaims{}
 	if err := s.jwt.ParseToken(accessToken, claims); err == nil && claims.Platform != "" {
-		if err := s.userTokenRepo.ClearHashes(ctx, userID, claims.Platform); err != nil {
+		if err := s.userTokenRepo.ClearHashes(ctx, userID, claims.Platform, authPkg.HashToken(accessToken)); err != nil {
 			// ClearHashes 失败不阻断——access token 也会自然过期，refresh 黑名单是主防御
 			slog.Warn("logout: clear user_tokens hashes failed", "userID", userID, "platform", claims.Platform, "err", err)
 		}

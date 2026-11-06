@@ -22,24 +22,37 @@ type UserTokenRepository interface {
 	UpsertAndIncrement(ctx context.Context, t *userEntity.UserToken) (uint64, error)
 	// GetByPlatform returns the (user_id, platform) row, or (nil, gorm.ErrRecordNotFound).
 	GetByPlatform(ctx context.Context, userID, platform string) (*userEntity.UserToken, error)
-	// UpdateAccessHash overwrites the access_hash / access_expires_at of the
-	// (user_id, platform) row WITHOUT bumping token_version. Used by RefreshToken
-	// to keep the session alive on the same device.
-	// PRECONDITION: the row must already exist (create it via UpsertAndIncrement).
-	// Returns gorm.ErrRecordNotFound when no row matches — a silent 0-row UPDATE
-	// would leave the session without a usable access hash.
-	UpdateAccessHash(ctx context.Context, userID, platform, accessHash string, accessExpiresAt time.Time) error
+	// UpdateAccessHash overwrites the access_hash / access_expires_at WITHOUT
+	// bumping token_version, but ONLY while the row's token_version still equals
+	// expectedTokenVersion (optimistic guard: a concurrent Login bumping the
+	// version makes this write a no-op error instead of clobbering its hashes).
+	// PRECONDITION: the caller read the row (GetByPlatform / UpsertAndIncrement)
+	// and passes the version it observed. Returns gorm.ErrRecordNotFound when
+	// the row is missing or the version moved on.
+	UpdateAccessHash(ctx context.Context, userID, platform string, expectedTokenVersion uint64, accessHash string, accessExpiresAt time.Time) error
 	// UpdateHashes overwrites access_hash + refresh_hash + both expiries WITHOUT
-	// bumping token_version. Used by Login right after UpsertAndIncrement to
-	// persist the just-issued token hashes on the same row that was bumped.
-	// PRECONDITION: the (user_id, platform) row must already exist — call
-	// UpsertAndIncrement first. It is a plain UPDATE, not an upsert; a silent
-	// 0-row result would drop the hashes and break hash validation on restart.
-	// Returns gorm.ErrRecordNotFound when no row matches.
-	UpdateHashes(ctx context.Context, userID, platform, accessHash, refreshHash string, accessExpiresAt, refreshExpiresAt time.Time) error
-	// ClearHashes clears access_hash + refresh_hash of the (user_id, platform) row
-	// on Logout so the next request fails tokenStore-independent hash validation.
-	ClearHashes(ctx context.Context, userID, platform string) error
+	// bumping token_version, but ONLY when the row is still exactly the state
+	// the caller validated: token_version == expectedTokenVersion AND
+	// refresh_hash == expectedRefreshHash. This optimistic guard makes
+	// concurrent session mutations fail loudly instead of clobbering each
+	// other: a concurrent Login bumps the version, a Logout (or a competing
+	// refresh that won the rotation) changes the refresh hash — any of them
+	// turns this write into a 0-row result.
+	//   - Login passes the version returned by UpsertAndIncrement and "" (the
+	//     row it just upserted carries empty hashes).
+	//   - RefreshToken passes the (TokenVersion, RefreshHash) it validated.
+	// Returns gorm.ErrRecordNotFound when the row is missing OR moved on —
+	// callers MUST fail closed (a blind overwrite would corrupt the winning
+	// session's hashes).
+	UpdateHashes(ctx context.Context, userID, platform string, expectedTokenVersion uint64, expectedRefreshHash, accessHash, refreshHash string, accessExpiresAt, refreshExpiresAt time.Time) error
+	// ClearHashes clears access_hash + refresh_hash of the (user_id, platform)
+	// row on Logout, but ONLY while the row still holds expectedAccessHash —
+	// i.e. the caller is logging out the session that currently owns the row.
+	// If a newer login/refresh already replaced the hashes, this stale logout
+	// is a no-op: it can never wipe a newer session's hashes.
+	// Idempotent: 0-row (row missing, session replaced, or already cleared)
+	// is SUCCESS, not an error.
+	ClearHashes(ctx context.Context, userID, platform, expectedAccessHash string) error
 	// DeleteExpired removes rows whose access_expires_at < NOW() (and refresh has
 	// also expired). Used by the cleanup job to bound table growth.
 	DeleteExpired(ctx context.Context) (int64, error)
@@ -88,9 +101,9 @@ func (r *userTokenRepository) GetByPlatform(ctx context.Context, userID, platfor
 	return &t, nil
 }
 
-func (r *userTokenRepository) UpdateAccessHash(ctx context.Context, userID, platform, accessHash string, accessExpiresAt time.Time) error {
+func (r *userTokenRepository) UpdateAccessHash(ctx context.Context, userID, platform string, expectedTokenVersion uint64, accessHash string, accessExpiresAt time.Time) error {
 	res := r.getDB(ctx).Model(&userEntity.UserToken{}).
-		Where("user_id = ? AND platform = ?", userID, platform).
+		Where("user_id = ? AND platform = ? AND token_version = ?", userID, platform, expectedTokenVersion).
 		Updates(map[string]interface{}{
 			"access_hash":       accessHash,
 			"access_expires_at": accessExpiresAt,
@@ -99,9 +112,10 @@ func (r *userTokenRepository) UpdateAccessHash(ctx context.Context, userID, plat
 	return requireUpdatedRow(res)
 }
 
-func (r *userTokenRepository) UpdateHashes(ctx context.Context, userID, platform, accessHash, refreshHash string, accessExpiresAt, refreshExpiresAt time.Time) error {
+func (r *userTokenRepository) UpdateHashes(ctx context.Context, userID, platform string, expectedTokenVersion uint64, expectedRefreshHash, accessHash, refreshHash string, accessExpiresAt, refreshExpiresAt time.Time) error {
 	res := r.getDB(ctx).Model(&userEntity.UserToken{}).
-		Where("user_id = ? AND platform = ?", userID, platform).
+		Where("user_id = ? AND platform = ? AND token_version = ? AND refresh_hash = ?",
+			userID, platform, expectedTokenVersion, expectedRefreshHash).
 		Updates(map[string]interface{}{
 			"access_hash":        accessHash,
 			"refresh_hash":       refreshHash,
@@ -127,9 +141,12 @@ func requireUpdatedRow(res *gorm.DB) error {
 	return nil
 }
 
-func (r *userTokenRepository) ClearHashes(ctx context.Context, userID, platform string) error {
+func (r *userTokenRepository) ClearHashes(ctx context.Context, userID, platform, expectedAccessHash string) error {
+	// 幂等：0 行（行不存在 / 会话已被新登录或刷新替换 / 已清理过）视为成功。
+	// WHERE access_hash = ? 保证登出动作只清"当前仍属于该会话"的行，
+	// 并发的新 Login/Refresh 写入的 hash 不会被旧 token 的登出误清。
 	return r.getDB(ctx).Model(&userEntity.UserToken{}).
-		Where("user_id = ? AND platform = ?", userID, platform).
+		Where("user_id = ? AND platform = ? AND access_hash = ?", userID, platform, expectedAccessHash).
 		Updates(map[string]interface{}{
 			"access_hash":  "",
 			"refresh_hash": "",
