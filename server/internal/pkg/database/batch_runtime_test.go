@@ -2,7 +2,10 @@ package database
 
 import (
 	"context"
+	"fmt"
+	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -13,7 +16,10 @@ import (
 
 // TestDeleteBatchBeforeRuntime 真库验证：终止条件（恰好多批+余数批）、只删旧行、幂等。
 // 自包含：连接维护库（默认 root@localhost/123456，可用 NETYADMIN_TEST_PG_DSN 覆盖），
-// 自建临时库 netyadmin_rt_test 并造数，结束后整体删除；PG 不可达自动 Skip。
+// 自建 PID 命名临时库并造数，结束后整体删除；PG 不可达自动 Skip。
+// 临时库 setup 与 repository/user 的真库测试同一套安全门：
+// DSN 替换支持 keyword/URL 两种形式，建表前断言 current_database，
+// 绝不允许 DSN 替换失败时把测试 DDL 打进真实库。
 func TestDeleteBatchBeforeRuntime(t *testing.T) {
 	dsn := os.Getenv("NETYADMIN_TEST_PG_DSN")
 	if dsn == "" {
@@ -25,17 +31,41 @@ func TestDeleteBatchBeforeRuntime(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	const testDB = "netyadmin_rt_test"
-	maint.WithContext(ctx).Exec("DROP DATABASE IF EXISTS " + testDB)
-	if err := maint.WithContext(ctx).Exec("CREATE DATABASE " + testDB).Error; err != nil {
+	dbName := fmt.Sprintf("netyadmin_rt_batch_%d", os.Getpid())
+	maint.WithContext(ctx).Exec("DROP DATABASE IF EXISTS " + dbName)
+	if err := maint.WithContext(ctx).Exec("CREATE DATABASE " + dbName).Error; err != nil {
 		t.Fatalf("create test db: %v", err)
 	}
-	defer maint.WithContext(ctx).Exec("DROP DATABASE IF EXISTS " + testDB)
+	// 建库成功立即注册兜底清理：后续任何一步失败也不泄漏临时库
+	// （LIFO：下方"关连接+删库"先执行，这里幂等兜底）。
+	t.Cleanup(func() { maint.WithContext(ctx).Exec("DROP DATABASE IF EXISTS " + dbName) })
 
-	db, err := gorm.Open(postgres.Open(strings.Replace(dsn, "dbname=postgres", "dbname="+testDB, 1)), &gorm.Config{})
+	testDSN, err := replaceTestDBName(dsn, dbName)
+	if err != nil {
+		t.Fatalf("replace dsn: %v", err)
+	}
+	db, err := gorm.Open(postgres.Open(testDSN), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open test db: %v", err)
 	}
+
+	// 安全门：DSN 替换必须生效，绝不能在真实库上建表/写数据。
+	var current string
+	if err := db.WithContext(ctx).Raw("SELECT current_database()").Scan(&current).Error; err != nil {
+		t.Fatalf("select current_database: %v", err)
+	}
+	if current != dbName {
+		t.Fatalf("DSN 替换失败：连到了 %q，拒绝在非测试库执行 DDL", current)
+	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("get sql db: %v", err)
+	}
+	t.Cleanup(func() {
+		sqlDB.Close()
+		maint.WithContext(ctx).Exec("DROP DATABASE IF EXISTS " + dbName)
+	})
 
 	// 自造数：2500 旧（10 天前）+ 300 新（当前）
 	if err := db.WithContext(ctx).Exec(`CREATE TABLE sys_task_logs (id BIGSERIAL PRIMARY KEY, name VARCHAR(50), created_at TIMESTAMPTZ DEFAULT now())`).Error; err != nil {
@@ -64,4 +94,23 @@ UNION ALL SELECT 'new', now() FROM generate_series(1, 300)`).Error; err != nil {
 	if deleted2 != 0 {
 		t.Errorf("二次删除=%d 期望0", deleted2)
 	}
+}
+
+// replaceTestDBName 同时支持 keyword DSN（dbname=...）与 URL DSN（postgres://.../dbname）。
+// 与 repository/user/user_token_repo_runtime_test.go 的同名 helper 保持一致
+// （跨包无法共享 _test.go，改动时两处同步）。
+func replaceTestDBName(dsn, dbName string) (string, error) {
+	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+		u, err := url.Parse(dsn)
+		if err != nil {
+			return "", err
+		}
+		u.Path = "/" + dbName
+		return u.String(), nil
+	}
+	re := regexp.MustCompile(`(^|\s)dbname=\S+`)
+	if !re.MatchString(dsn) {
+		return "", fmt.Errorf("DSN 缺少 dbname: %s", dsn)
+	}
+	return re.ReplaceAllString(dsn, "${1}dbname="+dbName), nil
 }
