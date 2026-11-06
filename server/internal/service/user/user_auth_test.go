@@ -654,8 +654,8 @@ func TestUserLogout_NoRefreshToken(t *testing.T) {
 // ============== RefreshToken 测试 ==============
 
 // TestUserRefreshToken_Success 覆盖两条刷新成功路径：
-//   - user_tokens 行不存在（旧基座签发的 token）→ 跳过端级校验，UpdateHashes
-//     返回 ErrRecordNotFound 也必须继续签发（升级兼容，不能被 fail-closed 误伤）；
+//   - user_tokens 行不存在（旧基座签发的 token）→ 跳过端级校验且【不回写】hash，
+//     仍必须成功签发（升级兼容；即使此刻并发 Login 刚建行，也不会覆盖其 hash）；
 //   - 行存在（Login 后）→ refresh_hash 校验通过并回写新 hash。
 func TestUserRefreshToken_Success(t *testing.T) {
 	_ = hashedUserPassword(t)

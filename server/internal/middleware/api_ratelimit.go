@@ -51,8 +51,9 @@ func NewAPIRateLimit(limiter *ratelimit.SlidingWindow, rules []config.APIRateLim
 // ruleScope 为每条规则生成稳定且唯一的计数作用域。
 //
 // 用规则语义字段的指纹而不是配置序号：配置顺序调整或增删规则时，已有计数
-// 不会静默转移给另一条规则（序号会）。名称保留在 key 中便于排查；
-// 完全相同（含名称）的两条规则指纹相同、共享计数，语义等价无影响。
+// 不会静默转移给另一条规则（序号会）。名称保留在 key 中便于排查。
+// 完全相同的两条规则指纹相同、共享同一 ZSET，而中间件会对每条命中的规则
+// 各计一次数——重复规则等于阈值减半，属配置错误，应保证规则唯一。
 func ruleScope(rule config.APIRateLimitRule) string {
 	h := fnv.New64a()
 	_, _ = fmt.Fprintf(h, "%q|%q|%q|%q|%s|%d",

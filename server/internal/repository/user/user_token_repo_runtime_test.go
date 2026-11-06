@@ -71,6 +71,9 @@ func newRuntimePG(t *testing.T) *gorm.DB {
 	dbName := fmt.Sprintf("netyadmin_rt_user_token_%d", os.Getpid())
 	maint.WithContext(ctx).Exec("DROP DATABASE IF EXISTS " + dbName)
 	require.NoError(t, maint.WithContext(ctx).Exec("CREATE DATABASE "+dbName).Error)
+	// 建库成功立即注册兜底清理：后续任何一步失败也不泄漏临时库
+	// （LIFO：真正的"关连接+删库"清理后注册、先执行，这里幂等兜底）。
+	t.Cleanup(func() { maint.WithContext(ctx).Exec("DROP DATABASE IF EXISTS " + dbName) })
 
 	testDSN, err := replaceDBName(dsn, dbName)
 	require.NoError(t, err)
