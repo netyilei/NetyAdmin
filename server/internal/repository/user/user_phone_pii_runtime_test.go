@@ -104,6 +104,14 @@ func TestUserPhonePIIRuntime(t *testing.T) {
 	got5, _ := repo.GetByID(ctx, u.ID)
 	assert.Equal(t, "13999999999", got5.Phone, "掩码写入不得破坏原手机号")
 
+	// 8.5 空输入守卫：空手机号/邮箱的检索语义 = 未找到/不存在
+	gotEmpty, err := repo.GetByPhone(ctx, "")
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+	require.Nil(t, gotEmpty, "空手机号不得命中未设置手机号的行")
+	existsEmpty, err := repo.ExistsByEmail(ctx, "")
+	require.NoError(t, err)
+	require.False(t, existsEmpty, "空邮箱的存在性检查恒为否")
+
 	// 9. email 全链：Create 明文→密文列、明文列空、大小写归一化检索、唯一索引、掩码防御
 	ue := &userEntity.User{ID: "01HPIITESTUSER0003", Username: "pii_carol", Email: "Carol@Example.COM", Status: "1"}
 	require.NoError(t, repo.Create(ctx, ue))

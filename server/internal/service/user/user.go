@@ -138,6 +138,10 @@ func (b *userBase) checkUserUnique(ctx context.Context, username, phone, email s
 		}
 	}
 	if email != "" {
+		// 写入口格式校验（与手机号对称；防止垃圾邮箱进盲索引）
+		if err := pii.ValidateEmail(email); err != nil {
+			return errorx.New(errorx.CodeInvalidParams, "邮箱格式不正确")
+		}
 		exists, err = b.repo.ExistsByEmail(ctx, email)
 		if err != nil {
 			slog.Warn("ExistsByEmail query failed (rely on DB unique constraint as fallback)",

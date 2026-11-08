@@ -201,9 +201,15 @@ func (r *userRepository) GetByUsername(ctx context.Context, username string) (*u
 }
 
 func (r *userRepository) GetByPhone(ctx context.Context, phone string) (*userEntity.User, error) {
+	// 精确匹配走盲索引列（明文列已退役）。
+	// 空输入守卫：Index("")="" 会命中"未设置手机号"的行（空字符串匹配），
+	// 语义上"按空手机号查人"无意义——直接返回未找到。
+	idx := r.phonePII.Index(phone)
+	if idx == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
 	var user userEntity.User
-	// 精确匹配走盲索引列（明文列已退役）
-	if err := r.getDB(ctx).Where("phone_idx = ?", r.phonePII.Index(phone)).First(&user).Error; err != nil {
+	if err := r.getDB(ctx).Where("phone_idx = ?", idx).First(&user).Error; err != nil {
 		return nil, err
 	}
 	r.fillPII(&user)
@@ -211,8 +217,13 @@ func (r *userRepository) GetByPhone(ctx context.Context, phone string) (*userEnt
 }
 
 func (r *userRepository) GetByEmail(ctx context.Context, email string) (*userEntity.User, error) {
+	// 空输入守卫（语义同 GetByPhone）
+	idx := r.phonePII.IndexEmail(email)
+	if idx == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
 	var user userEntity.User
-	if err := r.getDB(ctx).Where("email_idx = ?", r.phonePII.IndexEmail(email)).First(&user).Error; err != nil {
+	if err := r.getDB(ctx).Where("email_idx = ?", idx).First(&user).Error; err != nil {
 		return nil, err
 	}
 	r.fillPII(&user)
@@ -230,7 +241,11 @@ func (r *userRepository) ExistsByUsername(ctx context.Context, username string, 
 }
 
 func (r *userRepository) ExistsByPhone(ctx context.Context, phone string, excludeID ...string) (bool, error) {
-	query := r.getDB(ctx).Model(&userEntity.User{}).Where("phone_idx = ?", r.phonePII.Index(phone))
+	idx := r.phonePII.Index(phone)
+	if idx == "" {
+		return false, nil // 未设置手机号的行不参与唯一性，"按空手机号判存在"恒为否
+	}
+	query := r.getDB(ctx).Model(&userEntity.User{}).Where("phone_idx = ?", idx)
 	if len(excludeID) > 0 {
 		query = query.Where("id <> ?", excludeID[0])
 	}
@@ -240,7 +255,11 @@ func (r *userRepository) ExistsByPhone(ctx context.Context, phone string, exclud
 }
 
 func (r *userRepository) ExistsByEmail(ctx context.Context, email string, excludeID ...string) (bool, error) {
-	query := r.getDB(ctx).Model(&userEntity.User{}).Where("email_idx = ?", r.phonePII.IndexEmail(email))
+	idx := r.phonePII.IndexEmail(email)
+	if idx == "" {
+		return false, nil
+	}
+	query := r.getDB(ctx).Model(&userEntity.User{}).Where("email_idx = ?", idx)
 	if len(excludeID) > 0 {
 		query = query.Where("id <> ?", excludeID[0])
 	}
