@@ -111,7 +111,8 @@ func getConfig(watcher configsync.ConfigWatcher, group, key string) string {
 }
 
 // checkUserUnique 用户名/手机/邮箱唯一性预检（Register 与 admin Create 共享，原先两份 ~30 行同构）。
-// Repo 错误仅 Warn 不阻断：DB 层唯一索引（0018 users email/phone + username）
+// Repo 错误仅 Warn 不阻断：DB 层唯一索引（username + users 的 phone_idx/email_idx，
+// 见 0059/0060——手机号/邮箱唯一性已从明文列迁移到盲索引列）
 // 会在 Create 阶段兜底拦截并发竞态，service 层捕获 23505 转业务码。
 func (b *userBase) checkUserUnique(ctx context.Context, username, phone, email string) error {
 	exists, err := b.repo.ExistsByUsername(ctx, username)

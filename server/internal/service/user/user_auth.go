@@ -114,7 +114,7 @@ func (s *userClientService) Register(ctx context.Context, req *clientDto.UserReg
 
 	if err := s.repo.Create(ctx, user); err != nil {
 		// 并发注册/绑定竞态下 ExistsBy 前置检查可能双双通过，
-		// DB 部分唯一索引（0018 users email/phone）是权威兜底，冲突转业务错误码
+		// DB 部分唯一索引（users 的 phone_idx/email_idx，0059/0060）是权威兜底，冲突转业务错误码
 		if database.IsUniqueViolation(err) {
 			return "", errorx.New(errorx.CodeUserAlreadyExists, "用户名/邮箱/手机号已被占用")
 		}

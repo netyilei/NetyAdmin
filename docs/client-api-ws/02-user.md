@@ -321,8 +321,8 @@ GET /client/v1/user/profile
     "userName": "testuser",
     "nickName": "测试用户",
     "avatar": "https://cdn.example.com/avatar/xxx.jpg",
-    "phone": "13800001234",
-    "email": "user@example.com",
+    "phone": "138****1234",
+    "email": "u***@example.com",
     "gender": "1",
     "status": "1",
     "lastLoginAt": "2025-01-01T12:00:00Z"
@@ -336,8 +336,8 @@ GET /client/v1/user/profile
 | userName | string | 用户名 |
 | nickName | string | 昵称 |
 | avatar | string | 头像 URL |
-| phone | string | 手机号 |
-| email | string | 邮箱 |
+| phone | string | 手机号（**掩码**：`138****1234`，2.0.0 起 PII 静态加密） |
+| email | string | 邮箱（**掩码**：`u***@example.com`） |
 | gender | string | 性别：`0` 未知 / `1` 男 / `2` 女 |
 | status | string | 状态：`1` 正常 / `0` 禁用 |
 | lastLoginAt | string | 最后登录时间（ISO 8601），未登录过时不返回 |
@@ -371,6 +371,7 @@ PUT /client/v1/user/profile
 | phoneCode | string | 条件必填 | 手机验证码（修改 `phone` 时必填，需先调 `POST /client/v1/auth/send-code` 发送短信验证码） |
 
 > **安全说明**：修改 `email` / `phone` 必须提供对应渠道的验证码，确保新联系方式归属当前用户。仅修改 `nickName` / `avatar` / `gender` 无需验证码。
+> **2.0.0 起格式校验**：`email` / `phone` 必须为合法格式（非法返回参数错误）；空值 = 保持原值；掩码值（含 `*`）提交视为未变更。
 
 **请求示例**：
 

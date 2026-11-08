@@ -17,7 +17,10 @@
 
 ## 1. 获取管理员列表
 
-分页查询管理员列表，支持按用户名、昵称、手机号、邮箱、状态、性别筛选。
+分页查询管理员列表，支持按用户名、昵称、状态、性别筛选。
+**手机号/邮箱自 2.0.0 起静态加密**：列表中二者以掩码返回（`137****5678` / `P***@Example.COM`）；
+筛选语义 = 完整号/完整邮箱精确（走盲索引）或手机号尾号 4 位精确，**中缀模糊搜索不再支持**。
+完整值仅在「管理员详情」（§3）中返回。
 
 ```
 GET /admin/v1/admins
@@ -35,8 +38,8 @@ GET /admin/v1/admins
 | `size` | int | 否 | 每页数量，默认为系统默认值 |
 | `username` | string | 否 | 用户名（模糊查询） |
 | `nickname` | string | 否 | 昵称（模糊查询） |
-| `phone` | string | 否 | 手机号 |
-| `email` | string | 否 | 邮箱 |
+| `phone` | string | 否 | 手机号（完整号精确或尾号 4 位精确；不支持模糊） |
+| `email` | string | 否 | 邮箱（完整地址精确，大小写不敏感；不支持模糊） |
 | `status` | string | 否 | 状态（`0`:禁用 `1`:启用） |
 | `gender` | string | 否 | 性别（`0`:未知 `1`:男 `2`:女） |
 
@@ -59,8 +62,8 @@ Authorization: Bearer <token>
         "id": 1,
         "username": "admin",
         "nickname": "超级管理员",
-        "phone": "13800138000",
-        "email": "admin@example.com",
+        "phone": "137****5678",
+        "email": "P***@Example.com",
         "gender": "1",
         "status": "1",
         "roles": ["super_admin"]
@@ -173,8 +176,8 @@ Authorization: Bearer <token>
     "id": 1,
     "username": "admin",
     "nickname": "超级管理员",
-    "phone": "13800138000",
-    "email": "admin@example.com",
+    "phone": "13712345678",
+    "email": "PiiTest@Example.com",
     "gender": "1",
     "status": "1",
     "roles": ["super_admin"]
@@ -182,6 +185,9 @@ Authorization: Bearer <token>
   "request_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 }
 ```
+
+> **PII 说明（2.0.0）**：列表的 `phone`/`email` 为掩码；详情（本节上方示例）为完整值。
+> 提交空值 = 保持原值；格式非法（手机号/邮箱）返回 `CodeInvalidParams`。
 
 ---
 

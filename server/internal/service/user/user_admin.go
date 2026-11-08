@@ -186,7 +186,7 @@ func (s *userAdminService) Create(ctx context.Context, req *userDto.CreateUserRe
 
 	if err := s.repo.Create(ctx, user); err != nil {
 		// 并发创建竞态下 ExistsBy 前置检查可能双双通过，
-		// DB 部分唯一索引（0018 users email/phone）兜底，冲突转业务错误码
+		// DB 部分唯一索引（users 的 phone_idx/email_idx，0059/0060）兜底，冲突转业务错误码
 		if database.IsUniqueViolation(err) {
 			return errorx.New(errorx.CodeUserAlreadyExists, "用户名/邮箱/手机号已被占用")
 		}

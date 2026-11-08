@@ -16,7 +16,10 @@
 - **TokenStore 抽象**：支持多种存储后端（缓存/数据库），通过 `login_storage` 配置切换。
 - **安全加固**：密码使用 bcrypt 加密，支持图形验证码与消息验证码协同校验。
 - **登录锁定**：密码错误次数超限自动锁定账户，支持 TTL 自动解锁、管理员解锁、找回密码解锁。
-- **灵活适配**：支持手机号、邮箱、用户名多种注册/登录方式。
+- **灵活适配**：注册支持用户名/手机号/邮箱（登录为用户名 + 密码）。
+- **手机号/邮箱静态加密（2.0.0）**：明文列退役，密文在 `phone_enc`/`email_enc`（AES-GCM），
+  检索走 `phone_idx`/`email_idx`（HMAC 盲索引，手机号另有尾号 4 位辅助列）。
+  列表/补全返回掩码，用户详情接口返回完整值；**中缀模糊搜索不再支持**（见下「搜索」）。
 - **OAuth 绑定基座**：内置 `OAuthBindingService`，提供第三方账号绑定关系的统一存储与查询能力（FindByOpenID / FindByUnionID / Bind / Unbind / ListByUserID），下游项目仅需实现 provider 适配（调用微信/支付宝/GitHub/Apple 等 API 换取 openid），无需重复实现绑定关系管理。读路径走 ConfigCache（L1+L2 链），写路径在事务提交后失效缓存。
 - **多类型用户扩展**：通过 `TypedUserJWTAuth` 中间件 + `RegisterTypedAuthModule` 路由注册方法，支持下游项目接入角色专属鉴权路由（如 `/client/v1/{userType}/...`），基座不感知 userType 语义，保持通用性。
 
@@ -63,8 +66,13 @@ type User struct {
     Username    string                `gorm:"size:50;uniqueIndex"`   // 用户名
     Password    string                `gorm:"size:100;not null"`     // bcrypt 密文
     Nickname    string                `gorm:"size:50"`               // 昵称
-    Phone       string                `gorm:"size:20"`               // 手机号
-    Email       string                `gorm:"size:100"`              // 邮箱
+    Phone       string                `gorm:"size:20"`               // 【废弃】明文列已退役（惰性迁移后恒空），数据在 phone_enc/phone_idx/phone_tail4
+    PhoneEnc    string                `gorm:"column:phone_enc"`      // 手机号 AES-GCM 密文
+    PhoneIdx    string                `gorm:"column:phone_idx;size:64"` // 手机号 HMAC 盲索引（唯一索引在此列）
+    PhoneTail4  string                `gorm:"column:phone_tail4;size:4"` // 手机号尾号 4 位（检索辅助）
+    Email       string                `gorm:"size:100"`              // 【废弃】明文列已退役，数据在 email_enc/email_idx
+    EmailEnc    string                `gorm:"column:email_enc"`      // 邮箱 AES-GCM 密文（保留原大小写）
+    EmailIdx    string                `gorm:"column:email_idx;size:64"` // 邮箱 HMAC 盲索引（小写归一化）
     Avatar      string                `gorm:"size:255"`              // 头像
     Gender      string                `gorm:"size:1;default:0"`      // 0:未知, 1:男, 2:女
     Status      string                `gorm:"size:1;default:1"`      // 1:正常, 0:禁用
@@ -342,7 +350,10 @@ clientRouter.RegisterTypedAuthModule("tech", techModule, techClaimsAccessor)
 
 ## 七、最佳实践
 
-1. **唯一性检查**：注册时务必并发安全地检查 `username`、`email`、`phone`。
+1. **唯一性检查**：注册时务必并发安全地检查 `username`、`email`、`phone`
+   （手机号/邮箱唯一索引在 `phone_idx`/`email_idx` 盲索引列上，见 0059/0060）。
+2. **手机号/邮箱检索**：加密下不支持中缀模糊——admin 列表筛选 = 完整号/完整邮箱精确
+   （盲索引）或手机号尾号 4 位精确；写入口做格式校验（`pii.Validate` / `pii.ValidateEmail`）。
 2. **软删除隔离**：使用 `soft_delete` 插件时，确保唯一索引包含 `deleted_at` 字段。
 3. **敏感操作**：修改密码或注销账号前，建议二次校验消息验证码。
 4. **Token 清理**：`token_hash_cleanup` 定时任务（每小时）自动清理 `user_tokens` 和 `admin_tokens` 表中过期的记录，无需手动干预。
