@@ -7,6 +7,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"NetyAdmin/internal/pkg/database"
 	"NetyAdmin/internal/pkg/pii"
 )
 
@@ -126,12 +127,35 @@ func backfillColumn(bg context.Context, db *gorm.DB, set piiColumnSet) int {
 			res := db.WithContext(bg).Table(set.table).
 				Where(set.idCol+"::text = ? AND ("+set.enc+" IS NULL OR "+set.enc+" = '')", r.ID).
 				Updates(updates)
-			if res.Error != nil {
-				slog.Error("pii backfill: update failed, skip row",
-					"table", set.table, "id", r.ID, "err", res.Error)
+			if res.Error == nil {
+				migrated += int(res.RowsAffected)
 				continue
 			}
-			migrated += int(res.RowsAffected)
+			// 归一化冲突（存量同号/同邮箱的不同写法，如 +86 前缀变体在旧唯一
+			// 索引下曾合法共存）：唯一索引拒绝整行加密。降级为只写密文列、
+			// 不写盲索引/尾号（脱离唯一索引与检索），并清空明文列——
+			// 明文泄露清零优先于检索可用性；冲突行由 ERROR 日志暴露给运维合并。
+			if database.IsUniqueViolation(res.Error) {
+				conflict := map[string]interface{}{
+					set.enc:   enc,
+					set.plain: "",
+				}
+				res2 := db.WithContext(bg).Table(set.table).
+					Where(set.idCol+"::text = ? AND ("+set.enc+" IS NULL OR "+set.enc+" = '')", r.ID).
+					Updates(conflict)
+				if res2.Error != nil {
+					slog.Error("pii backfill: conflict-fallback update failed, row keeps plaintext",
+						"table", set.table, "id", r.ID, "err", res2.Error)
+					continue
+				}
+				slog.Error("pii backfill: duplicate normalized value, encrypted without index — needs manual merge",
+					"table", set.table, "id", r.ID)
+				migrated += int(res2.RowsAffected)
+				continue
+			}
+			slog.Error("pii backfill: update failed, skip row",
+				"table", set.table, "id", r.ID, "err", res.Error)
+			continue
 		}
 		if len(rows) < piiBackfillBatchSize {
 			return migrated
