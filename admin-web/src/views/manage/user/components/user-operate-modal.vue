@@ -114,26 +114,37 @@ const rules: Record<string, App.Global.FormRule[]> = {
   status: [defaultRequiredRule]
 };
 
+let initSeq = 0;
+
 async function handleInitModel() {
+  const seq = ++initSeq;
   Object.assign(model, createDefaultModel());
   if (props.operateType === 'edit' && props.rowData) {
     // 编辑回填走详情接口：列表行是掩码（138****5678），直接回填会在提交时
     // 把掩码值当作新值（后端防御性忽略，但用户看不到 / 改不了真实号码）。
     // 详情接口返回完整 PII——这是"详细资料里查看/修改"的唯一数据源。
-    const { data } = await fetchGetUserDetail(props.rowData.id);
-    if (data) {
-      Object.assign(model, {
-        id: data.id,
-        username: data.userName,
-        nickname: data.nickName,
-        avatar: data.avatar ?? '',
-        gender: data.gender,
-        phone: data.phone,
-        email: data.email,
-        status: data.status
-      });
+    try {
+      const { data } = await fetchGetUserDetail(props.rowData.id);
+      if (seq !== initSeq) return; // 弹窗已被快速开关：丢弃过期响应
+      if (data) {
+        Object.assign(model, {
+          id: data.id,
+          username: data.userName,
+          nickname: data.nickName,
+          avatar: data.avatar ?? '',
+          gender: data.gender,
+          phone: data.phone,
+          email: data.email,
+          status: data.status
+        });
+      }
+      model.password = '';
+    } catch {
+      if (seq !== initSeq) return;
+      // 详情加载失败（如角色未勾选新 API 权限）：保持空白表单并提示，
+      // 空明文在后端为"未变更"语义，不会清空已有 PII
+      window.$message?.error?.($t('common.fetchFail'));
     }
-    model.password = '';
   }
 }
 

@@ -149,7 +149,10 @@ for i in $(seq 1 30); do
 done
 [ -n "$ready" ] || die "服务 30s 未就绪（health!=200），启动层未动"
 INSTANCE_STARTED=1
-ok "health=200，server.pid=$SPID"
+# 版本锚点：/health 的 version 是升级指南的判定依据（v1 → 2.0.0）
+hver=$(curl -s --max-time 3 "$BASE/health" | python -c "import json,sys;print((json.load(sys.stdin).get('component') or {}).get('version',''))")
+assert_eq "2.0.0" "$hver" "/health component.version（升级判定锚点）"
+ok "health=200 version=2.0.0，server.pid=$SPID"
 
 # ============ ③ 前置断言 + 造数复原 ============
 step "P0 前置：测试用户存在且启用、登录验证码门关闭、清理历史会话"

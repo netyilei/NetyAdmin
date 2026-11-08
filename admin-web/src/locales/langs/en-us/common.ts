@@ -44,6 +44,7 @@ const common = {
   trigger: 'Trigger',
   update: 'Update',
   updateSuccess: 'Update Success',
+  fetchFail: 'Load Failed',
   updateFailed: 'Update Failed',
   upload: 'Upload',
   default: 'Default',

@@ -44,6 +44,7 @@ const common = {
   trigger: '触发',
   update: '更新',
   updateSuccess: '更新成功',
+  fetchFail: '加载失败',
   updateFailed: '更新失败',
   upload: '上传',
   default: '默认',

@@ -81,23 +81,32 @@ async function getRoleOptions() {
   }
 }
 
+let initSeq = 0;
+
 async function handleInitModel() {
+  const seq = ++initSeq;
   Object.assign(model, createDefaultModel());
 
   if (props.operateType === 'edit' && props.rowData) {
     // 同用户管理：详情接口返回完整 PII（列表为掩码），编辑基于完整值。
-    const { data } = await fetchGetAdmin(props.rowData.id);
-    if (data) {
-      Object.assign(model, {
-        id: data.id,
-        username: data.userName,
-        gender: data.userGender,
-        nickname: data.nickName,
-        phone: data.userPhone,
-        email: data.userEmail,
-        roles: data.userRoles,
-        status: data.status
-      });
+    try {
+      const { data } = await fetchGetAdmin(props.rowData.id);
+      if (seq !== initSeq) return; // 弹窗已被快速开关：丢弃过期响应
+      if (data) {
+        Object.assign(model, {
+          id: data.id,
+          username: data.userName,
+          gender: data.userGender,
+          nickname: data.nickName,
+          phone: data.userPhone,
+          email: data.userEmail,
+          roles: data.userRoles,
+          status: data.status
+        });
+      }
+    } catch {
+      if (seq !== initSeq) return;
+      window.$message?.error?.($t('common.fetchFail'));
     }
   }
 }
