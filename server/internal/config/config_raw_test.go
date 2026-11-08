@@ -39,7 +39,7 @@ ws:
 	// 副本语义（深拷贝）：修改返回值的嵌套段不影响内部
 	raw["ws"].(map[string]any)["listen"] = ":hacked"
 	ws2 := cfg.RawConfig()["ws"].(map[string]any)
-	assert.NotEqual(t, ":hacked", ws2["listen"], "RawConfigDeep 必须深拷贝嵌套段")
+	assert.NotEqual(t, ":hacked", ws2["listen"], "RawConfig 必须深拷贝嵌套段")
 
 	// 强类型解析不受 raw 填充影响
 	assert.Equal(t, 9090, cfg.Server.Port)

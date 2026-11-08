@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -314,23 +315,29 @@ func (a *App) Run() error {
 		}()
 	}
 
-	// 2. Start Web Server（同上：不使用 GoSafe，panic 必须 crash 进程）
-	// 2.1 LifecycleModule OnStart（见 runLifecycleStart 注释）：
-	//     在监听 goroutine 启动后调用——监听器由 goroutine 内 ListenAndServe
-	//     即时注册，OnStart 的执行与监听就绪存在毫秒级窗口，模块内部如需
-	//     保证端口可达请自行探测。
+	// 2. 先建立监听器再启动服务 goroutine：
+	//    - 监听失败同步返回（fail-fast），避免"进程活着但不监听端口"的僵尸态；
+	//    - LifecycleModule OnStart 在端口真实可接受连接之后调用（见注释 2.1）。
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("端口监听失败 %s: %w", addr, err)
+	}
+
+	// 2.1 LifecycleModule OnStart：端口已真实监听（OnStart 时序契约见 module.go）。
+	//     失败仅记录日志并继续——子系统启动失败不阻断基座主服务，
+	//     由模块自行重试或降级（与任务引擎/健康检查的失败哲学一致）。
 	a.runLifecycleStart(context.Background())
 
 	go func() {
 		if a.cfg.TLS.Enable {
 			slog.Info("服务器启动（TLS）", "addr", addr)
-			if err := srv.ListenAndServeTLS(a.cfg.TLS.CertFile, a.cfg.TLS.KeyFile); err != nil && err != http.ErrServerClosed {
+			if err := srv.ServeTLS(ln, a.cfg.TLS.CertFile, a.cfg.TLS.KeyFile); err != nil && err != http.ErrServerClosed {
 				slog.Error("启动 TLS 服务器失败", "error", err)
 				os.Exit(1)
 			}
 		} else {
 			slog.Info("服务器启动", "addr", addr)
-			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 				slog.Error("启动服务器失败", "error", err)
 				os.Exit(1)
 			}
@@ -360,9 +367,14 @@ func (a *App) Run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
-	if err := srv.Shutdown(ctx); err != nil {
-		return fmt.Errorf("服务器强制关闭: %v", err)
+	shutdownErr := srv.Shutdown(ctx)
+	if shutdownErr != nil {
+		slog.Error("HTTP 优雅关闭超时/失败：监听已停止，在途请求可能被中断", "error", shutdownErr)
 	}
+
+	// LifecycleModule OnStop：HTTP 已停止监听（无论 Shutdown 是否超时），
+	// 下游组件（如 WS Hub）仍需在此停止——放行到 OnStop 之后统一返回错误。
+	a.runLifecycleStop()
 
 	// 关闭 HTTP→HTTPS 跳转服务（若启用 TLS）
 	if redirectSrv != nil {
@@ -371,8 +383,13 @@ func (a *App) Run() error {
 		}
 	}
 
-	// LifecycleModule OnStop：HTTP 优雅关闭完成后调用（逆序），带超时保护
-	a.runLifecycleStop(context.Background())
+	if shutdownErr != nil {
+		return fmt.Errorf("服务器强制关闭: %v", shutdownErr)
+	}
+
+	// LifecycleModule OnStop：HTTP 优雅关闭完成后调用（逆序），带超时保护。
+	// srv.Shutdown 失败也会走到这里——监听已停止，该停的下游组件仍要停。
+	a.runLifecycleStop()
 
 	// Stop DB health checker
 	if a.dbHealthChecker != nil {
@@ -430,19 +447,12 @@ func (a *App) runLifecycleStart(ctx context.Context) {
 
 // runLifecycleStop 逆序调用各 LifecycleModule 的 OnStop（HTTP 优雅关闭后）。
 // 单模块超时/panic 不阻塞其余模块与进程退出。
-func (a *App) runLifecycleStop(ctx context.Context) {
+// runLifecycleStop 逆序调用各 LifecycleModule 的 OnStop（HTTP 优雅关闭后）。
+// 单模块 5s 超时（复用 stopWithTimeout），panic 由 GoSafe 捕获，不阻塞进程退出。
+func (a *App) runLifecycleStop() {
 	for i := len(a.lifecycleModules) - 1; i >= 0; i-- {
 		m := a.lifecycleModules[i]
-		done := make(chan struct{})
-		recovery.GoSafe("app:lifecycle-stop:"+m.Name(), func() {
-			defer close(done)
-			m.OnStop(ctx)
-		})
-		select {
-		case <-done:
-		case <-time.After(5 * time.Second):
-			slog.Warn("lifecycle module OnStop timed out, skip", "module", m.Name())
-		}
+		a.stopWithTimeout("lifecycle-stop:"+m.Name(), func() { m.OnStop(context.Background()) })
 	}
 }
 

@@ -66,12 +66,13 @@ type EngineModule interface {
 
 // LifecycleModule 为需要生命周期管理的下游组件（如 WebSocket Hub）提供
 // OnStart / OnStop 钩子：
-//   - OnStart 在 HTTP 服务开始监听之后、进程就绪前调用（此时端口已可接受连接）；
-//     返回 error 仅记录日志，不阻断基座启动（子系统失败由其自行重试/降级）；
+//   - OnStart 在 HTTP 服务开始监听之后、进程就绪前调用（此时端口已可接受连接；
+//     OnStart 自身失败仅记录日志，不阻断基座启动，子系统失败由其自行重试/降级，
+//     且 panic 同样被基座捕获——单个模块的 panic 不会拖垮进程）；
 //   - OnStop 在 HTTP 服务优雅关闭完成之后调用（所有在途请求已处理完），
-//     带超时保护，超时的模块被跳过不再阻塞退出。
+//     单模块 5s 超时保护，超时的模块被跳过不再阻塞退出；panic 亦被捕获。
 //
-// 实现注意：OnStop 必须在 shutdownTimeout 内返回，长时间收尾请自行起
+// 实现注意：OnStop 超时后仍可能在后台继续运行到自然结束——长收尾请自行起
 // goroutine 并自行管理生命周期。
 //
 // 通过 RegisterModule 注册（类型断言自动识别），与 Client/Admin/Job/Engine

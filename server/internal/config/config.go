@@ -1,7 +1,6 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"log/slog"
@@ -37,7 +36,8 @@ type Config struct {
 
 	// raw 保留 yaml 反序列化后的原始配置树（map 形态），由 Load 填充。
 	// 下游模块通过 App.RawConfig() 解析基座强类型结构之外的自有配置段（如 [ws]）。
-	// 不参与 yaml/env 解析。RawConfig() 返回副本。
+	// 不参与 yaml/env 解析。注意：raw 是【文件原始值】，不包含 NETYADMIN_*
+	// 环境变量覆盖后的生效值——需要生效值请用强类型字段。RawConfig() 返回深拷贝。
 	raw map[string]any `yaml:"-"`
 }
 
@@ -360,14 +360,20 @@ func Load(path string) (*Config, error) {
 // 直接污染基座运行配置（配置安全边界）。配置树全部为 JSON 可表示的
 // 基础类型（yaml 解出），roundtrip 不会失败；失败时兜底返回 nil 并由
 // 调用方判空。
+// RawConfig 返回配置文件的原始配置树【深拷贝】（嵌套段为 map[string]any）。
+// 下游模块用它解析基座强类型结构未覆盖的自有配置段。
+// 注意两点：① 返回深拷贝，修改不影响基座；② raw 是文件原始值快照，
+// 不含 NETYADMIN_* 环境变量覆盖——需要生效值请用强类型字段。
 func (c *Config) RawConfig() map[string]any {
-	b, err := json.Marshal(c.raw)
+	// yaml roundtrip 而非 JSON：保号性（int 不退化为 float64、时间戳保真、
+	// 支持 .inf/.nan），下游 LoadFromRaw 二次解析不丢类型信息
+	b, err := yaml.Marshal(c.raw)
 	if err != nil {
 		slog.Error("serialize raw config failed", "err", err)
 		return nil
 	}
 	var out map[string]any
-	if err := json.Unmarshal(b, &out); err != nil {
+	if err := yaml.Unmarshal(b, &out); err != nil {
 		slog.Error("deserialize raw config copy failed", "err", err)
 		return nil
 	}
