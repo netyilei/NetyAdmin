@@ -122,6 +122,16 @@ func (m *mockCacheMgr) Fetch(_ context.Context, _ string, _ string, _ []string, 
 	return nil
 }
 func (m *mockCacheMgr) InvalidateByTags(_ context.Context, _ ...string) error { return nil }
+func (m *mockCacheMgr) FetchFast(_ context.Context, _ string, _ string, _ []string, _ time.Duration, _ interface{}, _ func() (interface{}, error)) error {
+	return nil
+}
+func (m *mockCacheMgr) SetFast(_ context.Context, _ string, _ interface{}, _ []string, _ time.Duration) error {
+	return nil
+}
+func (m *mockCacheMgr) GetFast(_ context.Context, _ string, _ []string, _ time.Duration, _ interface{}) error {
+	return nil
+}
+func (m *mockCacheMgr) DeleteFast(_ context.Context, _ string) error { return nil }
 func (m *mockCacheMgr) SetNX(_ context.Context, key string, value interface{}, _ time.Duration) (bool, error) {
 	// 与真实 SetNX 同语义：key 不存在时写入并返回 true，已存在返回 false。
 	// RefreshToken 黑名单原子抢占依赖此行为（并发重放/已使用 token 返回 false）。
@@ -282,6 +292,7 @@ func newTestAdminService(t *testing.T) (*adminService, *mockAdminRepo, *mockCach
 	svc := &adminService{
 		adminRepo:  repo,
 		jwt:        j,
+		cacheFast:  cacheMgr, // UpdateProfile 成功路径会失效管理员信息缓存
 		cacheSlow:  cacheMgr,
 		tokenStore: store,
 	}
@@ -539,4 +550,42 @@ func TestAdminRefreshToken_UserDisabled(t *testing.T) {
 	var bizErr *errorx.BizError
 	require.True(t, errors.As(err, &bizErr))
 	assert.Equal(t, errorx.CodeUserDisabled, bizErr.Code)
+}
+
+// TestAdminUpdateProfile_PhoneValidation 验证管理员本人资料更新的手机号/邮箱校验：
+// 非法格式拒绝（CodeInvalidParams）；合法值走 Update（加密在 repo 层，由真库测试覆盖）。
+func TestAdminUpdateProfile_PhoneValidation(t *testing.T) {
+	svc, repo, _, _, _ := newTestAdminService(t)
+	// UpdateProfile 先 GetByID；mock 未设置时返回 (nil, nil)，需提供目标管理员
+	admin := &systemEntity.Admin{Username: "admin", Status: "1"}
+	admin.ID = 1 // ID 在 embedded entity.Model 中，不能走 struct literal
+	repo.AdminByID = admin
+
+	tests := []struct {
+		name    string
+		phone   string
+		email   string
+		wantBad bool
+	}{
+		{"valid phone+email", "13812345678", "a@b.co", false},
+		{"invalid phone", "123", "a@b.co", true},
+		{"invalid email", "13812345678", "not-an-email", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := svc.UpdateProfile(context.Background(), 1, &systemDto.UpdateProfileReq{
+				Nickname: "n",
+				Phone:    tt.phone,
+				Email:    tt.email,
+				Gender:   "1",
+			})
+			if tt.wantBad {
+				var bizErr *errorx.BizError
+				require.True(t, errors.As(err, &bizErr))
+				assert.Equal(t, errorx.CodeInvalidParams, bizErr.Code)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }

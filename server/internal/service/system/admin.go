@@ -21,6 +21,7 @@ import (
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
 	"NetyAdmin/internal/pkg/password"
+	"NetyAdmin/internal/pkg/pii"
 	systemRepo "NetyAdmin/internal/repository/system"
 	userService "NetyAdmin/internal/service/user"
 )
@@ -167,6 +168,17 @@ func (s *adminService) UpdateProfile(ctx context.Context, adminID uint, req *sys
 	}
 
 	admin.Nickname = req.Nickname
+	// 格式校验（与 admin_manage.Update 对齐）；空值 = 保持原值（seal 语义）
+	if req.Phone != "" {
+		if err := pii.Validate(req.Phone); err != nil {
+			return errorx.New(errorx.CodeInvalidParams, "手机号格式不正确")
+		}
+	}
+	if req.Email != "" {
+		if err := pii.ValidateEmail(req.Email); err != nil {
+			return errorx.New(errorx.CodeInvalidParams, "邮箱格式不正确")
+		}
+	}
 	admin.Phone = req.Phone
 	admin.Email = req.Email
 	admin.Gender = req.Gender

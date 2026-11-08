@@ -199,6 +199,8 @@ type mockUserRepo struct {
 	UserByID         *userEntity.User
 	GetByIDErr       error
 	UpdateFieldsErr  error
+	UpdatedPhone     string // UpdatePhone 收到的手机号（nil=未调用，""=显式清空）
+	UpdatedPhoneByID string
 }
 
 func (r *mockUserRepo) GetByUsername(_ context.Context, _ string) (*userEntity.User, error) {
@@ -242,8 +244,12 @@ func (r *mockUserRepo) List(_ context.Context, _ *userRepo.UserRepoQuery) ([]use
 func (r *mockUserRepo) SearchForAutocomplete(_ context.Context, _ string, _ int) ([]userEntity.User, error) {
 	return nil, nil
 }
-func (r *mockUserRepo) Update(_ context.Context, _ *userEntity.User) error      { return nil }
-func (r *mockUserRepo) UpdatePhone(_ context.Context, _ string, _ string) error { return nil }
+func (r *mockUserRepo) Update(_ context.Context, _ *userEntity.User) error { return nil }
+func (r *mockUserRepo) UpdatePhone(_ context.Context, id string, phone string) error {
+	r.UpdatedPhoneByID = id
+	r.UpdatedPhone = phone
+	return nil
+}
 func (r *mockUserRepo) UpdateEmail(_ context.Context, _ string, _ string) error { return nil }
 func (r *mockUserRepo) Delete(_ context.Context, _ string) error                { return nil }
 func (r *mockUserRepo) DeleteBatch(_ context.Context, _ []string) error         { return nil }
@@ -954,4 +960,34 @@ func TestUserGetInfo_MaskedPhoneEmpty(t *testing.T) {
 	vo, err := svc.GetInfo(context.Background(), user.ID)
 	require.NoError(t, err)
 	assert.Empty(t, vo.Phone)
+}
+
+// TestUserUpdateProfile_ChangePhone 覆盖客户端自助换绑手机号：
+// 验证码通过 → UpdatePhone 被调用且收到新号；掩码值提交视为未变更（不调用）。
+func TestUserUpdateProfile_ChangePhone(t *testing.T) {
+	_ = hashedUserPassword(t)
+	svc, repo, _, _, verifySvc, _ := newTestUserClientService(t)
+	user := enabledUser("01HTESTUSERUPDPHONE1", "updphone")
+	user.Phone = "13811112222"
+	repo.UserByID = user
+	verifySvc.verifyResult = true
+
+	// 1. 正常换绑
+	req := &clientDto.UserUpdateProfileReq{Phone: "13999998888", PhoneCode: "654321"}
+	require.NoError(t, svc.UpdateProfile(context.Background(), user.ID, req))
+	assert.Equal(t, "13999998888", repo.UpdatedPhone, "UpdatePhone 应收到新号")
+	assert.Equal(t, user.ID, repo.UpdatedPhoneByID)
+
+	// 2. 掩码值提交 = 未变更（不触发 UpdatePhone）
+	repo.UpdatedPhone = "\x00unset"
+	req2 := &clientDto.UserUpdateProfileReq{Phone: "138****1111"}
+	require.NoError(t, svc.UpdateProfile(context.Background(), user.ID, req2))
+	assert.Equal(t, "\x00unset", repo.UpdatedPhone, "掩码提交不得触发换绑")
+
+	// 3. 非法格式：直接拒绝（不进验证码流程）
+	req3 := &clientDto.UserUpdateProfileReq{Phone: "not-a-phone", PhoneCode: "654321"}
+	err := svc.UpdateProfile(context.Background(), user.ID, req3)
+	var bizErr *errorx.BizError
+	require.True(t, errors.As(err, &bizErr))
+	assert.Equal(t, errorx.CodeInvalidParams, bizErr.Code)
 }
