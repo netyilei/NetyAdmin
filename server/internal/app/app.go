@@ -73,8 +73,11 @@ type App struct {
 	tm              database.TxManager
 	dbHealthChecker *database.HealthChecker
 	taskManager     *task.Manager
-	logBus          logService.LogBusService
-	eventBus        pubsub.EventBus
+	// lifecycleModules 是实现了 LifecycleModule 的下游模块（RegisterModule 收集）。
+	// Run 时 OnStart / 优雅关闭时 OnStop（见 runLifecycleStart / runLifecycleStop）。
+	lifecycleModules []LifecycleModule
+	logBus           logService.LogBusService
+	eventBus         pubsub.EventBus
 
 	// Security infrastructure — exposed for downstream projects to compose
 	// custom auth flows (SMS login, OAuth, biometric, etc.) without modifying
@@ -233,6 +236,11 @@ func (a *App) MessageService() msgService.MessageService { return a.messageSvc }
 // 下游模块读取动态配置（如验证码长度、短信尝试次数、业务开关）时应使用本
 // getter，而不是每次直读 sys_configs：ConfigWatcher 由基座统一缓存并在
 // 配置变更时刷新，与基座登录参数等配置的即时生效体验一致。
+// RawConfig 返回配置文件的原始配置树副本（map 形态，嵌套段为 map[string]any）。
+// 下游模块用它解析基座强类型结构未覆盖的自有配置段（如 [ws]）；
+// 返回副本，修改不影响基座。
+func (a *App) RawConfig() map[string]any { return a.cfg.RawConfig() }
+
 func (a *App) ConfigWatcher() configsync.ConfigWatcher { return a.configWatcher }
 
 func (a *App) Run() error {
@@ -307,6 +315,12 @@ func (a *App) Run() error {
 	}
 
 	// 2. Start Web Server（同上：不使用 GoSafe，panic 必须 crash 进程）
+	// 2.1 LifecycleModule OnStart（见 runLifecycleStart 注释）：
+	//     在监听 goroutine 启动后调用——监听器由 goroutine 内 ListenAndServe
+	//     即时注册，OnStart 的执行与监听就绪存在毫秒级窗口，模块内部如需
+	//     保证端口可达请自行探测。
+	a.runLifecycleStart(context.Background())
+
 	go func() {
 		if a.cfg.TLS.Enable {
 			slog.Info("服务器启动（TLS）", "addr", addr)
@@ -357,6 +371,9 @@ func (a *App) Run() error {
 		}
 	}
 
+	// LifecycleModule OnStop：HTTP 优雅关闭完成后调用（逆序），带超时保护
+	a.runLifecycleStop(context.Background())
+
 	// Stop DB health checker
 	if a.dbHealthChecker != nil {
 		a.dbHealthChecker.Stop()
@@ -397,6 +414,36 @@ func (a *App) Run() error {
 
 	slog.Info("服务器已安全关闭")
 	return nil
+}
+
+// runLifecycleStart 顺序调用各 LifecycleModule 的 OnStart（端口已监听后）。
+// 单模块失败仅记录错误日志并继续——子系统启动失败不阻断基座主服务，
+// 由模块自行重试或降级（与任务引擎/健康检查的失败哲学一致）。
+func (a *App) runLifecycleStart(ctx context.Context) {
+	for _, m := range a.lifecycleModules {
+		if err := m.OnStart(ctx); err != nil {
+			slog.Error("lifecycle module OnStart failed (module continues degraded)",
+				"module", m.Name(), "err", err)
+		}
+	}
+}
+
+// runLifecycleStop 逆序调用各 LifecycleModule 的 OnStop（HTTP 优雅关闭后）。
+// 单模块超时/panic 不阻塞其余模块与进程退出。
+func (a *App) runLifecycleStop(ctx context.Context) {
+	for i := len(a.lifecycleModules) - 1; i >= 0; i-- {
+		m := a.lifecycleModules[i]
+		done := make(chan struct{})
+		recovery.GoSafe("app:lifecycle-stop:"+m.Name(), func() {
+			defer close(done)
+			m.OnStop(ctx)
+		})
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			slog.Warn("lifecycle module OnStop timed out, skip", "module", m.Name())
+		}
+	}
 }
 
 // stopWithTimeout 在独立 goroutine 中执行 stopFn，最多等待 drainTimeout。

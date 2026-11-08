@@ -343,7 +343,13 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		cr.SetAPIRateLimit(apiRateLimitMW)
 	}
 	r.Register(engine)
-	cr.Register(engine)
+	// [base].client_router_enabled=false 时下游通过 ClientRouterModule 完全接管
+	// /client/v1/* 路由树（如自有用户体系），基座不再注册内置客户端路由
+	if cfg.Base.IsClientRouterEnabled() {
+		cr.Register(engine)
+	} else {
+		slog.Info("base.client_router_enabled=false：基座不注册内置 /client/v1/* 路由，由下游模块接管")
+	}
 	gin.DefaultWriter = os.Stdout
 
 	// 静态文件服务：提供前端 SPA 页面（admin-web/dist/）

@@ -1,8 +1,10 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"reflect"
 	"strconv"
@@ -13,6 +15,7 @@ import (
 )
 
 type Config struct {
+	Base            BaseConfig            `yaml:"base"`
 	Server          ServerConfig          `yaml:"server"`
 	TLS             TLSConfig             `yaml:"tls"`
 	Database        DatabaseConfig        `yaml:"database"`
@@ -31,6 +34,29 @@ type Config struct {
 	SecurityHeaders SecurityHeadersConfig `yaml:"security_headers"`
 	LoginRateLimit  LoginRateLimitConfig  `yaml:"login_ratelimit"`
 	APIRateLimit    APIRateLimitConfig    `yaml:"api_ratelimit"`
+
+	// raw 保留 yaml 反序列化后的原始配置树（map 形态），由 Load 填充。
+	// 下游模块通过 App.RawConfig() 解析基座强类型结构之外的自有配置段（如 [ws]）。
+	// 不参与 yaml/env 解析。RawConfig() 返回副本。
+	raw map[string]any `yaml:"-"`
+}
+
+// BaseConfig 基座自身行为的全局开关。
+//
+// 用于下游模块需要完全接管基座内置路由树的场景（如独立部署的业务后端
+// 复用基座组件但不要内置业务路由）。默认全部启用，向后兼容。
+type BaseConfig struct {
+	// ClientRouterEnabled 控制是否注册基座内置的 /client/v1/* 路由树。
+	// false 时基座不注册该路由树，下游模块通过 ClientRouterModule 完全接管
+	// /client/v1/*（如自有用户体系）。默认 true（向后兼容）。
+	// 缺省为 true 的原因：BaseConfig 为零值时需与历史版本行为一致。
+	ClientRouterEnabled *bool `yaml:"client_router_enabled"`
+}
+
+// IsClientRouterEnabled 返回开关值：nil（未配置）视为 true，向后兼容。
+// （方法名与字段名不能相同，故用 Is 前缀。）
+func (b BaseConfig) IsClientRouterEnabled() bool {
+	return b.ClientRouterEnabled == nil || *b.ClientRouterEnabled
 }
 
 // Duration 是 time.Duration 的包装类型，实现 encoding.TextUnmarshaler 接口，
@@ -310,6 +336,13 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("解析配置文件失败: %w", err)
 	}
 
+	// 保留原始配置树（副本），供 App.RawConfig() 暴露给下游模块
+	var raw map[string]any
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("解析原始配置树失败: %w", err)
+	}
+	cfg.raw = raw
+
 	// 12-factor: 环境变量优先于配置文件，覆盖带 env 标签的字段
 	if err := applyEnvOverrides(&cfg); err != nil {
 		return nil, fmt.Errorf("应用环境变量覆盖失败: %w", err)
@@ -319,6 +352,26 @@ func Load(path string) (*Config, error) {
 	cfg.normalize()
 
 	return &cfg, nil
+}
+
+// RawConfig 返回配置文件的原始配置树【深拷贝】（嵌套段为 map[string]any）。
+// 下游模块用它解析基座强类型结构未覆盖的自有配置段。
+// 必须 deep copy：浅拷贝时嵌套 map 与内部共享引用，调用方修改副本会
+// 直接污染基座运行配置（配置安全边界）。配置树全部为 JSON 可表示的
+// 基础类型（yaml 解出），roundtrip 不会失败；失败时兜底返回 nil 并由
+// 调用方判空。
+func (c *Config) RawConfig() map[string]any {
+	b, err := json.Marshal(c.raw)
+	if err != nil {
+		slog.Error("serialize raw config failed", "err", err)
+		return nil
+	}
+	var out map[string]any
+	if err := json.Unmarshal(b, &out); err != nil {
+		slog.Error("deserialize raw config copy failed", "err", err)
+		return nil
+	}
+	return out
 }
 
 // normalize 归一化缓存与多节点部署约束：

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/gin-gonic/gin"
@@ -63,6 +64,26 @@ type EngineModule interface {
 	RegisterEngine(engine *gin.Engine, deps RouterDeps)
 }
 
+// LifecycleModule 为需要生命周期管理的下游组件（如 WebSocket Hub）提供
+// OnStart / OnStop 钩子：
+//   - OnStart 在 HTTP 服务开始监听之后、进程就绪前调用（此时端口已可接受连接）；
+//     返回 error 仅记录日志，不阻断基座启动（子系统失败由其自行重试/降级）；
+//   - OnStop 在 HTTP 服务优雅关闭完成之后调用（所有在途请求已处理完），
+//     带超时保护，超时的模块被跳过不再阻塞退出。
+//
+// 实现注意：OnStop 必须在 shutdownTimeout 内返回，长时间收尾请自行起
+// goroutine 并自行管理生命周期。
+//
+// 通过 RegisterModule 注册（类型断言自动识别），与 Client/Admin/Job/Engine
+// 四类路由/任务模块正交，可任意组合。
+type LifecycleModule interface {
+	Module
+	// OnStart 在 HTTP 服务开始监听后调用（每个进程至多一次）。
+	OnStart(ctx context.Context) error
+	// OnStop 在 HTTP 服务优雅关闭后调用（每个进程至多一次，逆序执行）。
+	OnStop(ctx context.Context)
+}
+
 // RouterDeps 聚合下游装配所需的全部基座依赖。
 //
 // 设计原则：用一个结构体传递依赖，避免 App 上 getter 蔓延。
@@ -105,6 +126,11 @@ func (a *App) RegisterModule(m Module) {
 		panic("app: RegisterModule 必须在 Run() 之前调用（engine 启动后路由不可变更）")
 	}
 	slog.Info("注册下游模块", "module", m.Name())
+
+	// 0. 生命周期模块：收集到 App，Run/Shutdown 时调 OnStart/OnStop
+	if lm, ok := m.(LifecycleModule); ok {
+		a.lifecycleModules = append(a.lifecycleModules, lm)
+	}
 
 	// 1. 客户端路由模块
 	//    注意：这里新建独立的 /client/v1 子组挂中间件，与基座 ClientRouter.Register
