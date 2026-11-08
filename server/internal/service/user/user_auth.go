@@ -39,6 +39,8 @@ type UserClientService interface {
 	Login(ctx context.Context, req *clientDto.UserLoginReq, ip string) (*userVO.UserLoginVO, error)
 	RefreshToken(ctx context.Context, refreshToken string) (*userVO.UserLoginVO, error)
 	GetInfo(ctx context.Context, userID string) (*userVO.UserInfoVO, error)
+	// GetUserContact 通用 PII 读取（完整手机号/邮箱，按条件查不同人）。
+	GetUserContact(ctx context.Context, q UserContactQuery) (*UserContact, error)
 	UpdateProfile(ctx context.Context, userID string, req *clientDto.UserUpdateProfileReq) error
 	ChangePassword(ctx context.Context, userID string, req *clientDto.UserChangePasswordReq) error
 	// Logout 退出登录：删除 access token hash，并将 refresh token 写入黑名单（TTL 为其剩余有效期），
@@ -424,13 +426,15 @@ func (s *userClientService) GetInfo(ctx context.Context, userID string) (*userVO
 		return nil, fmt.Errorf("repo.GetByID: %w", err)
 	}
 
+	// 本人资料返回完整手机号/邮箱（用户需确认自己绑定的号码/邮箱）——
+	// GetInfo 只暴露给 JWT 认证后的本人；列表/补全等其他出口仍为掩码。
 	return &userVO.UserInfoVO{
 		ID:          user.ID,
 		Username:    user.Username,
 		Nickname:    user.Nickname,
 		Avatar:      user.Avatar,
-		Phone:       pii.Mask(user.Phone),
-		Email:       pii.MaskEmail(user.Email),
+		Phone:       user.Phone,
+		Email:       user.Email,
 		Gender:      user.Gender,
 		Status:      user.Status,
 		LastLoginAt: user.LastLoginAt,

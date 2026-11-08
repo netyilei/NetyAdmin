@@ -22,6 +22,7 @@ import (
 	"crypto/rsa"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -42,6 +43,7 @@ import (
 	"NetyAdmin/internal/pkg/errorx"
 	"NetyAdmin/internal/pkg/jwt"
 	"NetyAdmin/internal/pkg/password"
+	"NetyAdmin/internal/pkg/pii"
 	userRepo "NetyAdmin/internal/repository/user"
 )
 
@@ -223,10 +225,17 @@ func (r *mockUserRepo) UpdateFields(_ context.Context, _ string, _ map[string]in
 
 // 以下方法 user_auth 不使用，仅满足接口签名
 func (r *mockUserRepo) Create(_ context.Context, _ *userEntity.User) error { return nil }
-func (r *mockUserRepo) GetByPhone(_ context.Context, _ string) (*userEntity.User, error) {
+func (r *mockUserRepo) GetByPhone(_ context.Context, phone string) (*userEntity.User, error) {
+	// 真实 GetByPhone 走盲索引（天然归一化）：mock 用 Normalize 对齐该语义
+	if r.UserByID != nil && pii.Normalize(r.UserByID.Phone) == pii.Normalize(phone) {
+		return r.UserByID, nil
+	}
 	return nil, gorm.ErrRecordNotFound
 }
-func (r *mockUserRepo) GetByEmail(_ context.Context, _ string) (*userEntity.User, error) {
+func (r *mockUserRepo) GetByEmail(_ context.Context, email string) (*userEntity.User, error) {
+	if r.UserByID != nil && strings.EqualFold(r.UserByID.Email, email) {
+		return r.UserByID, nil
+	}
 	return nil, gorm.ErrRecordNotFound
 }
 func (r *mockUserRepo) ExistsByUsername(_ context.Context, _ string, _ ...string) (bool, error) {
@@ -931,23 +940,71 @@ func TestUserLogin_SamePlatformKickIn(t *testing.T) {
 	assert.NotEqual(t, vo1.AccessToken, vo3.AccessToken, "不同 platform token 应不同")
 }
 
-// TestUserGetInfo_MaskedPhone 验证 GetInfo 出口掩码：明文手机号绝不直接出接口
-// （read-revive/CAS 修复后的暴露面哨兵——掩码返回是 CHANGELOG 2026-11-07 的决策）。
-func TestUserGetInfo_MaskedPhone(t *testing.T) {
+// TestUserGetInfo_FullSelfView 验证本人资料返回完整手机号/邮箱（用户决策：
+// 前端看自己资料需要看到真实号码；列表/autocomplete 仍为掩码）。
+// 2.0.0 PII 加密后 read-revive/CAS 由真库测试锁定，此处锁定出口语义。
+func TestUserGetInfo_FullSelfView(t *testing.T) {
 	svc, repo, _, _, _, _ := newTestUserClientService(t)
-	user := enabledUser("01HTESTUSERGETINFO01", "maskcheck")
+	user := enabledUser("01HTESTUSERGETINFO01", "selfview")
 	user.Phone = "13812345678" // mock 不走加密：GetByID 直接回明文（模拟 repo 解密回填后状态）
+	user.Email = "John.Doe@Example.COM"
 	repo.UserByID = user
 
 	vo, err := svc.GetInfo(context.Background(), user.ID)
 	require.NoError(t, err)
-	assert.Equal(t, "138****5678", vo.Phone, "接口出口必须为掩码")
-	assert.NotContains(t, vo.Phone, "12345678", "掩码不得包含中段明文")
-	user.Email = "John.Doe@Example.COM"
+	assert.Equal(t, "13812345678", vo.Phone, "本人资料必须返回完整手机号")
+	assert.Equal(t, "John.Doe@Example.COM", vo.Email, "本人资料必须返回完整邮箱")
+}
+
+// TestGetUserContact 验证通用 PII 读取出口：按条件（ID/Username/Email/Phone）
+// 查不同人并返回解密后的完整联系方式；空条件拒绝；非法格式拒绝。
+func TestGetUserContact(t *testing.T) {
+	svc, repo, _, _, _, _ := newTestUserClientService(t)
+	user := enabledUser("01HTESTUSERCONTACT01", "contact")
+	user.Phone = "13812345678"
+	user.Email = "contact@example.com"
 	repo.UserByID = user
-	vo2, err := svc.GetInfo(context.Background(), user.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "J***@Example.COM", vo2.Email, "email 出口掩码（域名保留原大小写、本地部分只留首字符）")
+
+	t.Run("by id", func(t *testing.T) {
+		got, err := svc.GetUserContact(context.Background(), UserContactQuery{ID: user.ID})
+		require.NoError(t, err)
+		assert.Equal(t, "13812345678", got.Phone)
+		assert.Equal(t, "contact@example.com", got.Email)
+	})
+	t.Run("by username", func(t *testing.T) {
+		repo.ByUsername = user // mock GetByUsername 读 ByUsername 字段
+		got, err := svc.GetUserContact(context.Background(), UserContactQuery{Username: "contact"})
+		require.NoError(t, err)
+		assert.Equal(t, user.ID, got.UserID)
+	})
+	t.Run("by email", func(t *testing.T) {
+		got, err := svc.GetUserContact(context.Background(), UserContactQuery{Email: "Contact@Example.com"})
+		require.NoError(t, err, "email 条件大小写不敏感")
+		assert.Equal(t, "13812345678", got.Phone)
+	})
+	t.Run("by phone", func(t *testing.T) {
+		got, err := svc.GetUserContact(context.Background(), UserContactQuery{Phone: "+86 138 1234 5678"})
+		require.NoError(t, err, "phone 条件归一化")
+		assert.Equal(t, user.ID, got.UserID)
+	})
+	t.Run("empty condition rejected", func(t *testing.T) {
+		_, err := svc.GetUserContact(context.Background(), UserContactQuery{})
+		var bizErr *errorx.BizError
+		require.True(t, errors.As(err, &bizErr))
+		assert.Equal(t, errorx.CodeInvalidParams, bizErr.Code)
+	})
+	t.Run("invalid email condition rejected", func(t *testing.T) {
+		_, err := svc.GetUserContact(context.Background(), UserContactQuery{Email: "garbage"})
+		var bizErr *errorx.BizError
+		require.True(t, errors.As(err, &bizErr))
+		assert.Equal(t, errorx.CodeInvalidParams, bizErr.Code)
+	})
+	t.Run("invalid phone condition rejected", func(t *testing.T) {
+		_, err := svc.GetUserContact(context.Background(), UserContactQuery{Phone: "123"})
+		var bizErr *errorx.BizError
+		require.True(t, errors.As(err, &bizErr))
+		assert.Equal(t, errorx.CodeInvalidParams, bizErr.Code)
+	})
 }
 
 // TestUserGetInfo_MaskedPhoneEmpty 验证未设置手机号的行出口为空串而非占位符。

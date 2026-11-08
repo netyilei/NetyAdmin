@@ -13,6 +13,7 @@
 | 事务管理 | `pkg/database.TxManager`（`Begin/Rollback/Commit/WithTransaction`） | service 层事务统一走 TM，禁止自管事务 |
 | HMAC-SHA256 | `pkg/utils.HMACSHA256Hex` / `HMACSHA256Base64` | 两种编码各归其位，勿再内联 hmac 实现 |
 | 手机号/邮箱 PII 加密 | `pkg/pii`（`NewCipher` / `Seal` / `SealEmail` / `Index*` / `Mask*` / `Validate*`） | users/admin_user 手机号与邮箱静态加密的唯一实现：随机密文 + HMAC 盲索引 + 尾号辅助列 + 展示掩码；密钥 HKDF 派生自 `[security].aes_key`，勿自行实现加密/索引 |
+| 用户联系方式通用读取 | `userBase.GetUserContact`（service/user） | 按条件（ID/用户名/手机号/邮箱，取第一个非空）查不同用户并返回**解密后的完整**手机号/邮箱；各端/模块通用调用，权限由各端 API 决定 |
 | 上传记录验签 | `pkg/utils.SignUploadRecord` | recordID+objectKey+expires 的 HMAC 防伪造 |
 | RFC3339 时间解析 | `pkg/utils.ParseRFC3339(s)` | 各 service 时间字段的统一入口（报错文案由调用方给业务语境） |
 | 树构建 | `pkg/utils.BuildTree` | menu/category 通用树；配套防环 visited |

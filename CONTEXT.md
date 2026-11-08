@@ -66,7 +66,8 @@
 | **密文列 `*_enc`** | AES-256-GCM 随机密文（同值多次加密结果不同，抗频率分析）；email 保留原始大小写 |
 | **盲索引列 `*_idx`** | HMAC-SHA256（phone 原样 / email 小写归一化）；精确匹配与唯一索引都在此列 |
 | **尾号列 `phone_tail4`** | 手机号末 4 位明文（检索辅助；邮箱无等价物） |
-| **出口掩码** | 列表/autocomplete 为掩码（`pii.Mask/MaskEmail`）；详情接口为完整值；修改基于详情回填 |
+| **出口掩码** | 列表/autocomplete 为掩码（`pii.Mask/MaskEmail`）；详情接口与**客户端本人资料（GetInfo）**为完整值；修改基于详情回填 |
+| **通用读取** | `userBase.GetUserContact`：按条件查不同用户的完整联系方式，各端/模块通用调用 |
 | **空值语义** | 提交空 = 保持原值（防解密失败静默清空）；显式清空走 `UpdatePhone/UpdateEmail` 专用方法 |
 
 - **唯一实现**：`pkg/pii`（密钥 HKDF 派生自 `[security].aes_key`，升级后禁止更换——见 docs/upgrade-guide.md）

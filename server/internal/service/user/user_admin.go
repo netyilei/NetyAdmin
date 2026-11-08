@@ -35,6 +35,8 @@ type UserAdminService interface {
 	List(ctx context.Context, req *userDto.UserQuery) ([]UserWithLock, int64, error)
 	// GetDetail 返回用户详细资料（PII 完整展示出口，与列表掩码互补）。
 	GetDetail(ctx context.Context, id string) (*userVO.UserDetailVO, error)
+	// GetUserContact 通用 PII 读取（完整手机号/邮箱，按条件查不同人）。
+	GetUserContact(ctx context.Context, q UserContactQuery) (*UserContact, error)
 	SearchForAutocomplete(ctx context.Context, keyword string, limit int) ([]userVO.UserAutoCompleteVO, error)
 	Create(ctx context.Context, req *userDto.CreateUserReq) error
 	Update(ctx context.Context, id string, req *userDto.UpdateUserReq) error

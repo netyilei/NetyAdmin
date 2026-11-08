@@ -321,8 +321,8 @@ GET /client/v1/user/profile
     "userName": "testuser",
     "nickName": "测试用户",
     "avatar": "https://cdn.example.com/avatar/xxx.jpg",
-    "phone": "138****1234",
-    "email": "u***@example.com",
+    "phone": "13800001234",
+    "email": "user@example.com",
     "gender": "1",
     "status": "1",
     "lastLoginAt": "2025-01-01T12:00:00Z"
@@ -336,8 +336,8 @@ GET /client/v1/user/profile
 | userName | string | 用户名 |
 | nickName | string | 昵称 |
 | avatar | string | 头像 URL |
-| phone | string | 手机号（**掩码**：`138****1234`，2.0.0 起 PII 静态加密） |
-| email | string | 邮箱（**掩码**：`u***@example.com`） |
+| phone | string | 手机号（**完整值**：本人资料自助查看；存储为静态加密，2.0.0 起） |
+| email | string | 邮箱（**完整值**：本人自助查看） |
 | gender | string | 性别：`0` 未知 / `1` 男 / `2` 女 |
 | status | string | 状态：`1` 正常 / `0` 禁用 |
 | lastLoginAt | string | 最后登录时间（ISO 8601），未登录过时不返回 |

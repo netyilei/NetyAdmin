@@ -110,6 +110,64 @@ func getConfig(watcher configsync.ConfigWatcher, group, key string) string {
 	return val
 }
 
+// UserContactQuery 是用户联系方式的查询条件：按优先级取第一个非空项
+// （ID > Username > Email > Phone）。Phone/Email 条件须为合法格式。
+type UserContactQuery struct {
+	ID       string
+	Username string
+	Email    string
+	Phone    string
+}
+
+// UserContact 是解密后的完整联系方式（非掩码）。
+type UserContact struct {
+	UserID   string
+	Username string
+	Phone    string
+	Email    string
+}
+
+// GetUserContact 通用 PII 读取出口：按条件查不同用户，返回解密后的完整
+// 手机号/邮箱。各端（client/admin/下游模块）均可调用——是否对 API 暴露
+// 完整值由各端接口的权限与策略决定，本方法不做权限判断。
+// 典型用途：本人资料查看（客户端）、管理端详情、需要真实联系方式的业务模块。
+func (b *userBase) GetUserContact(ctx context.Context, q UserContactQuery) (*UserContact, error) {
+	switch {
+	case q.ID != "":
+		u, err := b.repo.GetByID(ctx, q.ID)
+		if err != nil {
+			return nil, err
+		}
+		return &UserContact{UserID: u.ID, Username: u.Username, Phone: u.Phone, Email: u.Email}, nil
+	case q.Username != "":
+		u, err := b.repo.GetByUsername(ctx, q.Username)
+		if err != nil {
+			return nil, err
+		}
+		return &UserContact{UserID: u.ID, Username: u.Username, Phone: u.Phone, Email: u.Email}, nil
+	case q.Email != "":
+		if err := pii.ValidateEmail(q.Email); err != nil {
+			return nil, errorx.New(errorx.CodeInvalidParams, "邮箱格式不正确")
+		}
+		u, err := b.repo.GetByEmail(ctx, q.Email)
+		if err != nil {
+			return nil, err
+		}
+		return &UserContact{UserID: u.ID, Username: u.Username, Phone: u.Phone, Email: u.Email}, nil
+	case q.Phone != "":
+		if err := pii.Validate(q.Phone); err != nil {
+			return nil, errorx.New(errorx.CodeInvalidParams, "手机号格式不正确")
+		}
+		u, err := b.repo.GetByPhone(ctx, q.Phone)
+		if err != nil {
+			return nil, err
+		}
+		return &UserContact{UserID: u.ID, Username: u.Username, Phone: u.Phone, Email: u.Email}, nil
+	default:
+		return nil, errorx.New(errorx.CodeInvalidParams, "查询条件不能为空")
+	}
+}
+
 // checkUserUnique 用户名/手机/邮箱唯一性预检（Register 与 admin Create 共享，原先两份 ~30 行同构）。
 // Repo 错误仅 Warn 不阻断：DB 层唯一索引（username + users 的 phone_idx/email_idx，
 // 见 0059/0060——手机号/邮箱唯一性已从明文列迁移到盲索引列）
