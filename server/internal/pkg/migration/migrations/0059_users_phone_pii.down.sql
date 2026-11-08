@@ -1,20 +1,6 @@
--- 回滚 0059：恢复明文列唯一索引，删除三列。
--- 注意：phone 明文已被惰性迁移置 NULL，数据本体在 phone_enc（应用侧 AES-GCM），
--- SQL 无法解密——down 仅恢复结构，数据恢复需应用侧用密钥解密 phone_enc 回写。
--- （应急恢复：由代码用 pii.Open 逐行解密，非本迁移职责。）
-
-DROP INDEX IF EXISTS idx_admin_user_phone_idx;
-DROP INDEX IF EXISTS idx_users_phone_tail4;
-DROP INDEX IF EXISTS users_phone_idx_key;
-CREATE UNIQUE INDEX IF NOT EXISTS users_phone_key ON users(phone)
-    WHERE deleted_at = 0 AND phone IS NOT NULL AND phone != '';
-
-ALTER TABLE admin_user
-    DROP COLUMN IF EXISTS phone_enc,
-    DROP COLUMN IF EXISTS phone_idx,
-    DROP COLUMN IF EXISTS phone_tail4;
-
-ALTER TABLE users
-    DROP COLUMN IF EXISTS phone_enc,
-    DROP COLUMN IF EXISTS phone_idx,
-    DROP COLUMN IF EXISTS phone_tail4;
+-- 2.0.0 手机号加密是【不可逆数据变换】：明文列已被惰性迁移清空，
+-- 数据本体在 phone_enc（应用侧 AES-GCM 密文，密钥派生自 [security].aes_key），
+-- SQL 层无法解密还原。
+--
+-- 本项目不提供降级迁移——版本回退 = 恢复升级前备份 + 运行旧版本程序
+-- （见 docs/upgrade-guide.md「回滚」一节）。此文件保留为空以维持迁移对完整。
