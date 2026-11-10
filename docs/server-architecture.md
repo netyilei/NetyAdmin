@@ -721,6 +721,8 @@ RouterDeps 携带路由装配所需的中间件与配置；**已构造的服务�
 | `MessageService()` | `msgSvc.MessageService`（接口） | 统一消息发送 |
 | `ConfigWatcher()` | `configsync.ConfigWatcher`（接口） | sys_configs 热读 |
 | `RawConfig()` | `map[string]any` | 配置原始树深拷贝 |
+| `EventBus()` | `pubsub.EventBus`（接口，pkg/pubsub） | 事件总线 Subscribe/Publish；主题注册表 `pkg/pubsub/topics.go`（如 `TopicStorageExpired` 上传超期通知）；驱动由 `[bus].driver` 选择，**恒非 nil** |
+| `TaskManager()` | `*task.Manager` | 任务管理器：**静态任务注册走 JobModule**（RegisterModule 收集并注册到同一实例）；getter 供运行时 Dispatch / StartTask / StopTask / UpdateTaskSpec |
 | `CaptchaStore()` | `base64Captcha.Store`（接口，第三方） | 验证码存储：cache/DB 双轨（sys_configs 场景开关选择；cache 模式内部为 L1/L2） |
 | `LoginLimiter()` | `authPkg.LoginLimiter`（接口，pkg/auth） | 登录限流；**Redis 关闭时为 noop 实现（fail-open 不限流）** |
 | `UploadRecordService()` | `storageSvc.UploadRecordService`（接口，service/storage） | 上传记录全生命周期：列表/删除 + **凭证签发（GetUploadCredentials）与完成验签（CompleteUpload）** |

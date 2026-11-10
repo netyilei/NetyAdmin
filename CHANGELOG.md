@@ -5,16 +5,16 @@
 
 ---
 
-## 2026-11-10 · 2.0.1（下游 Module 装配补全：8 个 App 服务 getter）
+## 2026-11-10 · 2.0.1（下游 Module 装配补全：10 个 App 服务 getter）
 
 ### ➕ Added
 
-- `App` 新增 8 个已构造服务实例 getter，供下游 Module（实现 `ClientRouterModule` / `AdminRouterModule` 等）组装自有路由处理器直接取用，不再需要重建服务或穿透基座内部结构。
+- `App` 新增 10 个已构造服务实例 getter，供下游 Module（实现 `ClientRouterModule` / `AdminRouterModule` 等）组装自有路由处理器直接取用，不再需要重建服务或穿透基座内部结构。
 - **类型重命名（源码级，无行为变更）**：
   - `storage.RecordService` → `storage.UploadRecordService`（含构造器 `NewUploadRecordService`）——getter 名与类型名对齐为同一领域名；该接口能力是上传记录全生命周期（凭证签发/完成验签/记录管理），原名 "RecordService" 欠精确。
   - `contentClientService` 包四接口按**角色**重命名，消除与 `contentAdminService` 包的同名对（此前 admin 实现可静默满足 client 的 `CategoryService`/`BannerItemService` 接口——签名恰好相同，错误接线能通过编译）：`CategoryService` → `CategoryTreeService`、`ArticleService` → `PublishedArticleService`、`BannerGroupService` → `PublishedBannerGroupService`、`BannerItemService` → `BannerClickService`（含各构造器）。端隔离语义不变，此后两包接口重名引发的歧义在编译期必然暴露。
   - B4 尚未被下游消费，以上均为最后零成本窗口；下游声明类型以 §5.6 getter↔类型映射表为准。
-- getter 明细：`CaptchaStore()`（验证码存储：cache/DB 双轨，由 sys_configs 验证码场景开关动态选择；cache 模式内部为 L1/L2）、`LoginLimiter()`（登录限流器，与基座登录共享窗口计数）、`UploadRecordService()`、`UserClientService()`（C 端用户服务：资料/联系方式/密码）、`ContentCategoryClientService()` / `ContentArticleClientService()` / `ContentBannerGroupClientService()` / `ContentBannerItemClientService()`（C 端内容四服务）。
+- getter 明细：`CaptchaStore()`（验证码存储：cache/DB 双轨，由 sys_configs 验证码场景开关动态选择；cache 模式内部为 L1/L2）、`LoginLimiter()`（登录限流器，与基座登录共享窗口计数）、`UploadRecordService()`、`UserClientService()`（C 端用户服务：资料/联系方式/密码）、`ContentCategoryClientService()` / `ContentArticleClientService()` / `ContentBannerGroupClientService()` / `ContentBannerItemClientService()`（C 端内容四服务）、`EventBus()`（事件总线：Subscribe/Publish，主题注册表 `pkg/pubsub/topics.go`；恒非 nil）、`TaskManager()`（任务管理器：静态任务注册走 JobModule，getter 供运行时 Dispatch/启停/规格变更）。
 - 文档：[server-architecture §5.6](docs/server-architecture.md) 增加「App getter 依赖面」小节（安全组件 / 基础设施 / 已构造服务三类全列）；[基座能力清单](docs/base-capabilities.md) 同步登记。
 
 > 接口面纯增量（getter 与重命名均为源码级，无运行时行为变更）；另含一处内部行为修复（见下 Fixed），不升级的下游不受影响。

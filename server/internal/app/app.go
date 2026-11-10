@@ -262,6 +262,20 @@ func (a *App) RawConfig() map[string]any { return a.cfg.RawConfig() }
 
 func (a *App) ConfigWatcher() configsync.ConfigWatcher { return a.configWatcher }
 
+// EventBus returns the application event bus for downstream pub/sub
+// subscriptions and publishes. Topics are registered in pkg/pubsub/topics.go
+// (e.g. TopicStorageExpired for upload-expiration notify). Subscribe in the
+// module's registration path (before Run) so no events are missed; the bus is
+// always non-nil (memory or redis driver selected by [bus].driver).
+func (a *App) EventBus() pubsub.EventBus { return a.eventBus }
+
+// TaskManager returns the task manager for downstream runtime task
+// operations (Dispatch/StartTask/StopTask/UpdateTaskSpec). For static task
+// registration prefer implementing JobModule (RegisterModule collects and
+// registers them with the same manager); use this getter for runtime
+// dispatch and lifecycle queries.
+func (a *App) TaskManager() *task.Manager { return a.taskManager }
+
 // --- Downstream module service getters ---
 //
 // 基座已构造的服务实例，供实现 ClientRouterModule / AdminRouterModule 的
