@@ -35,7 +35,7 @@ type Config struct {
 	APIRateLimit    APIRateLimitConfig    `yaml:"api_ratelimit"`
 
 	// raw 保留 yaml 反序列化后的原始配置树（map 形态），由 Load 填充。
-	// 下游模块通过 App.RawConfig() 解析基座强类型结构之外的自有配置段（如 [ws]）。
+	// 下游模块通过 App.RawConfig() 解析基座强类型结构之外的自有配置段（如 [biz]）。
 	// 不参与 yaml/env 解析。注意：raw 是【文件原始值】，不包含 NETYADMIN_*
 	// 环境变量覆盖后的生效值——需要生效值请用强类型字段。RawConfig() 返回深拷贝。
 	raw map[string]any `yaml:"-"`

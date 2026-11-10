@@ -654,7 +654,7 @@ clientRouter.RegisterTypedAuthModule("tech", techModule, techAccessor)
 
 // Module 基接口（下游实现一个或多个子接口）
 type Module interface {
-    Name() string  // 模块名，如 "fitness"
+    Name() string  // 模块名，如 "biz"
 }
 
 // 4 个子接口（按需实现任意组合）：
@@ -693,7 +693,7 @@ type EngineModule interface {           // engine 直挂路由（内部回调等
 
 #### App getter 依赖面
 
-> **下游集成模式（先读）**：下游项目代码与基座**同处一个 Go module**（`module NetyAdmin`）——以 fork/merge 方式跟进基座升级，业务代码放 `internal/{业务域}/`（完整示例见 development-guide §6.3「Fitness 模块装配」）。**不要**以独立 go.mod `require NetyAdmin` 方式集成：本表全部返回类型位于 `internal/` 包下，Go 的 internal 规则禁止 module 外导入，独立依赖模式在编译期必然失败（`use of internal package not allowed`）。
+> **下游集成模式（先读）**：下游项目代码与基座**同处一个 Go module**（`module NetyAdmin`）——以 fork/merge 方式跟进基座升级，业务代码放 `internal/{业务域}/`（完整示例见 development-guide §6.3「示例业务模块（biz）装配」）。**不要**以独立 go.mod `require NetyAdmin` 方式集成：本表全部返回类型位于 `internal/` 包下，Go 的 internal 规则禁止 module 外导入，独立依赖模式在编译期必然失败（`use of internal package not allowed`）。
 
 RouterDeps 携带路由装配所需的中间件与配置；**已构造的服务实例**（Repository/Service 层往往在 Bootstrap 内构造完毕）通过 `App` 的公共 getter 获取——下游 Module 持有 `application` 引用即可取用，勿重复构造服务。
 
@@ -746,8 +746,8 @@ func main() {
     application, err := app.Bootstrap(cfg, db)
 
     // 下游模块注入（一行搞定）
-    fitnessModule := fitness.NewModule(/* fitness 自身依赖 */)
-    application.RegisterModule(fitnessModule)
+    bizModule := biz.NewModule(/* biz 自身依赖 */)
+    application.RegisterModule(bizModule)
 
     application.Run()
 }

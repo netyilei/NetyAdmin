@@ -256,7 +256,7 @@ func (a *App) MessageService() msgService.MessageService { return a.messageSvc }
 // getter，而不是每次直读 sys_configs：ConfigWatcher 由基座统一缓存并在
 // 配置变更时刷新，与基座登录参数等配置的即时生效体验一致。
 // RawConfig 返回配置文件的原始配置树副本（map 形态，嵌套段为 map[string]any）。
-// 下游模块用它解析基座强类型结构未覆盖的自有配置段（如 [ws]）；
+// 下游模块用它解析基座强类型结构未覆盖的自有配置段（如 [biz]）；
 // 返回副本，修改不影响基座。
 func (a *App) RawConfig() map[string]any { return a.cfg.RawConfig() }
 

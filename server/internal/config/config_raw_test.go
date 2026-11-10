@@ -16,7 +16,7 @@ server:
   port: 9090
 base:
   client_router_enabled: true
-ws:
+biz:
   listen: ":9501"
   origins:
     - "https://a.example.com"
@@ -32,13 +32,13 @@ ws:
 	require.NotNil(t, raw)
 	assert.InDelta(t, 9090, raw["server"].(map[string]any)["port"], 0.001, "强类型段在 raw 中同样可见")
 
-	ws := raw["ws"].(map[string]any)
-	assert.Equal(t, ":9501", ws["listen"], "下游自有段必须可读（LoadFromRaw 场景）")
-	assert.Len(t, ws["origins"], 2)
+	bizSeg := raw["biz"].(map[string]any)
+	assert.Equal(t, ":9501", bizSeg["listen"], "下游自有段必须可读（LoadFromRaw 场景）")
+	assert.Len(t, bizSeg["origins"], 2)
 
 	// 副本语义（深拷贝）：修改返回值的嵌套段不影响内部
-	raw["ws"].(map[string]any)["listen"] = ":hacked"
-	ws2 := cfg.RawConfig()["ws"].(map[string]any)
+	raw["biz"].(map[string]any)["listen"] = ":hacked"
+	ws2 := cfg.RawConfig()["biz"].(map[string]any)
 	assert.NotEqual(t, ":hacked", ws2["listen"], "RawConfig 必须深拷贝嵌套段")
 
 	// 强类型解析不受 raw 填充影响

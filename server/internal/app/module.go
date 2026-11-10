@@ -18,7 +18,7 @@ import (
 // EngineModule），通过 App.RegisterModule 注入——零基座代码改动。
 // 基接口仅要求 Name()，用于日志/诊断标识模块。
 type Module interface {
-	// Name 返回模块名（日志/诊断用，如 "fitness"）。
+	// Name 返回模块名（日志/诊断用，如 "biz"）。
 	Name() string
 }
 
@@ -115,7 +115,7 @@ type RouterDeps struct {
 // 调用示例（下游 main.go）：
 //
 //	application, err := app.Bootstrap(cfg, db)
-//	application.RegisterModule(fitnessModule)
+//	application.RegisterModule(bizModule)
 //	application.Run()
 //
 // 重复注册同一模块的相同路由会 panic（gin 路由冲突），下游应确保只调一次。

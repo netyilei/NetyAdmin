@@ -617,7 +617,7 @@ s.userClient = userService.NewUserClientService(userBase)
 
 ## 六、下游项目模块装配（Module 接口）
 
-基于 NetyAdmin 基座开发的下游项目（如 Fitness），通过实现 `Module` 接口将业务模块注入基座，**零基座代码改动**。
+基于 NetyAdmin 基座开发的下游项目，通过实现 `Module` 接口将业务模块注入基座，**零基座代码改动**（下文以示例业务模块 `biz` 演示）。
 
 ### 6.1 何时使用 Module 接口
 
@@ -633,12 +633,12 @@ s.userClient = userService.NewUserClientService(userBase)
 
 详见 [Server 架构设计 §5.6](./server-architecture.md#56-下游模块装配扩展点module-接口)。核心：`Module` 基接口（`Name()`）+ 4 个可选子接口，下游按需实现任意组合。
 
-### 6.3 完整示例：Fitness 模块装配
+### 6.3 完整示例：示例业务模块（biz）装配
 
 ```go
-// internal/fitness/module.go（下游项目代码）
+// internal/biz/module.go（下游项目代码）
 
-package fitness
+package biz
 
 import (
     "github.com/gin-gonic/gin"
@@ -646,49 +646,49 @@ import (
     "NetyAdmin/internal/pkg/task"
 )
 
-// FitnessModule 实现 app.Module 的全部 4 个子接口。
-type FitnessModule struct {
-    // fitness 自身的 handler / service 依赖...
+// BizModule 实现 app.Module 的全部 4 个子接口。
+type BizModule struct {
+    // biz 自身的 handler / service 依赖...
 }
 
-func NewModule(/* fitness 依赖 */) *FitnessModule {
-    return &FitnessModule{/* ... */}
+func NewModule(/* biz 依赖 */) *BizModule {
+    return &BizModule{/* ... */}
 }
 
-func (m *FitnessModule) Name() string { return "fitness" }
+func (m *BizModule) Name() string { return "biz" }
 
 // --- ClientRouterModule ---
 
-func (m *FitnessModule) RegisterClientAuth(authGroup *gin.RouterGroup, deps app.RouterDeps) {
+func (m *BizModule) RegisterClientAuth(authGroup *gin.RouterGroup, deps app.RouterDeps) {
     // authGroup 已挂 OpenPlatformAuth（应用签名）。
     // 如需 JWT 用户鉴权，在子组挂 UserJWTAuth：
-    fitnessAuthed := authGroup.Group("/fitness")
-    fitnessAuthed.Use(deps.AuthMiddleware.UserJWTAuth())
+    bizAuthed := authGroup.Group("/biz")
+    bizAuthed.Use(deps.AuthMiddleware.UserJWTAuth())
     {
-        fitnessAuthed.GET("/sse/client", m.sseHandler.Connect)        // SSE 长连接
-        fitnessAuthed.POST("/body/adjust", m.bodyHandler.Adjust)      // 业务接口
-        fitnessAuthed.POST("/realname/verify", m.realnameHandler.Verify)
+        bizAuthed.GET("/messages/subscribe", m.messageHandler.Subscribe)   // SSE 长连接订阅
+        bizAuthed.POST("/profile/settings", m.profileHandler.Update)    // 业务接口
+        bizAuthed.POST("/feedback/submit", m.feedbackHandler.Submit)    // 业务接口
     }
 }
 
-func (m *FitnessModule) RegisterClientPublic(publicGroup *gin.RouterGroup, deps app.RouterDeps) {
+func (m *BizModule) RegisterClientPublic(publicGroup *gin.RouterGroup, deps app.RouterDeps) {
     // 无公开端点 → 空实现
 }
 
 // --- AdminRouterModule ---
 
-func (m *FitnessModule) RegisterAdminPermission(permissionGroup *gin.RouterGroup, deps app.RouterDeps) {
+func (m *BizModule) RegisterAdminPermission(permissionGroup *gin.RouterGroup, deps app.RouterDeps) {
     // permissionGroup 已挂 IPAC→JWT→Permission 完整权限链。
-    fitnessAdmin := permissionGroup.Group("/fitness")
+    bizAdmin := permissionGroup.Group("/biz")
     {
-        fitnessAdmin.GET("/members", m.adminHandler.ListMembers)
-        fitnessAdmin.POST("/members/:id/ban", m.adminHandler.BanMember)
+        bizAdmin.GET("/records", m.adminHandler.ListRecords)
+        bizAdmin.POST("/records/:id/disable", m.adminHandler.DisableRecord)
     }
 }
 
 // --- JobModule ---
 
-func (m *FitnessModule) RegisterJobs() []task.Task {
+func (m *BizModule) RegisterJobs() []task.Task {
     return []task.Task{
         m.syncJob,      // 数据同步任务
         m.reminderJob,  // 提醒推送任务
@@ -699,7 +699,7 @@ func (m *FitnessModule) RegisterJobs() []task.Task {
 
 // --- EngineModule ---
 
-func (m *FitnessModule) RegisterEngine(engine *gin.Engine, deps app.RouterDeps) {
+func (m *BizModule) RegisterEngine(engine *gin.Engine, deps app.RouterDeps) {
     // 内部回调端点（无中间件链，自行处理鉴权）
     engine.POST("/internal/callback/task", m.callbackHandler.Handle)
 }
@@ -721,8 +721,8 @@ func main() {
     }
 
     // ← 下游模块注入（一行）
-    fitnessMod := fitness.NewModule(/* fitness 自身依赖 */)
-    application.RegisterModule(fitnessMod)
+    bizMod := biz.NewModule(/* biz 自身依赖 */)
+    application.RegisterModule(bizMod)
 
     application.Run()
 }
@@ -731,7 +731,7 @@ func main() {
 ### 6.5 注意事项
 
 - **RegisterModule 必须在 Run() 之前调用**：gin 路由注册须在 engine 启动前
-- **路由路径不冲突**：下游路由需使用自己的前缀（如 `/client/v1/fitness/*`），避免与基座路由冲突
+- **路由路径不冲突**：下游路由需使用自己的前缀（如 `/client/v1/biz/*`），避免与基座路由冲突
 - **中间件已挂好**：authGroup/permissionGroup 拿到时已挂基座中间件，下游无需重复挂载
 - **幂等性**：重复注册同一模块会 panic（gin 路由冲突），确保只调一次
 
