@@ -62,10 +62,10 @@ type serviceSet struct {
 	contentBannerGroupAdmin contentAdminService.BannerGroupService
 	contentBannerItemAdmin  contentAdminService.BannerItemService
 
-	contentCategoryClient    contentClientService.CategoryService
-	contentArticleClient     contentClientService.ArticleService
-	contentBannerGroupClient contentClientService.BannerGroupService
-	contentBannerItemClient  contentClientService.BannerItemService
+	contentCategoryClient    contentClientService.CategoryTreeService
+	contentArticleClient     contentClientService.PublishedArticleService
+	contentBannerGroupClient contentClientService.PublishedBannerGroupService
+	contentBannerItemClient  contentClientService.BannerClickService
 	emailDriver              msgPkg.Driver
 	logBus                   logService.LogBusService
 	captcha                  systemService.CaptchaService
@@ -197,11 +197,11 @@ func initServices(repos *repositorySet, jwtInstance *jwt.JWT, lazyCacheMgr *cach
 	s.contentBannerGroupAdmin = contentAdminService.NewBannerGroupService(repos.contentBannerGroup, repos.contentBannerItem, s.storageConfig, lazyCacheMgr, configWatcher, tm)
 	s.contentBannerItemAdmin = contentAdminService.NewBannerItemService(repos.contentBannerItem, repos.contentBannerGroup, repos.contentArticle, lazyCacheMgr)
 
-	// Client content services（共享 Repository + cacheFast；CategoryService 委托 admin 实现避免重复）
-	s.contentArticleClient = contentClientService.NewArticleService(repos.contentArticle, repos.contentCategory, lazyCacheMgr, configWatcher)
-	s.contentBannerGroupClient = contentClientService.NewBannerGroupService(repos.contentBannerGroup, lazyCacheMgr, configWatcher)
-	s.contentBannerItemClient = contentClientService.NewBannerItemService(repos.contentBannerItem)
-	s.contentCategoryClient = contentClientService.NewCategoryService(s.contentCategoryAdmin)
+	// Client content services（共享 Repository + cacheFast；CategoryTreeService 委托 admin 实现避免重复）
+	s.contentArticleClient = contentClientService.NewPublishedArticleService(repos.contentArticle, repos.contentCategory, lazyCacheMgr, configWatcher)
+	s.contentBannerGroupClient = contentClientService.NewPublishedBannerGroupService(repos.contentBannerGroup, lazyCacheMgr, configWatcher)
+	s.contentBannerItemClient = contentClientService.NewBannerClickService(repos.contentBannerItem)
+	s.contentCategoryClient = contentClientService.NewCategoryTreeService(s.contentCategoryAdmin)
 
 	if err := s.storageConfig.LoadAllConfigs(context.Background()); err != nil {
 		slog.Error("load storage configs failed", "err", err)

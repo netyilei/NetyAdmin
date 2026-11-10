@@ -721,12 +721,12 @@ RouterDeps 携带路由装配所需的中间件与配置；**已构造的服务�
 | `LoginLimiter()` | `authPkg.LoginLimiter`（接口，pkg/auth） | 登录限流；**Redis 关闭时为 noop 实现（fail-open 不限流）** |
 | `UploadRecordService()` | `storageSvc.UploadRecordService`（接口，service/storage） | 上传记录全生命周期：列表/删除 + **凭证签发（GetUploadCredentials）与完成验签（CompleteUpload）** |
 | `UserClientService()` | `userSvc.UserClientService`（接口） | C 端用户：资料/联系方式/密码 |
-| `ContentCategoryClientService()` | `contentClientSvc.CategoryService`（接口） | C 端分类（仅客户端安全方法子集） |
-| `ContentArticleClientService()` | `contentClientSvc.ArticleService`（接口） | C 端文章（返回 client DTO VO） |
-| `ContentBannerGroupClientService()` | `contentClientSvc.BannerGroupService`（接口） | C 端 Banner 组 |
-| `ContentBannerItemClientService()` | `contentClientSvc.BannerItemService`（接口） | C 端 Banner 项 |
+| `ContentCategoryClientService()` | `contentClientSvc.CategoryTreeService`（接口） | C 端分类树关系解析（GetDescendantIDs） |
+| `ContentArticleClientService()` | `contentClientSvc.PublishedArticleService`（接口） | C 端文章发布态视图（client DTO VO）+ 互动计数 |
+| `ContentBannerGroupClientService()` | `contentClientSvc.PublishedBannerGroupService`（接口） | C 端 Banner 组展示视图（含时间窗过滤） |
+| `ContentBannerItemClientService()` | `contentClientSvc.BannerClickService`（接口） | C 端 Banner 点击计数 |
 
-> ⚠️ **BFF 同名陷阱**：`contentClientService.CategoryService` / `ArticleService` 等**与 `contentAdminService` 包的同名接口方法集刻意不同**（端隔离——client 只暴露客户端安全方法子集且返回 client DTO VO；admin 返回实体/全量 CRUD）。二者不可互换，类型断言/赋值会编译报错，这是设计而非缺陷。
+> **端隔离命名契约（2.0.1 起 client 包接口按角色命名）**：`contentClientService` 包的接口为角色精确名（`CategoryTreeService` / `PublishedArticleService` / `PublishedBannerGroupService` / `BannerClickService`），`contentAdminService` 包保留领域全名（`CategoryService` / `ArticleService` / ...）——**两包接口不再重名**。端隔离语义不变：client 接口只暴露客户端安全方法子集且返回 client DTO VO，admin 返回实体/全量 CRUD；下游若把 admin 实现接到 client 接口槽位，编译期必然报错（方法集不同且无交集歧义）。
 >
 > 原则：基座缺失下游所需 getter 时按同一模式扩展（字段 + Bootstrap 装配 + getter，命名遵循上方契约），不要让下游穿透基座内部结构或重建服务实例。
 

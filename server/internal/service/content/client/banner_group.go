@@ -11,22 +11,22 @@ import (
 	contentRepo "NetyAdmin/internal/repository/content"
 )
 
-// BannerGroupService 客户端 Banner 组服务
-type BannerGroupService interface {
+// PublishedBannerGroupService 客户端 Banner 组服务
+type PublishedBannerGroupService interface {
 	GetByCodeVO(ctx context.Context, code string) (*clientDto.ClientBannerGroupVO, error)
 }
 
-type bannerGroupService struct {
+type publishedBannerGroupService struct {
 	repo    contentRepo.ContentBannerGroupRepository
 	cache   cache.ConfigCache
 	watcher configsync.ConfigWatcher
 }
 
-func NewBannerGroupService(repo contentRepo.ContentBannerGroupRepository, cache cache.ConfigCache, watcher configsync.ConfigWatcher) BannerGroupService {
-	return &bannerGroupService{repo: repo, cache: cache, watcher: watcher}
+func NewPublishedBannerGroupService(repo contentRepo.ContentBannerGroupRepository, cache cache.ConfigCache, watcher configsync.ConfigWatcher) PublishedBannerGroupService {
+	return &publishedBannerGroupService{repo: repo, cache: cache, watcher: watcher}
 }
 
-func (s *bannerGroupService) getBannerCacheTTL() time.Duration {
+func (s *publishedBannerGroupService) getBannerCacheTTL() time.Duration {
 	val, ok := s.watcher.GetConfig(cache.ConfigGroupContentCache, cache.ConfigKeyBannerCacheTTL)
 	if ok {
 		if mins, err := time.ParseDuration(val + "m"); err == nil {
@@ -36,7 +36,7 @@ func (s *bannerGroupService) getBannerCacheTTL() time.Duration {
 	return 30 * time.Minute
 }
 
-func (s *bannerGroupService) GetByCodeVO(ctx context.Context, code string) (*clientDto.ClientBannerGroupVO, error) {
+func (s *publishedBannerGroupService) GetByCodeVO(ctx context.Context, code string) (*clientDto.ClientBannerGroupVO, error) {
 	cacheKey := cache.KeyContentBannerGroupByCode(code)
 	cacheTags := []string{cache.TagContentBanner}
 	ttl := s.getBannerCacheTTL()

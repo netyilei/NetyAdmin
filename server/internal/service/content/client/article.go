@@ -18,27 +18,27 @@ import (
 	contentRepo "NetyAdmin/internal/repository/content"
 )
 
-// ArticleService 客户端文章服务
+// PublishedArticleService 客户端文章服务
 // 仅暴露客户端需要的查询方法，返回 client DTO VO；entity 转换在 service 内部完成。
-type ArticleService interface {
+type PublishedArticleService interface {
 	ListPublishedVO(ctx context.Context, page, pageSize int, categoryIDs []uint, keyword string) ([]*clientDto.ClientArticleItemVO, int64, error)
 	GetPublishedVO(ctx context.Context, id uint) (*clientDto.ClientArticleDetailVO, error)
 	IncrementViewCount(ctx context.Context, id uint) error
 	IncrementLikeCount(ctx context.Context, id uint) error
 }
 
-type articleService struct {
+type publishedArticleService struct {
 	repo         contentRepo.ContentArticleRepository
 	categoryRepo contentRepo.ContentCategoryRepository
 	cache        cache.ConfigCache
 	watcher      configsync.ConfigWatcher
 }
 
-func NewArticleService(repo contentRepo.ContentArticleRepository, categoryRepo contentRepo.ContentCategoryRepository, cache cache.ConfigCache, watcher configsync.ConfigWatcher) ArticleService {
-	return &articleService{repo: repo, categoryRepo: categoryRepo, cache: cache, watcher: watcher}
+func NewPublishedArticleService(repo contentRepo.ContentArticleRepository, categoryRepo contentRepo.ContentCategoryRepository, cache cache.ConfigCache, watcher configsync.ConfigWatcher) PublishedArticleService {
+	return &publishedArticleService{repo: repo, categoryRepo: categoryRepo, cache: cache, watcher: watcher}
 }
 
-func (s *articleService) getArticleCacheTTL() time.Duration {
+func (s *publishedArticleService) getArticleCacheTTL() time.Duration {
 	val, ok := s.watcher.GetConfig(cache.ConfigGroupContentCache, cache.ConfigKeyArticleCacheTTL)
 	if ok {
 		if mins, err := time.ParseDuration(val + "m"); err == nil {
@@ -48,7 +48,7 @@ func (s *articleService) getArticleCacheTTL() time.Duration {
 	return 30 * time.Minute
 }
 
-func (s *articleService) ListPublishedVO(ctx context.Context, page, pageSize int, categoryIDs []uint, keyword string) ([]*clientDto.ClientArticleItemVO, int64, error) {
+func (s *publishedArticleService) ListPublishedVO(ctx context.Context, page, pageSize int, categoryIDs []uint, keyword string) ([]*clientDto.ClientArticleItemVO, int64, error) {
 	page, pageSize = pagination.NormalizePagination(page, pageSize)
 
 	var primaryCategoryID uint
@@ -90,7 +90,7 @@ func (s *articleService) ListPublishedVO(ctx context.Context, page, pageSize int
 	return items, result.Total, nil
 }
 
-func (s *articleService) GetPublishedVO(ctx context.Context, id uint) (*clientDto.ClientArticleDetailVO, error) {
+func (s *publishedArticleService) GetPublishedVO(ctx context.Context, id uint) (*clientDto.ClientArticleDetailVO, error) {
 	cacheKey := cache.KeyContentArticleDetail(id)
 	cacheTags := []string{cache.TagContentArticle}
 
@@ -118,11 +118,11 @@ func (s *articleService) GetPublishedVO(ctx context.Context, id uint) (*clientDt
 	return articleToDetailVO(article), nil
 }
 
-func (s *articleService) IncrementViewCount(ctx context.Context, id uint) error {
+func (s *publishedArticleService) IncrementViewCount(ctx context.Context, id uint) error {
 	return s.repo.IncrementViewCount(ctx, id)
 }
 
-func (s *articleService) IncrementLikeCount(ctx context.Context, id uint) error {
+func (s *publishedArticleService) IncrementLikeCount(ctx context.Context, id uint) error {
 	return s.repo.IncrementLikeCount(ctx, id)
 }
 

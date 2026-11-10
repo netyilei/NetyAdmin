@@ -6,19 +6,19 @@ import (
 	contentRepo "NetyAdmin/internal/repository/content"
 )
 
-// BannerItemService 客户端 Banner 项服务（仅暴露点击统计）
-type BannerItemService interface {
+// BannerClickService 客户端 Banner 点击计数服务（角色命名，避免与 admin 包 BannerItemService 同名）
+type BannerClickService interface {
 	IncrementClickCount(ctx context.Context, id uint) error
 }
 
-type bannerItemService struct {
+type bannerClickService struct {
 	repo contentRepo.ContentBannerItemRepository
 }
 
-func NewBannerItemService(repo contentRepo.ContentBannerItemRepository) BannerItemService {
-	return &bannerItemService{repo: repo}
+func NewBannerClickService(repo contentRepo.ContentBannerItemRepository) BannerClickService {
+	return &bannerClickService{repo: repo}
 }
 
-func (s *bannerItemService) IncrementClickCount(ctx context.Context, id uint) error {
+func (s *bannerClickService) IncrementClickCount(ctx context.Context, id uint) error {
 	return s.repo.IncrementClickCount(ctx, id)
 }

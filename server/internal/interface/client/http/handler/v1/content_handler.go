@@ -13,17 +13,17 @@ import (
 )
 
 type ContentHandler struct {
-	articleSvc     contentClientService.ArticleService
-	categorySvc    contentClientService.CategoryService
-	bannerGroupSvc contentClientService.BannerGroupService
-	bannerItemSvc  contentClientService.BannerItemService
+	articleSvc     contentClientService.PublishedArticleService
+	categorySvc    contentClientService.CategoryTreeService
+	bannerGroupSvc contentClientService.PublishedBannerGroupService
+	bannerItemSvc  contentClientService.BannerClickService
 }
 
 func NewContentHandler(
-	articleSvc contentClientService.ArticleService,
-	categorySvc contentClientService.CategoryService,
-	bannerGroupSvc contentClientService.BannerGroupService,
-	bannerItemSvc contentClientService.BannerItemService,
+	articleSvc contentClientService.PublishedArticleService,
+	categorySvc contentClientService.CategoryTreeService,
+	bannerGroupSvc contentClientService.PublishedBannerGroupService,
+	bannerItemSvc contentClientService.BannerClickService,
 ) *ContentHandler {
 	return &ContentHandler{
 		articleSvc:     articleSvc,

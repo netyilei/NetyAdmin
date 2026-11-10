@@ -102,10 +102,10 @@ type App struct {
 	uploadRecordSvc storageService.UploadRecordService
 	userClientSvc   userServicePkg.UserClientService
 
-	contentCategoryClientSvc    contentClientService.CategoryService
-	contentArticleClientSvc     contentClientService.ArticleService
-	contentBannerGroupClientSvc contentClientService.BannerGroupService
-	contentBannerItemClientSvc  contentClientService.BannerItemService
+	contentCategoryClientSvc    contentClientService.CategoryTreeService
+	contentArticleClientSvc     contentClientService.PublishedArticleService
+	contentBannerGroupClientSvc contentClientService.PublishedBannerGroupService
+	contentBannerItemClientSvc  contentClientService.BannerClickService
 
 	// Module 装配扩展点（供 RegisterModule 使用，下游通过 App.RegisterModule 注入业务模块）
 	started          bool // Run() 启动后置 true，RegisterModule 检测此标志拒绝启动后注册
@@ -293,22 +293,22 @@ func (a *App) UploadRecordService() storageService.UploadRecordService { return 
 func (a *App) UserClientService() userServicePkg.UserClientService { return a.userClientSvc }
 
 // ContentCategoryClientService returns the C-end content category service.
-func (a *App) ContentCategoryClientService() contentClientService.CategoryService {
+func (a *App) ContentCategoryClientService() contentClientService.CategoryTreeService {
 	return a.contentCategoryClientSvc
 }
 
 // ContentArticleClientService returns the C-end content article service.
-func (a *App) ContentArticleClientService() contentClientService.ArticleService {
+func (a *App) ContentArticleClientService() contentClientService.PublishedArticleService {
 	return a.contentArticleClientSvc
 }
 
 // ContentBannerGroupClientService returns the C-end banner group service.
-func (a *App) ContentBannerGroupClientService() contentClientService.BannerGroupService {
+func (a *App) ContentBannerGroupClientService() contentClientService.PublishedBannerGroupService {
 	return a.contentBannerGroupClientSvc
 }
 
 // ContentBannerItemClientService returns the C-end banner item service.
-func (a *App) ContentBannerItemClientService() contentClientService.BannerItemService {
+func (a *App) ContentBannerItemClientService() contentClientService.BannerClickService {
 	return a.contentBannerItemClientSvc
 }
 
