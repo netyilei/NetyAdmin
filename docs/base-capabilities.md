@@ -28,6 +28,7 @@
 | 缓存 | `pkg/cache`：FetchFast（L1+L2）/ SetNX（原子占位）/ **GetAndDelete**（原生 GETDEL 单命令原子消费，要求 Redis 8.1+）/ InvalidateByTags（跨节点失效） | 一次性凭证消费、防重放、tag 失效均有现成原语 |
 | 验证码原子消费 | `service/user` 的 `VerifyAndClearCode` | 原子取出 + 5 次错误上限 + 故障 fail-closed，直接用 |
 | 动态配置热读 | `App.ConfigWatcher()`（`configsync.ConfigWatcher`） | 下游模块读取 sys_configs 统一走 watcher（缓存 + 变更刷新），勿直读 DB |
+| 已构造服务实例 getter | `App.CaptchaStore()` / `LoginLimiter()` / `UploadRecordService()` / `UserClientService()` / `ContentCategoryClientService()` / `ContentArticleClientService()` / `ContentBannerGroupClientService()` / `ContentBannerItemClientService()`（另有安全组件 JWT/TokenStore/VerificationService/UserRepository/SecurityCache/OAuthBindingService 与基建 DB/TxManager/CacheMgr/RedisClient/UserTokenRepository/MessageService） | 下游 Module 组装自有路由处理器时直接取基座已构造实例，勿重复构造服务；Bootstrap 装配、与基座内部共用同一指针 |
 | 登录锁定 | `pkg/auth.HandlePasswordWrong` / `ClearLoginRetry` | 计数、锁定、Redis 故障 fail-closed 语义齐备 |
 | refresh 轮换抢占/登出拉黑 | `pkg/auth.ClaimRefreshRotation`（fail-closed）/ `BlacklistRefresh`（best-effort） | admin/user 两端共享，勿再内联 SetNX/Set 黑名单块 |
 | 用户唯一性预检 | `userBase.checkUserUnique`（service/user） | Register 与 admin Create 共享；DB 唯一索引兜底 |

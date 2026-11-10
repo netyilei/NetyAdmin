@@ -84,6 +84,20 @@ func TestRunLifecycleStop_ReverseOrder(t *testing.T) {
 	assert.Equal(t, []string{"m2", "m1"}, order, "OnStop 应逆序执行")
 }
 
+// TestRunLifecycleStop_OnceGuard 锁定 module.go 契约「OnStop 每个进程至多一次」：
+// 重复调用 runLifecycleStop（历史缺陷：Run() 正常关闭路径曾双调）不得二次
+// 执行 OnStop——非幂等 OnStop（关 channel、二次 Stop）会 panic/产生副作用。
+func TestRunLifecycleStop_OnceGuard(t *testing.T) {
+	a := &App{}
+	m := &recLifecycle{name: "once"}
+	a.RegisterModule(m)
+
+	a.runLifecycleStop()
+	a.runLifecycleStop()
+	a.runLifecycleStop()
+	assert.Equal(t, 1, m.stopped, "多次调用 runLifecycleStop，OnStop 只执行一次")
+}
+
 // stopTracker 记录 OnStop 执行顺序。
 type stopTracker struct {
 	name  string

@@ -87,8 +87,10 @@ type LifecycleModule interface {
 
 // RouterDeps 聚合下游装配所需的全部基座依赖。
 //
-// 设计原则：用一个结构体传递依赖，避免 App 上 getter 蔓延。
-// 下游通过 RegisterXxx(group, deps) 拿到全部所需组件。
+// 设计原则：路由装配所需的中间件与配置用一个结构体传递。
+// 已构造的服务实例不进 RouterDeps——统一走 App 的服务 getter
+// （见 docs/server-architecture.md §5.6「App getter 依赖面」），
+// 与基座内部共用同一指针，避免重建服务与两份实例漂移。
 type RouterDeps struct {
 	// AuthMiddleware 提供 UserJWTAuth / JWTAuth / TypedUserJWTAuth 等鉴权中间件。
 	// 下游在子路由组上按需挂载（如 client 业务路由需 JWT 用户鉴权）。

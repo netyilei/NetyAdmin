@@ -12,11 +12,13 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mojocn/base64Captcha"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
 	"NetyAdmin/internal/config"
 	"NetyAdmin/internal/middleware"
+	authPkg "NetyAdmin/internal/pkg/auth"
 	"NetyAdmin/internal/pkg/cache"
 	"NetyAdmin/internal/pkg/configsync"
 	"NetyAdmin/internal/pkg/database"
@@ -26,9 +28,11 @@ import (
 	pkgSentry "NetyAdmin/internal/pkg/sentry"
 	"NetyAdmin/internal/pkg/task"
 	userRepoPkg "NetyAdmin/internal/repository/user"
+	contentClientService "NetyAdmin/internal/service/content/client"
 	ipacService "NetyAdmin/internal/service/ipac"
 	logService "NetyAdmin/internal/service/log"
 	msgService "NetyAdmin/internal/service/message"
+	storageService "NetyAdmin/internal/service/storage"
 	userServicePkg "NetyAdmin/internal/service/user"
 )
 
@@ -90,8 +94,22 @@ type App struct {
 	cacheSlow    cache.SecurityCache
 	oauthBinding userServicePkg.OAuthBindingService
 
+	// Downstream module services — 已构造服务实例经 Bootstrap 装配到 App，
+	// 通过公共 getter 暴露给下游 Module（RegisterClientAuth 等路由实现所需）。
+	// 只暴露已构造实例，getter 返回同一指针（见各 Xxx() 方法）。
+	captchaStore    base64Captcha.Store
+	loginLimiter    authPkg.LoginLimiter
+	uploadRecordSvc storageService.RecordService
+	userClientSvc   userServicePkg.UserClientService
+
+	contentCategoryClientSvc    contentClientService.CategoryService
+	contentArticleClientSvc     contentClientService.ArticleService
+	contentBannerGroupClientSvc contentClientService.BannerGroupService
+	contentBannerItemClientSvc  contentClientService.BannerItemService
+
 	// Module 装配扩展点（供 RegisterModule 使用，下游通过 App.RegisterModule 注入业务模块）
 	started          bool // Run() 启动后置 true，RegisterModule 检测此标志拒绝启动后注册
+	lifecycleStopped bool // runLifecycleStop 已执行标志（OnStop 每进程至多一次契约，见 module.go）
 	authMW           *middleware.AuthMiddleware
 	authVerifier     middleware.AuthVerifier
 	ipacSvc          ipacService.IPACService
@@ -244,6 +262,56 @@ func (a *App) RawConfig() map[string]any { return a.cfg.RawConfig() }
 
 func (a *App) ConfigWatcher() configsync.ConfigWatcher { return a.configWatcher }
 
+// --- Downstream module service getters ---
+//
+// 基座已构造的服务实例，供实现 ClientRouterModule / AdminRouterModule 的
+// 下游 Module 在 RegisterClientAuth / RegisterAdminPermission 等注册方法中
+// 组装自己的路由处理器时直接使用，避免下游重复构造服务或穿透基座内部结构。
+// 与上面的基础设施 getter 同模式：返回同一实例（Bootstrap 装配的同一指针）。
+
+// CaptchaStore returns the captcha store — cache/DB dual-track, selected at
+// runtime by the sys_configs captcha scenario switch (cache mode uses the
+// lazy cache manager's L1/L2 internally; DB mode persists captcha_tokens).
+// Downstream login flows that render captcha challenges use this with
+// base64Captcha generators.
+func (a *App) CaptchaStore() base64Captcha.Store { return a.captchaStore }
+
+// LoginLimiter returns the login rate limiter (sliding window per IP,
+// Redis-backed). Downstream login flows share the same window counters as
+// the base password login. When Redis is disabled this is a noop
+// implementation (fail-open, no limiting) — the same instance the base
+// login uses, so behavior is always consistent.
+func (a *App) LoginLimiter() authPkg.LoginLimiter { return a.loginLimiter }
+
+// UploadRecordService returns the upload record service for downstream file
+// management (query/delete upload records tied to storage configs).
+func (a *App) UploadRecordService() storageService.RecordService { return a.uploadRecordSvc }
+
+// UserClientService returns the C-end user service (profile, PII contact
+// read/update, password). Downstream client routers reuse it instead of
+// re-implementing user business logic.
+func (a *App) UserClientService() userServicePkg.UserClientService { return a.userClientSvc }
+
+// ContentCategoryClientService returns the C-end content category service.
+func (a *App) ContentCategoryClientService() contentClientService.CategoryService {
+	return a.contentCategoryClientSvc
+}
+
+// ContentArticleClientService returns the C-end content article service.
+func (a *App) ContentArticleClientService() contentClientService.ArticleService {
+	return a.contentArticleClientSvc
+}
+
+// ContentBannerGroupClientService returns the C-end banner group service.
+func (a *App) ContentBannerGroupClientService() contentClientService.BannerGroupService {
+	return a.contentBannerGroupClientSvc
+}
+
+// ContentBannerItemClientService returns the C-end banner item service.
+func (a *App) ContentBannerItemClientService() contentClientService.BannerItemService {
+	return a.contentBannerItemClientSvc
+}
+
 func (a *App) Run() error {
 	a.started = true // 标记已启动，RegisterModule 此后调用会 panic（路由不可变更）
 	addr := fmt.Sprintf(":%d", a.cfg.Server.Port)
@@ -373,7 +441,9 @@ func (a *App) Run() error {
 	}
 
 	// LifecycleModule OnStop：HTTP 已停止监听（无论 Shutdown 是否超时），
-	// 下游组件（如 WS Hub）仍需在此停止——放行到 OnStop 之后统一返回错误。
+	// 下游组件（如 WS Hub）仍需在此停止——OnStop 只此一处调用
+	// （runLifecycleStop 内部有一次性守卫，兑现 module.go 契约
+	// 「OnStop 每个进程至多一次」），随后再按 Shutdown 结果决定返回值。
 	a.runLifecycleStop()
 
 	// 关闭 HTTP→HTTPS 跳转服务（若启用 TLS）
@@ -386,10 +456,6 @@ func (a *App) Run() error {
 	if shutdownErr != nil {
 		return fmt.Errorf("服务器强制关闭: %v", shutdownErr)
 	}
-
-	// LifecycleModule OnStop：HTTP 优雅关闭完成后调用（逆序），带超时保护。
-	// srv.Shutdown 失败也会走到这里——监听已停止，该停的下游组件仍要停。
-	a.runLifecycleStop()
 
 	// Stop DB health checker
 	if a.dbHealthChecker != nil {
@@ -457,7 +523,14 @@ func (a *App) runLifecycleStart(ctx context.Context) {
 
 // runLifecycleStop 逆序调用各 LifecycleModule 的 OnStop（HTTP 优雅关闭后）。
 // 单模块 5s 超时（复用 stopWithTimeout），panic 由 GoSafe 捕获，不阻塞进程退出。
+// 一次性守卫：module.go 契约承诺 OnStop「每个进程至多一次」，重复调用
+// （历史缺陷：正常关闭路径曾双调）对非幂等 OnStop（关 channel、二次 Stop）
+// 有 panic/副作用风险，守卫在唯一汇聚点强制该契约。
 func (a *App) runLifecycleStop() {
+	if a.lifecycleStopped {
+		return
+	}
+	a.lifecycleStopped = true
 	for i := len(a.lifecycleModules) - 1; i >= 0; i-- {
 		m := a.lifecycleModules[i]
 		a.stopWithTimeout("lifecycle-stop:"+m.Name(), func() { m.OnStop(context.Background()) })

@@ -5,6 +5,17 @@
 
 ---
 
+## 2026-11-10 · 2.0.1（下游 Module 装配补全：8 个 App 服务 getter）
+
+### ➕ Added
+
+- `App` 新增 8 个已构造服务实例 getter，供下游 Module（实现 `ClientRouterModule` / `AdminRouterModule` 等）组装自有路由处理器直接取用，不再需要重建服务或穿透基座内部结构：`CaptchaStore()`（验证码存储：cache/DB 双轨，由 sys_configs 验证码场景开关动态选择；cache 模式内部为 L1/L2）、`LoginLimiter()`（登录限流器，与基座登录共享窗口计数）、`UploadRecordService()`、`UserClientService()`（C 端用户服务：资料/联系方式/密码）、`ContentCategoryClientService()` / `ContentArticleClientService()` / `ContentBannerGroupClientService()` / `ContentBannerItemClientService()`（C 端内容四服务）。
+- 文档：[server-architecture §5.6](docs/server-architecture.md) 增加「App getter 依赖面」小节（安全组件 / 基础设施 / 已构造服务三类全列）；[基座能力清单](docs/base-capabilities.md) 同步登记。
+
+> 纯增量 API，无行为变更；不升级的下游不受影响。
+
+---
+
 ## 2026-11-07 · 2.0.0（手机号/邮箱 PII 静态加密 + Redis 8.1 基线）
 
 > **升级前必读 [docs/upgrade-guide.md](docs/upgrade-guide.md)**（含预检脚本 `scripts/tools/upgrade_preflight.sh`）。

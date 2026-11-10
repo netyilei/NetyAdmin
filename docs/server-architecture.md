@@ -682,7 +682,7 @@ type EngineModule interface {           // engine 直挂路由（内部回调等
 
 #### RouterDeps 依赖聚合
 
-下游通过 `deps` 拿到全部基座依赖（避免 getter 蔓延）：
+下游通过 `deps` 拿到路由装配所需的中间件与配置；**已构造的服务实例**统一走 [App getter 依赖面](#app-getter-依赖面)（服务实例不进 RouterDeps——它们与基座内部共用同一指针，getter 是唯一取用口，避免重建服务与两份实例漂移）：
 
 | 字段 | 类型 | 用途 |
 |------|------|------|
@@ -690,6 +690,18 @@ type EngineModule interface {           // engine 直挂路由（内部回调等
 | `OpenPlatformAuth` | `gin.HandlerFunc` | 应用签名校验（如需在子组独立挂载） |
 | `JWT` | `*jwtPkg.JWT` | RS256 JWT 实例（签发/解析自定义 token） |
 | `Config` | `*config.Config` | 全局配置 |
+
+#### App getter 依赖面
+
+RouterDeps 携带路由装配所需的中间件与配置；**已构造的服务实例**（Repository/Service 层往往在 Bootstrap 内构造完毕）通过 `App` 的公共 getter 获取——下游 Module 持有 `application` 引用即可取用，勿重复构造服务：
+
+| 类别 | getter |
+|------|--------|
+| 安全组件 | `JWT()` / `TokenStore()` / `VerificationService()` / `UserRepository()` / `SecurityCache()` / `OAuthBindingService()` |
+| 基础设施 | `DB()` / `TxManager()` / `CacheMgr()` / `RedisClient()`（nil 需判空）/ `UserTokenRepository()` / `MessageService()` / `ConfigWatcher()` / `RawConfig()` |
+| 已构造服务 | `CaptchaStore()` / `LoginLimiter()` / `UploadRecordService()` / `UserClientService()` / `ContentCategoryClientService()` / `ContentArticleClientService()` / `ContentBannerGroupClientService()` / `ContentBannerItemClientService()` |
+
+> 原则：基座缺失下游所需 getter 时按同一模式扩展（字段 + Bootstrap 装配 + getter），不要让下游穿透基座内部结构或重建服务实例。
 
 #### 使用方式
 
