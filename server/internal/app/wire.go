@@ -385,9 +385,11 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		authMW, services.role, services.ipac, openPlatformAuthFn,
 		redisClient, lazyCacheMgr, repos.userToken, services.message, configWatcher)
 
-	// RegisterModule 装配依赖：通用业务 API 限流中间件（可选能力，nil = 未启用），
-	// 挂载到下游 Module 认证组，链序与基座自身路由组一致（见 module.go 链装配函数）。
+	// RegisterModule / RegisterTypedAuthModule 装配依赖（同包赋值，不拉长 NewApp
+	// 位置参数签名）：apiRateLimit 挂载到下游 Module 认证组（链序见 module.go 链
+	// 装配函数）；clientRouter 是 typed 用户路由的委托入口（App 不暴露该实例）。
 	app.apiRateLimit = apiRateLimitMW
+	app.clientRouter = cr
 
 	// 下游 Module 所需服务实例（App getter 背后的字段）：同包赋值，
 	// 不再拉长 NewApp 的位置参数签名。

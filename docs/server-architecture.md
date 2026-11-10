@@ -598,17 +598,35 @@ s.userClient = userService.NewUserClientService(userBase)
 
 ### 5.5 多类型用户路由扩展（TypedUserJWTAuth）
 
-基座默认提供 `user` 类型用户的 JWT 鉴权与路由注册。当下游项目需要接入新角色（如"技师"、"商户"、"骑手"）时，**无需修改基座 `ClientRouter`**，只需在自身 wire 装配阶段调用 `clientRouter.RegisterTypedAuthModule(userType, module, accessor)` 即可。
+基座默认提供 `user` 类型用户的 JWT 鉴权与路由注册。当下游项目需要接入新角色（如"技师"、"商户"、"骑手"）时，**无需修改基座代码**，只需在 `Run()` 之前调用 `application.RegisterTypedAuthModule(userType, module, accessor)` 即可。
 
 #### 注册接口
 
 ```go
-// internal/interface/client/http/router/router.go
-func (r *ClientRouter) RegisterTypedAuthModule(
-    userType string,                                                  // 角色标识，如 "tech" / "merchant"
-    module v1.ClientModuleRouter,                                     // 该角色的路由模块（实现 RegisterPublic + RegisterAuth）
-    accessor authPkg.ClaimsAccessor[*jwtPkg.UserClaims],              // 该角色的 Claims 解析器
+// internal/app/module.go —— 下游唯一注册入口（基座 ClientRouter 实例不暴露）
+func (a *App) RegisterTypedAuthModule(
+    userType string,                                     // 角色标识，如 "tech" / "merchant"
+    module clientRouterV1.ClientModuleRouter,            // 该角色的路由模块（实现 RegisterPublic + RegisterAuth）
+    accessor authPkg.ClaimsAccessor[*jwtPkg.UserClaims], // 该角色的 Claims 解析器；nil = 复用基座 users 表校验链
 )
+```
+
+**时机与守卫（fail-fast，防「注册了但不生效」的静默失败）**：
+
+- 必须在 `Run()` 之前调用——typed 路由由 `Run()` 在监听启动前统一挂载（`ClientRouter.RegisterTypedRoutes`），与 `RegisterModule` 的时机契约一致；`Run()` 后调用 panic
+- `[base].client_router_enabled=false` 时调用 panic：该配置下下游完全接管 `/client/v1/*`（含 typed 用户路由），请在下游 `ClientRouterModule` 内自行实现角色路由或开启开关
+- `userType` 不得与基座内置路径段（`auth/user/echo/message/content/storage`）同名，否则 gin 路由注册冲突 panic
+
+**accessor 构造**：
+
+```go
+// ① 复用基座 users 表账户校验链（推荐，直接传 nil）：
+//    accessor 由基座按 userType 自动构造（UserClaimsAccessorFor），校验链 =
+//    users 表查询 + 用户级 TokenVersion + user_tokens 端级 hash 校验。
+application.RegisterTypedAuthModule("tech", techModule, nil)
+
+// ② 自有账户体系的角色：自实现 auth.ClaimsAccessor[*jwtPkg.UserClaims] 直传
+//    （或经 RouterDeps.AuthMiddleware.UserClaimsAccessorFor 取基座构造器再包装）。
 ```
 
 #### 路由分组规则
@@ -626,17 +644,18 @@ func (r *ClientRouter) RegisterTypedAuthModule(
 
 - **基座无感知**：`ClientRouter` 不关心 `userType` 语义，只负责按规则挂载路由组与应用中间件
 - **复用 `ClientModuleRouter` 接口**：无需新建 `TypedClientModuleRouter` 接口，下游项目实现已有的 `RegisterPublic + RegisterAuth` 即可
-- **JWT 隔离**：每个 `userType` 有独立的 `ClaimsAccessor`，token 不可跨角色使用
+- **JWT 隔离**：每个 `userType` 有独立的 `ClaimsAccessor`（type 校验按 userType 参数化），token 不可跨角色使用
+- **挂载时机**：`RegisterTypedAuthModule` 只登记；路由组在 `Run()` 启动监听前由 `ClientRouter.RegisterTypedRoutes` 统一挂载——typed 模块只能由下游在 Bootstrap 之后提供，捆绑在 Bootstrap 期执行的 `Register` 内会让晚到的注册静默无效（拆分前的历史缺陷）
 - **降级兼容**：未调用 `RegisterTypedAuthModule` 时，行为与旧版本完全一致（仅 `/client/v1/` 默认路由）
 
 #### 使用示例
 
 ```go
-// 下游项目 wire 装配阶段
-techAccessor := jwt.NewUserClaimsAccessor("tech")   // type=tech
-clientRouter.RegisterTypedAuthModule("tech", techModule, techAccessor)
+// 下游项目 main.go 装配阶段（Run 之前）
+application.RegisterTypedAuthModule("tech", techModule, nil) // 复用基座 users 表校验链
+application.Run()
 
-// 注册后：
+// 运行后：
 //   POST /client/v1/tech/public/login    — 无鉴权，登录入口
 //   GET  /client/v1/tech/profile         — TypedUserJWTAuth 校验 type=tech
 ```

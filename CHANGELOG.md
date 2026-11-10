@@ -5,10 +5,11 @@
 
 ---
 
-## 2026-11-11 · 未发布（下游 Module 限流链根修 + admin 路由开关）
+## 2026-11-11 · 未发布（下游 Module 限流链根修 + admin 路由开关 + typed 用户路由扩展点修复）
 
 ### 🐛 Fixed
 
+- **typed 用户路由扩展点三处根修（此前按文档操作完全不可用）**：① 下游唯一入口改为 `App.RegisterTypedAuthModule`——原文档指引调用 `clientRouter.RegisterTypedAuthModule`，但 `ClientRouter` 是 Bootstrap 内局部变量、无任何暴露路径（三份文档均指向不可达实例）；② typed 路由注册从 `ClientRouter.Register` 拆出为 `RegisterTypedRoutes`，由 `App.Run()` 监听启动前统一挂载——原设计捆绑在 Bootstrap 期执行，晚到的注册只追加队列、静默无效（注册时机与执行时机矛盾）；③ accessor 支持传 nil（自动按 userType 复用基座 users 表校验链，`AuthMiddleware.UserClaimsAccessorFor` 为新增导出构造器、claims type 校验按角色参数化）——原文档示例引用的 `jwt.NewUserClaimsAccessor` 不存在，且默认实现硬编码默认用户类型校验会拒绝一切 typed token。守卫：Run 后调用 / `[base].client_router_enabled=false` / 未装配 三种情况 fail-fast panic。文档三处（server-architecture §5.5、server-module-user、client-api-ws README）同步改为真实可用示例。
 - **下游 Module 认证组漏挂 api_ratelimit**：`RegisterModule` 给下游 `ClientRouterModule` authGroup / `AdminRouterModule` permissionGroup 挂载的中间件链缺 `api_ratelimit`（此前仅注入基座自身路由器），与文档「admin/client 全部认证组可选挂 api_ratelimit」承诺不符——下游配置 `[api_ratelimit].rules` 后其模块路由**静默不受限**。修复：限流中间件存入 App，按基座相同链序注入下游认证组（client：OpenPlatformAuth→RL；admin：IPAC→JWT→RL→Permission），链序契约由 `internal/app/module_test.go` 锁定。影响：实现了 Client/AdminRouterModule 且规则 paths 覆盖其路由的部署，修复后这些路由开始被限流（属兑现承诺，非行为回归）。
 
 ### ➕ Added

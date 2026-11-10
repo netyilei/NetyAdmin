@@ -114,6 +114,11 @@ func (a adminClaimsAccessor) LookupAccount(ctx context.Context, claims *jwtPkg.A
 
 type userClaimsAccessor struct {
 	mw *AuthMiddleware
+	// expectedType 允许通过的 claims.Type（角色隔离锚点）：默认 user 路由 =
+	// DefaultUserType；typed 路由 = 各自 userType（tech/merchant/rider…）——
+	// 跨角色 token 在此被拒。经 UserClaimsAccessorFor / UserJWTAuth 构造，
+	// 勿字面量零值直构（expectedType 为空会拒绝所有 token）。
+	expectedType string
 }
 
 func (userClaimsAccessor) NewClaims() *jwtPkg.UserClaims {
@@ -130,11 +135,11 @@ func (userClaimsAccessor) TokenStoreKey(claims *jwtPkg.UserClaims) string {
 func (userClaimsAccessor) SkipLegacyTokenStoreCheck() bool { return true }
 
 func (a userClaimsAccessor) LookupAccount(ctx context.Context, claims *jwtPkg.UserClaims, rawToken string) (*auth.AccountCheckResult, error) {
-	// 角色类型隔离：默认 UserJWTAuth 只接受 type == "user" 的 token。
-	// 下游 typed 角色（tech/merchant/rider…）token 的 type 为其各自角色标识，
-	// 若此处不校验，typed token 可被默认用户接口接受，违背文档
-	// 「TypedUserJWTAuth 与默认 UserJWTAuth 严格隔离，防止跨角色 token 互用」。
-	if claims.Type != jwtPkg.DefaultUserType {
+	// 角色类型隔离：accessor 只接受 type == expectedType 的 token。
+	// 默认 UserJWTAuth 的 expectedType = DefaultUserType，只接受 type == "user"；
+	// typed 角色（tech/merchant/rider…）各持独立 accessor（UserClaimsAccessorFor 构造），
+	// token 不可跨角色互用：默认接口拒 typed token，typed 接口拒默认与其他 typed token。
+	if claims.Type != a.expectedType {
 		return &auth.AccountCheckResult{Status: entity.StatusDisabled}, nil
 	}
 	user, err := a.mw.userRepo.GetByID(ctx, claims.UID)
@@ -186,7 +191,21 @@ func (m *AuthMiddleware) JWTAuth() gin.HandlerFunc {
 
 // UserJWTAuth 是 Client 端用户 JWT 鉴权中间件。校验链同 JWTAuth。
 func (m *AuthMiddleware) UserJWTAuth() gin.HandlerFunc {
-	return auth.RequireAuth(m.jwt, m.tokenStore, userClaimsAccessor{mw: m})
+	return auth.RequireAuth(m.jwt, m.tokenStore, m.UserClaimsAccessorFor(""))
+}
+
+// UserClaimsAccessorFor 返回指定 userType 的 user claims 访问器（typed 用户路由扩展，
+// 配合 App.RegisterTypedAuthModule，见 docs/server-architecture.md §5.5）。
+// 语义：仅接受 claims.Type == userType 的 token——与默认 user 及其他 typed 角色
+// 严格隔离。userType 为空时等价于默认 user 类型（DefaultUserType）。
+// LookupAccount 复用默认用户的账户校验链（users 表 + TokenVersion + user_tokens
+// 端级校验）：下游角色复用 users 表体系时无需自写 accessor；自有账户体系的角色
+// 请自行实现 auth.ClaimsAccessor[*jwtPkg.UserClaims] 并直传 TypedUserJWTAuth。
+func (m *AuthMiddleware) UserClaimsAccessorFor(userType string) auth.ClaimsAccessor[*jwtPkg.UserClaims] {
+	if userType == "" {
+		userType = jwtPkg.DefaultUserType
+	}
+	return userClaimsAccessor{mw: m, expectedType: userType}
 }
 
 // TypedUserJWTAuth accepts an externally-provided ClaimsAccessor for custom user types

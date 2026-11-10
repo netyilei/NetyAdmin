@@ -21,7 +21,7 @@
   检索走 `phone_idx`/`email_idx`（HMAC 盲索引，手机号另有尾号 4 位辅助列）。
   列表/补全返回掩码，用户详情接口返回完整值；**中缀模糊搜索不再支持**（见下「搜索」）。
 - **OAuth 绑定基座**：内置 `OAuthBindingService`，提供第三方账号绑定关系的统一存储与查询能力（FindByOpenID / FindByUnionID / Bind / Unbind / ListByUserID），下游项目仅需实现 provider 适配（调用微信/支付宝/GitHub/Apple 等 API 换取 openid），无需重复实现绑定关系管理。读路径走 ConfigCache（L1+L2 链），写路径在事务提交后失效缓存。
-- **多类型用户扩展**：通过 `TypedUserJWTAuth` 中间件 + `RegisterTypedAuthModule` 路由注册方法，支持下游项目接入角色专属鉴权路由（如 `/client/v1/{userType}/...`），基座不感知 userType 语义，保持通用性。
+- **多类型用户扩展**：通过 `App.RegisterTypedAuthModule`（内部经 `TypedUserJWTAuth` 中间件）路由注册方法，支持下游项目接入角色专属鉴权路由（如 `/client/v1/{userType}/...`），基座不感知 userType 语义，保持通用性。
 
 ---
 
@@ -49,10 +49,10 @@ server/internal/middleware/
 └── auth.go             # 客户端鉴权中间件 (UserJWTAuth + TypedUserJWTAuth)
 
 server/internal/interface/client/http/router/
-└── router.go           # ClientRouter.RegisterTypedAuthModule — 多类型用户路由注册入口
+└── router.go           # ClientRouter.RegisterTypedAuthModule / RegisterTypedRoutes — typed 用户路由（下游经 App.RegisterTypedAuthModule 间接使用）
 ```
 
-> 下游项目接入新 userType 时，无需修改基座 `ClientRouter`，只需在自身项目 wire 装配阶段调用 `clientRouter.RegisterTypedAuthModule(userType, module, accessor)` 即可。
+> 下游项目接入新 userType 时，无需修改基座代码，只需在 `Run()` 之前调用 `application.RegisterTypedAuthModule(userType, module, accessor)` 即可（accessor 传 nil 复用基座 users 表校验链）；typed 路由由 `Run()` 监听前统一挂载。
 
 ---
 
@@ -335,15 +335,18 @@ func (s *myAuthService) LoginByWechat(ctx context.Context, code string) (*userVO
 
 **4. 多类型用户路由接入（可选）**
 
-若下游项目需要为新角色（如"技师"、"商户"）接入专属鉴权路由，复用基座 `ClientRouter.RegisterTypedAuthModule`：
+若下游项目需要为新角色（如"技师"、"商户"）接入专属鉴权路由，调用基座 `App.RegisterTypedAuthModule`：
 
 ```go
-// 下游项目 wire 装配阶段
-clientRouter.RegisterTypedAuthModule("tech", techModule, techClaimsAccessor)
-// 注册后路由：
+// 下游项目 main.go 装配阶段（Run 之前）
+application.RegisterTypedAuthModule("tech", techModule, nil) // accessor=nil：复用基座 users 表校验链
+application.Run()
+// 注册后路由（Run 监听前统一挂载）：
 //   /client/v1/tech/public  — 无鉴权（OAuth 回调、登录端点）
-//   /client/v1/tech         — TypedUserJWTAuth(techClaimsAccessor) 应用
+//   /client/v1/tech         — TypedUserJWTAuth 校验 type=tech（+ api_ratelimit 可选）
 ```
+
+自有账户体系的角色请自实现 `auth.ClaimsAccessor[*jwtPkg.UserClaims]` 直传。Run 后调用或 `client_router_enabled=false` 时 fail-fast panic。
 
 详见 [server-architecture.md §5.5 多类型用户路由](./server-architecture.md)。
 

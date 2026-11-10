@@ -7,7 +7,9 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"NetyAdmin/internal/config"
+	clientRouterV1 "NetyAdmin/internal/interface/client/http/router/v1"
 	"NetyAdmin/internal/middleware"
+	authPkg "NetyAdmin/internal/pkg/auth"
 	jwtPkg "NetyAdmin/internal/pkg/jwt"
 	"NetyAdmin/internal/pkg/task"
 )
@@ -180,6 +182,44 @@ func (a *App) RegisterModule(m Module) {
 	if em, ok := m.(EngineModule); ok {
 		em.RegisterEngine(a.engine, a.routerDeps)
 	}
+}
+
+// RegisterTypedAuthModule 注册下游 typed 用户路由模块（多角色扩展，
+// 详见 docs/server-architecture.md §5.5「多类型用户路由扩展」）。
+//
+// 这是下游的唯一注册入口（基座 ClientRouter 实例不暴露）：内部委托给 Bootstrap
+// 装配的 clientRouter；typed 路由在 Run() 启动监听前统一挂载到
+// /client/v1/{userType} 与 /client/v1/{userType}/public（ClientRouter.RegisterTypedRoutes）。
+//
+// fail-fast 守卫（防「注册了但不生效」的静默失败）：
+//   - Run() 后调用 → panic（engine 启动后路由不可变更，与 RegisterModule 同款时机守卫）
+//   - [base].client_router_enabled=false → panic（该 flag 下下游完全接管 /client/v1/*，
+//     含 typed 用户路由——请在下游 ClientRouterModule 内自行实现角色路由，或开启开关）
+//
+// userType 不得与基座内置路径段（auth/user/echo/message/content/storage）同名，
+// 否则 gin 路由注册冲突 panic。
+//
+// accessor 传 nil 时自动使用基座 users 表校验链（等价
+// RouterDeps.AuthMiddleware.UserClaimsAccessorFor(userType)），适用于复用 users
+// 表体系的角色；自有账户体系的角色请显式传入自实现
+// auth.ClaimsAccessor[*jwtPkg.UserClaims]。
+func (a *App) RegisterTypedAuthModule(userType string, module clientRouterV1.ClientModuleRouter, accessor authPkg.ClaimsAccessor[*jwtPkg.UserClaims]) {
+	if a.started {
+		panic("app: RegisterTypedAuthModule 必须在 Run() 之前调用（engine 启动后路由不可变更）")
+	}
+	if !a.cfg.Base.IsClientRouterEnabled() {
+		panic("app: RegisterTypedAuthModule 与 [base].client_router_enabled=false 冲突：" +
+			"该配置下基座不注册 /client/v1/*（含 typed 用户路由），请在下游 ClientRouterModule 内自行实现或开启开关")
+	}
+	if a.clientRouter == nil {
+		panic("app: clientRouter 未装配（Bootstrap 内部错误）")
+	}
+	if accessor == nil {
+		// nil accessor = 复用基座 users 表校验链（签名注释声明的能力）；
+		// a.authMW 由 Bootstrap 经 NewAuthMiddleware 构造保证非 nil（fail-fast 构造器）。
+		accessor = a.authMW.UserClaimsAccessorFor(userType)
+	}
+	a.clientRouter.RegisterTypedAuthModule(userType, module, accessor)
 }
 
 // clientModuleAuthChain 返回下游 ClientRouterModule auth 组的中间件链。

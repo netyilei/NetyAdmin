@@ -65,26 +65,48 @@ func NewClientRouter(
 	}
 }
 
-// RegisterTypedAuthModule registers a ClientModuleRouter under a dedicated
-// userType namespace. At registration time, two route groups are created:
+// RegisterTypedAuthModule 登记 typed 用户路由模块（注册后两个路由组在
+// RegisterTypedRoutes 挂载时创建）：
 //
 //   - /client/v1/{userType}/public  — no auth, for RegisterPublic (OAuth callbacks,
 //     login endpoints, etc.)
 //   - /client/v1/{userType}         — TypedUserJWTAuth(accessor) applied, for RegisterAuth
 //
-// This preserves the public/auth split of ClientModuleRouter: public endpoints
-// remain accessible without authentication, while authed endpoints are isolated
-// by userType-specific JWT validation.
-//
-// This enables multi-role terminal routing: downstream projects register
-// role-specific modules (e.g. "tech", "merchant") without modifying the base
-// framework's ClientRouter.
+// 内部方法——下游唯一入口是 App.RegisterTypedAuthModule（带时机/配置守卫；
+// 基座 ClientRouter 实例不暴露给下游）。
 func (r *ClientRouter) RegisterTypedAuthModule(userType string, module v1.ClientModuleRouter, accessor authPkg.ClaimsAccessor[*jwtPkg.UserClaims]) {
 	r.typedRouters = append(r.typedRouters, typedModuleRouter{
 		userType: userType,
 		module:   module,
 		accessor: accessor,
 	})
+}
+
+// RegisterTypedRoutes 注册 typed 用户路由组（/client/v1/{userType} 与 /public 子组）。
+//
+// 与 Register 分离的原因（时序契约）：typed 模块只能由下游在 Bootstrap 之后提供，
+// 注册时机必然晚于 Bootstrap 期执行的 Register——捆绑会让晚到的注册静默无效。
+// 调用时机：App.Run() 启动监听前、全部 RegisterTypedAuthModule 调用之后；
+// [base].client_router_enabled 门控在 app.Run 处（该 flag=false 时下游完全接管
+// /client/v1/*，且 App.RegisterTypedAuthModule 已 fail-fast，typedRouters 必为空）。
+//
+// 中间件链：public 组无鉴权；authed 组 TypedUserJWTAuth(accessor) → api_ratelimit
+// （可选），与基座 Register 的 authGroup 链保持一致。
+func (r *ClientRouter) RegisterTypedRoutes(engine *gin.Engine) {
+	clientV1 := engine.Group("/client/v1")
+	for _, tm := range r.typedRouters {
+		// Public endpoints under /client/v1/{userType}/public — no JWT required
+		typedPublic := clientV1.Group(tm.userType + "/public")
+		tm.module.RegisterPublic(typedPublic)
+
+		// Authed endpoints under /client/v1/{userType} — JWT with matching type required
+		typedAuthed := clientV1.Group(tm.userType)
+		typedAuthed.Use(r.authMW.TypedUserJWTAuth(tm.accessor))
+		if r.apiRateLimit != nil {
+			typedAuthed.Use(r.apiRateLimit)
+		}
+		tm.module.RegisterAuth(typedAuthed)
+	}
 }
 
 func (r *ClientRouter) Register(engine *gin.Engine) {
@@ -106,20 +128,8 @@ func (r *ClientRouter) Register(engine *gin.Engine) {
 		module.RegisterAuth(authGroup)
 	}
 
-	// 3. Typed JWT auth route groups — one per userType
-	// Each userType gets a public sub-group (no auth) and an authed group
-	// with TypedUserJWTAuth(accessor) applied.
-	for _, tm := range r.typedRouters {
-		// Public endpoints under /client/v1/{userType}/public — no JWT required
-		typedPublic := clientV1.Group(tm.userType + "/public")
-		tm.module.RegisterPublic(typedPublic)
-
-		// Authed endpoints under /client/v1/{userType} — JWT with matching type required
-		typedAuthed := clientV1.Group(tm.userType)
-		typedAuthed.Use(r.authMW.TypedUserJWTAuth(tm.accessor))
-		if r.apiRateLimit != nil {
-			typedAuthed.Use(r.apiRateLimit)
-		}
-		tm.module.RegisterAuth(typedAuthed)
-	}
+	// 3. Typed 用户路由组已拆分到 RegisterTypedRoutes（不在本方法注册）：
+	//    typed 模块只能由下游在拿到 App 之后提供（Bootstrap 期不存在），若捆绑在
+	//    本方法（Bootstrap 内执行），晚到的注册只会追加 slice、静默无效。
+	//    改由 App.Run() 在监听启动前统一挂载——时序契约见 RegisterTypedRoutes 注释。
 }

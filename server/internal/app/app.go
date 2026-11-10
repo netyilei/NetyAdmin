@@ -17,6 +17,7 @@ import (
 	"gorm.io/gorm"
 
 	"NetyAdmin/internal/config"
+	clientRouterPkg "NetyAdmin/internal/interface/client/http/router"
 	"NetyAdmin/internal/middleware"
 	authPkg "NetyAdmin/internal/pkg/auth"
 	"NetyAdmin/internal/pkg/cache"
@@ -118,6 +119,9 @@ type App struct {
 	// [api_ratelimit].rules 非空且 Redis 可用时非 nil，由 RegisterModule
 	// 挂载到下游 Module 认证组，链序与基座自身路由组严格一致（见 module.go 链装配函数）。
 	apiRateLimit gin.HandlerFunc
+	// clientRouter 基座内置客户端路由器：RegisterTypedAuthModule 的委托目标
+	//（typed 用户路由唯一注册路径，实例不暴露给下游）；Run 时挂载 typed 路由组。
+	clientRouter *clientRouterPkg.ClientRouter
 	routerDeps   RouterDeps
 
 	// Infrastructure — exposed via getters for downstream service construction
@@ -359,6 +363,16 @@ func (a *App) Run() error {
 		ReadTimeout:  readTimeout,
 		WriteTimeout: writeTimeout,
 		IdleTimeout:  60 * time.Second,
+	}
+
+	// 0. typed 用户路由注册（/client/v1/{userType} 与 /public 子组）。
+	// typed 模块只能由下游在 Bootstrap 之后经 App.RegisterTypedAuthModule 提供，
+	// 不能捆绑在 Bootstrap 期的 ClientRouter.Register 内（否则晚注册静默无效），
+	// 由这里在监听启动前统一挂载（时序契约见 ClientRouter.RegisterTypedRoutes）。
+	// [base].client_router_enabled=false 时下游完全接管 /client/v1/*（含 typed）——
+	// RegisterTypedAuthModule 已在该 flag 下 fail-fast，此处为双保险。
+	if a.clientRouter != nil && a.cfg.Base.IsClientRouterEnabled() {
+		a.clientRouter.RegisterTypedRoutes(a.engine)
 	}
 
 	// 1. Start task manager (Execute startup tasks like DB migration)

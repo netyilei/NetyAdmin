@@ -8,6 +8,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"NetyAdmin/internal/config"
+	clientRouterPkg "NetyAdmin/internal/interface/client/http/router"
+	"NetyAdmin/internal/middleware"
 )
 
 // chainMarker 构造记录调用名的中间件（测试链序契约用）。
@@ -143,4 +147,76 @@ func TestRegisterModule_ClientAuthAppliesRateLimit(t *testing.T) {
 			assert.Equal(t, tt.wantOrder, order, "认证组中间件链序必须含 api_ratelimit 可选位")
 		})
 	}
+}
+
+// recTypedAppModule 最小 clientRouterV1.ClientModuleRouter 实现（typed 注册委托测试用）。
+type recTypedAppModule struct{ name string }
+
+func (m *recTypedAppModule) Name() string { return m.name }
+
+func (m *recTypedAppModule) RegisterPublic(g *gin.RouterGroup) {
+	g.GET("/hello", func(c *gin.Context) { c.Status(http.StatusOK) })
+}
+
+func (m *recTypedAppModule) RegisterAuth(g *gin.RouterGroup) {}
+
+// TestRegisterTypedAuthModule_Guards 锁定 App.RegisterTypedAuthModule 的 fail-fast
+// 守卫契约：Run 后 panic / client_router_enabled=false panic / clientRouter 未装配
+// panic；happy path 委托给基座 clientRouter（typed 路由经 RegisterTypedRoutes 可挂载）。
+func TestRegisterTypedAuthModule_Guards(t *testing.T) {
+	mod := &recTypedAppModule{name: "tech"}
+	accessor := (&middleware.AuthMiddleware{}).UserClaimsAccessorFor("tech")
+
+	t.Run("Run后调用panic", func(t *testing.T) {
+		a := &App{started: true, cfg: &config.Config{}}
+		assert.Panics(t, func() { a.RegisterTypedAuthModule("tech", mod, accessor) })
+	})
+
+	t.Run("client_router关闭时panic", func(t *testing.T) {
+		disabled := false
+		a := &App{cfg: &config.Config{Base: config.BaseConfig{ClientRouterEnabled: &disabled}}}
+		assert.Panics(t, func() { a.RegisterTypedAuthModule("tech", mod, accessor) })
+	})
+
+	t.Run("clientRouter未装配panic", func(t *testing.T) {
+		a := &App{cfg: &config.Config{}}
+		assert.Panics(t, func() { a.RegisterTypedAuthModule("tech", mod, accessor) })
+	})
+
+	t.Run("happy路径委托clientRouter", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		// NewClientRouter 各构造器纯存储，nil handler/service 安全（本测试不调 Register）；
+		// authMW 必须非 nil——RegisterTypedRoutes 构造 TypedUserJWTAuth 闭包需解引用 receiver。
+		cr := clientRouterPkg.NewClientRouter(nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, &middleware.AuthMiddleware{})
+		a := &App{cfg: &config.Config{}, clientRouter: cr}
+		a.RegisterTypedAuthModule("tech", mod, accessor)
+
+		engine := gin.New()
+		cr.RegisterTypedRoutes(engine) // Run 期挂载动作
+		assertRouteMounted(t, engine, "/client/v1/tech/public/hello")
+	})
+
+	t.Run("nil_accessor复用users表校验链", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		cr := clientRouterPkg.NewClientRouter(nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, &middleware.AuthMiddleware{})
+		a := &App{cfg: &config.Config{}, clientRouter: cr, authMW: &middleware.AuthMiddleware{}}
+		a.RegisterTypedAuthModule("tech", mod, nil) // nil = UserClaimsAccessorFor("tech")，不 panic 即委托成功
+
+		engine := gin.New()
+		cr.RegisterTypedRoutes(engine)
+		assertRouteMounted(t, engine, "/client/v1/tech/public/hello")
+	})
+}
+
+// assertRouteMounted 断言路径已注册到 engine。
+func assertRouteMounted(t *testing.T, e *gin.Engine, path string) {
+	t.Helper()
+	for _, ri := range e.Routes() {
+		if ri.Path == path {
+			return
+		}
+	}
+	t.Fatalf("路由未挂载: %s", path)
 }
