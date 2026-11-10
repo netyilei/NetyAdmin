@@ -10,7 +10,7 @@ import (
 //
 // 设计原则（重构清单 B-OTHER-2）：
 // 三端（admin/client/user）的 CompleteUpload handler 逻辑 100% 同构
-// （bind → 调 recordService.CompleteUpload → 透传），仅 DTO 类型名不同。
+// （bind → 调 uploadRecordService.CompleteUpload → 透传），仅 DTO 类型名不同。
 // 由于 RULES.md §9 禁止 DTO 跨端共享，三端各自 bind 自己的 DTO 后转换为本结构，
 // 再调用 CompleteUploadFromParams，消除 handler 中的样板复制。
 type CompleteUploadParams struct {
@@ -23,7 +23,7 @@ type CompleteUploadParams struct {
 	MD5       string
 }
 
-// RecordCompleter 是 RecordService.CompleteUpload 的镜像接口，
+// RecordCompleter 是 UploadRecordService.CompleteUpload 的镜像接口，
 // 供 upload helper 调用而不反向依赖 service 层。
 type RecordCompleter interface {
 	CompleteUpload(

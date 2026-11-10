@@ -99,7 +99,7 @@ type App struct {
 	// 只暴露已构造实例，getter 返回同一指针（见各 Xxx() 方法）。
 	captchaStore    base64Captcha.Store
 	loginLimiter    authPkg.LoginLimiter
-	uploadRecordSvc storageService.RecordService
+	uploadRecordSvc storageService.UploadRecordService
 	userClientSvc   userServicePkg.UserClientService
 
 	contentCategoryClientSvc    contentClientService.CategoryService
@@ -285,7 +285,7 @@ func (a *App) LoginLimiter() authPkg.LoginLimiter { return a.loginLimiter }
 
 // UploadRecordService returns the upload record service for downstream file
 // management (query/delete upload records tied to storage configs).
-func (a *App) UploadRecordService() storageService.RecordService { return a.uploadRecordSvc }
+func (a *App) UploadRecordService() storageService.UploadRecordService { return a.uploadRecordSvc }
 
 // UserClientService returns the C-end user service (profile, PII contact
 // read/update, password). Downstream client routers reuse it instead of

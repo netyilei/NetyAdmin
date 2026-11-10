@@ -106,13 +106,13 @@ var _ storageRepo.RecordRepository = (*mockRecordRepo)(nil)
 
 const testHMACKey = "TestHMACKey-2025-ABC!@#def123"
 
-// newTestRecordService 构造 recordService + 配套 mocks。
+// newTestUploadRecordService 构造 recordService + 配套 mocks。
 // configSvc / storageMgr / appSvc 在 CompleteUpload 路径不使用，置 nil。
-func newTestRecordService(t *testing.T) (*recordService, *mockRecordRepo) {
+func newTestUploadRecordService(t *testing.T) (*uploadRecordService, *mockRecordRepo) {
 	t.Helper()
 	repo := &mockRecordRepo{}
 
-	svc := &recordService{
+	svc := &uploadRecordService{
 		recordRepo: repo,
 		configSvc:  nil,
 		storageMgr: nil,
@@ -159,7 +159,7 @@ func makePendingRecord(t *testing.T, id uint) *storageEntity.Record {
 
 // TestCompleteUpload_Success 验证：pending record + 有效签名 → 翻转为 uploaded
 func TestCompleteUpload_Success(t *testing.T) {
-	svc, repo := newTestRecordService(t)
+	svc, repo := newTestUploadRecordService(t)
 	record := makePendingRecord(t, 100)
 	repo.getByIDRecord = record
 	repo.lockRecord = record // 行锁返回同一 record（pending 状态）
@@ -182,7 +182,7 @@ func TestCompleteUpload_Success(t *testing.T) {
 
 // TestCompleteUpload_RecordNotFound 验证：record 不存在 → CodeUploadRecordNotFound
 func TestCompleteUpload_RecordNotFound(t *testing.T) {
-	svc, repo := newTestRecordService(t)
+	svc, repo := newTestUploadRecordService(t)
 	repo.getByIDErr = gorm.ErrRecordNotFound
 
 	_, err := svc.CompleteUpload(context.Background(), 999, "any-secret", "any-key", "", 0, "", "")
@@ -196,7 +196,7 @@ func TestCompleteUpload_RecordNotFound(t *testing.T) {
 // TestCompleteUpload_EmptySecret 验证：record.Secret 为空 → CodeUploadSignatureInvalid
 // （凭证签发异常导致 secret 未写入）
 func TestCompleteUpload_EmptySecret(t *testing.T) {
-	svc, repo := newTestRecordService(t)
+	svc, repo := newTestUploadRecordService(t)
 	record := makePendingRecord(t, 101)
 	record.Secret = "" // 模拟 secret 未写入
 	repo.getByIDRecord = record
@@ -212,7 +212,7 @@ func TestCompleteUpload_EmptySecret(t *testing.T) {
 
 // TestCompleteUpload_SecretInvalid 验证：secret 签名不匹配 → CodeUploadSignatureInvalid
 func TestCompleteUpload_SecretInvalid(t *testing.T) {
-	svc, repo := newTestRecordService(t)
+	svc, repo := newTestUploadRecordService(t)
 	record := makePendingRecord(t, 102)
 	repo.getByIDRecord = record
 
@@ -227,7 +227,7 @@ func TestCompleteUpload_SecretInvalid(t *testing.T) {
 
 // TestCompleteUpload_ObjectKeyMismatch 验证：客户端上报的 objectKey 与凭证绑定不一致 → CodeUploadRecordMismatch
 func TestCompleteUpload_ObjectKeyMismatch(t *testing.T) {
-	svc, repo := newTestRecordService(t)
+	svc, repo := newTestUploadRecordService(t)
 	record := makePendingRecord(t, 103)
 	repo.getByIDRecord = record
 
@@ -246,7 +246,7 @@ func TestCompleteUpload_ObjectKeyMismatch(t *testing.T) {
 
 // TestCompleteUpload_StatusAlreadyUploaded 验证：status 已 uploaded → CodeUploadRecordCompleted（防重复提交）
 func TestCompleteUpload_StatusAlreadyUploaded(t *testing.T) {
-	svc, repo := newTestRecordService(t)
+	svc, repo := newTestUploadRecordService(t)
 	record := makePendingRecord(t, 104)
 	record.Status = storageEntity.RecordStatusUploaded // 已上传
 	repo.getByIDRecord = record
@@ -263,7 +263,7 @@ func TestCompleteUpload_StatusAlreadyUploaded(t *testing.T) {
 
 // TestCompleteUpload_StatusExpired 验证：status 已 expired → CodeUploadRecordExpired
 func TestCompleteUpload_StatusExpired(t *testing.T) {
-	svc, repo := newTestRecordService(t)
+	svc, repo := newTestUploadRecordService(t)
 	record := makePendingRecord(t, 105)
 	record.Status = storageEntity.RecordStatusExpired // 已过期
 	repo.getByIDRecord = record
@@ -280,7 +280,7 @@ func TestCompleteUpload_StatusExpired(t *testing.T) {
 
 // TestCompleteUpload_PendingButExpired 验证：status=pending 但 ExpiresAt 已过 → CodeUploadRecordExpired
 func TestCompleteUpload_PendingButExpired(t *testing.T) {
-	svc, repo := newTestRecordService(t)
+	svc, repo := newTestUploadRecordService(t)
 	record := makePendingRecord(t, 106)
 	// 覆盖 ExpiresAt 为过去时间，并重签 secret 以保持签名有效
 	pastTime := time.Now().Add(-1 * time.Minute)
@@ -301,7 +301,7 @@ func TestCompleteUpload_PendingButExpired(t *testing.T) {
 // TestCompleteUpload_LockStatusNotPending 验证：行锁下 status 已非 pending（并发竞争）→ 友好错误
 // 模拟场景：GetByID 时 status=pending，但 LockRecordByID 时 status 已变（并发已翻转）
 func TestCompleteUpload_LockStatusNotPending(t *testing.T) {
-	svc, repo := newTestRecordService(t)
+	svc, repo := newTestUploadRecordService(t)
 	pendingRecord := makePendingRecord(t, 107)
 	repo.getByIDRecord = pendingRecord
 

@@ -9,7 +9,9 @@
 
 ### ➕ Added
 
-- `App` 新增 8 个已构造服务实例 getter，供下游 Module（实现 `ClientRouterModule` / `AdminRouterModule` 等）组装自有路由处理器直接取用，不再需要重建服务或穿透基座内部结构：`CaptchaStore()`（验证码存储：cache/DB 双轨，由 sys_configs 验证码场景开关动态选择；cache 模式内部为 L1/L2）、`LoginLimiter()`（登录限流器，与基座登录共享窗口计数）、`UploadRecordService()`、`UserClientService()`（C 端用户服务：资料/联系方式/密码）、`ContentCategoryClientService()` / `ContentArticleClientService()` / `ContentBannerGroupClientService()` / `ContentBannerItemClientService()`（C 端内容四服务）。
+- `App` 新增 8 个已构造服务实例 getter，供下游 Module（实现 `ClientRouterModule` / `AdminRouterModule` 等）组装自有路由处理器直接取用，不再需要重建服务或穿透基座内部结构。
+- **类型重命名（源码级，无行为变更）**：`storage.RecordService` → `storage.UploadRecordService`（含构造器 `NewUploadRecordService`）——getter 名与类型名对齐为同一领域名；该接口能力是上传记录全生命周期（凭证签发/完成验签/记录管理），原名 "RecordService" 欠精确。B4 尚未被下游消费，此为最后零成本窗口；下游声明类型以 §5.6 getter↔类型映射表为准。
+- getter 明细：`CaptchaStore()`（验证码存储：cache/DB 双轨，由 sys_configs 验证码场景开关动态选择；cache 模式内部为 L1/L2）、`LoginLimiter()`（登录限流器，与基座登录共享窗口计数）、`UploadRecordService()`、`UserClientService()`（C 端用户服务：资料/联系方式/密码）、`ContentCategoryClientService()` / `ContentArticleClientService()` / `ContentBannerGroupClientService()` / `ContentBannerItemClientService()`（C 端内容四服务）。
 - 文档：[server-architecture §5.6](docs/server-architecture.md) 增加「App getter 依赖面」小节（安全组件 / 基础设施 / 已构造服务三类全列）；[基座能力清单](docs/base-capabilities.md) 同步登记。
 
 > 纯增量 API，无行为变更；不升级的下游不受影响。

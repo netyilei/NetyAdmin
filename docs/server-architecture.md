@@ -223,7 +223,7 @@ server/
         ├── log/                  # 日志服务（操作/错误/LogBus 统一缓冲）
         ├── message/              # 消息服务（统一发送 + 异步发送 Job）
         ├── open_platform/        # 开放平台服务（AppService含GetAppStorageDriver）
-        ├── storage/              # 存储服务（RecordService含应用存储配置解析）
+        ├── storage/              # 存储服务（UploadRecordService 含应用存储配置解析）
         ├── system/               # 系统管理服务（含 CaptchaService 验证码生成/校验，位于 service/system/captcha.go）
         ├── task/                 # 任务调度服务
         └── user/                 # 用户服务（user_auth/user/user_admin/oauth_binding，OAuthBindingService 含缓存与事务）
@@ -693,15 +693,42 @@ type EngineModule interface {           // engine 直挂路由（内部回调等
 
 #### App getter 依赖面
 
-RouterDeps 携带路由装配所需的中间件与配置；**已构造的服务实例**（Repository/Service 层往往在 Bootstrap 内构造完毕）通过 `App` 的公共 getter 获取——下游 Module 持有 `application` 引用即可取用，勿重复构造服务：
+RouterDeps 携带路由装配所需的中间件与配置；**已构造的服务实例**（Repository/Service 层往往在 Bootstrap 内构造完毕）通过 `App` 的公共 getter 获取——下游 Module 持有 `application` 引用即可取用，勿重复构造服务。
 
-| 类别 | getter |
-|------|--------|
-| 安全组件 | `JWT()` / `TokenStore()` / `VerificationService()` / `UserRepository()` / `SecurityCache()` / `OAuthBindingService()` |
-| 基础设施 | `DB()` / `TxManager()` / `CacheMgr()` / `RedisClient()`（nil 需判空）/ `UserTokenRepository()` / `MessageService()` / `ConfigWatcher()` / `RawConfig()` |
-| 已构造服务 | `CaptchaStore()` / `LoginLimiter()` / `UploadRecordService()` / `UserClientService()` / `ContentCategoryClientService()` / `ContentArticleClientService()` / `ContentBannerGroupClientService()` / `ContentBannerItemClientService()` |
+**命名契约（规则 + 全量映射表，声明类型变量以此表为准，勿猜）**：
 
-> 原则：基座缺失下游所需 getter 时按同一模式扩展（字段 + Bootstrap 装配 + getter），不要让下游穿透基座内部结构或重建服务实例。
+- getter 名 = App 扁平命名空间下的**领域全名**（必须自解释，如 `UploadRecordService` 而非 `RecordService`，否则与操作日志/错误日志等 record 混淆）；
+- 返回类型 = 该类型**所属包内的惯用名**（包限定词补上下文，如 `storage.UploadRecordService`、`contentClientService.CategoryService`）——两者不必字面一致，映射关系以下表为唯一契约；
+- 例外（第三方具体类型，基座不可改名）：`RedisClient()` → `*redis.Client`、`DB()` → `*gorm.DB`、`CaptchaStore()` → `base64Captcha.Store`。
+
+| getter | 返回类型 | 说明 |
+|--------|---------|------|
+| `JWT()` | `*jwtPkg.JWT`（pkg/jwt） | RS256 JWT 实例 |
+| `TokenStore()` | `userSvc.TokenStore`（接口，service/user） | 会话 token 哈希存储 |
+| `VerificationService()` | `userSvc.VerificationService`（接口） | 验证码发送/校验 |
+| `UserRepository()` | `userRepo.UserRepository`（接口） | users 表查询（含 PII 解密回填） |
+| `SecurityCache()` | `cache.SecurityCache`（接口） | L2 安全缓存 |
+| `OAuthBindingService()` | `userSvc.OAuthBindingService`（接口） | 第三方账号绑定 |
+| `DB()` | `*gorm.DB` | 数据库连接 |
+| `TxManager()` | `database.TxManager`（接口） | 事务编排 |
+| `CacheMgr()` | `*cache.LazyCacheManager` | L1/L2 缓存管理 |
+| `RedisClient()` | `*redis.Client` | **Redis 关闭时为 nil，必须判空** |
+| `UserTokenRepository()` | `userRepo.UserTokenRepository`（接口） | user_tokens 表（CAS 写路径） |
+| `MessageService()` | `msgSvc.MessageService`（接口） | 统一消息发送 |
+| `ConfigWatcher()` | `configsync.ConfigWatcher`（接口） | sys_configs 热读 |
+| `RawConfig()` | `map[string]any` | 配置原始树深拷贝 |
+| `CaptchaStore()` | `base64Captcha.Store`（接口，第三方） | 验证码存储：cache/DB 双轨（sys_configs 场景开关选择；cache 模式内部为 L1/L2） |
+| `LoginLimiter()` | `authPkg.LoginLimiter`（接口，pkg/auth） | 登录限流；**Redis 关闭时为 noop 实现（fail-open 不限流）** |
+| `UploadRecordService()` | `storageSvc.UploadRecordService`（接口，service/storage） | 上传记录全生命周期：列表/删除 + **凭证签发（GetUploadCredentials）与完成验签（CompleteUpload）** |
+| `UserClientService()` | `userSvc.UserClientService`（接口） | C 端用户：资料/联系方式/密码 |
+| `ContentCategoryClientService()` | `contentClientSvc.CategoryService`（接口） | C 端分类（仅客户端安全方法子集） |
+| `ContentArticleClientService()` | `contentClientSvc.ArticleService`（接口） | C 端文章（返回 client DTO VO） |
+| `ContentBannerGroupClientService()` | `contentClientSvc.BannerGroupService`（接口） | C 端 Banner 组 |
+| `ContentBannerItemClientService()` | `contentClientSvc.BannerItemService`（接口） | C 端 Banner 项 |
+
+> ⚠️ **BFF 同名陷阱**：`contentClientService.CategoryService` / `ArticleService` 等**与 `contentAdminService` 包的同名接口方法集刻意不同**（端隔离——client 只暴露客户端安全方法子集且返回 client DTO VO；admin 返回实体/全量 CRUD）。二者不可互换，类型断言/赋值会编译报错，这是设计而非缺陷。
+>
+> 原则：基座缺失下游所需 getter 时按同一模式扩展（字段 + Bootstrap 装配 + getter，命名遵循上方契约），不要让下游穿透基座内部结构或重建服务实例。
 
 #### 使用方式
 

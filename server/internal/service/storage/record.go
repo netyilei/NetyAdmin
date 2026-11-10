@@ -77,7 +77,7 @@ type RecordListRequest struct {
 	Size            int
 }
 
-type RecordService interface {
+type UploadRecordService interface {
 	List(ctx context.Context, req *RecordListRequest) ([]*storageVO.RecordVO, int64, error)
 	GetByID(ctx context.Context, id uint) (*storageVO.RecordVO, error)
 	Delete(ctx context.Context, id uint) error
@@ -94,7 +94,7 @@ type RecordService interface {
 	CompleteUpload(ctx context.Context, recordID uint, secret, objectKey, fileURL string, fileSize int64, mimeType, md5 string) (*storageVO.RecordVO, error)
 }
 
-type recordService struct {
+type uploadRecordService struct {
 	recordRepo storageRepo.RecordRepository
 	configSvc  ConfigService
 	storageMgr *storage.Manager
@@ -104,7 +104,7 @@ type recordService struct {
 	eventBus   pubsub.EventBus
 }
 
-func NewRecordService(
+func NewUploadRecordService(
 	recordRepo storageRepo.RecordRepository,
 	configSvc ConfigService,
 	storageMgr *storage.Manager,
@@ -112,8 +112,8 @@ func NewRecordService(
 	hmacKey string,
 	tm database.TxManager,
 	eventBus pubsub.EventBus,
-) RecordService {
-	return &recordService{
+) UploadRecordService {
+	return &uploadRecordService{
 		recordRepo: recordRepo,
 		configSvc:  configSvc,
 		storageMgr: storageMgr,
@@ -124,7 +124,7 @@ func NewRecordService(
 	}
 }
 
-func (s *recordService) List(ctx context.Context, req *RecordListRequest) ([]*storageVO.RecordVO, int64, error) {
+func (s *uploadRecordService) List(ctx context.Context, req *RecordListRequest) ([]*storageVO.RecordVO, int64, error) {
 	query := &storageRepo.RecordQuery{
 		FileName:        req.FileName,
 		Source:          req.Source,
@@ -155,7 +155,7 @@ func (s *recordService) List(ctx context.Context, req *RecordListRequest) ([]*st
 	return vos, total, nil
 }
 
-func (s *recordService) GetByID(ctx context.Context, id uint) (*storageVO.RecordVO, error) {
+func (s *uploadRecordService) GetByID(ctx context.Context, id uint) (*storageVO.RecordVO, error) {
 	record, err := s.recordRepo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -167,7 +167,7 @@ func (s *recordService) GetByID(ctx context.Context, id uint) (*storageVO.Record
 	return s.toVO(record), nil
 }
 
-func (s *recordService) Delete(ctx context.Context, id uint) error {
+func (s *uploadRecordService) Delete(ctx context.Context, id uint) error {
 	record, err := s.recordRepo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -187,7 +187,7 @@ func (s *recordService) Delete(ctx context.Context, id uint) error {
 	return s.recordRepo.Delete(ctx, id)
 }
 
-func (s *recordService) DeleteMultiple(ctx context.Context, ids []uint) error {
+func (s *uploadRecordService) DeleteMultiple(ctx context.Context, ids []uint) error {
 	for _, id := range ids {
 		if err := s.Delete(ctx, id); err != nil {
 			return err
@@ -197,7 +197,7 @@ func (s *recordService) DeleteMultiple(ctx context.Context, ids []uint) error {
 }
 
 // GetUploadCredentials 签发上传凭证并落 pending 记录。
-func (s *recordService) GetUploadCredentials(ctx context.Context, req *CredentialsRequest, appID string, source string, sourceID string) (*CredentialsResult, error) {
+func (s *uploadRecordService) GetUploadCredentials(ctx context.Context, req *CredentialsRequest, appID string, source string, sourceID string) (*CredentialsResult, error) {
 	var config *storageEntity.Config
 	var err error
 
@@ -321,7 +321,7 @@ func (s *recordService) GetUploadCredentials(ctx context.Context, req *Credentia
 // 4. 验 status == pending（防重复提交/状态错误）
 // 5. 验未超期
 // 6. LockRecordByID 行锁读取 + FlipStatusToUploaded 条件翻转 status=uploaded（防并发重复提交）
-func (s *recordService) CompleteUpload(ctx context.Context, recordID uint, secret, objectKey, fileURL string, fileSize int64, mimeType, md5 string) (*storageVO.RecordVO, error) {
+func (s *uploadRecordService) CompleteUpload(ctx context.Context, recordID uint, secret, objectKey, fileURL string, fileSize int64, mimeType, md5 string) (*storageVO.RecordVO, error) {
 	record, err := s.recordRepo.GetByID(ctx, recordID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -439,7 +439,7 @@ func (s *recordService) CompleteUpload(ctx context.Context, recordID uint, secre
 }
 
 // publishUploaded 发布 storage.uploaded 事件（payload 为 JSON，字段与 Record 实体对齐的子集）。
-func (s *recordService) publishUploaded(ctx context.Context, record *storageEntity.Record, fileURL string) {
+func (s *uploadRecordService) publishUploaded(ctx context.Context, record *storageEntity.Record, fileURL string) {
 	if s.eventBus == nil {
 		return
 	}
@@ -460,7 +460,7 @@ func (s *recordService) publishUploaded(ctx context.Context, record *storageEnti
 	}
 }
 
-func (s *recordService) toVO(r *storageEntity.Record) *storageVO.RecordVO {
+func (s *uploadRecordService) toVO(r *storageEntity.Record) *storageVO.RecordVO {
 	vo := &storageVO.RecordVO{
 		ID:              r.ID,
 		StorageConfigID: r.StorageConfigID,
@@ -492,7 +492,7 @@ func (s *recordService) toVO(r *storageEntity.Record) *storageVO.RecordVO {
 	return vo
 }
 
-func (s *recordService) getAppStorageConfig(ctx context.Context, appID string, fallbackConfigID uint) (*storageEntity.Config, error) {
+func (s *uploadRecordService) getAppStorageConfig(ctx context.Context, appID string, fallbackConfigID uint) (*storageEntity.Config, error) {
 	app, err := s.appSvc.GetAppByKey(ctx, appID)
 	if err == nil && app != nil && app.StorageID > 0 {
 		return s.configSvc.GetByID(ctx, app.StorageID)

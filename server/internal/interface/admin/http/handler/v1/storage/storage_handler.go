@@ -16,12 +16,12 @@ import (
 
 type StorageHandler struct {
 	configService storageService.ConfigService
-	recordService storageService.RecordService
+	recordService storageService.UploadRecordService
 }
 
 func NewStorageHandler(
 	configService storageService.ConfigService,
-	recordService storageService.RecordService,
+	recordService storageService.UploadRecordService,
 ) *StorageHandler {
 	return &StorageHandler{
 		configService: configService,

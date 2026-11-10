@@ -19,10 +19,10 @@ import (
 
 type UserHandler struct {
 	userSvc   userSvcPkg.UserClientService
-	recordSvc storageService.RecordService
+	recordSvc storageService.UploadRecordService
 }
 
-func NewUserHandler(userSvc userSvcPkg.UserClientService, recordSvc storageService.RecordService) *UserHandler {
+func NewUserHandler(userSvc userSvcPkg.UserClientService, recordSvc storageService.UploadRecordService) *UserHandler {
 	return &UserHandler{
 		userSvc:   userSvc,
 		recordSvc: recordSvc,

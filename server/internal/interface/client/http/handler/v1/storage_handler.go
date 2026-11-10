@@ -12,10 +12,10 @@ import (
 )
 
 type ClientStorageHandler struct {
-	recordSvc storageService.RecordService
+	recordSvc storageService.UploadRecordService
 }
 
-func NewClientStorageHandler(recordSvc storageService.RecordService) *ClientStorageHandler {
+func NewClientStorageHandler(recordSvc storageService.UploadRecordService) *ClientStorageHandler {
 	return &ClientStorageHandler{recordSvc: recordSvc}
 }
 
