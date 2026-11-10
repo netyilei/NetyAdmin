@@ -346,7 +346,7 @@ application.Run()
 //   /client/v1/tech         — TypedUserJWTAuth 校验 type=tech（+ api_ratelimit 可选）
 ```
 
-自有账户体系的角色请自实现 `auth.ClaimsAccessor[*jwtPkg.UserClaims]` 直传。Run 后调用或 `client_router_enabled=false` 时 fail-fast panic。
+自有账户体系的角色请自实现 `auth.ClaimsAccessor[*jwtPkg.UserClaims]` 直传。`userType` 须匹配 `[a-z][a-z0-9-]*` 且不得与内置段同名（注册期校验）；Run 后调用或 `client_router_enabled=false` 时 fail-fast panic。
 
 详见 [server-architecture.md §5.5 多类型用户路由](./server-architecture.md)。
 

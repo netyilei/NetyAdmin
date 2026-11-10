@@ -6,7 +6,8 @@
 # 由下游模块（ClientRouterModule）完全接管——适合下游有自己的用户体系的场景。
 # admin_router_enabled: false 时基座不注册内置 /admin/v1/* 路由树，
 # 由下游模块（AdminRouterModule）完全接管——适合多机部署中仅在管理面机器开启 admin
-# （纯 C 端机器关闭 admin 路由面）。只裁剪基座内置路由树，不影响下游 Module 注册的子树。
+# （纯 C 端机器关闭 admin 路由面）。admin-web 静态资源与 SPA 兜底一并关闭
+# （未匹配请求含 GET 统一返回 404 JSON）。只裁剪基座内置路由树，不影响下游 Module 注册的子树。
 base:
   client_router_enabled: true
   admin_router_enabled: true

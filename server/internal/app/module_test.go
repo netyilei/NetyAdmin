@@ -83,8 +83,8 @@ func TestAdminModulePermissionChain(t *testing.T) {
 			chain := adminModulePermissionChain(
 				chainMarker(&order, "ipac"),
 				chainMarker(&order, "jwt"),
-				chainMarker(&order, "permission"),
 				rl,
+				chainMarker(&order, "permission"),
 			)
 			require.Len(t, chain, len(tt.want))
 			runChain(t, chain)
@@ -158,7 +158,9 @@ func (m *recTypedAppModule) RegisterPublic(g *gin.RouterGroup) {
 	g.GET("/hello", func(c *gin.Context) { c.Status(http.StatusOK) })
 }
 
-func (m *recTypedAppModule) RegisterAuth(g *gin.RouterGroup) {}
+func (m *recTypedAppModule) RegisterAuth(g *gin.RouterGroup) {
+	g.GET("/profile", func(c *gin.Context) { c.Status(http.StatusOK) })
+}
 
 // TestRegisterTypedAuthModule_Guards 锁定 App.RegisterTypedAuthModule 的 fail-fast
 // 守卫契约：Run 后 panic / client_router_enabled=false panic / clientRouter 未装配
@@ -207,6 +209,57 @@ func TestRegisterTypedAuthModule_Guards(t *testing.T) {
 		engine := gin.New()
 		cr.RegisterTypedRoutes(engine)
 		assertRouteMounted(t, engine, "/client/v1/tech/public/hello")
+	})
+
+	t.Run("authMW未装配且accessor为nil时panic", func(t *testing.T) {
+		// nil accessor 依赖 a.authMW——未装配时必须立即 fail-fast，而非延迟到 Run 期解引用 panic
+		a := &App{cfg: &config.Config{}, clientRouter: &clientRouterPkg.ClientRouter{}}
+		assert.Panics(t, func() { a.RegisterTypedAuthModule("tech", mod, nil) })
+	})
+}
+
+// TestRegisterTypedAuthModule_UserTypeValidation 锁定 userType 校验契约：
+// 空串 / 路由元字符 / 非小写格式 / 基座内置路径段（保留字）都在注册期 fail-fast panic。
+// 缺陷背景：无校验时空串使 typed 路由挂到 /client/v1 根（accessor 归一化后成为
+// 无签名的默认用户路由）、":tech" 创建参数通配段；「同名必 panic」的文档承诺
+// 对 gin 仅精确路径碰撞才 panic 的现实而言过强——保留字在调用点强制成立。
+func TestRegisterTypedAuthModule_UserTypeValidation(t *testing.T) {
+	mod := &recTypedAppModule{name: "probe"}
+	accessor := (&middleware.AuthMiddleware{}).UserClaimsAccessorFor("tech")
+
+	tests := []struct {
+		name     string
+		userType string
+	}{
+		{name: "空串", userType: ""},
+		{name: "路由元字符_冒号", userType: ":tech"},
+		{name: "路由元字符_斜杠", userType: "tech/x"},
+		{name: "路由元字符_星号", userType: "*"},
+		{name: "大写字母开头", userType: "Tech"},
+		{name: "数字开头", userType: "1tech"},
+		{name: "保留字_auth", userType: "auth"},
+		{name: "保留字_user", userType: "user"},
+		{name: "保留字_echo", userType: "echo"},
+		{name: "保留字_message", userType: "message"},
+		{name: "保留字_content", userType: "content"},
+		{name: "保留字_storage", userType: "storage"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := &App{cfg: &config.Config{}, clientRouter: &clientRouterPkg.ClientRouter{},
+				authMW: &middleware.AuthMiddleware{}}
+			assert.Panics(t, func() { a.RegisterTypedAuthModule(tt.userType, mod, accessor) },
+				"userType %q 必须在注册期 fail-fast", tt.userType)
+		})
+	}
+
+	t.Run("合规userType通过校验", func(t *testing.T) {
+		for _, valid := range []string{"tech", "tech-app", "tech2", "rider-x1"} {
+			a := &App{cfg: &config.Config{}, clientRouter: &clientRouterPkg.ClientRouter{},
+				authMW: &middleware.AuthMiddleware{}}
+			assert.NotPanics(t, func() { a.RegisterTypedAuthModule(valid, mod, accessor) },
+				"userType %q 应通过校验", valid)
+		}
 	})
 }
 

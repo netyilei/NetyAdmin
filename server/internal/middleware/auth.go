@@ -191,7 +191,7 @@ func (m *AuthMiddleware) JWTAuth() gin.HandlerFunc {
 
 // UserJWTAuth 是 Client 端用户 JWT 鉴权中间件。校验链同 JWTAuth。
 func (m *AuthMiddleware) UserJWTAuth() gin.HandlerFunc {
-	return auth.RequireAuth(m.jwt, m.tokenStore, m.UserClaimsAccessorFor(""))
+	return auth.RequireAuth(m.jwt, m.tokenStore, m.UserClaimsAccessorFor(jwtPkg.DefaultUserType))
 }
 
 // UserClaimsAccessorFor 返回指定 userType 的 user claims 访问器（typed 用户路由扩展，

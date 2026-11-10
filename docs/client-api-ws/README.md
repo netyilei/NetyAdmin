@@ -57,6 +57,7 @@ application.RegisterTypedAuthModule("tech", techModule, nil) // accessor=nil：�
 ```
 
 - 基座不感知 `userType` 语义，只负责按规则挂载路由组与应用 `TypedUserJWTAuth` 中间件
+- `userType` 注册期校验（不合规 fail-fast panic）：须匹配 `[a-z][a-z0-9-]*`，不得与基座内置段（auth/user/echo/message/content/storage）同名
 - 各 `userType` 的 JWT 严格隔离，token 不可跨角色使用
 - typed 路由由 `Run()` 监听前统一挂载（`RegisterTypedAuthModule` 只登记；Run 后调用 panic）
 - 未调用 `RegisterTypedAuthModule` 时，行为与基座默认完全一致

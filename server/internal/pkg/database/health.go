@@ -99,6 +99,11 @@ func NewHealthChecker(db *gorm.DB, opts ...HealthCheckerOption) (*HealthChecker,
 
 	h := &HealthChecker{health: hh}
 	for _, opt := range opts {
+		if opt == nil {
+			// nil 选项跳过而非 panic：vararg 形参下调用方用 nil 占位表达"无选项"
+			// 是常见笔误，构造器兜底使其成为无害操作（配合调用点正确传空切片）。
+			continue
+		}
 		opt(h)
 	}
 	return h, nil

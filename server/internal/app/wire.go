@@ -15,7 +15,7 @@ import (
 
 	"NetyAdmin/internal/config"
 	"NetyAdmin/internal/interface/admin/http/router"
-	clientRouter "NetyAdmin/internal/interface/client/http/router"
+	clientRouterPkg "NetyAdmin/internal/interface/client/http/router"
 	"NetyAdmin/internal/middleware"
 	authPkg "NetyAdmin/internal/pkg/auth"
 	"NetyAdmin/internal/pkg/cache"
@@ -71,11 +71,14 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 
 	// 2. DB & Redis Health Checker（基于 hellofresh/health-go v5）
 	//    复用已建立的 DB / Redis 连接池，仅在 Redis 启用时注册其探活检查。
-	var redisHealthOpt database.HealthCheckerOption
+	//    Redis 关闭时 opts 为空切片——不得传 nil 函数值占位（vararg 中的 nil
+	//    会在 NewHealthChecker 内被当作选项调用，历史缺陷：redis.enabled=false
+	//    时 Bootstrap 必崩，Redis「可选」承诺被破坏）。
+	var healthOpts []database.HealthCheckerOption
 	if redisClient != nil {
-		redisHealthOpt = database.WithRedis(redisClient)
+		healthOpts = append(healthOpts, database.WithRedis(redisClient))
 	}
-	dbHealthChecker, err := database.NewHealthChecker(db, redisHealthOpt)
+	dbHealthChecker, err := database.NewHealthChecker(db, healthOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("健康检查器初始化失败: %w", err)
 	}
@@ -279,7 +282,7 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		cfg.APIRateLimit.Rules,
 	)
 
-	cr := clientRouter.NewClientRouter(
+	cr := clientRouterPkg.NewClientRouter(
 		handlers.client.echo,
 		handlers.client.user,
 		handlers.client.auth,
@@ -358,24 +361,36 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	}
 	gin.DefaultWriter = os.Stdout
 
-	// 静态文件服务：提供前端 SPA 页面（admin-web/dist/）
-	// 使 http://localhost:8010/ 直接访问管理后台
-	engine.Static("/assets", "../admin-web/dist/assets")
-	engine.StaticFile("/favicon.svg", "../admin-web/dist/favicon.svg")
-
-	// SPA 兜底：未匹配 API 的 GET 请求返回 index.html（支持 Vue Router history 模式）
-	engine.NoRoute(func(c *gin.Context) {
-		if c.Request.Method == http.MethodGet {
-			c.File("../admin-web/dist/index.html")
-			return
-		}
-		// 非 GET 请求返回统一 Response 格式（与 API 响应一致）
+	// 静态文件服务 + SPA 兜底仅在服务 admin 面（admin_router_enabled，缺省 true）时注册：
+	// admin-web SPA 的全部 API 调用指向基座 /admin/v1/*——API 被裁剪的机器上继续服务
+	// SPA，会让未匹配的 GET /admin/v1/* 落入 SPA 兜底返回 200 HTML（误导探活/巡检）。
+	// admin 关闭时未匹配请求（含 GET）统一返回 404 JSON；下游 AdminRouterModule 注册
+	// 的路由不受影响（已注册路由不进 NoRoute），/health 亦不受影响（此前已注册）。
+	notFoundJSON := func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, response.Response{
 			Code:      errorx.CodeNotFound.String(),
 			Message:   "资源不存在",
 			RequestID: c.GetString("requestID"),
 		})
-	})
+	}
+	if cfg.Base.IsAdminRouterEnabled() {
+		// 静态文件服务：提供前端 SPA 页面（admin-web/dist/）
+		// 使 http://localhost:8010/ 直接访问管理后台
+		engine.Static("/assets", "../admin-web/dist/assets")
+		engine.StaticFile("/favicon.svg", "../admin-web/dist/favicon.svg")
+
+		// SPA 兜底：未匹配 API 的 GET 请求返回 index.html（支持 Vue Router history 模式）
+		engine.NoRoute(func(c *gin.Context) {
+			if c.Request.Method == http.MethodGet {
+				c.File("../admin-web/dist/index.html")
+				return
+			}
+			// 非 GET 请求返回统一 Response 格式（与 API 响应一致）
+			notFoundJSON(c)
+		})
+	} else {
+		engine.NoRoute(notFoundJSON)
+	}
 
 	// 预构造 OpenPlatformAuth（供 RegisterModule 在下游模块的 authGroup 挂载）
 	openPlatformAuthFn := middleware.OpenPlatformAuth(services.app, services.openApi, services.openLog, services.ipac)

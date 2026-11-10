@@ -615,7 +615,7 @@ func (a *App) RegisterTypedAuthModule(
 
 - 必须在 `Run()` 之前调用——typed 路由由 `Run()` 在监听启动前统一挂载（`ClientRouter.RegisterTypedRoutes`），与 `RegisterModule` 的时机契约一致；`Run()` 后调用 panic
 - `[base].client_router_enabled=false` 时调用 panic：该配置下下游完全接管 `/client/v1/*`（含 typed 用户路由），请在下游 `ClientRouterModule` 内自行实现角色路由或开启开关
-- `userType` 不得与基座内置路径段（`auth/user/echo/message/content/storage`）同名，否则 gin 路由注册冲突 panic
+- `userType` 注册期校验（fail-fast panic）：不得为空；须匹配 `[a-z][a-z0-9-]*`（小写字母开头，仅小写字母/数字/连字符，禁路由元字符）；不得与基座内置路径段（`auth/user/echo/message/content/storage`）同名。其余路径精确冲突在 `Run()` 期挂载时 panic（监听启动前，仍是 fail-fast）
 
 **accessor 构造**：
 
@@ -781,12 +781,12 @@ func main() {
 
 #### 基座内置路由开关（[base]）
 
-下游需要完全接管基座内置路由树（或多机部署中按机器裁剪路由面）时，通过 `[base]` 配置段关闭对应内置路由。开关只裁剪**基座内置**路由树的注册，不影响下游 Module 注册的同前缀子树，也不影响静态资源服务与 `/health`：
+下游需要完全接管基座内置路由树（或多机部署中按机器裁剪路由面）时，通过 `[base]` 配置段关闭对应内置路由。开关只裁剪**基座内置**路由树的注册，不影响下游 Module 注册的同前缀子树与 `/health`；`admin_router_enabled` 额外裁剪 admin-web 静态资源与 SPA 兜底（SPA 的 API 全部指向 `/admin/v1/*`——API 关闭的机器上继续服务 SPA 只会得到白屏死页，且未匹配 `GET /admin/v1/*` 会落 SPA 兜底返回误导性 200）：
 
 | 开关 | 缺省 | `false` 时行为 |
 |------|------|---------------|
 | `client_router_enabled` | `true` | 基座不注册内置 `/client/v1/*` 路由树，下游通过 ClientRouterModule 完全接管（如自有用户体系） |
-| `admin_router_enabled` | `true` | 基座不注册内置 `/admin/v1/*` 路由树（admin 登录/管理端点全部不可达），下游通过 AdminRouterModule 完全接管；典型场景：多机部署中仅管理面机器开启 admin，纯 C 端机器关闭 |
+| `admin_router_enabled` | `true` | 基座不注册内置 `/admin/v1/*` 路由树（admin 登录/管理端点全部不可达），**admin-web 静态资源与 SPA 兜底一并关闭（未匹配请求含 GET 统一返回 404 JSON）**；下游通过 AdminRouterModule 完全接管。典型场景：多机部署中仅管理面机器开启 admin，纯 C 端机器关闭 |
 
 ```yaml
 base:

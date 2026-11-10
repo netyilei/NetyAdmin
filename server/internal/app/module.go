@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"regexp"
 
 	"github.com/gin-gonic/gin"
 
@@ -162,8 +164,8 @@ func (a *App) RegisterModule(m Module) {
 		for _, mw := range adminModulePermissionChain(
 			middleware.IPACAuth(a.ipacSvc),
 			a.authMW.JWTAuth(),
-			middleware.PermissionAuth(a.authVerifier),
 			a.apiRateLimit,
+			middleware.PermissionAuth(a.authVerifier),
 		) {
 			permissionGroup.Use(mw)
 		}
@@ -196,8 +198,10 @@ func (a *App) RegisterModule(m Module) {
 //   - [base].client_router_enabled=false → panic（该 flag 下下游完全接管 /client/v1/*，
 //     含 typed 用户路由——请在下游 ClientRouterModule 内自行实现角色路由，或开启开关）
 //
-// userType 不得与基座内置路径段（auth/user/echo/message/content/storage）同名，
-// 否则 gin 路由注册冲突 panic。
+// userType 不得为空、不得含路由元字符、不得与基座内置路径段（auth/user/echo/
+// message/content/storage）同名——三者都在注册期 fail-fast panic（见 validateUserType）；
+// 其余路径精确冲突（如与下游自身 ClientRouterModule 注册的路径撞车）在 Run 期
+// 挂载时 panic（监听启动前，仍是 fail-fast）。
 //
 // accessor 传 nil 时自动使用基座 users 表校验链（等价
 // RouterDeps.AuthMiddleware.UserClaimsAccessorFor(userType)），适用于复用 users
@@ -214,12 +218,46 @@ func (a *App) RegisterTypedAuthModule(userType string, module clientRouterV1.Cli
 	if a.clientRouter == nil {
 		panic("app: clientRouter 未装配（Bootstrap 内部错误）")
 	}
+	validateUserType(userType)
 	if accessor == nil {
 		// nil accessor = 复用基座 users 表校验链（签名注释声明的能力）；
-		// a.authMW 由 Bootstrap 经 NewAuthMiddleware 构造保证非 nil（fail-fast 构造器）。
+		// a.authMW 由 Bootstrap 经 NewAuthMiddleware 构造保证非 nil（fail-fast 构造器），
+		// 手工构造 App 的测试场景在此 fail-fast 而非延迟到 Run 期解引用 panic。
+		if a.authMW == nil {
+			panic("app: RegisterTypedAuthModule accessor=nil 需要基座 AuthMiddleware，但 a.authMW 未装配")
+		}
 		accessor = a.authMW.UserClaimsAccessorFor(userType)
 	}
 	a.clientRouter.RegisterTypedAuthModule(userType, module, accessor)
+}
+
+// typedUserTypePattern 校验 typed 角色标识格式：小写字母开头，仅小写字母/数字/连字符。
+// 禁止 ':' '/' '*' 等 gin 路由元字符（否则会创建参数/通配路由段）与空串
+// （空串使 typed 路由挂到 /client/v1 根，与基座路由树纠缠）。
+var typedUserTypePattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+
+// reservedClientUserTypes 基座 /client/v1 顶层内置路径段（六个内置模块路由），
+// 作为 userType 保留字——与基座路由命名空间冲突的角色名在注册期拒绝，
+// 使「同名必 panic」的文档承诺在调用点成立（gin 只在精确 method+path 碰撞时才 panic）。
+var reservedClientUserTypes = map[string]bool{
+	"auth": true, "user": true, "echo": true,
+	"message": true, "content": true, "storage": true,
+}
+
+// validateUserType 校验 typed 角色标识，不合规 fail-fast panic（注册期暴露，
+// 不等到 Run 期 gin 冲突或静默挂错位置）。
+func validateUserType(userType string) {
+	if userType == "" {
+		panic("app: RegisterTypedAuthModule userType 不能为空（空串会使 typed 路由挂到 /client/v1 根）")
+	}
+	if !typedUserTypePattern.MatchString(userType) {
+		panic(fmt.Sprintf("app: RegisterTypedAuthModule userType %q 不合规：须匹配 [a-z][a-z0-9-]*"+
+			"（小写字母开头，仅小写字母/数字/连字符），不得含 ':' '/' '*' 等路由元字符", userType))
+	}
+	if reservedClientUserTypes[userType] {
+		panic(fmt.Sprintf("app: RegisterTypedAuthModule userType %q 是基座 /client/v1 内置路径段（保留字），"+
+			"请换名（如 %s-admin）", userType, userType))
+	}
 }
 
 // clientModuleAuthChain 返回下游 ClientRouterModule auth 组的中间件链。
@@ -235,9 +273,9 @@ func clientModuleAuthChain(openPlatformAuth, apiRateLimit gin.HandlerFunc) []gin
 }
 
 // adminModulePermissionChain 返回下游 AdminRouterModule permission 组的中间件链。
-// 顺序契约：IPAC → JWT → api_ratelimit（可选）→ Permission——与基座
+// 参数按链序排列：IPAC → JWT → api_ratelimit（可选）→ Permission——与基座
 // admin Router.registerV1 的 permissionGroup 严格一致，由单测锁定。
-func adminModulePermissionChain(ipacAuth, jwtAuth, permissionAuth, apiRateLimit gin.HandlerFunc) []gin.HandlerFunc {
+func adminModulePermissionChain(ipacAuth, jwtAuth, apiRateLimit, permissionAuth gin.HandlerFunc) []gin.HandlerFunc {
 	chain := make([]gin.HandlerFunc, 0, 4)
 	chain = append(chain, ipacAuth, jwtAuth)
 	if apiRateLimit != nil {
