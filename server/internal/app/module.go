@@ -138,24 +138,33 @@ func (a *App) RegisterModule(m Module) {
 	// 1. 客户端路由模块
 	//    注意：这里新建独立的 /client/v1 子组挂中间件，与基座 ClientRouter.Register
 	//    是两棵独立子树（基座自身模块 vs 下游模块），非复用同一组——避免下游模块
-	//    意外影响基座路由。中间件链与基座 Register 保持一致（OpenPlatformAuth）。
+	//    意外影响基座路由。中间件链与基座 Register 保持一致
+	//    （OpenPlatformAuth → api_ratelimit 可选，契约见 clientModuleAuthChain）。
 	if cm, ok := m.(ClientRouterModule); ok {
 		clientV1 := a.engine.Group("/client/v1")
 		publicGroup := clientV1.Group("")
 		authGroup := clientV1.Group("")
-		authGroup.Use(a.openPlatformAuth)
+		for _, mw := range clientModuleAuthChain(a.openPlatformAuth, a.apiRateLimit) {
+			authGroup.Use(mw)
+		}
 		cm.RegisterClientPublic(publicGroup, a.routerDeps)
 		cm.RegisterClientAuth(authGroup, a.routerDeps)
 	}
 
 	// 2. 管理端路由模块
-	//    独立子树，中间件链（IPAC→JWT→Permission）与基座 admin Router.Register 保持一致。
+	//    独立子树，中间件链（IPAC→JWT→api_ratelimit 可选→Permission）
+	//    与基座 admin Router.registerV1 保持一致（契约见 adminModulePermissionChain）。
 	if am, ok := m.(AdminRouterModule); ok {
 		adminV1 := a.engine.Group("/admin/v1")
 		permissionGroup := adminV1.Group("")
-		permissionGroup.Use(middleware.IPACAuth(a.ipacSvc))
-		permissionGroup.Use(a.authMW.JWTAuth())
-		permissionGroup.Use(middleware.PermissionAuth(a.authVerifier))
+		for _, mw := range adminModulePermissionChain(
+			middleware.IPACAuth(a.ipacSvc),
+			a.authMW.JWTAuth(),
+			middleware.PermissionAuth(a.authVerifier),
+			a.apiRateLimit,
+		) {
+			permissionGroup.Use(mw)
+		}
 		am.RegisterAdminPermission(permissionGroup, a.routerDeps)
 	}
 
@@ -171,4 +180,29 @@ func (a *App) RegisterModule(m Module) {
 	if em, ok := m.(EngineModule); ok {
 		em.RegisterEngine(a.engine, a.routerDeps)
 	}
+}
+
+// clientModuleAuthChain 返回下游 ClientRouterModule auth 组的中间件链。
+// 顺序契约：OpenPlatformAuth → api_ratelimit（可选）——与基座
+// ClientRouter.Register 的 authGroup 严格一致，由单测锁定（module_test.go）。
+func clientModuleAuthChain(openPlatformAuth, apiRateLimit gin.HandlerFunc) []gin.HandlerFunc {
+	chain := make([]gin.HandlerFunc, 0, 2)
+	chain = append(chain, openPlatformAuth)
+	if apiRateLimit != nil {
+		chain = append(chain, apiRateLimit)
+	}
+	return chain
+}
+
+// adminModulePermissionChain 返回下游 AdminRouterModule permission 组的中间件链。
+// 顺序契约：IPAC → JWT → api_ratelimit（可选）→ Permission——与基座
+// admin Router.registerV1 的 permissionGroup 严格一致，由单测锁定。
+func adminModulePermissionChain(ipacAuth, jwtAuth, permissionAuth, apiRateLimit gin.HandlerFunc) []gin.HandlerFunc {
+	chain := make([]gin.HandlerFunc, 0, 4)
+	chain = append(chain, ipacAuth, jwtAuth)
+	if apiRateLimit != nil {
+		chain = append(chain, apiRateLimit)
+	}
+	chain = append(chain, permissionAuth)
+	return chain
 }

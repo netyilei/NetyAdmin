@@ -755,10 +755,27 @@ func main() {
 
 #### 设计要点
 
-- **基座已挂中间件**：下游拿到的 authGroup 已挂 OpenPlatformAuth、permissionGroup 已挂 IPAC→JWT→Permission 完整权限链——下游只注册业务路由；admin/client 全部认证组（含 typed 用户组）可选挂 api_ratelimit（`[api_ratelimit].rules` 非空且 Redis 可用时注入，配置见 config.example.yaml）
+- **基座已挂中间件**：下游拿到的 authGroup 已挂 OpenPlatformAuth、permissionGroup 已挂 IPAC→JWT→api_ratelimit(可选)→Permission 完整权限链——下游只注册业务路由；admin/client **全部认证组（含下游 Module 认证组与 typed 用户组）**可选挂 api_ratelimit（`[api_ratelimit].rules` 非空且 Redis 可用时注入；下游 Module 组链序与基座自身路由组严格一致，由 `internal/app/module_test.go` 锁定；配置见 config.example.yaml）
 - **类型断言分发**：`RegisterModule` 自动检测模块实现了哪些子接口，只调用匹配的注册方法——下游按需实现，不强制全实现
 - **路由注册时机**：`RegisterModule` 必须在 `Run()` 之前调用（gin 路由注册须在 engine 启动前）
 - **向后兼容**：不注册任何 Module 时，基座行为完全不变
+
+#### 基座内置路由开关（[base]）
+
+下游需要完全接管基座内置路由树（或多机部署中按机器裁剪路由面）时，通过 `[base]` 配置段关闭对应内置路由。开关只裁剪**基座内置**路由树的注册，不影响下游 Module 注册的同前缀子树，也不影响静态资源服务与 `/health`：
+
+| 开关 | 缺省 | `false` 时行为 |
+|------|------|---------------|
+| `client_router_enabled` | `true` | 基座不注册内置 `/client/v1/*` 路由树，下游通过 ClientRouterModule 完全接管（如自有用户体系） |
+| `admin_router_enabled` | `true` | 基座不注册内置 `/admin/v1/*` 路由树（admin 登录/管理端点全部不可达），下游通过 AdminRouterModule 完全接管；典型场景：多机部署中仅管理面机器开启 admin，纯 C 端机器关闭 |
+
+```yaml
+base:
+  client_router_enabled: true
+  admin_router_enabled: true
+```
+
+> 缺省 `true` 保证零值向后兼容（`BaseConfig` 零值 = 历史行为）。语义契约由 `config_raw_test.go` 的 `TestBaseRouterSwitches` 锁定。
 
 #### 解决的问题
 

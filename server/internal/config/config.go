@@ -44,19 +44,31 @@ type Config struct {
 // BaseConfig 基座自身行为的全局开关。
 //
 // 用于下游模块需要完全接管基座内置路由树的场景（如独立部署的业务后端
-// 复用基座组件但不要内置业务路由）。默认全部启用，向后兼容。
+// 复用基座组件但不要内置业务路由），以及多机部署中按机器裁剪路由面
+// （如仅管理面机器开启 admin API）。默认全部启用，向后兼容。
 type BaseConfig struct {
 	// ClientRouterEnabled 控制是否注册基座内置的 /client/v1/* 路由树。
 	// false 时基座不注册该路由树，下游模块通过 ClientRouterModule 完全接管
 	// /client/v1/*（如自有用户体系）。默认 true（向后兼容）。
 	// 缺省为 true 的原因：BaseConfig 为零值时需与历史版本行为一致。
 	ClientRouterEnabled *bool `yaml:"client_router_enabled"`
+	// AdminRouterEnabled 控制是否注册基座内置的 /admin/v1/* 路由树。
+	// false 时基座不注册该路由树（admin 登录/管理端点全部不可达），
+	// 下游模块通过 AdminRouterModule 完全接管 /admin/v1/*。
+	// 典型场景：多机部署中仅承担管理面的机器开启 admin，纯 C 端机器关闭。
+	// 默认 true（向后兼容，缺省原因同上）。
+	AdminRouterEnabled *bool `yaml:"admin_router_enabled"`
 }
 
 // IsClientRouterEnabled 返回开关值：nil（未配置）视为 true，向后兼容。
 // （方法名与字段名不能相同，故用 Is 前缀。）
 func (b BaseConfig) IsClientRouterEnabled() bool {
 	return b.ClientRouterEnabled == nil || *b.ClientRouterEnabled
+}
+
+// IsAdminRouterEnabled 语义同 IsClientRouterEnabled。
+func (b BaseConfig) IsAdminRouterEnabled() bool {
+	return b.AdminRouterEnabled == nil || *b.AdminRouterEnabled
 }
 
 // Duration 是 time.Duration 的包装类型，实现 encoding.TextUnmarshaler 接口，

@@ -57,3 +57,31 @@ func TestRawConfig_Load(t *testing.T) {
 	assert.False(t, cfg.Base.IsClientRouterEnabled(), "显式 false 必须关闭 client 路由")
 	assert.NotNil(t, cfg.RawConfig())
 }
+
+// TestBaseRouterSwitches 锁定 [base] 双开关契约：
+// nil（未配置）= true 向后兼容，显式 false 必须生效。
+// client_router_enabled 与 admin_router_enabled 语义对称、互不影响。
+func TestBaseRouterSwitches(t *testing.T) {
+	tests := []struct {
+		name       string
+		yaml       string
+		wantClient bool
+		wantAdmin  bool
+	}{
+		{name: "全部缺省_向后兼容", yaml: "server:\n  port: 9090\n", wantClient: true, wantAdmin: true},
+		{name: "两开关显式false", yaml: "base:\n  client_router_enabled: false\n  admin_router_enabled: false\n", wantClient: false, wantAdmin: false},
+		{name: "两开关显式true", yaml: "base:\n  client_router_enabled: true\n  admin_router_enabled: true\n", wantClient: true, wantAdmin: true},
+		{name: "仅admin关闭", yaml: "base:\n  admin_router_enabled: false\n", wantClient: true, wantAdmin: false},
+		{name: "仅client关闭", yaml: "base:\n  client_router_enabled: false\n", wantClient: false, wantAdmin: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := t.TempDir() + "/cfg.yaml"
+			require.NoError(t, os.WriteFile(f, []byte(tt.yaml), 0o600))
+			cfg, err := Load(f)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantClient, cfg.Base.IsClientRouterEnabled(), "client_router_enabled 语义偏差")
+			assert.Equal(t, tt.wantAdmin, cfg.Base.IsAdminRouterEnabled(), "admin_router_enabled 语义偏差")
+		})
+	}
+}

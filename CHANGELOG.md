@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-11-11 · 未发布（下游 Module 限流链根修 + admin 路由开关）
+
+### 🐛 Fixed
+
+- **下游 Module 认证组漏挂 api_ratelimit**：`RegisterModule` 给下游 `ClientRouterModule` authGroup / `AdminRouterModule` permissionGroup 挂载的中间件链缺 `api_ratelimit`（此前仅注入基座自身路由器），与文档「admin/client 全部认证组可选挂 api_ratelimit」承诺不符——下游配置 `[api_ratelimit].rules` 后其模块路由**静默不受限**。修复：限流中间件存入 App，按基座相同链序注入下游认证组（client：OpenPlatformAuth→RL；admin：IPAC→JWT→RL→Permission），链序契约由 `internal/app/module_test.go` 锁定。影响：实现了 Client/AdminRouterModule 且规则 paths 覆盖其路由的部署，修复后这些路由开始被限流（属兑现承诺，非行为回归）。
+
+### ➕ Added
+
+- **`[base].admin_router_enabled`**（缺省 `true` 向后兼容）：`false` 时基座不注册内置 `/admin/v1/*` 路由树（admin 登录/管理端点全部不可达），下游通过 `AdminRouterModule` 完全接管。典型场景：多机部署中仅管理面机器开启 admin，纯 C 端机器裁掉 admin 路由面。与既有 `client_router_enabled` 语义对称（只裁剪基座内置路由树注册，不影响下游 Module 同前缀子树、静态资源与 `/health`）；契约由 `TestBaseRouterSwitches` 锁定。两开关文档补入 [server-architecture §5.6](docs/server-architecture.md)（`client_router_enabled` 此前文档缺失，一并补齐）。
+
+---
+
 ## 2026-11-10 · 2.0.1（下游 Module 装配补全：10 个 App 服务 getter）
 
 ### ➕ Added

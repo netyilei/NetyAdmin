@@ -1,12 +1,15 @@
 # NetyAdmin 服务配置模板（YAML 格式）
 # 复制为 config.yaml 后按环境修改。敏感配置支持 NETYADMIN_* 环境变量覆盖（优先级高于本文件）。
 
-# 基座自身行为开关（可选段；全部缺省 = 历史行为）
+# 基座自身行为开关（可选段；全部缺省 = 历史行为，两开关均缺省 true）
 # client_router_enabled: false 时基座不注册内置 /client/v1/* 路由树，
 # 由下游模块（ClientRouterModule）完全接管——适合下游有自己的用户体系的场景。
-# 缺省 true。admin 路由不受此开关影响（见 docs/upgrade-guide.md 与 module 文档）。
+# admin_router_enabled: false 时基座不注册内置 /admin/v1/* 路由树，
+# 由下游模块（AdminRouterModule）完全接管——适合多机部署中仅在管理面机器开启 admin
+# （纯 C 端机器关闭 admin 路由面）。只裁剪基座内置路由树，不影响下游 Module 注册的子树。
 base:
   client_router_enabled: true
+  admin_router_enabled: true
 
 server:
   port: 9090

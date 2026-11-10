@@ -114,7 +114,11 @@ type App struct {
 	authVerifier     middleware.AuthVerifier
 	ipacSvc          ipacService.IPACService
 	openPlatformAuth gin.HandlerFunc
-	routerDeps       RouterDeps
+	// apiRateLimit 通用业务 API 限流中间件（可选能力）：
+	// [api_ratelimit].rules 非空且 Redis 可用时非 nil，由 RegisterModule
+	// 挂载到下游 Module 认证组，链序与基座自身路由组严格一致（见 module.go 链装配函数）。
+	apiRateLimit gin.HandlerFunc
+	routerDeps   RouterDeps
 
 	// Infrastructure — exposed via getters for downstream service construction
 	// (repos, caches, message service, etc.) via App.DB() / App.CacheMgr() / ...

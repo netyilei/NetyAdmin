@@ -336,13 +336,19 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 	engine.GET("/health", dbHealthChecker.Handler())
 
 	// 路由注册
-	// 通用业务 API 限流（api_ratelimit）：配置了规则且 Redis 可用时注入两端认证路由组；
-	// 规则为空/无 Redis = 不注册，行为与历史版本一致
+	// 通用业务 API 限流（api_ratelimit）：配置了规则且 Redis 可用时注入基座与下游
+	// Module 的认证路由组；规则为空/无 Redis = 不注册，行为与历史版本一致
 	if apiRateLimitMW != nil {
 		r.SetAPIRateLimit(apiRateLimitMW)
 		cr.SetAPIRateLimit(apiRateLimitMW)
 	}
-	r.Register(engine)
+	// [base].admin_router_enabled=false 时不注册基座内置 /admin/v1/*（多机部署中
+	// 仅管理面机器开启 admin），下游通过 AdminRouterModule 完全接管
+	if cfg.Base.IsAdminRouterEnabled() {
+		r.Register(engine)
+	} else {
+		slog.Info("base.admin_router_enabled=false：基座不注册内置 /admin/v1/* 路由，由下游模块接管")
+	}
 	// [base].client_router_enabled=false 时下游通过 ClientRouterModule 完全接管
 	// /client/v1/* 路由树（如自有用户体系），基座不再注册内置客户端路由
 	if cfg.Base.IsClientRouterEnabled() {
@@ -378,6 +384,10 @@ func Bootstrap(cfg *config.Config, db *gorm.DB) (*App, error) {
 		jwtInstance, tokenStore, services.verification, repos.user, lazyCacheMgr, services.oauthBinding,
 		authMW, services.role, services.ipac, openPlatformAuthFn,
 		redisClient, lazyCacheMgr, repos.userToken, services.message, configWatcher)
+
+	// RegisterModule 装配依赖：通用业务 API 限流中间件（可选能力，nil = 未启用），
+	// 挂载到下游 Module 认证组，链序与基座自身路由组一致（见 module.go 链装配函数）。
+	app.apiRateLimit = apiRateLimitMW
 
 	// 下游 Module 所需服务实例（App getter 背后的字段）：同包赋值，
 	// 不再拉长 NewApp 的位置参数签名。
