@@ -438,15 +438,23 @@ func (a *App) Run() error {
 // 由模块自行重试或降级（与任务引擎/健康检查的失败哲学一致）。
 func (a *App) runLifecycleStart(ctx context.Context) {
 	for _, m := range a.lifecycleModules {
-		if err := m.OnStart(ctx); err != nil {
-			slog.Error("lifecycle module OnStart failed (module continues degraded)",
-				"module", m.Name(), "err", err)
-		}
+		// per-module recover：单个模块 OnStart panic 不得拖垮基座启动
+		//（module.go LifecycleModule 契约：panic 与 error 同样只记日志降级）
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("lifecycle module OnStart panicked (module continues degraded)",
+						"module", m.Name(), "panic", r)
+				}
+			}()
+			if err := m.OnStart(ctx); err != nil {
+				slog.Error("lifecycle module OnStart failed (module continues degraded)",
+					"module", m.Name(), "err", err)
+			}
+		}()
 	}
 }
 
-// runLifecycleStop 逆序调用各 LifecycleModule 的 OnStop（HTTP 优雅关闭后）。
-// 单模块超时/panic 不阻塞其余模块与进程退出。
 // runLifecycleStop 逆序调用各 LifecycleModule 的 OnStop（HTTP 优雅关闭后）。
 // 单模块 5s 超时（复用 stopWithTimeout），panic 由 GoSafe 捕获，不阻塞进程退出。
 func (a *App) runLifecycleStop() {
