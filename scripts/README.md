@@ -2,7 +2,7 @@
 
 ## tools/
 - `test-coverage.sh` — Service 层覆盖率门禁（≥70%），见 docs/server-architecture.md §6.4。
-- `upgrade_preflight.sh` — 基座升级预检（2.0.0）：Redis ≥8.1 / PG 可达与迁移版本 / aes_key 非默认；FAIL 即禁止升级。用法见 docs/upgrade-guide.md。
+- `upgrade_preflight.sh` — 基座升级预检（检查项自 2.0.0 起未变，验收锚点跟随当前发布）：Redis ≥8.1 / PG 可达与迁移版本 / aes_key 非默认；FAIL 即禁止升级。用法见 docs/upgrade-guide.md。
 
 ## data/
 - `sequence_sync.sql` — 序列同步一次性数据订正（历史遗留，仅手工执行）。

@@ -12,7 +12,9 @@
 
 ### 2.0.1（纯增量：下游 Module 装配补全）
 
-无破坏性变更、无数据库迁移：`App` 新增 8 个已构造服务实例 getter（验证码存储 / 登录限流器 / 上传记录 / C 端用户 / C 端内容×4），供下游 Module 组装自有路由直接取用。从 2.0.0 升级 = 直接替换程序（`/health` 应返回 `"version":"2.0.1"`）；仍在 v1 的项目先按下方 2.0.0 流程完成 PII 升级。
+无数据库迁移、无行为变更：`App` 新增 8 个已构造服务实例 getter（验证码存储 / 登录限流器 / 上传记录 / C 端用户 / C 端内容×4），供下游 Module 组装自有路由直接取用。从 2.0.0 升级 = 直接替换程序（`/health` 应返回 `"version":"2.0.1"`）；仍在 v1 的项目先按下方 2.0.0 流程完成 PII 升级。
+
+⚠️ **源码级重命名**（下游代码若引用过以下旧名需同步改名，详见 [CHANGELOG](../CHANGELOG.md) 2.0.1 条目）：`storage.RecordService` → `UploadRecordService`（含构造器）；contentClient 包 `CategoryService` → `CategoryTreeService`、`ArticleService` → `PublishedArticleService`、`BannerGroupService` → `PublishedBannerGroupService`、`BannerItemService` → `BannerClickService`（含各构造器）。下游声明类型一律以 [server-architecture §5.6 getter↔类型映射表](server-architecture.md#app-getter-依赖面)为准。
 
 ### 2.0.0 的破坏性变更（升级前必须逐条确认）
 

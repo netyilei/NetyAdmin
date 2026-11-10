@@ -17,7 +17,11 @@
 - getter 明细：`CaptchaStore()`（验证码存储：cache/DB 双轨，由 sys_configs 验证码场景开关动态选择；cache 模式内部为 L1/L2）、`LoginLimiter()`（登录限流器，与基座登录共享窗口计数）、`UploadRecordService()`、`UserClientService()`（C 端用户服务：资料/联系方式/密码）、`ContentCategoryClientService()` / `ContentArticleClientService()` / `ContentBannerGroupClientService()` / `ContentBannerItemClientService()`（C 端内容四服务）。
 - 文档：[server-architecture §5.6](docs/server-architecture.md) 增加「App getter 依赖面」小节（安全组件 / 基础设施 / 已构造服务三类全列）；[基座能力清单](docs/base-capabilities.md) 同步登记。
 
-> 纯增量 API，无行为变更；不升级的下游不受影响。
+> 接口面纯增量（getter 与重命名均为源码级，无运行时行为变更）；另含一处内部行为修复（见下 Fixed），不升级的下游不受影响。
+
+### 🐛 Fixed
+
+- `App.Run()` 正常优雅关闭路径曾**二次调用** `runLifecycleStop()`（LifecycleModule 的 OnStop 每进程执行两次，违背 module.go「每个进程至多一次」契约；非幂等 OnStop 有 panic/副作用风险）。修复：`runLifecycleStop` 增加一次性守卫并删除重复调用点，测试锁定。仅注册了 LifecycleModule 且 OnStop 非幂等的下游可观察到此变化（契约本就承诺至多一次，兑现契约）。
 
 ---
 

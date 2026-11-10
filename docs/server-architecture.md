@@ -46,7 +46,7 @@ server/
 │   ├── table_*.sql               # 表结构定义
 │   └── data_*.sql                # 基础数据
 │
-└── internal/                      # 私有业务代码（不对外暴露）
+└── internal/                      # 框架私有实现；下游项目代码也放在本 module 代码树内（见 §5.6 集成模式）
     ├── app/                       # 应用启动与依赖装配
     │   ├── app.go                # 应用生命周期管理（Run/优雅关闭）
     │   ├── init.go               # 初始化逻辑（DB）
@@ -693,12 +693,16 @@ type EngineModule interface {           // engine 直挂路由（内部回调等
 
 #### App getter 依赖面
 
+> **下游集成模式（先读）**：下游项目代码与基座**同处一个 Go module**（`module NetyAdmin`）——以 fork/merge 方式跟进基座升级，业务代码放 `internal/{业务域}/`（完整示例见 development-guide §6.3「Fitness 模块装配」）。**不要**以独立 go.mod `require NetyAdmin` 方式集成：本表全部返回类型位于 `internal/` 包下，Go 的 internal 规则禁止 module 外导入，独立依赖模式在编译期必然失败（`use of internal package not allowed`）。
+
 RouterDeps 携带路由装配所需的中间件与配置；**已构造的服务实例**（Repository/Service 层往往在 Bootstrap 内构造完毕）通过 `App` 的公共 getter 获取——下游 Module 持有 `application` 引用即可取用，勿重复构造服务。
 
 **命名契约（规则 + 全量映射表，声明类型变量以此表为准，勿猜）**：
 
+> 表内包限定词（`userSvc`/`storageSvc`/`contentClientSvc` 等）为**领域缩写示意**；以**类型名**为准（基座源码内的 import 别名为 `userServicePkg`/`storageService`/`contentClientService` 等，见 `internal/app/app.go`）。
+
 - getter 名 = App 扁平命名空间下的**领域全名**（必须自解释，如 `UploadRecordService` 而非 `RecordService`，否则与操作日志/错误日志等 record 混淆）；
-- 返回类型 = 该类型**所属包内的惯用名**（包限定词补上下文，如 `storage.UploadRecordService`、`contentClientService.CategoryService`）——两者不必字面一致，映射关系以下表为唯一契约；
+- 返回类型 = 该类型**所属包内的惯用名**（包限定词补上下文，如 `storage.UploadRecordService`、`contentClientService.CategoryTreeService`）——两者不必字面一致，映射关系以下表为唯一契约；
 - 例外（第三方具体类型，基座不可改名）：`RedisClient()` → `*redis.Client`、`DB()` → `*gorm.DB`、`CaptchaStore()` → `base64Captcha.Store`。
 
 | getter | 返回类型 | 说明 |

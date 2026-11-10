@@ -184,6 +184,7 @@ DDL 详见迁移脚本 `server/internal/pkg/migration/migrations/0054_user_oauth
 | Register / Login / RefreshToken / ResetPassword | `user_auth.go` | 认证相关 |
 | List / Create / Update / Delete | `user_admin.go` | 管理相关 |
 | GetInfo / ChangePassword / UpdateProfile | `user.go` | 核心用户操作 |
+| GetUserContact | `user.go` | 通用 PII 联系方式读取出口（按 ID/用户名/手机号/邮箱条件查人，返回解密后的完整手机号/邮箱；各端均可调用，权限由各端 API 决定） |
 
 ---
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 基座升级预检（目标版本 2.0.0）：
+# 基座升级预检（目标版本 2.0.1；检查项自 2.0.0 起未变）：
 #   Redis 可达且 >= 8.1 / PostgreSQL 可达 / 当前迁移版本 / aes_key 已配置非默认。
 # 用法：bash scripts/tools/upgrade_preflight.sh
 # 退出码：0=全部通过；1=有 FAIL（禁止升级）。
@@ -64,7 +64,7 @@ PYEOF
 
 [ -n "${R_HOST:-}" ] || { echo "[FAIL] config.yaml 解析失败"; exit 1; }
 
-echo "=== 基座升级预检（目标版本 2.0.0）==="
+echo "=== 基座升级预检（目标版本 2.0.1）==="
 echo "[INFO] Redis=$R_HOST:$R_PORT db=$R_DB  PG=$PG_HOST:$PG_PORT user=$PG_USER db=$PG_DB"
 
 # 1. Redis 可达 + 版本 >= 8.1
@@ -73,7 +73,7 @@ RCLI=(redis-cli -h "$R_HOST" -p "$R_PORT" -n "$R_DB")
 if [ "$("${RCLI[@]}" ping 2>/dev/null)" = "PONG" ]; then
   ok "Redis 可达"
 else
-  fail "Redis 不可达（$R_HOST:$R_PORT）；2.0.0 要求 Redis >= 8.1"
+  fail "Redis 不可达（$R_HOST:$R_PORT）；基线要求 Redis >= 8.1（自 2.0.0 起）"
 fi
 RVER=$("${RCLI[@]}" info server 2>/dev/null | sed -n 's/^redis_version://p' | tr -d '[:space:]')
 if [ -n "$RVER" ]; then
@@ -83,7 +83,7 @@ if [ -n "$RVER" ]; then
   if [ "$MAJ" -gt 8 ] || { [ "$MAJ" -eq 8 ] && [ "$MIN" -ge 1 ]; }; then
     ok "Redis 版本 $RVER >= 8.1"
   else
-    fail "Redis 版本 $RVER < 8.1（2.0.0 基线要求 8.1+）"
+    fail "Redis 版本 $RVER < 8.1（基线要求 8.1+，自 2.0.0 起）"
   fi
 else
   fail "无法读取 Redis 版本（redis-cli 是否可用？）"
@@ -120,5 +120,5 @@ if [ "$FAIL" -gt 0 ]; then
 fi
 echo "预检结果：PASS（$PASS 项通过）"
 echo "下一步：1) pg_dump 备份  2) 停止【全部】节点（不支持混合版本）  3) 部署新版本启动"
-echo "       4) 启动日志出现 pii backfill completed  5) /health 返回 version=2.0.0"
+echo "       4) 启动日志出现 pii backfill completed（v1 升级时）  5) /health 返回所部署版本（当前发布 version=2.0.1）"
 echo "详见 docs/upgrade-guide.md"
