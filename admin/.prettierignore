@@ -1,0 +1,12 @@
+/dist/*
+.local
+/node_modules/**
+
+**/*.svg
+**/*.sh
+
+/public/*
+stats.html
+
+# Easy-Mock / Apifox mock artifacts (not valid app source)
+/src/assets/mock/**

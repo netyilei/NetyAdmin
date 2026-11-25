@@ -1,0 +1,105 @@
+# NetyAdmin V2 状态码单一事实源
+# 规则见 docs/rules/status-codes.md
+# 生成物：Go 常量、TS 常量、文档索引；禁止在业务代码手写数字。
+
+version: 1
+success_code: "10000"
+
+ranges:
+  - { start: "10000", end: "10099", owner: kernel, purpose: "通用错误" }
+  - { start: "10100", end: "10199", owner: kernel, purpose: "认证/会话" }
+  - { start: "10200", end: "10299", owner: kernel, purpose: "数据/事务/缓存" }
+  - { start: "10300", end: "10399", owner: kernel, purpose: "Bus/Scheduler/Hooks" }
+  - { start: "10400", end: "10499", owner: kernel, purpose: "模块/运行时/部署" }
+  - { start: "10500", end: "10599", owner: kernel, purpose: "配置/密钥" }
+  - { start: "10600", end: "10699", owner: kernel, purpose: "传输/内部 RPC" }
+  - { start: "10700", end: "10799", owner: kernel, purpose: "安全/IPAC/签名/Nonce" }
+  - { start: "10800", end: "10899", owner: platform, purpose: "平台服务通用" }
+  - { start: "10900", end: "17999", owner: kernel, purpose: "保留" }
+  - { start: "18000", end: "18999", owner: gateway, purpose: "网关/平台服务专用" }
+  - { start: "19000", end: "19999", owner: kernel, purpose: "保留" }
+  - { start: "20000", end: "20999", owner: admin, purpose: "Admin 通用/保留" }
+  - { start: "21000", end: "21999", owner: admin, purpose: "Admin HTTP API" }
+  - { start: "22000", end: "22999", owner: admin, purpose: "Admin WebSocket" }
+  - { start: "23000", end: "23999", owner: admin, purpose: "Admin Ops/Jobs" }
+  - { start: "24000", end: "29999", owner: admin, purpose: "保留" }
+  - { start: "30000", end: "30999", owner: client, purpose: "Client 通用/保留" }
+  - { start: "31000", end: "31999", owner: client, purpose: "Client HTTP API" }
+  - { start: "32000", end: "32999", owner: client, purpose: "Client WebSocket" }
+  - { start: "33000", end: "39999", owner: client, purpose: "保留" }
+  - { start: "40000", end: "99999", owner: downstream, purpose: "使用者拓展" }
+
+# 初始核心码；新增请追加并走生成流程。
+codes:
+  - { code: "10000", name: CodeSuccess, surface: core, domain: common, http: 200, retryable: false, message_key: common.success, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10001", name: CodeInvalidParams, surface: core, domain: common, http: 400, retryable: false, message_key: common.invalid_params, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10002", name: CodeValidationFailed, surface: core, domain: common, http: 400, retryable: false, message_key: common.validation_failed, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10003", name: CodeNotFound, surface: core, domain: common, http: 404, retryable: false, message_key: common.not_found, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10004", name: CodeConflict, surface: core, domain: common, http: 409, retryable: false, message_key: common.conflict, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10005", name: CodeUnauthorized, surface: core, domain: auth, http: 401, retryable: false, message_key: common.unauthorized, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10006", name: CodeForbidden, surface: core, domain: auth, http: 403, retryable: false, message_key: common.forbidden, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10007", name: CodeTooManyRequests, surface: core, domain: security, http: 429, retryable: true, message_key: common.too_many_requests, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10008", name: CodeTimeout, surface: core, domain: common, http: 503, retryable: true, message_key: common.timeout, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10009", name: CodeInternal, surface: core, domain: common, http: 500, retryable: false, message_key: common.internal, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10010", name: CodeUnavailable, surface: core, domain: common, http: 503, retryable: true, message_key: common.unavailable, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10011", name: CodeIdempotencyConflict, surface: core, domain: common, http: 409, retryable: false, message_key: common.idempotency_conflict, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10012", name: CodeUnsupported, surface: core, domain: common, http: 400, retryable: false, message_key: common.unsupported, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10101", name: CodeTokenMissing, surface: core, domain: auth, http: 401, retryable: false, message_key: auth.token_missing, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10102", name: CodeTokenInvalid, surface: core, domain: auth, http: 401, retryable: false, message_key: auth.token_invalid, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10103", name: CodeTokenExpired, surface: core, domain: auth, http: 401, retryable: false, message_key: auth.token_expired, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10104", name: CodeTokenRevoked, surface: core, domain: auth, http: 401, retryable: false, message_key: auth.token_revoked, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10105", name: CodeAccountDisabled, surface: core, domain: auth, http: 403, retryable: false, message_key: auth.account_disabled, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10106", name: CodePermissionDenied, surface: core, domain: auth, http: 403, retryable: false, message_key: auth.permission_denied, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10201", name: CodeDBError, surface: core, domain: data, http: 500, retryable: false, message_key: data.db_error, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10202", name: CodeCacheError, surface: core, domain: data, http: 500, retryable: true, message_key: data.cache_error, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10203", name: CodeOptimisticLock, surface: core, domain: data, http: 409, retryable: true, message_key: data.optimistic_lock, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10204", name: CodeUniqueViolation, surface: core, domain: data, http: 409, retryable: false, message_key: data.unique_violation, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10301", name: CodeEventPublishFailed, surface: core, domain: bus, http: 500, retryable: true, message_key: bus.publish_failed, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10302", name: CodeJobFailed, surface: core, domain: scheduler, http: 500, retryable: true, message_key: scheduler.job_failed, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10303", name: CodeHookAborted, surface: core, domain: hooks, http: 400, retryable: false, message_key: hooks.aborted, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10401", name: CodeModuleNotFound, surface: core, domain: module, http: 500, retryable: false, message_key: module.not_found, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10402", name: CodeDependencyUnresolved, surface: core, domain: module, http: 500, retryable: false, message_key: module.dependency_unresolved, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10403", name: CodeBindingFailed, surface: core, domain: module, http: 500, retryable: false, message_key: module.binding_failed, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10404", name: CodeModuleDisabled, surface: core, domain: module, http: 503, retryable: false, message_key: module.disabled, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10501", name: CodeConfigInvalid, surface: core, domain: config, http: 500, retryable: false, message_key: config.invalid, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10502", name: CodeSecretMissing, surface: core, domain: config, http: 500, retryable: false, message_key: config.secret_missing, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10601", name: CodeRPCTimeout, surface: core, domain: rpc, http: 503, retryable: true, message_key: rpc.timeout, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10602", name: CodeRPCUnavailable, surface: core, domain: rpc, http: 503, retryable: true, message_key: rpc.unavailable, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10603", name: CodeContractMismatch, surface: core, domain: rpc, http: 500, retryable: false, message_key: rpc.contract_mismatch, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10604", name: CodeCircuitOpen, surface: core, domain: rpc, http: 503, retryable: true, message_key: rpc.circuit_open, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10701", name: CodeIPBlocked, surface: core, domain: security, http: 403, retryable: false, message_key: security.ip_blocked, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10702", name: CodeNonceReplay, surface: core, domain: security, http: 401, retryable: false, message_key: security.nonce_replay, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10703", name: CodeSignatureInvalid, surface: core, domain: security, http: 401, retryable: false, message_key: security.signature_invalid, owner: kernel, since: "2.0.0", deprecated: false }
+  - { code: "10801", name: CodeStorageError, surface: platform, domain: storage, http: 500, retryable: true, message_key: storage.error, owner: platform, since: "2.0.0", deprecated: false }
+  - { code: "10802", name: CodeMessageSendFailed, surface: platform, domain: message, http: 500, retryable: true, message_key: message.send_failed, owner: platform, since: "2.0.0", deprecated: false }
+  - { code: "10803", name: CodeRealtimeError, surface: platform, domain: realtime, http: 500, retryable: true, message_key: realtime.error, owner: platform, since: "2.0.0", deprecated: false }
+  - { code: "18101", name: CodeGatewayAppNotFound, surface: gateway, domain: auth, http: 401, retryable: false, message_key: gateway.app_not_found, owner: gateway, since: "2.0.0", deprecated: false }
+  - { code: "18102", name: CodeGatewayAppDisabled, surface: gateway, domain: auth, http: 403, retryable: false, message_key: gateway.app_disabled, owner: gateway, since: "2.0.0", deprecated: false }
+  - { code: "18103", name: CodeGatewaySignatureInvalid, surface: gateway, domain: auth, http: 401, retryable: false, message_key: gateway.signature_invalid, owner: gateway, since: "2.0.0", deprecated: false }
+  - { code: "18104", name: CodeGatewayTimestampExpired, surface: gateway, domain: auth, http: 401, retryable: false, message_key: gateway.timestamp_expired, owner: gateway, since: "2.0.0", deprecated: false }
+  - { code: "18105", name: CodeGatewayNonceReplayed, surface: gateway, domain: auth, http: 401, retryable: false, message_key: gateway.nonce_replayed, owner: gateway, since: "2.0.0", deprecated: false }
+  - { code: "18106", name: CodeGatewayQuotaExceeded, surface: gateway, domain: quota, http: 429, retryable: true, message_key: gateway.quota_exceeded, owner: gateway, since: "2.0.0", deprecated: false }
+  - { code: "18201", name: CodeGatewayScopeDenied, surface: gateway, domain: authz, http: 403, retryable: false, message_key: gateway.scope_denied, owner: gateway, since: "2.0.0", deprecated: false }
+  - { code: "18202", name: CodeGatewayAPINotAllowed, surface: gateway, domain: authz, http: 403, retryable: false, message_key: gateway.api_not_allowed, owner: gateway, since: "2.0.0", deprecated: false }
+  - { code: "18301", name: CodeGatewayRateLimited, surface: gateway, domain: quota, http: 429, retryable: true, message_key: gateway.rate_limited, owner: gateway, since: "2.0.0", deprecated: false }
+  - { code: "18401", name: CodeGatewayAPINotRegistered, surface: gateway, domain: api, http: 404, retryable: false, message_key: gateway.api_not_registered, owner: gateway, since: "2.0.0", deprecated: false }
+  - { code: "18501", name: CodeGatewayWSTicketInvalid, surface: gateway.ws, domain: ws, http: 401, retryable: false, message_key: gateway.ws_ticket_invalid, owner: gateway, since: "2.0.0", deprecated: false }
+  - { code: "18502", name: CodeGatewayWSTicketExpired, surface: gateway.ws, domain: ws, http: 401, retryable: false, message_key: gateway.ws_ticket_expired, owner: gateway, since: "2.0.0", deprecated: false }
+  - { code: "18503", name: CodeGatewayChannelDenied, surface: gateway.ws, domain: ws, http: 403, retryable: false, message_key: gateway.channel_denied, owner: gateway, since: "2.0.0", deprecated: false }
+  - { code: "22001", name: CodeAdminWSChannelDenied, surface: admin, domain: ws, http: 403, retryable: false, message_key: admin.ws_channel_denied, owner: admin, since: "2.0.0", deprecated: false }
+  - { code: "22002", name: CodeAdminWSInvalidChannel, surface: admin, domain: ws, http: 400, retryable: false, message_key: admin.ws_invalid_channel, owner: admin, since: "2.0.0", deprecated: false }
+  - { code: "22003", name: CodeAdminWSProtocolViolation, surface: admin, domain: ws, http: 400, retryable: false, message_key: admin.ws_protocol_violation, owner: admin, since: "2.0.0", deprecated: false }
+  - { code: "22004", name: CodeAdminWSChannelLimit, surface: admin, domain: ws, http: 400, retryable: false, message_key: admin.ws_channel_limit, owner: admin, since: "2.0.0", deprecated: false }
+  - { code: "22005", name: CodeAdminWSResumeUnavailable, surface: admin, domain: ws, http: 501, retryable: false, message_key: admin.ws_resume_unavailable, owner: admin, since: "2.0.0", deprecated: false }
+  - { code: "22006", name: CodeAdminWSNotSubscribed, surface: admin, domain: ws, http: 404, retryable: false, message_key: admin.ws_not_subscribed, owner: admin, since: "2.0.0", deprecated: false }
+  - { code: "18504", name: CodeGatewayWSInvalidChannel, surface: gateway.ws, domain: ws, http: 400, retryable: false, message_key: gateway.ws_invalid_channel, owner: gateway, since: "2.0.0", deprecated: false }
+  - { code: "18505", name: CodeGatewayWSProtocolViolation, surface: gateway.ws, domain: ws, http: 400, retryable: false, message_key: gateway.ws_protocol_violation, owner: gateway, since: "2.0.0", deprecated: false }
+  - { code: "18506", name: CodeGatewayWSChannelLimit, surface: gateway.ws, domain: ws, http: 400, retryable: false, message_key: gateway.ws_channel_limit, owner: gateway, since: "2.0.0", deprecated: false }
+  - { code: "18507", name: CodeGatewayWSResumeUnavailable, surface: gateway.ws, domain: ws, http: 501, retryable: false, message_key: gateway.ws_resume_unavailable, owner: gateway, since: "2.0.0", deprecated: false }
+  - { code: "18508", name: CodeGatewayWSNotSubscribed, surface: gateway.ws, domain: ws, http: 404, retryable: false, message_key: gateway.ws_not_subscribed, owner: gateway, since: "2.0.0", deprecated: false }
+  - { code: "32001", name: CodeClientWSChannelDenied, surface: client, domain: ws, http: 403, retryable: false, message_key: client.ws_channel_denied, owner: client, since: "2.0.0", deprecated: false }
+  - { code: "32002", name: CodeClientWSInvalidChannel, surface: client, domain: ws, http: 400, retryable: false, message_key: client.ws_invalid_channel, owner: client, since: "2.0.0", deprecated: false }
+  - { code: "32003", name: CodeClientWSProtocolViolation, surface: client, domain: ws, http: 400, retryable: false, message_key: client.ws_protocol_violation, owner: client, since: "2.0.0", deprecated: false }
+  - { code: "32004", name: CodeClientWSChannelLimit, surface: client, domain: ws, http: 400, retryable: false, message_key: client.ws_channel_limit, owner: client, since: "2.0.0", deprecated: false }
+  - { code: "32005", name: CodeClientWSResumeUnavailable, surface: client, domain: ws, http: 501, retryable: false, message_key: client.ws_resume_unavailable, owner: client, since: "2.0.0", deprecated: false }
+  - { code: "32006", name: CodeClientWSNotSubscribed, surface: client, domain: ws, http: 404, retryable: false, message_key: client.ws_not_subscribed, owner: client, since: "2.0.0", deprecated: false }

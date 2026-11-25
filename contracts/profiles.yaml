@@ -1,0 +1,49 @@
+# NetyAdmin V2 部署 Profile 预设
+# 规则见 docs/rules/capabilities.md
+# profile 只是默认值；deployment.yaml 可覆盖。
+
+version: 1
+
+profiles:
+  lean:
+    description: "最小管理端：登录/RBAC/配置/审计"
+    modules: [identity, rbac, configcenter, audit, adminapi]
+    capabilities: []                     # 访问流水=文件——能力位撤销
+
+  standard:
+    description: "标准后台：+ IPAC/存储/消息/网关治理/任务"
+    modules: [identity, rbac, configcenter, audit, storage, message, gw, scheduler, adminapi, clientapi, ops]
+    capabilities:
+      - gateway.control
+      - gateway.observe
+      - gateway.quota
+      - gw.stats
+      - storage.upload
+      - message.send
+      - message.inbox
+      - scheduler.worker
+
+  full:
+    description: "全量：+ users 演示/实时/WS/CDN"
+    modules: [identity, rbac, configcenter, audit, storage, message, users, realtime, gw, scheduler, adminapi, clientapi, ops]
+    capabilities:
+      - gateway.control
+      - gateway.observe
+      - gateway.quota
+      - gateway.ws
+      # cdn.* 四项=下游扩展预留（基座 modules 无 cdn——启用需下游自建 cdn 模块）
+      # - cdn.purge
+      # - cdn.preload
+      # - cdn.sign_url
+      # - storage.cdn
+      - message.send
+      - message.inbox
+      - gw.stats
+      - storage.upload
+      - realtime.core
+      - scheduler.worker
+
+  custom:
+    description: "空模板，由 deployment.yaml 显式列出"
+    modules: []
+    capabilities: []

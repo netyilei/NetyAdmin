@@ -1,0 +1,59 @@
+name: identity
+kind: platform-service
+version: 1.0.0
+api_version: 1
+contract_version: "2026-11-17"
+min_kernel_version: 2.0.0
+owner: platform-team
+data_classification: confidential      # 管理员账户（password_hash/token_version）
+slo:
+  latency_p99_ms: 100
+  availability: 0.999
+depends_on: []                          # DB/session 均为 kernel 设施（AttachDB 延迟注入）
+optional_depends_on: []
+optional_features: {}
+ports:
+  - name: identity.Service
+    methods:
+      - name: Login                     # 非幂等写（限流兜底；Idempotency-Key 不适用）
+        idempotent: false
+        timeout: 2s
+        retryable: false
+      - name: Refresh
+        idempotent: false               # 一次性轮换语义
+        timeout: 2s
+        retryable: false
+      - name: Logout
+        idempotent: true
+        timeout: 1s
+        retryable: true
+        max_retries: 2
+      - name: ChangePassword
+        idempotent: false
+        timeout: 2s
+        retryable: false
+      - name: GetProfile
+        idempotent: true
+        timeout: 1s
+        retryable: true
+        max_retries: 2
+      - name: UpdateProfile
+        idempotent: false
+        timeout: 1s
+        retryable: false
+events:
+  publishes:
+    - domain.identity.login.audit       # 登录审计事件（ 事件链——audit 模块 subscriber 消费落库）
+    - domain.identity.token.revoked     # token 全作废事件（ 事件化——改密/重置/禁用 TokenVersion bump 后发布）
+  subscribes: []
+jobs:
+  - name: identity.token_revocations.cleanup
+    trigger: interval                   # 24h 周期（spec 细节在 application 代码， scheduler 消费）
+tables: [admins, admin_token_revocations, admin_sessions]
+config_section: identity
+scaling:
+  mode: stateless                       # 会话/token 面外置（Redis+DB）；无本地状态
+  requires: []
+deployment:
+  colocate_with: any
+  expose_internal_rpc: false

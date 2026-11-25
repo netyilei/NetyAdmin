@@ -1,0 +1,13 @@
+# 下游扩展登记样例（演练产物：note 模块，见 docs/guide/downstream-development-rules.md §4.2）。
+# 下游禁止修改基座 contracts/namespaces.yaml；自己的模块登记在本文件（Registry 合并基座 + local）。
+# 本样例保留在仓库内作为下游登记的活样例；真实下游项目删除本样例后按此格式登记自己的模块。
+
+version: 1
+
+modules:
+  note:
+    prefix: note
+    owner: downstream-example
+    keys: internal/modules/note/api/keys
+    rpc: internal/modules/note/api/rpc
+    events: internal/modules/note/api/events

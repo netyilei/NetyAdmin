@@ -1,0 +1,554 @@
+components:
+  schemas:
+    cmd_netyadmin.wsTicketDocRequest:
+      properties:
+        channels:
+          items:
+            type: string
+          type: array
+          uniqueItems: false
+      type: object
+    data:
+      properties:
+        data:
+          $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_transport.Page'
+      type: object
+    github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope:
+      allOf:
+      - $ref: '#/components/schemas/data'
+      properties:
+        code:
+          description: 5 位字符串状态码
+          type: string
+        data:
+          description: 业务数据
+        details:
+          additionalProperties: {}
+          description: 错误结构化上下文
+          type: object
+        message_key:
+          description: i18n 文案键（禁硬编码文案）
+          type: string
+        request_id:
+          description: 请求链路
+          type: string
+        trace_id:
+          description: 追踪链路
+          type: string
+      type: object
+    github_com_netyilei_netyadmin_internal_kernel_transport.Page:
+      properties:
+        list: {}
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+      type: object
+    internal_modules_storage_adapters.completeRequest:
+      properties:
+        record_id:
+          type: string
+        secret:
+          type: string
+      required:
+      - record_id
+      - secret
+      type: object
+    internal_modules_storage_adapters.credentialsRequest:
+      properties:
+        business_id:
+          type: string
+        business_type:
+          type: string
+        config_id:
+          type: string
+        file_name:
+          type: string
+        mime_type:
+          type: string
+      type: object
+    internal_modules_users_adapters.loginRequest:
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required:
+      - email
+      - password
+      type: object
+    internal_modules_users_adapters.registerRequest:
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required:
+      - email
+      - password
+      type: object
+    internal_modules_users_adapters.updatePhoneRequest:
+      properties:
+        phone:
+          type: string
+      type: object
+    internal_modules_users_adapters.updateUsernameRequest:
+      properties:
+        username:
+          type: string
+      required:
+      - username
+      type: object
+  securitySchemes:
+    BearerAuth:
+      description: '管理端/客户端 Bearer token：`Authorization: Bearer <access_token>`（登录端点换取；refresh
+        用 refresh_token）'
+      in: header
+      name: Authorization
+      type: apiKey
+info:
+  description: C 端 API 契约（client 面——clientapi 用户/站内信/存储；swag init --v3.1 按 surface 切分生成）
+  title: NetyAdmin Client API
+  version: 1.0.0
+openapi: 3.1.0
+security:
+- BearerAuth: []
+paths:
+  /client/v1/messages/inbox:
+    get:
+      operationId: message.client.inbox.list
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        schema:
+          type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/data'
+                properties:
+                  code:
+                    description: 5 位字符串状态码
+                    type: string
+                  data:
+                    description: 业务数据
+                  details:
+                    additionalProperties: {}
+                    description: 错误结构化上下文
+                    type: object
+                  message_key:
+                    description: i18n 文案键（禁硬编码文案）
+                    type: string
+                  request_id:
+                    description: 请求链路
+                    type: string
+                  trace_id:
+                    description: 追踪链路
+                    type: string
+                type: object
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+      summary: 站内信列表
+      tags:
+      - messages-client
+  /client/v1/messages/inbox/{id}/read:
+    post:
+      operationId: message.client.inbox.read
+      parameters:
+      - description: 站内信 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 站内信标记已读
+      tags:
+      - messages-client
+  /client/v1/messages/inbox/read-all:
+    post:
+      operationId: message.client.inbox.read-all
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+      summary: 站内信全部已读
+      tags:
+      - messages-client
+  /client/v1/messages/inbox/unread-count:
+    get:
+      operationId: message.client.inbox.unread-count
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+      summary: 站内信未读计数
+      tags:
+      - messages-client
+  /client/v1/storage/complete:
+    post:
+      operationId: storage.client.complete
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_storage_adapters.completeRequest'
+              description: 完成回调
+              summary: body
+        description: 完成回调
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Conflict
+      summary: 完成上传（HMAC 校验 + CAS 登记）
+      tags:
+      - storage-client
+  /client/v1/storage/credentials:
+    post:
+      operationId: storage.client.credentials
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_storage_adapters.credentialsRequest'
+              description: 上传请求
+              summary: body
+        description: 上传请求
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Service Unavailable
+      summary: 签发直传凭证（presigned PUT + HMAC secret）
+      tags:
+      - storage-client
+  /client/v1/users/login:
+    post:
+      operationId: users.client.login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_users_adapters.loginRequest'
+              description: 登录凭证
+              summary: body
+        description: 登录凭证
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+      summary: 用户登录（User JWT）
+      tags:
+      - users-client
+      security: []
+  /client/v1/users/me:
+    get:
+      operationId: users.client.profile
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+      summary: 用户视图（PII 掩码示范）
+      tags:
+      - users-client
+  /client/v1/users/phone:
+    put:
+      operationId: users.client.update-phone
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_users_adapters.updatePhoneRequest'
+              description: 新手机号（空=清除）
+              summary: body
+        description: 新手机号（空=清除）
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Conflict
+      summary: 修改手机号（登录后）
+      tags:
+      - users-client
+  /client/v1/users/register:
+    post:
+      operationId: users.client.register
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_users_adapters.registerRequest'
+              description: 注册凭证
+              summary: body
+        description: 注册凭证
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Conflict
+      summary: 用户注册（邮箱+密码——随机用户名）
+      tags:
+      - users-client
+      security: []
+  /client/v1/users/username:
+    put:
+      operationId: users.client.update-username
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_users_adapters.updateUsernameRequest'
+              description: 新用户名
+              summary: body
+        description: 新用户名
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Conflict
+      summary: 修改用户名（登录后）
+      tags:
+      - users-client
+  /client/v1/ws:
+    get:
+      description: ticket 一次性凭证换连接（ws-protocol §1；realtime 禁用时 503 fail-closed）
+      operationId: client.ws.upgrade
+      parameters:
+      - description: POST /client/v1/ws/tickets 签发的一次性 ticket
+        in: query
+        name: ticket
+        required: true
+        schema:
+          type: string
+      responses:
+        "101":
+          description: Switching Protocols（WS 帧协议见 ws-protocol §3-§7）
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 客户端 WebSocket 升级
+      tags:
+      - ws-client
+      security: []
+  /client/v1/ws/tickets:
+    post:
+      description: User JWT 换取一次性 ticket（绑定身份+允许频道集合；空 channels=订阅决策留给服务端 ACL）
+      operationId: client.ws.ticket
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/cmd_netyadmin.wsTicketDocRequest'
+              description: 订阅意图（可省略）
+              summary: body
+        description: 订阅意图（可省略）
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+      summary: 客户端 WebSocket ticket 签发
+      tags:
+      - ws-client
+servers:
+- url: /client/v1

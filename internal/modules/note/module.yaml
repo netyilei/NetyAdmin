@@ -1,0 +1,28 @@
+name: note
+kind: business               # platform-service | business | edge
+version: 0.1.0
+api_version: 1
+contract_version: "2026-11-13"     # 契约快照（生成日）
+min_kernel_version: 2.0.0
+owner: downstream-example
+data_classification: internal    # public | internal | confidential | pii
+slo:                             # docs/rules/slo.md；数值可按模块收紧
+  latency_p99_ms: 200
+  availability: 0.999
+depends_on: []                   # 下游填写：模块依赖（Registry DAG 校验）
+optional_depends_on: []          # 未启用时用 no-op 适配器
+optional_features: {}            # 特性级开关仅限同生命周期子功能
+ports: []                        # 下游填写：端口与方法元数据 idempotent/timeout/retry
+events:
+  publishes: []                  # 下游填写：domain.note.<aggregate>.<action>
+  subscribes: []
+jobs: []
+tables: []                       # 本模块独占表；迁移号段见 contracts/migrations.yaml；
+                                 # 启用软删的表在 Manifest 声明 soft_delete，大表分区策略写此处（migrations.md）
+config_section: note
+scaling:
+  mode: stateless                # stateless | leader | sharded | stateful（AGENTS §3）
+  requires: []                   # 部署期依赖的基础设施（如 object_store）
+deployment:
+  colocate_with: any
+  expose_internal_rpc: false

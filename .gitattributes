@@ -1,0 +1,23 @@
+# 跨平台换行/编码统一（Windows 开发，CI/Linux 运行）
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.exe binary
+*.dll binary
+*.zip binary
+*.gz binary
+
+# SQL/迁移/脚本强制 LF（runner 与 CI 依赖）
+*.sql text eol=lf
+*.sh text eol=lf
+*.mjs text eol=lf

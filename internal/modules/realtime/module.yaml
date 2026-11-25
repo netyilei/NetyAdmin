@@ -1,0 +1,43 @@
+name: realtime
+kind: platform-service
+version: 1.0.0
+api_version: 1
+contract_version: "2026-11-18"
+min_kernel_version: 2.0.0
+owner: platform-team
+data_classification: internal
+slo:
+  latency_p99_ms: 20
+  availability: 0.999
+depends_on: []                             # Redis ticket 面经装配注入（无 Redis=面拒绝）
+optional_depends_on: []
+optional_features: {}
+ports:
+  - name: realtime.Hub
+    methods:
+      - name: PublishChannel                # 频道定向投递（订阅者在 kernel/ws）
+        idempotent: false
+        timeout: 50ms
+        retryable: false
+  - name: realtime.TicketStore
+    methods:
+      - name: Issue                         # 一次性 ticket 签发（60s TTL）
+        idempotent: false
+        timeout: 50ms
+        retryable: false
+      - name: Take                          # GETDEL 原子消费（单次语义）
+        idempotent: true
+        timeout: 50ms
+        retryable: false
+events:
+  publishes: []                            # 多节点广播Bus 面随
+  subscribes: []
+jobs: []
+tables: []
+config_section: realtime                  # 段存在性由 Build 校验；值消费= kernel/config.Realtime 单源注入（模块不 Bind 原始段——HV-1 收口）
+scaling:
+  mode: stateful                          # WS 连接归属本节点（§14.2 stateful——连接不可漂移）
+  requires: [redis]
+deployment:
+  colocate_with: any
+  expose_internal_rpc: false

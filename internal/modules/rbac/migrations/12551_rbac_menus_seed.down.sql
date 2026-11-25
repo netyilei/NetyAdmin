@@ -1,0 +1,2 @@
+-- +goose Down
+DELETE FROM rbac_menus WHERE id IN ('rbac-menu-home', 'rbac-menu-user', 'rbac-menu-admins', 'rbac-menu-users', 'rbac-menu-perm', 'rbac-menu-roles', 'rbac-menu-menus', 'rbac-menu-apis', 'rbac-menu-buttons', 'rbac-menu-system', 'rbac-menu-configs', 'rbac-menu-ops', 'rbac-menu-logs', 'rbac-menu-taskcenter', 'rbac-menu-message', 'rbac-menu-storage', 'rbac-menu-gwmgmt', 'rbac-menu-ipac', 'rbac-menu-gwapi', 'rbac-menu-gwscope', 'rbac-menu-gw');

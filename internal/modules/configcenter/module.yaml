@@ -1,0 +1,53 @@
+name: configcenter
+kind: platform-service
+version: 1.0.0
+api_version: 1
+contract_version: "2026-11-17"
+min_kernel_version: 2.0.0
+owner: platform-team
+data_classification: internal             # 动态配置值（Secrets 不入表—— env-only 分层）
+slo:
+  latency_p99_ms: 10                      # 内存快照读
+  availability: 0.999
+depends_on: []                            # DB 为 kernel 设施（AttachDB 延迟注入）
+optional_depends_on: []
+optional_features: {}
+ports:
+  - name: configcenter.Service           # 变更编排（Create/Update/BatchUpsert/Delete/Rollback）
+    methods:
+      - name: BatchUpsert                # 整批一版（ PUT 入口）
+        idempotent: true
+        timeout: 2s
+        retryable: false                 # 事务原语重试面=上层
+      - name: Rollback
+        idempotent: true
+        timeout: 2s
+        retryable: false
+  - name: configcenter.Watcher
+    methods:
+      - name: Get                         # 快照读（miss 直读 repo 兜底）
+        idempotent: true
+        timeout: 10ms
+        retryable: true
+        max_retries: 2
+      - name: Reload                      # 全量装载（Bus 广播驱动；幂等）
+        idempotent: true
+        timeout: 5s
+        retryable: true
+        max_retries: 2
+events:
+  publishes:
+    - platform.config.changed             # 管理面写路径变更后广播 reload
+  subscribes:
+    - platform.config.changed
+jobs:
+  - name: configcenter.snapshot.reconcile   # 5min 周期对账盲 Reload watcher 快照（Broadcast 域 at-most-once 兜底）
+    trigger: interval
+tables: [sys_configs, config_history]
+config_section: configcenter
+scaling:
+  mode: stateless                         # 快照各节点独立；Bus 广播 reload
+  requires: []
+deployment:
+  colocate_with: any
+  expose_internal_rpc: false

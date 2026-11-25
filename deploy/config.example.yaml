@@ -1,0 +1,97 @@
+# NetyAdmin 配置样例（复制到仓库根 config.yaml 后按环境修改；config.yaml 不入库）
+#
+# 分层：默认值 → 本文件 → 环境变量（NETYADMIN_<段>_<字段>）→ Secrets（env-only）。
+# 密钥类（DB 密码/GW 加密钥/SMTP 密码/存储 HMAC 盐/Cache L2 密钥）只走环境变量。
+# 模块 config_section 段必须存在（空段即满足）；未知段仅告警。
+
+server:
+  env: dev                 # dev | staging | prod（prod 缺 JWT 密钥文件=拒绝启动）
+  http_port: 8080
+  rpc_port: 9090           # 拆分部署时内部 RPC；all-in-one 不监听
+  # cors_origins:          # 浏览器跨域白名单（精确 Origin；默认空=不启用；禁 "*"）
+  #   - https://admin.example.com
+  # trusted_proxies:       # 反向代理 CIDR 白名单（X-Forwarded-For 解析信任面）
+  #   - 127.0.0.1       #   反代/负载均衡部署必须登记，否则审计/限流/IPAC 看到的
+  #   - 10.0.0.0/8         #   都是代理 IP；空=不信任任何代理头（直连地址语义）
+
+deployment:
+  topology: single         # single | multi（multi 必须 Redis）
+  role: all                # all | core | admin（拆分部署的接入面过滤）
+  node_id: node-1          # 全集群唯一（multi 每副本不同；env NETYADMIN_DEPLOYMENT_NODE_ID）；
+                           # 日志 node_id/Bus consumer/GW 统计快照文件名同源
+
+database:
+  host: 127.0.0.1
+  port: 5432
+  name: netyadmin_v2
+  user: netyadmin          # 改成你的 PG 用户
+  sslmode: disable
+  # password: 只经 NETYADMIN_DATABASE_PASSWORD 注入
+
+redis:
+  addr: 127.0.0.1:6379     # single 可不装（降级进程内）；multi 必填
+  db: 0
+  prefix: na
+
+log:
+  dir: logs
+  level: info              # debug | info | warn | error（debug 可在管理端动态开关）
+  format: text             # 开发 text；生产建议 json
+  console: true
+  # retention_days: 30     # 按日目录保留天数（超期目录启动/翻转时清扫）
+  # max_size_mb: 100       # 单文件大小上限
+  # compress: false        # 轮转备份 gzip 压缩（默认关）
+
+observability:
+  # 观测页阈值覆盖（admin「运维 → 可观测」；默认集见 docs/rules/observability.md §6；
+  # 未知键启动告警——避免“配了不生效”）。展示型告警：请求时评估，不落库/不推送。
+  # alerts:
+  #   http_5xx_rate: 0.05
+  #   bus_dlq_depth: 0
+  #   scheduler_dlq_depth: 0
+  #   bus_outbox_pending_depth: 1000
+  #   message_queue_depth: 48
+  #   message_pending_records: 1000
+  tracing:
+    enabled: false         # true 需配 endpoint（OTLP/HTTP，如 localhost:4318）
+
+# —— 模块段（config_section 存在性校验；空段即满足）——
+# 启动日志出现 "config warning: 未知配置段：<模块名>" 属正常告警（这些段由模块
+# Manifest 消费，不属于内核配置结构），不影响启动与运行。
+identity: {}
+rbac: {}
+configcenter: {}
+gw: {}
+
+audit:
+  retention_days: 180
+
+storage:
+  enabled: true
+  credentials_ttl_seconds: 900   # presigned 直传凭证有效期（秒）
+
+message:
+  enabled: true
+  email_driver: smtp             # smtp 内置 / 下游自写驱动注册
+  sms_driver: log
+  smtp:
+    # 启动默认值；运行期可在管理端「系统管理 → 邮件设置」覆盖（configcenter
+    # 热更、多节点广播生效），admin 侧改动优先于本节。密码恒为 env-only：
+    # NETYADMIN_MESSAGE_SMTP_PASSWORD。
+    host: ""
+    port: 587                 # 587=STARTTLS / 465=隐式 TLS(SMTPS) / 25=内网 relay
+    username: ""
+    from: ""
+
+users:
+  enabled: false                 # C 端用户示例模块；false=零注册零开销
+  bcrypt_cost: 12
+
+realtime:
+  enabled: true
+  admin_origins:                 # admin WS 浏览器 Origin 白名单（前端开发地址）
+    - http://localhost:5173
+  # client_origins:              # C 端浏览器（H5/webview）WS Origin 白名单；
+  #   - https://app.example.com  #   空=拒带 Origin 请求（App/SDK 非浏览器无 Origin 可直连）
+  # require_https: false         # WS upgrade 校验 X-Forwarded-Proto；默认 false，prod 强制 true
+  # 其余限制走默认值（ws-protocol 规范基线，见 docs/rules/ws-protocol.md §6）

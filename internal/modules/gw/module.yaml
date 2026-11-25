@@ -1,0 +1,36 @@
+name: gw
+kind: platform-service
+version: 1.0.0
+api_version: 1
+contract_version: "2026-11-18"
+min_kernel_version: 2.0.0
+owner: platform-team
+data_classification: confidential          # App secret（AES-GCM 密文）
+slo:
+  latency_p99_ms: 50                       # 管理面 CRUD + edge 快照读
+  availability: 0.999
+depends_on: []                             # DB 为 kernel 设施（AttachDB 延迟注入）
+optional_depends_on: []
+optional_features: {}
+ports:
+  - name: gw.Governance
+    methods:
+      - name: AppAuthSnapshot              # edge 热路径判定快照（app+scopes）
+        idempotent: true
+        timeout: 50ms
+        retryable: true
+        max_retries: 2
+events:
+  publishes: [domain.gw.rules.changed, domain.gw.apps.changed]  # IP 规则/edge 应用判定快照变更广播（跨节点 reload）
+  subscribes: [domain.gw.rules.changed, domain.gw.apps.changed]
+jobs:
+  - name: gw.snapshots.reconcile            # 5min 周期对账盲 Reload（IP 规则+应用快照；Broadcast 域 at-most-once 兜底）
+    trigger: interval
+tables: [gw_apps, gw_app_scopes, gw_scope_groups, gw_apis, gw_scope_apis, gw_ip_groups, gw_ip_rules]
+config_section: gw
+scaling:
+  mode: stateless
+  requires: []
+deployment:
+  colocate_with: any
+  expose_internal_rpc: false

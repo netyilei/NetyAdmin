@@ -1,0 +1,23 @@
+name: storage
+kind: platform-service
+version: 2.0.0
+api_version: 1
+owner: platform-team
+depends_on: []
+ports:
+  - name: storage.UploadService
+    methods:
+      - name: Credentials
+      - name: Complete
+events:
+  publishes: []                         # 上传完成事件随消费方
+  subscribes: []
+jobs:
+  - name: storage.records.cleanup
+tables: [storage_configs, storage_upload_records]
+config_section: storage
+scaling:
+  mode: stateless
+slo:
+  availability: 0.999
+  latency_p99_ms: 200

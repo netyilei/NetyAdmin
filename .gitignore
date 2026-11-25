@@ -1,0 +1,45 @@
+# Go
+*.exe
+/bin/
+cover.out
+cover.html
+/config.yaml
+/keys/
+vendor/
+
+# 运行期产物（logs 锚定仓库根——裸 logs/ 会误伤 admin/src/views/system/logs 视图目录）
+/logs/
+data/
+
+# Node
+node_modules/
+dist/
+*.log
+.pnpm-store/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Secrets / local env（根 .env=后端运行时密钥面不入库；admin/.env.* 为纯构建
+# 配置无密钥（敏感项全后端 env-only）——入库保 clone 可构建性，审查批 2）
+.env
+!.env.example
+
+# AI / local tooling
+.zcode/*
+!.zcode/config.json
+.zcode/state/
+.codebase-memory/
+tmp/
+# 构建产物（2026-11-21 清理——不入库）
+*.exe~
+admin/dist/
+
+# Redis 快照（运行期产物——2026-11-22 出库；历史 commit 保留不回写）
+dump.rdb
+*.rdb
+deploy/release/

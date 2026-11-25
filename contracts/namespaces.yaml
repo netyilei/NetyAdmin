@@ -1,0 +1,82 @@
+# NetyAdmin V2 命名空间登记（单一事实源）
+# 规则见 docs/rules/namespaces.md
+# 每个模块一个前缀；key/rpc/events/channels 只允许 owner 模块的 api 包定义。
+
+version: 1
+root: na
+environments: [dev, staging, prod]
+key_format: "<root>:<env>:[<tenant>:]<module>:<feature>:<id>[:<sub>]"
+reserved_prefixes: [kernel, platform, system, internal, common]
+
+modules:
+  identity:
+    prefix: identity
+    owner: platform-team
+    keys: internal/modules/identity/api/keys
+    rpc: internal/modules/identity/api/rpc
+    events: internal/modules/identity/api/events
+  rbac:
+    prefix: rbac
+    owner: platform-team
+    keys: internal/modules/rbac/api/keys
+    rpc: internal/modules/rbac/api/rpc
+    events: internal/modules/rbac/api/events
+  configcenter:
+    prefix: configcenter
+    owner: platform-team
+    keys: internal/modules/configcenter/api/keys
+    rpc: internal/modules/configcenter/api/rpc
+    events: internal/modules/configcenter/api/events
+  audit:
+    prefix: audit
+    owner: platform-team
+    keys: internal/modules/audit/api/keys
+    rpc: internal/modules/audit/api/rpc
+    events: internal/modules/audit/api/events
+  storage:
+    prefix: storage
+    owner: platform-team
+    keys: internal/modules/storage/api/keys
+    rpc: internal/modules/storage/api/rpc
+    events: internal/modules/storage/api/events
+  message:
+    prefix: message
+    owner: platform-team
+    keys: internal/modules/message/api/keys
+    rpc: internal/modules/message/api/rpc
+    events: internal/modules/message/api/events
+  users:
+    prefix: users
+    owner: platform-team
+    keys: internal/modules/users/api/keys
+    rpc: internal/modules/users/api/rpc
+    events: internal/modules/users/api/events
+  realtime:
+    prefix: realtime
+    owner: platform-team
+    keys: internal/modules/realtime/api/keys
+    channels: internal/modules/realtime/api/channels
+    protocol: internal/modules/realtime/api/protocol
+    events: internal/modules/realtime/api/events
+  scheduler:
+    prefix: scheduler
+    owner: platform-team
+    keys: internal/kernel/scheduler        # kernel 内建调度面（无模块 api/keys 包—— 路径修正）
+    events: internal/kernel/scheduler
+  gw:
+    prefix: gw
+    owner: platform-team
+    keys: internal/modules/gw/api/keys
+    rpc: internal/modules/gw/api/rpc
+    events: internal/modules/gw/api/events
+
+# kernel 平面键段（非模块——kernel 内部自持，「每模块一个前缀」的例外；
+# captcha/session/cache 平面键段登记（2026-11-21 补充：
+# cache 运行面实装批登记；coord/bus 段待其余项登记）
+kernel_plane_keys:
+  captcha: "<root>:<env>:captcha:<id>"   # internal/kernel/security/captcha（login_captcha）
+  sess: "<root>:<env>:sess:<feature>:<id>"   # internal/kernel/state/session（revoked/store/refresh）
+  cache: "<root>:<env>:cache:<name>:<key>"   # internal/kernel/state/cache（L2 值键；gen 计数键=<root>:<env>:cache:gen:<name>）
+
+# 下游项目在此追加自己的模块与前缀；前缀不得与上面冲突。
+# 下游不得修改基座模块的 keys/rpc/events/channels 包。

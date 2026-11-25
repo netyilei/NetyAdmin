@@ -1,0 +1,55 @@
+# NetyAdmin V2 数据库迁移号段登记（单一事实源）
+# 规则见 docs/rules/migrations.md
+
+version: 1
+
+rules:
+  prefix: "5-digit"
+  schema_seed_separated: true
+  no_patch_migrations_before_release: true
+  expand_contract_after_release: true
+  base_reserved: "10000-19999"
+  downstream: "20000-99999"
+
+ranges:
+  schema: "11000-11999"
+  structure: "12000-12499"
+  seed: "12500-12999"
+  test_seed: "13000-13999"
+  base_future: "14000-19999"
+  downstream: "20000-99999"
+
+pairing:
+  table_seq: "001-499"
+  schema: "11000+NNN"
+  seed: "12500+NNN"
+  test_seed: "13000+NNN"
+
+# 表序号 NNN：schema=11000+NNN, seed=12500+NNN, test_seed=13000+NNN
+modules:
+  identity: { table_seq: "001-049", owner: platform-team }
+  rbac: { table_seq: "050-079", owner: platform-team }
+  configcenter: { table_seq: "080-099", owner: platform-team }
+  audit: { table_seq: "100-119", owner: platform-team }
+  storage: { table_seq: "140-179", owner: platform-team }
+  message: { table_seq: "180-219", owner: platform-team }
+  users: { table_seq: "220-249", owner: platform-team }
+  gw: { table_seq: "250-289", owner: platform-team }   # gateway 治理+入口
+  scheduler: { table_seq: "290-309", owner: platform-team }
+  realtime: { table_seq: "310-329", owner: platform-team }
+  bus: { table_seq: "330-339", owner: platform-team }   # kernel/bus 设施表（outbox/dlq 等）
+  core: { table_seq: "340-399", owner: platform-team }
+  reserved: { table_seq: "400-499", owner: platform-team }
+  reserved_ext: { table_seq: "500-999", owner: platform-team }
+
+downstream_scheme:
+  leading_digits: [2, 3, 4, 5, 6, 7, 8, 9]
+  module_blocks:
+    common: "P0xxx"
+    schema: "PM000-PM299"
+    structure: "PM400-PM599"
+    seed: "PM600-PM799"
+    test_seed: "PM800-PM899"
+    reserved: "PM900-PM999"
+  register_in: contracts/migrations.local.yaml
+  forbid_base_range: true

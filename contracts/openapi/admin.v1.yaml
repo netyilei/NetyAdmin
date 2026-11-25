@@ -1,0 +1,5100 @@
+components:
+  schemas:
+    cmd_netyadmin.dlqReplayRequest:
+      properties:
+        id:
+          type: integer
+      required:
+      - id
+      type: object
+    cmd_netyadmin.smtpTestRequest:
+      properties:
+        to:
+          type: string
+      type: object
+    cmd_netyadmin.smtpValues:
+      properties:
+        from:
+          type: string
+        host:
+          type: string
+        port:
+          type: integer
+        username:
+          type: string
+      type: object
+    data:
+      properties:
+        data:
+          $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_transport.Page'
+      type: object
+    github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope:
+      allOf:
+      - $ref: '#/components/schemas/data'
+      properties:
+        code:
+          description: 5 位字符串状态码
+          type: string
+        data:
+          description: 业务数据
+        details:
+          additionalProperties: {}
+          description: 错误结构化上下文
+          type: object
+        message_key:
+          description: i18n 文案键（禁硬编码文案）
+          type: string
+        request_id:
+          description: 请求链路
+          type: string
+        trace_id:
+          description: 追踪链路
+          type: string
+      type: object
+    github_com_netyilei_netyadmin_internal_kernel_transport.Page:
+      properties:
+        list: {}
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+      type: object
+    github_com_netyilei_netyadmin_internal_modules_audit_domain.Record:
+      properties:
+        action:
+          description: 动作（如 admin.users.update / login.failed）
+          type: string
+        actorId:
+          description: Principal ID（system 记录为空）
+          type: string
+        actorType:
+          description: admin | user | service | app | system | anonymous
+          type: string
+        bizCode:
+          description: 5 位业务码（error/deny 时必带）
+          type: string
+        createdAt:
+          description: 零值由 Sink 落库时补 now（UTC）
+          type: string
+        detail:
+          additionalProperties: {}
+          description: 结构化上下文（产生方已脱敏）
+          type: object
+        id:
+          description: ULID（产生方生成；幂等/去重依据）
+          type: string
+        ip:
+          type: string
+        nodeId:
+          type: string
+        requestId:
+          description: 必带（observability.md §1）
+          type: string
+        resource:
+          description: 路由/资源（如 /admin/v1/users/:id）
+          type: string
+        result:
+          description: success | deny | error
+          type: string
+        traceId:
+          type: string
+        type:
+          $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_modules_audit_domain.RecordType'
+          description: 类别
+        userAgent:
+          type: string
+      type: object
+    github_com_netyilei_netyadmin_internal_modules_audit_domain.RecordType:
+      enum:
+      - 1
+      - 2
+      - 3
+      - 4
+      type: integer
+      x-enum-comments:
+        TypeAccess: API/WS 访问（transport 产生）
+        TypeOperation: 管理端变更（application 写操作）
+        TypeSecurity: 登录失败/越权/限流（security 触发）
+        TypeSystem: 配置/模块变更（system 级）
+      x-enum-varnames:
+      - TypeOperation
+      - TypeAccess
+      - TypeSecurity
+      - TypeSystem
+    github_com_netyilei_netyadmin_internal_modules_gw_domain.QuotaConfig:
+      properties:
+        rate:
+          description: 每秒请求数
+          type: integer
+      type: object
+    github_com_netyilei_netyadmin_internal_modules_identity_application.LoginResult:
+      properties:
+        access_token:
+          type: string
+        expires_in:
+          description: access 秒
+          type: integer
+        must_change_password:
+          type: boolean
+        profile:
+          $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_modules_identity_domain.Profile'
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+      type: object
+    github_com_netyilei_netyadmin_internal_modules_identity_domain.Profile:
+      properties:
+        avatarUrl:
+          type: string
+        email:
+          type: string
+        id:
+          type: string
+        lastLoginAt:
+          type: string
+        mustChangePassword:
+          type: boolean
+        name:
+          type: string
+        phone:
+          type: string
+        status:
+          $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_modules_identity_domain.Status'
+        username:
+          type: string
+      type: object
+    github_com_netyilei_netyadmin_internal_modules_identity_domain.Status:
+      enum:
+      - 1
+      - 2
+      type: integer
+      x-enum-varnames:
+      - StatusActive
+      - StatusDisabled
+    github_com_netyilei_netyadmin_internal_modules_rbac_domain.Api:
+      properties:
+        act:
+          type: string
+        createdAt:
+          type: string
+        id:
+          type: string
+        method:
+          type: string
+        path:
+          type: string
+        status:
+          $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_modules_rbac_domain.Status'
+        summary:
+          type: string
+        updatedAt:
+          type: string
+      type: object
+    github_com_netyilei_netyadmin_internal_modules_rbac_domain.Button:
+      properties:
+        code:
+          type: string
+        createdAt:
+          type: string
+        id:
+          type: string
+        menuId:
+          type: string
+        name:
+          type: string
+      type: object
+    github_com_netyilei_netyadmin_internal_modules_rbac_domain.Menu:
+      properties:
+        component:
+          description: 前端视图路径（Geeker 动态路由消费）
+          type: string
+        createdAt:
+          type: string
+        hidden:
+          type: boolean
+        icon:
+          description: Element Plus 图标名
+          type: string
+        id:
+          type: string
+        module:
+          description: |-
+            Module 是菜单所属模块（空=常显；非空时模块未启用则路由树不可见——
+            与模块开关 message/storage/users.enabled 对齐，避免死菜单）。
+          type: string
+        name:
+          type: string
+        parentId:
+          description: 空=根
+          type: string
+        path:
+          type: string
+        sortOrder:
+          type: integer
+        status:
+          $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_modules_rbac_domain.Status'
+        updatedAt:
+          type: string
+      type: object
+    github_com_netyilei_netyadmin_internal_modules_rbac_domain.Role:
+      properties:
+        code:
+          type: string
+        createdAt:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        remark:
+          type: string
+        status:
+          $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_modules_rbac_domain.Status'
+        updatedAt:
+          type: string
+      type: object
+    github_com_netyilei_netyadmin_internal_modules_rbac_domain.Status:
+      enum:
+      - 1
+      - 2
+      type: integer
+      x-enum-varnames:
+      - StatusEnabled
+      - StatusDisabled
+    internal_modules_configcenter_adapters.rollbackRequest:
+      properties:
+        version:
+          type: integer
+      required:
+      - version
+      type: object
+    internal_modules_configcenter_adapters.updateConfigsRequest:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/internal_modules_configcenter_adapters.updateItem'
+          type: array
+          uniqueItems: false
+        reason:
+          maxLength: 255
+          type: string
+      required:
+      - items
+      type: object
+    internal_modules_configcenter_adapters.updateItem:
+      properties:
+        description:
+          maxLength: 255
+          type: string
+        group:
+          maxLength: 100
+          minLength: 1
+          type: string
+        isPublic:
+          type: boolean
+        key:
+          maxLength: 100
+          minLength: 1
+          type: string
+        value:
+          maxLength: 4096
+          type: string
+        valueType:
+          maximum: 4
+          minimum: 1
+          type: integer
+      required:
+      - group
+      - key
+      - valueType
+      type: object
+    internal_modules_gw_adapters.apiRequest:
+      properties:
+        description:
+          maxLength: 255
+          type: string
+        grp:
+          maxLength: 50
+          type: string
+        method:
+          enum:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          type: string
+        name:
+          maxLength: 100
+          type: string
+        path:
+          maxLength: 255
+          type: string
+        status:
+          type: integer
+      required:
+      - method
+      - name
+      - path
+      type: object
+    internal_modules_gw_adapters.appStatusRequest:
+      properties:
+        status:
+          type: integer
+      required:
+      - status
+      type: object
+    internal_modules_gw_adapters.createAppRequest:
+      properties:
+        appKey:
+          maxLength: 64
+          minLength: 16
+          type: string
+        ipGroupIds:
+          description: IP 策略组集
+          items:
+            type: string
+          type: array
+          uniqueItems: false
+        name:
+          maxLength: 100
+          type: string
+        quota:
+          $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_modules_gw_domain.QuotaConfig'
+        rateLimitEnabled:
+          description: nil=默认开
+          type: boolean
+        remark:
+          maxLength: 255
+          type: string
+        scopes:
+          items:
+            type: string
+          type: array
+          uniqueItems: false
+        secret:
+          maxLength: 128
+          minLength: 16
+          type: string
+        storageRef:
+          maxLength: 64
+          type: string
+      required:
+      - appKey
+      - name
+      - secret
+      type: object
+    internal_modules_gw_adapters.ipGroupRequest:
+      properties:
+        name:
+          maxLength: 100
+          type: string
+        remark:
+          maxLength: 255
+          type: string
+      required:
+      - name
+      type: object
+    internal_modules_gw_adapters.ipRuleRequest:
+      properties:
+        action:
+          type: integer
+        cidrs:
+          type: string
+        enabled:
+          type: boolean
+        groupId:
+          type: string
+        priority:
+          type: integer
+        remark:
+          maxLength: 255
+          type: string
+      required:
+      - action
+      - cidrs
+      - groupId
+      type: object
+    internal_modules_gw_adapters.scopeGroupRequest:
+      properties:
+        code:
+          maxLength: 50
+          minLength: 2
+          type: string
+        description:
+          maxLength: 255
+          type: string
+        name:
+          maxLength: 100
+          type: string
+        status:
+          type: integer
+      required:
+      - code
+      - name
+      type: object
+    internal_modules_gw_adapters.setScopeApisRequest:
+      properties:
+        apis:
+          items:
+            type: string
+          type: array
+          uniqueItems: false
+        scope:
+          maxLength: 50
+          type: string
+      required:
+      - apis
+      - scope
+      type: object
+    internal_modules_gw_adapters.updateAppRequest:
+      properties:
+        ipGroupIds:
+          description: 非 nil=组集全量替换
+          items:
+            type: string
+          type: array
+          uniqueItems: false
+        name:
+          maxLength: 100
+          type: string
+        quota:
+          $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_modules_gw_domain.QuotaConfig'
+        rateLimitEnabled:
+          type: boolean
+        remark:
+          maxLength: 255
+          type: string
+        scopes:
+          description: 非 nil=授权全量替换（表单单一保存入口）
+          items:
+            type: string
+          type: array
+          uniqueItems: false
+        storageRef:
+          maxLength: 64
+          type: string
+      type: object
+    internal_modules_identity_adapters.batchDeleteRequest:
+      properties:
+        ids:
+          items:
+            type: string
+          type: array
+          uniqueItems: false
+      required:
+      - ids
+      type: object
+    internal_modules_identity_adapters.changePasswordRequest:
+      properties:
+        new_password:
+          maxLength: 72
+          minLength: 8
+          type: string
+        old_password:
+          type: string
+      required:
+      - new_password
+      - old_password
+      type: object
+    internal_modules_identity_adapters.createAdminRequest:
+      properties:
+        email:
+          maxLength: 128
+          type: string
+        name:
+          maxLength: 64
+          type: string
+        password:
+          maxLength: 72
+          minLength: 8
+          type: string
+        username:
+          maxLength: 32
+          minLength: 3
+          type: string
+      required:
+      - password
+      - username
+      type: object
+    internal_modules_identity_adapters.loginRequest:
+      properties:
+        captchaCode:
+          type: string
+        captchaId:
+          type: string
+        password:
+          type: string
+        username:
+          type: string
+      required:
+      - captchaCode
+      - captchaId
+      - password
+      - username
+      type: object
+    internal_modules_identity_adapters.refreshRequest:
+      properties:
+        refresh_token:
+          type: string
+      required:
+      - refresh_token
+      type: object
+    internal_modules_identity_adapters.resetPasswordResult:
+      properties:
+        password:
+          description: 一次性交付（响应通道唯一，不落日志）
+          type: string
+      type: object
+    internal_modules_identity_adapters.setStatusRequest:
+      properties:
+        status:
+          type: integer
+      required:
+      - status
+      type: object
+    internal_modules_identity_adapters.updateAdminRequest:
+      properties:
+        email:
+          description: nil=不改该列（列表已掩码——未取原文不回写）；空串=清除；格式见 handler 校验
+          maxLength: 128
+          type: string
+        name:
+          maxLength: 64
+          type: string
+        phone:
+          description: nil=不改该列
+          maxLength: 20
+          type: string
+      type: object
+    internal_modules_identity_adapters.updateProfileRequest:
+      properties:
+        avatarUrl:
+          description: data URL（≤200KB）或对象存储 URL
+          maxLength: 300000
+          type: string
+        email:
+          maxLength: 128
+          type: string
+        name:
+          maxLength: 64
+          type: string
+        phone:
+          maxLength: 20
+          type: string
+      type: object
+    internal_modules_message_adapters.inboxSendRequest:
+      properties:
+        body:
+          type: string
+        title:
+          type: string
+        user_id:
+          type: string
+      required:
+      - body
+      - title
+      - user_id
+      type: object
+    internal_modules_message_adapters.sendRequest:
+      properties:
+        target:
+          type: string
+        template_id:
+          type: string
+        vars:
+          additionalProperties:
+            type: string
+          type: object
+      required:
+      - target
+      - template_id
+      type: object
+    internal_modules_message_adapters.templateRequest:
+      properties:
+        body:
+          type: string
+        channel:
+          type: string
+        name:
+          type: string
+        status:
+          enum:
+          - 1
+          - 2
+          type: integer
+        subject:
+          type: string
+      required:
+      - body
+      - channel
+      - name
+      - status
+      type: object
+    internal_modules_message_adapters.testEmailRequest:
+      properties:
+        to:
+          type: string
+      required:
+      - to
+      type: object
+    internal_modules_rbac_adapters.apiRequest:
+      properties:
+        act:
+          maxLength: 64
+          type: string
+        method:
+          enum:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - '*'
+          type: string
+        path:
+          maxLength: 128
+          type: string
+        status:
+          type: integer
+        summary:
+          maxLength: 128
+          type: string
+      required:
+      - act
+      - method
+      - path
+      type: object
+    internal_modules_rbac_adapters.buttonRequest:
+      properties:
+        code:
+          maxLength: 64
+          type: string
+        menuId:
+          maxLength: 32
+          type: string
+        name:
+          maxLength: 64
+          type: string
+      required:
+      - code
+      - name
+      type: object
+    internal_modules_rbac_adapters.grantsResult:
+      properties:
+        apis:
+          items:
+            type: string
+          type: array
+          uniqueItems: false
+        buttons:
+          items:
+            type: string
+          type: array
+          uniqueItems: false
+        menus:
+          items:
+            type: string
+          type: array
+          uniqueItems: false
+      type: object
+    internal_modules_rbac_adapters.idsRequest:
+      properties:
+        ids:
+          items:
+            type: string
+          type: array
+          uniqueItems: false
+      required:
+      - ids
+      type: object
+    internal_modules_rbac_adapters.menuRequest:
+      properties:
+        hidden:
+          type: boolean
+        name:
+          maxLength: 64
+          type: string
+        parentId:
+          maxLength: 32
+          type: string
+        path:
+          maxLength: 128
+          type: string
+        sortOrder:
+          minimum: 0
+          type: integer
+        status:
+          type: integer
+      required:
+      - name
+      type: object
+    internal_modules_rbac_adapters.roleIDsResult:
+      properties:
+        roles:
+          items:
+            type: string
+          type: array
+          uniqueItems: false
+      type: object
+    internal_modules_rbac_adapters.roleRequest:
+      properties:
+        code:
+          maxLength: 64
+          minLength: 2
+          type: string
+        name:
+          maxLength: 64
+          type: string
+        remark:
+          maxLength: 256
+          type: string
+        status:
+          type: integer
+      required:
+      - code
+      - name
+      type: object
+    internal_modules_storage_adapters.configRequest:
+      properties:
+        access_key:
+          type: string
+        allowed_types:
+          type: string
+        bucket:
+          type: string
+        bucket_lookup:
+          description: 寻址风格：空/path（默认）/virtual-host（COS 等强制虚拟主机域名的 S3 兼容服务）
+          type: string
+        domain:
+          type: string
+        endpoint:
+          type: string
+        is_default:
+          type: boolean
+        max_file_size:
+          type: integer
+        name:
+          type: string
+        path_prefix:
+          type: string
+        provider:
+          type: string
+        region:
+          type: string
+        secret_key:
+          type: string
+        status:
+          type: integer
+      required:
+      - access_key
+      - bucket
+      - endpoint
+      - name
+      - provider
+      - secret_key
+      type: object
+    internal_modules_users_adapters.setStatusRequest:
+      properties:
+        status:
+          type: integer
+      required:
+      - status
+      type: object
+  securitySchemes:
+    BearerAuth:
+      description: '管理端/客户端 Bearer token：`Authorization: Bearer <access_token>`（登录端点换取；refresh
+        用 refresh_token）'
+      in: header
+      name: Authorization
+      type: apiKey
+info:
+  description: 管理端 API 契约（adminapi 面；swag init --v3.1 生成入库 contracts/openapi）
+  title: NetyAdmin Admin API
+  version: 1.0.0
+openapi: 3.1.0
+security:
+- BearerAuth: []
+paths:
+  /admin/v1/admins:
+    get:
+      operationId: admin.admins.list
+      parameters:
+      - description: 用户名前缀过滤
+        in: query
+        name: username
+        schema:
+          type: string
+      - description: 姓名包含过滤
+        in: query
+        name: name
+        schema:
+          type: string
+      - description: 状态过滤（1=active 2=disabled）
+        in: query
+        name: status
+        schema:
+          type: integer
+      - description: 页码（1 起）
+        in: query
+        name: page
+        schema:
+          type: integer
+      - description: 页大小（默认 20 上限 100）
+        in: query
+        name: page_size
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_transport.Page'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 管理员列表
+      tags:
+      - admins
+    post:
+      description: 初始密码一次性（must_change_password 强制首登改密）
+      operationId: admin.admins.create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_identity_adapters.createAdminRequest'
+              description: 账号与初始密码
+              summary: body
+        description: 账号与初始密码
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_modules_identity_domain.Profile'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Conflict
+      summary: 创建管理员
+      tags:
+      - admins
+  /admin/v1/admins/{id}:
+    delete:
+      operationId: admin.admins.delete
+      parameters:
+      - description: 管理员 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 删除管理员
+      tags:
+      - admins
+    get:
+      operationId: admin.admins.get
+      parameters:
+      - description: 管理员 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_modules_identity_domain.Profile'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 管理员详情
+      tags:
+      - admins
+    put:
+      operationId: admin.admins.update
+      parameters:
+      - description: 管理员 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_identity_adapters.updateAdminRequest'
+              description: 姓名与邮箱
+              summary: body
+        description: 姓名与邮箱
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_modules_identity_domain.Profile'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 更新管理员资料
+      tags:
+      - admins
+  /admin/v1/admins/{id}/reset-password:
+    post:
+      description: 服务端生成随机密码一次性返回 + 强制首登改密 + 全会话作废
+      operationId: admin.admins.reset_password
+      parameters:
+      - description: 管理员 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/internal_modules_identity_adapters.resetPasswordResult'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 重置密码
+      tags:
+      - admins
+  /admin/v1/admins/{id}/roles:
+    get:
+      operationId: admin.rbac.admins.roles_get
+      parameters:
+      - description: 管理员 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/internal_modules_rbac_adapters.roleIDsResult'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 管理员已绑角色
+      tags:
+      - roles
+    put:
+      operationId: admin.rbac.admins.roles_set
+      parameters:
+      - description: 管理员 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_rbac_adapters.idsRequest'
+              description: 角色 ID 全集
+              summary: body
+        description: 角色 ID 全集
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 分配管理员角色（判定面——发布策略 reload）
+      tags:
+      - roles
+  /admin/v1/admins/{id}/status:
+    patch:
+      description: 禁用 = TokenVersion++（该账号全部 token 即时作废）
+      operationId: admin.admins.status
+      parameters:
+      - description: 管理员 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_identity_adapters.setStatusRequest'
+              description: 目标状态
+              summary: body
+        description: 目标状态
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 管理员启停
+      tags:
+      - admins
+  /admin/v1/admins/batch-delete:
+    post:
+      operationId: admin.admins.batch_delete
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_identity_adapters.batchDeleteRequest'
+              description: 管理员 ID 列表
+              summary: body
+        description: 管理员 ID 列表
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 批量删除管理员
+      tags:
+      - admins
+  /admin/v1/apis:
+    get:
+      operationId: admin.rbac.apis.list
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: API 登记全量列表
+      tags:
+      - apis
+    post:
+      description: act=权限码（与路由 RequirePerm 声明同值）；path=keyMatch2 模式
+      operationId: admin.rbac.apis.create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_rbac_adapters.apiRequest'
+              description: API 登记
+              summary: body
+        description: API 登记
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_modules_rbac_domain.Api'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 登记 API 判定行
+      tags:
+      - apis
+  /admin/v1/apis/{id}:
+    delete:
+      description: 级联清理 role_apis + 策略 reload
+      operationId: admin.rbac.apis.delete
+      parameters:
+      - description: API ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 删除 API 登记
+      tags:
+      - apis
+    get:
+      operationId: admin.rbac.apis.get
+      parameters:
+      - description: API ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_modules_rbac_domain.Api'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: API 登记详情
+      tags:
+      - apis
+  /admin/v1/auth/captcha:
+    get:
+      description: 英数组合（剔除易混淆字符），一次性 3 分钟有效
+      operationId: admin.auth.captcha
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+      summary: 获取登录验证码
+      tags:
+      - auth
+      security: []
+  /admin/v1/auth/change-password:
+    post:
+      description: 旧密码校验 + 新密码强度校验 + TokenVersion 全作废
+      operationId: admin.auth.change_password
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_identity_adapters.changePasswordRequest'
+              description: 新旧密码
+              summary: body
+        description: 新旧密码
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+      summary: 修改密码
+      tags:
+      - auth
+  /admin/v1/auth/login:
+    post:
+      description: 用户名密码换取 access/refresh token（login_ip 限流由接入面承担）
+      operationId: admin.auth.login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_identity_adapters.loginRequest'
+              description: 登录凭证
+              summary: body
+        description: 登录凭证
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_modules_identity_application.LoginResult'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Too Many Requests
+      summary: 管理员登录
+      tags:
+      - auth
+      security: []
+  /admin/v1/auth/logout:
+    post:
+      description: 吊销当前 access（jti）并杀会话（sid）
+      operationId: admin.auth.logout
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+      summary: 登出
+      tags:
+      - auth
+  /admin/v1/auth/profile:
+    put:
+      operationId: admin.auth.profile_update
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_identity_adapters.updateProfileRequest'
+              description: 姓名与邮箱
+              summary: body
+        description: 姓名与邮箱
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_modules_identity_domain.Profile'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+      summary: 更新个人信息
+      tags:
+      - auth
+  /admin/v1/auth/refresh-token:
+    post:
+      description: refresh token 一次性轮换
+      operationId: admin.auth.refresh_token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_identity_adapters.refreshRequest'
+              description: 刷新令牌
+              summary: body
+        description: 刷新令牌
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_modules_identity_application.LoginResult'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Too Many Requests
+      summary: 刷新 token
+      tags:
+      - auth
+      security: []
+  /admin/v1/auth/user-info:
+    get:
+      operationId: admin.auth.user-info
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/data'
+                properties:
+                  code:
+                    description: 5 位字符串状态码
+                    type: string
+                  data:
+                    description: 业务数据
+                  details:
+                    additionalProperties: {}
+                    description: 错误结构化上下文
+                    type: object
+                  message_key:
+                    description: i18n 文案键（禁硬编码文案）
+                    type: string
+                  request_id:
+                    description: 请求链路
+                    type: string
+                  trace_id:
+                    description: 追踪链路
+                    type: string
+                type: object
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+      summary: 当前管理员资料（user-info——登录后回填 userStore）
+      tags:
+      - auth
+  /admin/v1/buttons:
+    get:
+      operationId: admin.rbac.buttons.list
+      parameters:
+      - description: 归属菜单过滤
+        in: query
+        name: menu_id
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 按钮列表（可按菜单过滤）
+      tags:
+      - buttons
+    post:
+      operationId: admin.rbac.buttons.create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_rbac_adapters.buttonRequest'
+              description: 按钮定义
+              summary: body
+        description: 按钮定义
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_modules_rbac_domain.Button'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 创建按钮权限码
+      tags:
+      - buttons
+  /admin/v1/buttons/{id}:
+    delete:
+      description: 级联清理 role_buttons
+      operationId: admin.rbac.buttons.delete
+      parameters:
+      - description: 按钮 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 删除按钮权限码
+      tags:
+      - buttons
+  /admin/v1/configs:
+    get:
+      operationId: admin.configs.list
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 配置全量列表
+      tags:
+      - configs
+    put:
+      description: 全量提交变更键集（V1 同语义——PUT 覆盖值/描述/公开位；变更落
+      operationId: admin.configs.update
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_configcenter_adapters.updateConfigsRequest'
+              description: 变更集与说明
+              summary: body
+        description: 变更集与说明
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Conflict
+      summary: 批量更新配置
+      tags:
+      - configs
+  /admin/v1/configs/{group}/{key}:
+    delete:
+      description: 单键删除（独立于 PUT 全量提交——BatchUpsert 纯 upsert 不删缺行；
+      operationId: admin.configs.delete
+      parameters:
+      - description: 分组
+        in: path
+        name: group
+        required: true
+        schema:
+          type: string
+      - description: 键
+        in: path
+        name: key
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 删除配置键
+      tags:
+      - configs
+  /admin/v1/configs/history:
+    get:
+      operationId: admin.configs.history
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 变更历史（最近 50 版本）
+      tags:
+      - configs
+  /admin/v1/configs/public:
+    get:
+      description: is_public 键集（免鉴权——前端登录页/品牌参数）
+      operationId: admin.configs.public
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+      summary: 公开配置
+      tags:
+      - configs
+      security: []
+  /admin/v1/configs/rollback:
+    post:
+      description: 恢复目标版本之前的键集（机制面 Rollback——管理面端点补建）
+      operationId: admin.configs.rollback
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_configcenter_adapters.rollbackRequest'
+              description: 回滚请求
+              summary: body
+        description: 回滚请求
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 回滚到目标版本前状态
+      tags:
+      - configs
+  /admin/v1/menus:
+    get:
+      operationId: admin.rbac.menus.list
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 菜单全量列表（前端组树）
+      tags:
+      - menus
+    post:
+      operationId: admin.rbac.menus.create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_rbac_adapters.menuRequest'
+              description: 菜单定义
+              summary: body
+        description: 菜单定义
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_modules_rbac_domain.Menu'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 创建菜单
+      tags:
+      - menus
+  /admin/v1/menus/{id}:
+    delete:
+      operationId: admin.rbac.menus.delete
+      parameters:
+      - description: 菜单 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 删除菜单（单条——内部走 batch-delete 同事务语义）
+      tags:
+      - menus
+    get:
+      operationId: admin.rbac.menus.get
+      parameters:
+      - description: 菜单 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_modules_rbac_domain.Menu'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 菜单详情
+      tags:
+      - menus
+  /admin/v1/menus/batch-delete:
+    post:
+      description: 级联清理 role_menus
+      operationId: admin.rbac.menus.batch_delete
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_rbac_adapters.idsRequest'
+              description: 菜单 ID 全集
+              summary: body
+        description: 菜单 ID 全集
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 批量删除菜单
+      tags:
+      - menus
+  /admin/v1/message/inbox:
+    post:
+      operationId: admin.message.inbox.send
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_message_adapters.inboxSendRequest'
+              description: 站内信
+              summary: body
+        description: 站内信
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 发送站内信（管理端）
+      tags:
+      - message
+  /admin/v1/message/records:
+    get:
+      operationId: admin.message.records.list
+      parameters:
+      - description: 通道过滤（email|sms）
+        in: query
+        name: channel
+        schema:
+          type: string
+      - description: 状态过滤（1=pending 2=sent 3=failed）
+        in: query
+        name: status
+        schema:
+          type: integer
+      - description: 页码
+        in: query
+        name: page
+        schema:
+          type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/data'
+                properties:
+                  code:
+                    description: 5 位字符串状态码
+                    type: string
+                  data:
+                    description: 业务数据
+                  details:
+                    additionalProperties: {}
+                    description: 错误结构化上下文
+                    type: object
+                  message_key:
+                    description: i18n 文案键（禁硬编码文案）
+                    type: string
+                  request_id:
+                    description: 请求链路
+                    type: string
+                  trace_id:
+                    description: 追踪链路
+                    type: string
+                type: object
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 发送记录列表
+      tags:
+      - message
+  /admin/v1/message/records/{id}/resend:
+    post:
+      operationId: admin.message.records.resend
+      parameters:
+      - description: 记录 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 重发消息
+      tags:
+      - message
+  /admin/v1/message/send:
+    post:
+      operationId: admin.message.send
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_message_adapters.sendRequest'
+              description: 发送请求
+              summary: body
+        description: 发送请求
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 按模板发送消息
+      tags:
+      - message
+  /admin/v1/message/templates:
+    get:
+      operationId: admin.message.templates.list
+      parameters:
+      - description: 名称包含过滤
+        in: query
+        name: name
+        schema:
+          type: string
+      - description: 页码
+        in: query
+        name: page
+        schema:
+          type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/data'
+                properties:
+                  code:
+                    description: 5 位字符串状态码
+                    type: string
+                  data:
+                    description: 业务数据
+                  details:
+                    additionalProperties: {}
+                    description: 错误结构化上下文
+                    type: object
+                  message_key:
+                    description: i18n 文案键（禁硬编码文案）
+                    type: string
+                  request_id:
+                    description: 请求链路
+                    type: string
+                  trace_id:
+                    description: 追踪链路
+                    type: string
+                type: object
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 消息模板列表
+      tags:
+      - message
+    post:
+      operationId: admin.message.templates.create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_message_adapters.templateRequest'
+              description: 模板
+              summary: body
+        description: 模板
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Conflict
+      summary: 创建消息模板
+      tags:
+      - message
+  /admin/v1/message/templates/{id}:
+    delete:
+      operationId: admin.message.templates.delete
+      parameters:
+      - description: 模板 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 删除消息模板
+      tags:
+      - message
+    put:
+      operationId: admin.message.templates.update
+      parameters:
+      - description: 模板 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_message_adapters.templateRequest'
+              description: 模板
+              summary: body
+        description: 模板
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 更新消息模板
+      tags:
+      - message
+  /admin/v1/message/test-email:
+    post:
+      operationId: admin.message.test-email
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_message_adapters.testEmailRequest'
+              description: 收件人
+              summary: body
+        description: 收件人
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Service Unavailable
+      summary: 发送测试邮件（SMTP 配置联调）
+      tags:
+      - message
+  /admin/v1/open/apis:
+    get:
+      operationId: admin.gw.apis.list
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 网关 API 登记全量列表
+      tags:
+      - open-apis
+    post:
+      operationId: admin.gw.apis.create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_gw_adapters.apiRequest'
+              description: API 定义
+              summary: body
+        description: API 定义
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/data'
+                properties:
+                  code:
+                    description: 5 位字符串状态码
+                    type: string
+                  data:
+                    description: 业务数据
+                  details:
+                    additionalProperties: {}
+                    description: 错误结构化上下文
+                    type: object
+                  message_key:
+                    description: i18n 文案键（禁硬编码文案）
+                    type: string
+                  request_id:
+                    description: 请求链路
+                    type: string
+                  trace_id:
+                    description: 追踪链路
+                    type: string
+                type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 登记网关 API
+      tags:
+      - open-apis
+  /admin/v1/open/apis/{id}:
+    delete:
+      operationId: admin.gw.apis.delete
+      parameters:
+      - description: API ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 删除网关 API
+      tags:
+      - open-apis
+    put:
+      operationId: admin.gw.apis.update
+      parameters:
+      - description: API ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_gw_adapters.apiRequest'
+              description: API 定义
+              summary: body
+        description: API 定义
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/data'
+                properties:
+                  code:
+                    description: 5 位字符串状态码
+                    type: string
+                  data:
+                    description: 业务数据
+                  details:
+                    additionalProperties: {}
+                    description: 错误结构化上下文
+                    type: object
+                  message_key:
+                    description: i18n 文案键（禁硬编码文案）
+                    type: string
+                  request_id:
+                    description: 请求链路
+                    type: string
+                  trace_id:
+                    description: 追踪链路
+                    type: string
+                type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 更新网关 API
+      tags:
+      - open-apis
+  /admin/v1/open/apis/scope-apis:
+    get:
+      operationId: admin.gw.apis.scope_apis_get
+      parameters:
+      - description: scope code
+        in: query
+        name: scope
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: scope 白名单读
+      tags:
+      - open-apis
+    put:
+      operationId: admin.gw.apis.scope_apis_set
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_gw_adapters.setScopeApisRequest'
+              description: scope 与 API ID 全集
+              summary: body
+        description: scope 与 API ID 全集
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: scope 白名单全量替换
+      tags:
+      - open-apis
+  /admin/v1/open/apps:
+    get:
+      operationId: admin.gw.apps.list
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        schema:
+          type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/data'
+                properties:
+                  code:
+                    description: 5 位字符串状态码
+                    type: string
+                  data:
+                    description: 业务数据
+                  details:
+                    additionalProperties: {}
+                    description: 错误结构化上下文
+                    type: object
+                  message_key:
+                    description: i18n 文案键（禁硬编码文案）
+                    type: string
+                  request_id:
+                    description: 请求链路
+                    type: string
+                  trace_id:
+                    description: 追踪链路
+                    type: string
+                type: object
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 开放平台应用列表
+      tags:
+      - open-apps
+    post:
+      description: AppSecret 明文一次性返回（响应通道唯一）
+      operationId: admin.gw.apps.create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_gw_adapters.createAppRequest'
+              description: 应用定义
+              summary: body
+        description: 应用定义
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/data'
+                properties:
+                  code:
+                    description: 5 位字符串状态码
+                    type: string
+                  data:
+                    description: 业务数据
+                  details:
+                    additionalProperties: {}
+                    description: 错误结构化上下文
+                    type: object
+                  message_key:
+                    description: i18n 文案键（禁硬编码文案）
+                    type: string
+                  request_id:
+                    description: 请求链路
+                    type: string
+                  trace_id:
+                    description: 追踪链路
+                    type: string
+                type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Conflict
+      summary: 创建开放平台应用
+      tags:
+      - open-apps
+  /admin/v1/open/apps/{id}:
+    delete:
+      operationId: admin.gw.apps.delete
+      parameters:
+      - description: 应用 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 删除开放平台应用
+      tags:
+      - open-apps
+    put:
+      operationId: admin.gw.apps.update
+      parameters:
+      - description: 应用 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_gw_adapters.updateAppRequest'
+              description: 更新字段
+              summary: body
+        description: 更新字段
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/data'
+                properties:
+                  code:
+                    description: 5 位字符串状态码
+                    type: string
+                  data:
+                    description: 业务数据
+                  details:
+                    additionalProperties: {}
+                    description: 错误结构化上下文
+                    type: object
+                  message_key:
+                    description: i18n 文案键（禁硬编码文案）
+                    type: string
+                  request_id:
+                    description: 请求链路
+                    type: string
+                  trace_id:
+                    description: 追踪链路
+                    type: string
+                type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 更新开放平台应用
+      tags:
+      - open-apps
+  /admin/v1/open/apps/{id}/reset-secret:
+    put:
+      description: 新密钥明文一次性返回；旧密钥立即失效
+      operationId: admin.gw.apps.reset_secret
+      parameters:
+      - description: 应用 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/data'
+                properties:
+                  code:
+                    description: 5 位字符串状态码
+                    type: string
+                  data:
+                    description: 业务数据
+                  details:
+                    additionalProperties: {}
+                    description: 错误结构化上下文
+                    type: object
+                  message_key:
+                    description: i18n 文案键（禁硬编码文案）
+                    type: string
+                  request_id:
+                    description: 请求链路
+                    type: string
+                  trace_id:
+                    description: 追踪链路
+                    type: string
+                type: object
+          description: OK
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 重置 AppSecret
+      tags:
+      - open-apps
+  /admin/v1/open/apps/{id}/status:
+    put:
+      operationId: admin.gw.apps.status
+      parameters:
+      - description: 应用 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_gw_adapters.appStatusRequest'
+              description: 状态
+              summary: body
+        description: 状态
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 应用启停
+      tags:
+      - open-apps
+  /admin/v1/open/apps/available-scopes:
+    get:
+      operationId: admin.gw.apps.available_scopes
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 可用 scope 组清单
+      tags:
+      - open-apps
+  /admin/v1/open/ip-groups:
+    get:
+      operationId: admin.gw.ip-groups.list
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: IP 策略组列表
+      tags:
+      - open-ip
+    post:
+      operationId: admin.gw.ip-groups.create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_gw_adapters.ipGroupRequest'
+              description: 组
+              summary: body
+        description: 组
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 创建 IP 策略组
+      tags:
+      - open-ip
+  /admin/v1/open/ip-groups/{id}:
+    delete:
+      operationId: admin.gw.ip-groups.delete
+      parameters:
+      - description: 组 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Conflict
+      summary: 删除 IP 策略组
+      tags:
+      - open-ip
+    put:
+      operationId: admin.gw.ip-groups.update
+      parameters:
+      - description: 组 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_gw_adapters.ipGroupRequest'
+              description: 组
+              summary: body
+        description: 组
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Conflict
+      summary: 更新 IP 策略组
+      tags:
+      - open-ip
+  /admin/v1/open/ip-reload:
+    post:
+      operationId: admin.gw.ip-rules.reload
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: IP 规则变更广播 reload（全节点）
+      tags:
+      - open-ip
+  /admin/v1/open/ip-rules:
+    get:
+      operationId: admin.gw.ip-rules.list
+      parameters:
+      - description: 组 ID
+        in: query
+        name: groupId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: IP 规则列表（按组）
+      tags:
+      - open-ip
+    post:
+      operationId: admin.gw.ip-rules.create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_gw_adapters.ipRuleRequest'
+              description: 规则
+              summary: body
+        description: 规则
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 创建 IP 规则
+      tags:
+      - open-ip
+  /admin/v1/open/ip-rules/{id}:
+    delete:
+      operationId: admin.gw.ip-rules.delete
+      parameters:
+      - description: 规则 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 删除 IP 规则
+      tags:
+      - open-ip
+  /admin/v1/open/scope-groups:
+    get:
+      operationId: admin.gw.scope-groups.list
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: scope 组列表
+      tags:
+      - open-scope-groups
+    post:
+      operationId: admin.gw.scope-groups.create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_gw_adapters.scopeGroupRequest'
+              description: scope 组
+              summary: body
+        description: scope 组
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/data'
+                properties:
+                  code:
+                    description: 5 位字符串状态码
+                    type: string
+                  data:
+                    description: 业务数据
+                  details:
+                    additionalProperties: {}
+                    description: 错误结构化上下文
+                    type: object
+                  message_key:
+                    description: i18n 文案键（禁硬编码文案）
+                    type: string
+                  request_id:
+                    description: 请求链路
+                    type: string
+                  trace_id:
+                    description: 追踪链路
+                    type: string
+                type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Conflict
+      summary: 创建 scope 组
+      tags:
+      - open-scope-groups
+  /admin/v1/open/scope-groups/{id}:
+    delete:
+      operationId: admin.gw.scope-groups.delete
+      parameters:
+      - description: scope 组 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Conflict
+      summary: 删除 scope 组（应用授权或 API 白名单引用中=409）
+      tags:
+      - open-scope-groups
+    put:
+      operationId: admin.gw.scope-groups.update
+      parameters:
+      - description: scope 组 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_gw_adapters.scopeGroupRequest'
+              description: scope 组
+              summary: body
+        description: scope 组
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/data'
+                properties:
+                  code:
+                    description: 5 位字符串状态码
+                    type: string
+                  data:
+                    description: 业务数据
+                  details:
+                    additionalProperties: {}
+                    description: 错误结构化上下文
+                    type: object
+                  message_key:
+                    description: i18n 文案键（禁硬编码文案）
+                    type: string
+                  request_id:
+                    description: 请求链路
+                    type: string
+                  trace_id:
+                    description: 追踪链路
+                    type: string
+                type: object
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 更新 scope 组（code 不可变——授权引用按 code）
+      tags:
+      - open-scope-groups
+  /admin/v1/open/stats/latency:
+    get:
+      operationId: admin.gw.stats.latency
+      parameters:
+      - description: 回看窗口小时数（默认 24 上限 720）
+        in: query
+        name: hours
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 网关调用延迟分位（avg/p50/p95）
+      tags:
+      - open-stats
+  /admin/v1/open/stats/overview:
+    get:
+      operationId: admin.gw.stats.overview
+      parameters:
+      - description: 回看窗口小时数（默认 24 上限 720）
+        in: query
+        name: hours
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 网关调用总览
+      tags:
+      - open-stats
+  /admin/v1/open/stats/status:
+    get:
+      operationId: admin.gw.stats.status
+      parameters:
+      - description: 回看窗口小时数（默认 24 上限 720）
+        in: query
+        name: hours
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 网关调用状态码分布
+      tags:
+      - open-stats
+  /admin/v1/open/stats/top:
+    get:
+      operationId: admin.gw.stats.top
+      parameters:
+      - description: apps|apis
+        in: query
+        name: kind
+        required: true
+        schema:
+          type: string
+      - description: 条数（默认 10）
+        in: query
+        name: limit
+        schema:
+          type: integer
+      - description: 回看窗口小时数（默认 24 上限 720）
+        in: query
+        name: hours
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 网关调用 Top 榜（apps|apis）
+      tags:
+      - open-stats
+  /admin/v1/open/stats/trend:
+    get:
+      operationId: admin.gw.stats.trend
+      parameters:
+      - description: 回看窗口小时数（默认 24 上限 720）
+        in: query
+        name: hours
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 网关调用趋势（小时粒度）
+      tags:
+      - open-stats
+  /admin/v1/operation-logs:
+    get:
+      description: type=1 operation / 2 access / 3 security / 4 system
+      operationId: admin.audit.logs.list
+      parameters:
+      - description: 类型过滤
+        in: query
+        name: type
+        schema:
+          type: integer
+      - description: 动作前缀过滤
+        in: query
+        name: action
+        schema:
+          type: string
+      - description: 操作者过滤
+        in: query
+        name: actor_id
+        schema:
+          type: string
+      - description: 结果过滤（success/deny/error）
+        in: query
+        name: result
+        schema:
+          type: string
+      - description: 请求 ID 过滤
+        in: query
+        name: request_id
+        schema:
+          type: string
+      - description: 起始时间（RFC3339）
+        in: query
+        name: time_from
+        schema:
+          type: string
+      - description: 截止时间（RFC3339）
+        in: query
+        name: time_to
+        schema:
+          type: string
+      - description: 页码
+        in: query
+        name: page
+        schema:
+          type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_transport.Page'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 审计日志列表
+      tags:
+      - operation-logs
+  /admin/v1/operation-logs/{id}:
+    get:
+      operationId: admin.logs.get
+      parameters:
+      - description: 记录 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_modules_audit_domain.Record'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 审计日志详情
+      tags:
+      - operation-logs
+  /admin/v1/operation-logs/export:
+    get:
+      description: 同列表过滤条件；超 10000 行拒绝（缩小过滤范围）
+      operationId: admin.audit.logs.export
+      parameters:
+      - description: 类型过滤
+        in: query
+        name: type
+        schema:
+          type: integer
+      - description: 动作前缀过滤
+        in: query
+        name: action
+        schema:
+          type: string
+      - description: 操作者过滤
+        in: query
+        name: actor_id
+        schema:
+          type: string
+      - description: 结果过滤
+        in: query
+        name: result
+        schema:
+          type: string
+      - description: 起始时间（RFC3339）
+        in: query
+        name: time_from
+        schema:
+          type: string
+      - description: 截止时间（RFC3339）
+        in: query
+        name: time_to
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            text/csv:
+              schema:
+                type: file
+          description: CSV 附件
+        "400":
+          content:
+            text/csv:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            text/csv:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            text/csv:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 审计日志导出（CSV）
+      tags:
+      - operation-logs
+  /admin/v1/permissions:
+    get:
+      description: super-admin=全部登记 act；否则 role_apis 并集
+      operationId: admin.rbac.permissions
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+      summary: 当前管理员权限码集（按钮权限/指令消费）
+      tags:
+      - roles
+  /admin/v1/roles:
+    get:
+      operationId: admin.rbac.roles.list
+      parameters:
+      - description: 角色码包含过滤
+        in: query
+        name: code
+        schema:
+          type: string
+      - description: 名称包含过滤
+        in: query
+        name: name
+        schema:
+          type: string
+      - description: 状态过滤（1=enabled 2=disabled）
+        in: query
+        name: status
+        schema:
+          type: integer
+      - description: 页码
+        in: query
+        name: page
+        schema:
+          type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_transport.Page'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 角色列表
+      tags:
+      - roles
+    post:
+      operationId: admin.rbac.roles.create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_rbac_adapters.roleRequest'
+              description: 角色定义
+              summary: body
+        description: 角色定义
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_modules_rbac_domain.Role'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Conflict
+      summary: 创建角色
+      tags:
+      - roles
+  /admin/v1/roles/{id}:
+    delete:
+      description: 级联清理授权行 + 策略 reload
+      operationId: admin.rbac.roles.delete
+      parameters:
+      - description: 角色 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 删除角色
+      tags:
+      - roles
+    get:
+      operationId: admin.rbac.roles.get
+      parameters:
+      - description: 角色 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_modules_rbac_domain.Role'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 角色详情
+      tags:
+      - roles
+  /admin/v1/roles/{id}/apis:
+    put:
+      operationId: admin.rbac.roles.apis_set
+      parameters:
+      - description: 角色 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_rbac_adapters.idsRequest'
+              description: API ID 全集
+              summary: body
+        description: API ID 全集
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 替换角色 API 授权（判定面——发布策略 reload）
+      tags:
+      - roles
+  /admin/v1/roles/{id}/buttons:
+    put:
+      operationId: admin.rbac.roles.buttons_set
+      parameters:
+      - description: 角色 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_rbac_adapters.idsRequest'
+              description: 按钮 ID 全集
+              summary: body
+        description: 按钮 ID 全集
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 替换角色按钮授权
+      tags:
+      - roles
+  /admin/v1/roles/{id}/grants:
+    get:
+      description: 三面授权 ID 集（menus/apis/buttons）
+      operationId: admin.rbac.roles.grants_get
+      parameters:
+      - description: 角色 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/internal_modules_rbac_adapters.grantsResult'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 角色授权回显
+      tags:
+      - roles
+  /admin/v1/roles/{id}/menus:
+    put:
+      operationId: admin.rbac.roles.menus_set
+      parameters:
+      - description: 角色 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_rbac_adapters.idsRequest'
+              description: 菜单 ID 全集
+              summary: body
+        description: 菜单 ID 全集
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 替换角色菜单授权
+      tags:
+      - roles
+  /admin/v1/route-tree:
+    get:
+      description: super-admin 全量启用菜单；否则按 role_menus 并集
+      operationId: admin.rbac.route.tree
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+      summary: 管理员可见菜单树
+      tags:
+      - roles
+  /admin/v1/storage/cleanup:
+    post:
+      operationId: admin.storage.cleanup
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 手动清理过期上传记录
+      tags:
+      - storage
+  /admin/v1/storage/configs:
+    get:
+      operationId: admin.storage.configs.list
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        schema:
+          type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/data'
+                properties:
+                  code:
+                    description: 5 位字符串状态码
+                    type: string
+                  data:
+                    description: 业务数据
+                  details:
+                    additionalProperties: {}
+                    description: 错误结构化上下文
+                    type: object
+                  message_key:
+                    description: i18n 文案键（禁硬编码文案）
+                    type: string
+                  request_id:
+                    description: 请求链路
+                    type: string
+                  trace_id:
+                    description: 追踪链路
+                    type: string
+                type: object
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 存储配置列表
+      tags:
+      - storage
+    post:
+      operationId: admin.storage.configs.create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_storage_adapters.configRequest'
+              description: 配置
+              summary: body
+        description: 配置
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Conflict
+      summary: 创建存储配置
+      tags:
+      - storage
+  /admin/v1/storage/configs/{id}:
+    delete:
+      operationId: admin.storage.configs.delete
+      parameters:
+      - description: 配置 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 删除存储配置
+      tags:
+      - storage
+    put:
+      operationId: admin.storage.configs.update
+      parameters:
+      - description: 配置 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_storage_adapters.configRequest'
+              description: 配置
+              summary: body
+        description: 配置
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 更新存储配置
+      tags:
+      - storage
+  /admin/v1/storage/configs/{id}/default:
+    put:
+      operationId: admin.storage.configs.default
+      parameters:
+      - description: 配置 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 设默认存储配置
+      tags:
+      - storage
+  /admin/v1/storage/records:
+    get:
+      operationId: admin.storage.records.list
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        schema:
+          type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/data'
+                properties:
+                  code:
+                    description: 5 位字符串状态码
+                    type: string
+                  data:
+                    description: 业务数据
+                  details:
+                    additionalProperties: {}
+                    description: 错误结构化上下文
+                    type: object
+                  message_key:
+                    description: i18n 文案键（禁硬编码文案）
+                    type: string
+                  request_id:
+                    description: 请求链路
+                    type: string
+                  trace_id:
+                    description: 追踪链路
+                    type: string
+                type: object
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 上传记录列表
+      tags:
+      - storage
+  /admin/v1/system/observability/metrics:
+    get:
+      operationId: admin.observability.metrics
+      parameters:
+      - description: 指标名前缀过滤（如 na_message）
+        in: query
+        name: family
+        schema:
+          type: string
+      - description: 单 family 样本上限（默认 200，最大 1000）
+        in: query
+        name: limit
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Service Unavailable
+      summary: 指标快照（Prometheus 族投影；含下游自注册 na_*）
+      tags:
+      - observability
+  /admin/v1/system/observability/overview:
+    get:
+      operationId: admin.observability.overview
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Service Unavailable
+      summary: 观测概览（HTTP/DB/Bus/Scheduler/Realtime/Message 概览 + 阈值告警）
+      tags:
+      - observability
+  /admin/v1/system/smtp:
+    delete:
+      operationId: admin.system.smtp.reset
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Service Unavailable
+      summary: 重置 SMTP 配置（删除覆盖键→回退启动配置）
+      tags:
+      - message
+    get:
+      operationId: admin.system.smtp.get
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Service Unavailable
+      summary: 读取 SMTP 配置（生效值：configcenter 覆盖优先，回退启动配置）
+      tags:
+      - message
+    put:
+      operationId: admin.system.smtp.update
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/cmd_netyadmin.smtpValues'
+              description: SMTP 参数（host/port/username/from）
+              summary: body
+        description: SMTP 参数（host/port/username/from）
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Service Unavailable
+      summary: 保存 SMTP 配置（configcenter 写入 + 热更生效；密码 env-only 不入库）
+      tags:
+      - message
+  /admin/v1/system/smtp/test:
+    post:
+      operationId: admin.system.smtp.test
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/cmd_netyadmin.smtpTestRequest'
+              description: 收件人邮箱（to）
+              summary: body
+        description: 收件人邮箱（to）
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Service Unavailable
+      summary: 发送测试邮件（使用当前生效 SMTP 配置）
+      tags:
+      - message
+  /admin/v1/taskcenter/dlq/replay:
+    post:
+      operationId: admin.taskcenter.dlq_replay
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/cmd_netyadmin.dlqReplayRequest'
+              description: 死信行 id
+              summary: body
+        description: 死信行 id
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Conflict
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Service Unavailable
+      summary: 死信重放（按 bus_dlq.id 重建信封重发布；成功后删除该行）
+      tags:
+      - taskcenter
+  /admin/v1/taskcenter/jobs:
+    get:
+      operationId: admin.taskcenter.jobs
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 任务目录快照（status/spec 面——paused/running 状态含）
+      tags:
+      - taskcenter
+  /admin/v1/taskcenter/jobs/{name}/pause:
+    post:
+      operationId: admin.taskcenter.pause
+      parameters:
+      - description: 任务名
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 暂停任务（stop 语义对偶——暂停态外置 configcenter 持久化）
+      tags:
+      - taskcenter
+  /admin/v1/taskcenter/jobs/{name}/resume:
+    post:
+      operationId: admin.taskcenter.resume
+      parameters:
+      - description: 任务名
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 恢复任务（start 语义对偶——暂停态外置 configcenter 持久化）
+      tags:
+      - taskcenter
+  /admin/v1/taskcenter/jobs/{name}/runs:
+    get:
+      operationId: admin.taskcenter.runs
+      parameters:
+      - description: 任务名
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 任务运行记录（RecentRuns 按 job 过滤）
+      tags:
+      - taskcenter
+  /admin/v1/taskcenter/jobs/{name}/trigger:
+    post:
+      operationId: admin.taskcenter.trigger
+      parameters:
+      - description: 任务名
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 立即触发（reload 语义对偶——手动执行一次；暂停/非 leader 如实返回 triggered:false+reason）
+      tags:
+      - taskcenter
+  /admin/v1/users:
+    get:
+      operationId: admin.users.list
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        schema:
+          type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/data'
+                properties:
+                  code:
+                    description: 5 位字符串状态码
+                    type: string
+                  data:
+                    description: 业务数据
+                  details:
+                    additionalProperties: {}
+                    description: 错误结构化上下文
+                    type: object
+                  message_key:
+                    description: i18n 文案键（禁硬编码文案）
+                    type: string
+                  request_id:
+                    description: 请求链路
+                    type: string
+                  trace_id:
+                    description: 追踪链路
+                    type: string
+                type: object
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 用户列表（PII 掩码）
+      tags:
+      - users-admin
+  /admin/v1/users/{id}:
+    get:
+      operationId: admin.users.get
+      parameters:
+      - description: 用户 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 用户详情（PII 掩码）
+      tags:
+      - users-admin
+  /admin/v1/users/{id}/status:
+    put:
+      operationId: admin.users.disable
+      parameters:
+      - description: 用户 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/internal_modules_users_adapters.setStatusRequest'
+              description: 状态（1=启用 2=禁用）
+              summary: body
+        description: 状态（1=启用 2=禁用）
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Not Found
+      summary: 用户禁用/启用
+      tags:
+      - users-admin
+servers:
+- url: /admin/v1

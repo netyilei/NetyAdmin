@@ -1,0 +1,39 @@
+name: audit
+kind: platform-service
+version: 1.0.0
+api_version: 1
+contract_version: "2026-11-16"
+min_kernel_version: 2.0.0
+owner: platform-team
+data_classification: confidential      # 审计记录含操作者/来源信息（禁 PII 明文入 detail）
+slo:
+  latency_p99_ms: 100                  # Write 异步入队（落库异步）
+  availability: 0.999
+depends_on: []                          # DB 为 kernel 设施（AttachDB 延迟注入）；scheduler Job 经收集器登记
+optional_depends_on: []
+optional_features: {}
+ports:
+  - name: audit.Service
+    methods:
+      - name: Write                     # 异步入队（无网络往返）；排空由 Close 保证
+        idempotent: false
+        timeout: 50ms
+        retryable: false
+      - name: Close
+        idempotent: true
+        timeout: 5s
+        retryable: false
+events:
+  publishes: []                         # 审计只归属存储；变更通知无事件
+  subscribes:
+    - domain.identity.login.audit       # 登录审计事件消费（发布方=identity—— 事件链）
+jobs:
+  - name: audit.operation_logs.retention
+tables: [operation_logs]
+config_section: audit
+scaling:
+  mode: stateless                       # flush loop 每节点独立；retention cluster 选主去重
+  requires: []
+deployment:
+  colocate_with: any
+  expose_internal_rpc: false

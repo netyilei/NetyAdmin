@@ -1,0 +1,547 @@
+components:
+  schemas:
+    cmd_netyadmin.wsTicketDocRequest:
+      properties:
+        channels:
+          items:
+            type: string
+          type: array
+          uniqueItems: false
+      type: object
+    data:
+      properties:
+        data:
+          $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_transport.Page'
+      type: object
+    github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope:
+      allOf:
+      - $ref: '#/components/schemas/data'
+      properties:
+        code:
+          description: 5 位字符串状态码
+          type: string
+        data:
+          description: 业务数据
+        details:
+          additionalProperties: {}
+          description: 错误结构化上下文
+          type: object
+        message_key:
+          description: i18n 文案键（禁硬编码文案）
+          type: string
+        request_id:
+          description: 请求链路
+          type: string
+        trace_id:
+          description: 追踪链路
+          type: string
+      type: object
+    github_com_netyilei_netyadmin_internal_kernel_transport.Page:
+      properties:
+        list: {}
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+      type: object
+  securitySchemes:
+    GatewayHMAC:
+      description: 开放平台 HMAC 四头：X-NA-App-Id / X-NA-Timestamp / X-NA-Nonce / X-NA-Signature（本定义锚定签名头；canonical 见 docs/guide/gateway-canonical.md）
+      in: header
+      name: X-NA-Signature
+      type: apiKey
+info:
+  description: 网关 API 契约（gateway 面——edge HMAC 管线/WS ticket 与业务转发；swag init --v3.1 按 surface 切分生成）
+  title: NetyAdmin Gateway API
+  version: 1.0.0
+openapi: 3.1.0
+security:
+- GatewayHMAC: []
+paths:
+  /gateway/v1/{path}:
+    delete:
+      description: 其余同 GET
+      operationId: gateway.api.forward.delete
+      parameters:
+      - description: 内部路径
+        in: path
+        name: path
+        required: true
+        schema:
+          type: string
+      - description: AppKey（应用标识）
+        in: header
+        name: X-NA-App-Id
+        required: true
+        schema:
+          type: string
+      - description: Unix 秒级时间戳
+        in: header
+        name: X-NA-Timestamp
+        required: true
+        schema:
+          type: string
+      - description: 一次性随机串（防重放窗内唯一）
+        in: header
+        name: X-NA-Nonce
+        required: true
+        schema:
+          type: string
+      - description: HMAC-SHA256 签名（canonical 见 downstream-development §4）
+        in: header
+        name: X-NA-Signature
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: 下游端点原始响应（信封形态随目标端点）
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Too Many Requests
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Service Unavailable
+      summary: 网关业务 API 转发（DELETE）
+      tags:
+      - gateway
+    get:
+      description: 完整网关 path 经验签+scope 白名单后原样转发到进程内 client 路由；内部 path 须先在 gw_apis
+        登记
+      operationId: gateway.api.forward.get
+      parameters:
+      - description: 内部路径（如 client/v1/echo——剥 /gateway/v1 前缀后的形态）
+        in: path
+        name: path
+        required: true
+        schema:
+          type: string
+      - description: AppKey（应用标识）
+        in: header
+        name: X-NA-App-Id
+        required: true
+        schema:
+          type: string
+      - description: Unix 秒级时间戳
+        in: header
+        name: X-NA-Timestamp
+        required: true
+        schema:
+          type: string
+      - description: 一次性随机串（防重放窗内唯一）
+        in: header
+        name: X-NA-Nonce
+        required: true
+        schema:
+          type: string
+      - description: HMAC-SHA256 签名（canonical 见 downstream-development §4）
+        in: header
+        name: X-NA-Signature
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: 下游端点原始响应（信封形态随目标端点）
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Too Many Requests
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Service Unavailable
+      summary: 网关业务 API 转发（GET）
+      tags:
+      - gateway
+    patch:
+      description: 签名 payload=body SHA256 hex；其余同 GET
+      operationId: gateway.api.forward.patch
+      parameters:
+      - description: 内部路径
+        in: path
+        name: path
+        required: true
+        schema:
+          type: string
+      - description: AppKey（应用标识）
+        in: header
+        name: X-NA-App-Id
+        required: true
+        schema:
+          type: string
+      - description: Unix 秒级时间戳
+        in: header
+        name: X-NA-Timestamp
+        required: true
+        schema:
+          type: string
+      - description: 一次性随机串（防重放窗内唯一）
+        in: header
+        name: X-NA-Nonce
+        required: true
+        schema:
+          type: string
+      - description: HMAC-SHA256 签名（canonical 见 downstream-development §4）
+        in: header
+        name: X-NA-Signature
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: 下游端点原始响应（信封形态随目标端点）
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Too Many Requests
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Service Unavailable
+      summary: 网关业务 API 转发（PATCH）
+      tags:
+      - gateway
+    post:
+      description: 签名 payload=body SHA256 hex；其余同 GET
+      operationId: gateway.api.forward.post
+      parameters:
+      - description: 内部路径（如 client/v1/users/login）
+        in: path
+        name: path
+        required: true
+        schema:
+          type: string
+      - description: AppKey（应用标识）
+        in: header
+        name: X-NA-App-Id
+        required: true
+        schema:
+          type: string
+      - description: Unix 秒级时间戳
+        in: header
+        name: X-NA-Timestamp
+        required: true
+        schema:
+          type: string
+      - description: 一次性随机串（防重放窗内唯一）
+        in: header
+        name: X-NA-Nonce
+        required: true
+        schema:
+          type: string
+      - description: HMAC-SHA256 签名（canonical 见 downstream-development §4）
+        in: header
+        name: X-NA-Signature
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: 下游端点原始响应（信封形态随目标端点）
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Too Many Requests
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Service Unavailable
+      summary: 网关业务 API 转发（POST）
+      tags:
+      - gateway
+    put:
+      description: 签名 payload=body SHA256 hex；其余同 GET
+      operationId: gateway.api.forward.put
+      parameters:
+      - description: 内部路径（如 client/v1/users/phone）
+        in: path
+        name: path
+        required: true
+        schema:
+          type: string
+      - description: AppKey（应用标识）
+        in: header
+        name: X-NA-App-Id
+        required: true
+        schema:
+          type: string
+      - description: Unix 秒级时间戳
+        in: header
+        name: X-NA-Timestamp
+        required: true
+        schema:
+          type: string
+      - description: 一次性随机串（防重放窗内唯一）
+        in: header
+        name: X-NA-Nonce
+        required: true
+        schema:
+          type: string
+      - description: HMAC-SHA256 签名（canonical 见 downstream-development §4）
+        in: header
+        name: X-NA-Signature
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: 下游端点原始响应（信封形态随目标端点）
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Too Many Requests
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Service Unavailable
+      summary: 网关业务 API 转发（PUT）
+      tags:
+      - gateway
+  /gateway/v1/ws:
+    get:
+      description: ticket 一次性凭证换连接（edge HMAC 管线签发的 ticket；realtime 禁用时 503 fail-closed）
+      operationId: gateway.ws.upgrade
+      parameters:
+      - description: POST /gateway/v1/ws/tickets 签发的一次性 ticket
+        in: query
+        name: ticket
+        required: true
+        schema:
+          type: string
+      responses:
+        "101":
+          description: Switching Protocols（WS 帧协议见 ws-protocol §3-§7）
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 网关 WebSocket 升级
+      tags:
+      - gateway
+      security: []
+  /gateway/v1/ws/tickets:
+    post:
+      description: App 身份（edge HMAC）换取一次性 ticket；channels 受 App ws.channel.* scope
+        约束
+      operationId: gateway.ws.ticket
+      parameters:
+      - description: AppKey（应用标识）
+        in: header
+        name: X-NA-App-Id
+        required: true
+        schema:
+          type: string
+      - description: Unix 秒级时间戳
+        in: header
+        name: X-NA-Timestamp
+        required: true
+        schema:
+          type: string
+      - description: 一次性随机串
+        in: header
+        name: X-NA-Nonce
+        required: true
+        schema:
+          type: string
+      - description: HMAC-SHA256 签名（canonical 见 downstream-development §4）
+        in: header
+        name: X-NA-Signature
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/cmd_netyadmin.wsTicketDocRequest'
+              description: 订阅意图（可省略）
+              summary: body
+        description: 订阅意图（可省略）
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_netyilei_netyadmin_internal_kernel_errorx.Envelope'
+          description: Forbidden
+      summary: 网关 WebSocket ticket 签发
+      tags:
+      - gateway
+servers:
+- url: /gateway/v1

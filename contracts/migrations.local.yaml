@@ -1,0 +1,16 @@
+# 下游迁移号段登记样例（演练产物：note 模块；规则见 docs/rules/migrations.md「下游规则」）。
+# 下游项目占一个首位数字（本样例：项目 2），模块 1 → note。
+# 基座 contracts/migrations.yaml 不修改；本文件由迁移 runner 与基座登记合并。
+# note 当前无迁移文件（骨架）；首个迁移取 schema 21000（21000_note_notes_schema.up.sql 形态）。
+
+version: 1
+
+projects:
+  - project: 2
+    modules:
+      note:
+        module_seq: 1
+        schema: "21000-21299"
+        structure: "21400-21599"
+        seed: "21600-21799"
+        test_seed: "21800-21899"

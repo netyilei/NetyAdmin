@@ -1,0 +1,18 @@
+allowBuilds:
+  '@parcel/watcher': true
+  es5-ext: true
+  esbuild: true
+  vue-demi: true
+
+# 传递依赖安全升级（pnpm v10+ 的 overrides 唯一位置；package.json pnpm 字段不再读取）。
+# 发布门禁（供应链整改）：form-data critical 4.0.6+；
+# lodash/lodash-es 代码注入 4.18.1+；nanoid/source-map-js 事件循环 DoS 补丁版；
+# handlebars critical（standard-version 变更日志链，仅 dev）4.7.10+。
+overrides:
+  form-data@<4.0.6: 4.0.6
+  handlebars@<4.7.10: 4.7.10
+  lodash@<4.18.1: 4.18.1
+  lodash-es@<4.18.1: 4.18.1
+  nanoid@<3.3.18: 3.3.18
+  qs@<6.16.1: 6.17.1
+  source-map-js: 1.2.4

@@ -1,0 +1,21 @@
+name: users
+kind: business
+version: 2.0.0
+api_version: 1
+owner: platform-team
+depends_on: []
+ports:
+  - name: users.Service                 # 实际 Expose 面（module.go Init——Spec对齐）
+    methods:
+      - name: Authenticate
+events:
+  publishes: []                         # users 无领域事件发布（登录审计=identity 域）
+  subscribes: []
+jobs: []
+tables: [users]
+config_section: users
+scaling:
+  mode: stateless
+slo:
+  availability: 0.999
+  latency_p99_ms: 50

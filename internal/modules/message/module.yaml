@@ -1,0 +1,30 @@
+name: message
+kind: platform-service
+version: 2.0.0
+api_version: 1
+owner: platform-team
+depends_on: []
+ports:
+  - name: message.Sender
+    methods:
+      - name: Send
+      - name: SendInbox
+  - name: message.Templates
+    methods:
+      - name: Ensure
+        idempotent: true
+        timeout: 2s
+        retryable: true
+        max_retries: 2
+events:
+  publishes: []
+  subscribes: []
+jobs:
+  - name: message.records.retry
+tables: [message_templates, message_send_records, message_inbox]
+config_section: message
+scaling:
+  mode: stateless
+slo:
+  availability: 0.999
+  latency_p99_ms: 100

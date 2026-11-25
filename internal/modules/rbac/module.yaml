@@ -1,0 +1,42 @@
+name: rbac
+kind: platform-service
+version: 1.0.0
+api_version: 1
+contract_version: "2026-11-17"
+min_kernel_version: 2.0.0
+owner: platform-team
+data_classification: internal
+slo:
+  latency_p99_ms: 10                    # Casbin 内存判定
+  availability: 0.999
+depends_on: []                          # DB 为 kernel 设施（AttachDB 延迟注入）；identity 的 admins 表仅以 ID 引用（跨模块无 FK）
+optional_depends_on: []
+optional_features: {}
+ports:
+  - name: rbac.Authorizer
+    methods:
+      - name: Authorize                 # Casbin 内存判定（§8.2）
+        idempotent: true
+        timeout: 10ms
+        retryable: false
+      - name: Reload                    # 策略全量装载（幂等）
+        idempotent: true
+        timeout: 5s
+        retryable: true
+        max_retries: 2
+events:
+  publishes:
+    - platform.rbac.changed      # 管理面写路径变更后广播 reload
+  subscribes:
+    - platform.rbac.changed
+jobs:
+  - name: rbac.policy.reconcile         # 5min 周期对账盲 Reload Casbin 策略（Broadcast 域 at-most-once 兜底）
+    trigger: interval
+tables: [rbac_roles, rbac_menus, rbac_apis, rbac_buttons, rbac_admin_roles, rbac_role_menus, rbac_role_apis, rbac_role_buttons]
+config_section: rbac
+scaling:
+  mode: stateless                       # 策略快照各节点独立；Bus 广播 reload（tech-stack §4）
+  requires: []
+deployment:
+  colocate_with: any
+  expose_internal_rpc: false

@@ -1,0 +1,140 @@
+# NetyAdmin V2 能力目录（单一事实源）
+# 规则见 docs/rules/capabilities.md
+# 能力 ID 全局唯一；Manifest/deployment 只能引用这里登记的能力。
+
+version: 1
+
+capabilities:
+  gateway.control:
+    provider: gw
+    kind: platform
+    requires: [gw]
+    ports: [gw.Governance]
+    default: true
+    cost: { goroutines: 0, connections: 0, memory_mb: 0 }
+    since: "2.0.0"
+
+  gateway.observe:
+    provider: gw
+    kind: observability
+    requires: [gw]
+    ports: [gw.Governance]  # access log 统计面随（同 Port 消费面）
+    default: true
+    cost: { goroutines: 1, connections: 0, memory_mb: 8 }
+    since: "2.0.0"
+
+  gateway.quota:
+    provider: gw
+    kind: platform
+    requires: [gw]
+    ports: [gw.Governance]  # quota 消费面（app.Quota——edge 中间件执行）
+    default: true
+    cost: { goroutines: 0, connections: 0, memory_mb: 0 }
+    since: "2.0.0"
+
+  gateway.ws:
+    provider: realtime
+    kind: transport
+    requires: [realtime, gw]
+    ports: [realtime.Hub]
+    default: true
+    cost: { goroutines: 2, connections: 0, memory_mb: 16 }
+    since: "2.0.0"
+
+  cdn.purge:
+    provider: cdn
+    kind: platform
+    requires: [cdn]
+    ports: [cdn.Purge, cdn.InvalidateTag]
+    default: false
+    build_tags: [cdn]
+    cost: { goroutines: 0, connections: 1, memory_mb: 8 }
+    since: "2.0.0"
+
+  cdn.preload:
+    provider: cdn
+    kind: platform
+    requires: [cdn, cdn.purge]
+    ports: [cdn.Preload]
+    default: false
+    build_tags: [cdn]
+    cost: { goroutines: 0, connections: 1, memory_mb: 8 }
+    since: "2.0.0"
+
+  cdn.sign_url:
+    provider: cdn
+    kind: platform
+    requires: [cdn]
+    ports: [cdn.SignURL]
+    default: false
+    build_tags: [cdn]
+    cost: { goroutines: 0, connections: 0, memory_mb: 0 }
+    since: "2.0.0"
+
+  storage.cdn:
+    provider: storage
+    kind: integration
+    requires: [cdn.purge]
+    ports: [storage.UploadService]
+    default: false
+    cost: { goroutines: 0, connections: 0, memory_mb: 0 }
+    since: "2.0.0"
+
+  storage.upload:
+    provider: storage
+    kind: platform
+    requires: [storage]
+    ports: [storage.UploadService]
+    default: true
+    cost: { goroutines: 1, connections: 1, memory_mb: 16 }
+    note: client 端点挂 users authed 组——users.enabled=false 时 client 面缺席
+      （admin 面仍可用）；隐式依赖登记
+    since: "2.0.0"
+
+  message.send:
+    provider: message
+    kind: platform
+    requires: [message]
+    ports: [message.Sender, message.Templates]  # Templates=下游模板自举（幂等 Ensure）
+    default: true
+    cost: { goroutines: 2, connections: 0, memory_mb: 8 }
+    note: 补登记（原缺——违反 §7 一致性）；email/sms 双通道
+    since: "2.0.0"
+
+  message.inbox:
+    provider: message
+    kind: platform
+    requires: [message, users]
+    ports: []
+    default: true
+    cost: { goroutines: 0, connections: 1, memory_mb: 4 }
+    note: 站内信 client 面挂 users authed 组（authn=users JWT）；admin 发送面
+      不依赖 users
+    since: "2.0.0"
+
+  gw.stats:
+    provider: gw
+    kind: observability
+    requires: [gw]
+    ports: []                             # 统计端点经 adminapi 组合根（流水/快照全文件化——零 DB）
+    default: true
+    cost: { goroutines: 0, connections: 0, memory_mb: 4 }
+    since: "2.0.0"
+
+  realtime.core:
+    provider: realtime
+    kind: transport
+    requires: [realtime]
+    ports: [realtime.Hub]
+    default: true
+    cost: { goroutines: 2, connections: 0, memory_mb: 16 }
+    since: "2.0.0"
+
+  scheduler.worker:
+    provider: scheduler
+    kind: platform
+    requires: [scheduler]
+    ports: [scheduler.Runner]
+    default: true
+    cost: { goroutines: 4, connections: 0, memory_mb: 16 }
+    since: "2.0.0"

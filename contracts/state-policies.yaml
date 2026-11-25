@@ -1,0 +1,204 @@
+# NetyAdmin V2 状态策略（缓存/协调/会话/总线降级）单一事实源
+# 规则见 docs/rules/state-and-cache.md
+# 所有 on_unavailable 行为必须在这里声明；代码不得隐式回退。
+
+version: 1
+
+topology:
+  single:
+    redis_required: false
+    local_fallbacks: allowed
+  multi:
+    redis_required: true
+    bus_driver: redis
+    local_fallbacks: forbidden
+
+cache:
+  levels: [l1, l2, l3]          # l1=进程内存，l2=Redis，l3=DB（真相源）
+
+  l1:
+    always_on: true             # 无 enabled 开关；禁用 = 配置非法
+    max_mb: 128                 # 每节点 L1 总预算
+    per_entity_max_mb: 32       # 单 entity L1 配额
+    max_entry_kb: 512
+
+  l2:
+    multi_required: true        # multi 缺 L2 = 启动失败
+    single_optional: true       # 单机可用 L1+DB
+
+  classes:
+    hot_local:
+      levels: [l1, l2, l3]
+      admission:                # 全部满足才允许 hot_local（CI 校验）
+        min_qps_per_node: 500
+        min_request_ratio: 0.5
+        max_value_size: 64KB
+        max_working_set_mb: 64
+        min_read_write_ratio: 10
+        require_max_staleness: true
+        require_generation: true
+        allow_pii: false
+        allow_security: false   # security/session/coordination 永不 L1
+    shared:
+      levels: [l2, l3]
+    durable:
+      levels: [l3]
+
+  admission:
+    default_class: shared
+    auto_demote:
+      enabled: true
+      min_hit_ratio: 0.7        # 已实装：每 512 次 miss 评估，累计命中率<0.7 降级（state/cache getorload.go checkDemote）
+      min_qps: 100              # 已实装：滚动窗口 QPS<100 且观测满窗同样降级（state/cache demote.go）
+      window: 10m               # QPS 窗口（分桶环形计数）；命中率档沿用累计口径
+      action: shared            # 命中率低自动降为 L2；不自动升级
+
+  hot_local_whitelist:          # 只有这些领域允许 hot_local；新增需评审
+    - rbac.permissions
+    - gateway.app_scope
+    - config.feature_flags
+    - route.metadata
+    - auth.public_keys
+    - message.template
+    - storage.config
+
+  defaults:
+    ttl: 10m
+    jitter: 0.1                 # ±10%
+    negative_ttl: 30s
+    singleflight: true
+    max_value_size: 512KB
+    stale_while_revalidate: 0   # 0=关闭；可选 30s
+  consistency:
+    event:
+      l1: true
+      l2: true
+      invalidation: generation
+      generation_check: true
+      on_error: bypass_to_db
+    strong:
+      l1: false
+      l2: true
+      invalidation: exact
+      generation_check: true
+      on_error: fail
+    bounded:
+      l1: true
+      l2: true
+      invalidation: ttl_only
+      generation_check: false
+      on_error: bypass_to_db
+    bypass:
+      l1: false
+      l2: false
+      invalidation: none
+      generation_check: false
+      on_error: fail
+  pii:
+    encrypt_l2: true            # classification=pii 的值加密后写入 L2
+    # 已实装：EntityConfig.Classification；class=pii 写 L2 前 AES-256-GCM
+    # 加密（state/cache/l2_encrypt.go）。密钥 env-only NETYADMIN_CACHE_L2_KEY（base64
+    # 32 字节）；缺失=pii 实体注册失败（fail-closed）。密钥轮换=旧密文解码失败视为
+    # miss（自然回填新密钥密文）。
+    encrypt_l1: false           # 进程内可明文；如需更严可开启
+
+coordination:
+  lock:
+    backend: redis
+    on_unavailable:
+      single: local
+      multi: fail_closed
+  nonce:
+    backend: redis
+    on_unavailable:
+      single: local
+      multi: fail_closed
+  idempotency:
+    backend: redis
+    on_unavailable:
+      single: local_or_db
+      multi: fail_closed
+  leader:
+    backend: redis
+    on_unavailable:
+      single: local
+      multi: pg_advisory_lock_or_fail
+  counter:
+    backend: redis
+    on_unavailable:
+      single: local
+      multi: fail_closed
+  rate_limit:
+    policies:
+      login_ip:
+        backend: redis
+        on_unavailable: fail_open
+      api_rule:
+        backend: redis
+        on_unavailable: fail_open
+        # 常规 API 基线限流（IP 维度）。消费面=rpc-host 组（内部调用）；
+        # **不覆盖 gateway 组**：网关业务面限流=gateway_app（应用维度，edge ⑦ 步）——
+        # IP 基线在 NAT 下误伤多调用方（2026-11-22 压测裁决：50QPS 实测 71% 429，
+        # 单 IP 天花板≈10QPS 低于合法调用 SLA；关注点分离=API 基线 vs 网关应用配额）。
+      gateway_app:
+        backend: redis
+        # 开放平台应用级限流：HTTP 配额 + gateway WS 上行消息共用本策略名
+        # （semantic 统一），但维度键来源不同、互不串用：
+        #   WS 面维度键 = ws:<appKey>    —— HMAC 认证 principal.ID（authn/hmac.go：
+        #     X-NA-App-Id 的 appKey），realtime/session handleMessage 消费；
+        #   HTTP 面维度键 = <app 行 ID>  —— gw_apps 主键（DB row ID，edge.go 配额判定）。
+        # 两键空间独立（同一应用两键不同、单位不同），禁止互相换算/合并计数。
+        on_unavailable: fail_closed
+      admin_login:
+        backend: redis
+        on_unavailable: fail_open
+      users_login:
+        backend: redis
+        on_unavailable: fail_open
+
+captcha:
+  login_captcha:
+    backend: redis                 # GETDEL 一次性消费（取出即删），多节点共享一致
+    fallback_store: process_memory # 进程内 map（TTL 3min+一次性+容量上限 10k，满=生成拒绝 fail-closed）
+    on_unavailable:
+      single: memory_fallback      # Redis 未配置/启动探活失败 → 进程内存储（ 用户）
+      multi: fail_closed           # Redis 必需（启动 fail-fast）；运行期故障=校验失败拒登录，不降级
+
+session:
+  token_verification:
+    backend: local_jwt          # RS256 公钥本地校验，不依赖 Redis
+    on_unavailable: allow
+  token_revocation:
+    backend: redis
+    read_fallback: db
+    on_unavailable:
+      single: db_fallback_or_fail
+      multi: fail_closed
+  refresh_rotation:
+    backend: redis
+    on_unavailable:
+      single: fail_closed
+      multi: fail_closed
+  session_store:
+    backend: redis
+    read_fallback: db
+    on_unavailable:
+      single: db_fallback_or_fail
+      multi: fail_closed
+
+bus:
+  single:
+    driver: memory
+    on_unavailable: local
+  multi:
+    driver: redis
+    on_unavailable: fail_fast
+
+degraded_modes:
+  - NORMAL
+  - L2_DEGRADED
+  - L1_DEGRADED
+  - CACHE_BYPASS
+  - COORDINATION_DEGRADED
+  - SESSION_DEGRADED
+  - BUS_DEGRADED
